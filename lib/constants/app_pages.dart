@@ -2,9 +2,10 @@ import 'package:get/get.dart';
 import '../views/attendance/attendance_binding.dart';
 import '../views/attendance/attendance_history_screen.dart';
 import '../views/chat/chat_screen.dart';
+import '../views/complain_module/complain_module_binding.dart';
+import '../views/complain_module/complain_module_screen.dart';
 import '../views/complain_solver/complain_admin_detail_screen.dart';
 import '../views/complain_solver/complain_solver_binding.dart';
-import '../views/complain_solver/complain_solver_screen.dart';
 import '../views/complaints/add_complaint_screen.dart';
 import '../views/complaints/complaint_detail_screen.dart';
 import '../views/complaints/complaints_binding.dart';
@@ -139,8 +140,8 @@ class AppPages {
     // Complaint solver module (complainsolver/admin/warden shared)
     GetPage(
       name: Routes.complainSolverModule,
-      page: () => const ComplainSolverScreen(),
-      binding: ComplainSolverBinding(),
+      page: () => const ComplainModuleScreen(),
+      binding: ComplainModuleBinding(),
     ),
     GetPage(
       name: Routes.complainAdminDetail,

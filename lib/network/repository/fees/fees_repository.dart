@@ -1,10 +1,15 @@
+import 'package:dio/dio.dart';
+import 'package:get/get.dart';
 import '../../../common_enums/payment_type.dart';
 import '../../../common_enums/transaction_status.dart';
 import '../../../constants/app_config.dart';
+import '../../api_client.dart';
 import '../../request/fees/submit_payment_request.dart';
 import '../../responses/fees/fee_responses.dart';
 
 class FeesRepository {
+  final Dio _dio = Get.find<ApiClient>().dio;
+
   final List<FeeTransactionResponse> _transactions = [
     FeeTransactionResponse(
       id: 'txn-1',
@@ -25,9 +30,33 @@ class FeesRepository {
     ),
   ];
 
-  Future<String> resolveAadhar() async {
-    await Future.delayed(AppConfig.mockNetworkDelay);
-    return '123456789012';
+  /// Bootstrap aadhar resolver — `GET /fees/summary` also happens to be the
+  /// endpoint the JWT's student aadhar comes back on (API_HANDOFF.md §8.1),
+  /// so this doubles as the primary source for [AadharResolvingMixin].
+  /// Returns `null` on failure rather than throwing — the mixin falls back
+  /// to the laundry-balance call.
+  Future<String?> resolveAadhar() async {
+    try {
+      final response = await _dio.get('/fees/summary');
+      final data = response.data;
+      if (data is Map<String, dynamic>) {
+        final payload = data['data'];
+        if (payload is Map<String, dynamic>) {
+          final summary = payload['summary'];
+          if (summary is Map<String, dynamic>) {
+            final aadhar = summary['aadhar']?.toString();
+            if (aadhar != null && aadhar.isNotEmpty) {
+              return aadhar;
+            }
+          }
+        }
+      }
+      return null;
+    } on DioException {
+      return null;
+    } catch (_) {
+      return null;
+    }
   }
 
   Future<FeeSummaryResponse> summary() async {

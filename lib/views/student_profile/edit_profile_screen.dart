@@ -48,16 +48,19 @@ class EditProfileScreen extends GetView<EditProfileController> {
             AppTextField(
               controller: controller.firstNameController,
               label: 'First Name',
+              enabled: controller.isEditable('firstName'),
             ),
             const SizedBox(height: AppDimens.gapMd),
             AppTextField(
               controller: controller.middleNameController,
               label: 'Middle Name',
+              enabled: controller.isEditable('middleName'),
             ),
             const SizedBox(height: AppDimens.gapMd),
             AppTextField(
               controller: controller.lastNameController,
               label: 'Last Name',
+              enabled: controller.isEditable('lastName'),
             ),
             const SizedBox(height: AppDimens.gapMd),
             AppTextField(

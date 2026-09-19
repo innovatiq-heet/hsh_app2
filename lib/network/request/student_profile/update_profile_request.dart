@@ -1,9 +1,8 @@
 /// Only fields a student is allowed to self-edit are sent here — see
-/// StudentProfileModel.studentBlockedFields for what's excluded.
+/// StudentProfileModel.studentBlockedFields for what's excluded. Notably,
+/// this doesn't include name fields: the backend's update allow-list
+/// (API_HANDOFF.md §5.2) doesn't mention them either.
 class UpdateProfileRequest {
-  final String firstName;
-  final String middleName;
-  final String lastName;
   final String phone;
   final String whatsappNumber;
   final String bloodGroup;
@@ -20,9 +19,6 @@ class UpdateProfileRequest {
   final String vehicleNumber;
 
   const UpdateProfileRequest({
-    required this.firstName,
-    required this.middleName,
-    required this.lastName,
     required this.phone,
     required this.whatsappNumber,
     required this.bloodGroup,
@@ -38,4 +34,22 @@ class UpdateProfileRequest {
     required this.goesToGym,
     required this.vehicleNumber,
   });
+
+  /// Keys match exactly what `PATCH /students/:aadhar` accepts.
+  Map<String, dynamic> toJson() => {
+    'whatsAppNumber': whatsappNumber,
+    'phone': phone,
+    'address': address,
+    'pinCode': pinCode,
+    'bloodGroup': bloodGroup,
+    'fatherFirstName': fatherFirstName,
+    'fatherPhone': fatherPhone,
+    'fatherProfession': fatherProfession,
+    'motherFirstName': motherFirstName,
+    'motherPhone': motherPhone,
+    'cricket': playsCricket,
+    'badminton': playsBadminton,
+    'gym': goesToGym,
+    'vehicleNumber': vehicleNumber,
+  };
 }

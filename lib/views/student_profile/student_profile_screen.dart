@@ -25,12 +25,12 @@ class StudentProfileScreen extends GetView<StudentProfileController> {
           isLoading: controller.isLoading.value,
           hasError: controller.hasError.value,
           errorMessage: controller.errorMessage.value,
-          onRetry: controller.loadProfile,
+          onRetry: controller.refreshProfile,
           builder: (context) {
             final profile = controller.profile.value;
             if (profile == null) return const SizedBox.shrink();
             return RefreshIndicator(
-              onRefresh: controller.loadProfile,
+              onRefresh: controller.refreshProfile,
               child: ListView(
                 padding: EdgeInsets.zero,
                 children: [
@@ -141,10 +141,13 @@ class StudentProfileScreen extends GetView<StudentProfileController> {
       floatingActionButton: FloatingActionButton.extended(
         // Tabs share one route via IndexedStack; default hero tags would collide.
         heroTag: null,
-        onPressed: () => Get.toNamed(
-          Routes.studentProfileEdit,
-          arguments: controller.profile.value,
-        ),
+        onPressed: () =>
+            Get.toNamed(
+              Routes.studentProfileEdit,
+              arguments: controller.profile.value,
+            )?.then((saved) {
+              if (saved == true) controller.refreshProfile();
+            }),
         icon: const Icon(Icons.edit_rounded),
         label: const Text('Edit profile'),
       ),

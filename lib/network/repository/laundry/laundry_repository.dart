@@ -39,10 +39,16 @@ class LaundryRepository {
       }
       return LaundryTicketModel.fromJson(ticketData);
     } on DioException catch (e) {
-      developer.log('POST /laundry error: ${e.message}', name: 'LaundryRepository');
+      developer.log(
+        'POST /laundry error: ${e.message}',
+        name: 'LaundryRepository',
+      );
       throw ApiException(_message(e), statusCode: e.response?.statusCode);
     } catch (e) {
-      developer.log('POST /laundry parsing error: $e', name: 'LaundryRepository');
+      developer.log(
+        'POST /laundry parsing error: $e',
+        name: 'LaundryRepository',
+      );
       throw ApiException('Failed to parse ticket data: $e');
     }
   }
@@ -55,10 +61,16 @@ class LaundryRepository {
       final response = await _dio.get('/laundry', queryParameters: query);
       return _extractTicketList(response.data);
     } on DioException catch (e) {
-      developer.log('GET /laundry error: ${e.message}', name: 'LaundryRepository');
+      developer.log(
+        'GET /laundry error: ${e.message}',
+        name: 'LaundryRepository',
+      );
       throw ApiException(_message(e), statusCode: e.response?.statusCode);
     } catch (e) {
-      developer.log('GET /laundry parsing error: $e', name: 'LaundryRepository');
+      developer.log(
+        'GET /laundry parsing error: $e',
+        name: 'LaundryRepository',
+      );
       throw ApiException('Failed to load tickets: $e');
     }
   }
@@ -81,10 +93,16 @@ class LaundryRepository {
       }
       return LaundryTicketModel.fromJson(ticketData);
     } on DioException catch (e) {
-      developer.log('GET /laundry/$id error: ${e.message}', name: 'LaundryRepository');
+      developer.log(
+        'GET /laundry/$id error: ${e.message}',
+        name: 'LaundryRepository',
+      );
       throw ApiException(_message(e), statusCode: e.response?.statusCode);
     } catch (e) {
-      developer.log('GET /laundry/$id parsing error: $e', name: 'LaundryRepository');
+      developer.log(
+        'GET /laundry/$id parsing error: $e',
+        name: 'LaundryRepository',
+      );
       throw ApiException('Failed to load ticket details: $e');
     }
   }
@@ -94,8 +112,10 @@ class LaundryRepository {
     try {
       final query = <String, dynamic>{};
       if (aadhar != null && aadhar.isNotEmpty) query['aadhar'] = aadhar;
-      final response =
-          await _dio.get('/laundry/balance', queryParameters: query);
+      final response = await _dio.get(
+        '/laundry/balance',
+        queryParameters: query,
+      );
       final body = response.data;
       Map<String, dynamic> balData;
       if (body is Map<String, dynamic>) {
@@ -110,10 +130,16 @@ class LaundryRepository {
       }
       return LaundryBalanceModel.fromJson(balData);
     } on DioException catch (e) {
-      developer.log('GET /laundry/balance error: ${e.message}', name: 'LaundryRepository');
+      developer.log(
+        'GET /laundry/balance error: ${e.message}',
+        name: 'LaundryRepository',
+      );
       throw ApiException(_message(e), statusCode: e.response?.statusCode);
     } catch (e) {
-      developer.log('GET /laundry/balance parsing error: $e', name: 'LaundryRepository');
+      developer.log(
+        'GET /laundry/balance parsing error: $e',
+        name: 'LaundryRepository',
+      );
       throw ApiException('Failed to load laundry balance: $e');
     }
   }
@@ -132,10 +158,16 @@ class LaundryRepository {
       final response = await _dio.get('/laundry/admin', queryParameters: query);
       return _extractTicketList(response.data);
     } on DioException catch (e) {
-      developer.log('GET /laundry/admin error: ${e.message}', name: 'LaundryRepository');
+      developer.log(
+        'GET /laundry/admin error: ${e.message}',
+        name: 'LaundryRepository',
+      );
       throw ApiException(_message(e), statusCode: e.response?.statusCode);
     } catch (e) {
-      developer.log('GET /laundry/admin parsing error: $e', name: 'LaundryRepository');
+      developer.log(
+        'GET /laundry/admin parsing error: $e',
+        name: 'LaundryRepository',
+      );
       throw ApiException('Failed to load laundry orders: $e');
     }
   }
@@ -239,7 +271,8 @@ class LaundryRepository {
         if (data is List) {
           rawList = data;
         } else if (data is Map) {
-          rawList = data['recharges'] ??
+          rawList =
+              data['recharges'] ??
               data['history'] ??
               data['items'] ??
               data['transactions'];
@@ -249,8 +282,9 @@ class LaundryRepository {
       }
       if (rawList is List) {
         return rawList
-            .map((e) =>
-                LaundryRechargeModel.fromJson(e as Map<String, dynamic>))
+            .map(
+              (e) => LaundryRechargeModel.fromJson(e as Map<String, dynamic>),
+            )
             .toList();
       }
       return [];
@@ -279,10 +313,7 @@ class LaundryRepository {
       LaundryStatus.values.length - 1,
     );
     final next = LaundryStatus.values[nextIndex];
-    return updateTicket(
-      ticketId,
-      UpdateLaundryTicketRequest(status: next),
-    );
+    return updateTicket(ticketId, UpdateLaundryTicketRequest(status: next));
   }
 
   List<LaundryTicketModel> _extractTicketList(dynamic body) {
@@ -294,7 +325,8 @@ class LaundryRepository {
       if (data is List) {
         rawList = data;
       } else if (data is Map) {
-        rawList = data['laundry'] ??
+        rawList =
+            data['laundry'] ??
             data['tickets'] ??
             data['orders'] ??
             data['items'] ??
@@ -305,8 +337,7 @@ class LaundryRepository {
     }
     if (rawList is List) {
       return rawList
-          .map((e) =>
-              LaundryTicketModel.fromJson(e as Map<String, dynamic>))
+          .map((e) => LaundryTicketModel.fromJson(e as Map<String, dynamic>))
           .toList();
     }
     return [];

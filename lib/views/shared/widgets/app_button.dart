@@ -74,16 +74,7 @@ class AppButton extends StatelessWidget {
       ),
     };
 
-    return expand
-        ? LayoutBuilder(
-            builder: (context, constraints) {
-              if (!constraints.hasBoundedWidth) {
-                return button;
-              }
-              return SizedBox(width: double.infinity, child: button);
-            },
-          )
-        : button;
+    return button;
   }
 
   Widget _content(Color color) {
@@ -127,47 +118,44 @@ class _FilledGradientButton extends StatelessWidget {
   Widget build(BuildContext context) {
     final enabled = onPressed != null;
     final radius = BorderRadius.circular(AppDimens.radiusMd);
-    return LayoutBuilder(
-      builder: (context, constraints) {
-        final shouldExpand = expand && constraints.hasBoundedWidth;
-        return AnimatedOpacity(
-          duration: const Duration(milliseconds: 150),
-          opacity: enabled ? 1 : 0.6,
-          child: DecoratedBox(
-            decoration: BoxDecoration(
-              gradient: gradient,
-              borderRadius: radius,
-              boxShadow: enabled
-                  ? [
-                      BoxShadow(
-                        color: glow.withValues(alpha: 0.32),
-                        blurRadius: 18,
-                        offset: const Offset(0, 8),
-                      ),
-                    ]
-                  : null,
-            ),
-            child: Material(
-              color: Colors.transparent,
-              borderRadius: radius,
-              clipBehavior: Clip.antiAlias,
-              child: InkWell(
-                onTap: onPressed,
-                child: SizedBox(
-                  height: AppDimens.buttonHeight,
-                  child: Padding(
-                    padding: const EdgeInsets.symmetric(horizontal: 24),
-                    child: Center(
-                      widthFactor: shouldExpand ? null : 1,
-                      child: child,
-                    ),
+
+    return AnimatedOpacity(
+      duration: const Duration(milliseconds: 150),
+      opacity: enabled ? 1 : 0.6,
+      child: DecoratedBox(
+        decoration: BoxDecoration(
+          gradient: gradient,
+          borderRadius: radius,
+          boxShadow: enabled
+              ? [
+                  BoxShadow(
+                    color: glow.withValues(alpha: 0.32),
+                    blurRadius: 18,
+                    offset: const Offset(0, 8),
                   ),
+                ]
+              : null,
+        ),
+        child: Material(
+          color: Colors.transparent,
+          borderRadius: radius,
+          clipBehavior: Clip.antiAlias,
+          child: InkWell(
+            onTap: onPressed,
+            child: SizedBox(
+              width: expand ? double.infinity : null,
+              height: AppDimens.buttonHeight,
+              child: Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 24),
+                child: Center(
+                  widthFactor: expand ? null : 1,
+                  child: child,
                 ),
               ),
             ),
           ),
-        );
-      },
+        ),
+      ),
     );
   }
 }

@@ -7,7 +7,7 @@ class LaundryTicketDetailController extends GetxController {
   late final String ticketId = Get.arguments as String;
 
   final isLoading = true.obs;
-  final ticket = Rxn<LaundryTicketResponse>();
+  final ticket = Rxn<LaundryTicketModel>();
 
   @override
   void onInit() {

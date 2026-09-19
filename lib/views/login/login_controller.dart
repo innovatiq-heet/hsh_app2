@@ -73,6 +73,7 @@ class LoginController extends GetxController {
       case UserRole.warden:
         Get.offAllNamed(Routes.operatorShell);
         break;
+      case UserRole.laundry:
       case UserRole.staff:
         Get.offAllNamed(Routes.laundryModule);
         break;

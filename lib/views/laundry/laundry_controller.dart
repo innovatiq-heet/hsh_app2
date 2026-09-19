@@ -15,6 +15,14 @@ class LaundryController extends GetxController with LoadStateMixin {
   final tickets = <LaundryTicketModel>[].obs;
   final selectedStatusFilter = Rxn<LaundryStatus>();
 
+  int get activeCount =>
+      tickets.where((t) => t.status != LaundryStatus.received).length;
+
+  int countForStatus(LaundryStatus? status) {
+    if (status == null) return tickets.length;
+    return tickets.where((t) => t.status == status).length;
+  }
+
   List<LaundryTicketModel> get filteredTickets {
     if (selectedStatusFilter.value == null) return tickets;
     return tickets.where((t) => t.status == selectedStatusFilter.value).toList();

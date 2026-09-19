@@ -30,10 +30,6 @@ class LaundryScreen extends GetView<LaundryController> {
           errorMessage: controller.errorMessage.value,
           onRetry: controller.load,
           builder: (context) {
-            final active = controller.tickets
-                .where((t) => t.status != LaundryStatus.received)
-                .length;
-            final displayedTickets = controller.filteredTickets;
             return RefreshIndicator(
               onRefresh: controller.load,
               child: ListView(
@@ -70,7 +66,7 @@ class LaundryScreen extends GetView<LaundryController> {
                             ),
                             HeaderPill(
                               icon: Icons.autorenew_rounded,
-                              label: '$active in progress',
+                              label: '${controller.activeCount} in progress',
                             ),
                           ],
                         ),
@@ -151,62 +147,72 @@ class LaundryScreen extends GetView<LaundryController> {
                       AppDimens.screenPadding,
                       100,
                     ),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.stretch,
-                      children: [
-                        // Status Filter Chips
-                        SingleChildScrollView(
-                          scrollDirection: Axis.horizontal,
-                          child: Row(
-                            children: [
-                              ChoiceChip(
-                                label: const Text('All'),
-                                selected:
-                                    controller.selectedStatusFilter.value ==
-                                        null,
-                                onSelected: (_) => controller.setFilter(null),
-                              ),
-                              const SizedBox(width: AppDimens.gapSm),
-                              ...LaundryStatus.values.map(
-                                (s) => Padding(
-                                  padding: const EdgeInsets.only(
-                                    right: AppDimens.gapSm,
-                                  ),
-                                  child: ChoiceChip(
-                                    label: Text(s.label),
-                                    selected:
-                                        controller.selectedStatusFilter.value ==
-                                            s,
-                                    onSelected: (_) =>
-                                        controller.setFilter(s),
+                    child: Obx(() {
+                      final displayedTickets = controller.filteredTickets;
+                      final currentFilter =
+                          controller.selectedStatusFilter.value;
+                      return Column(
+                        crossAxisAlignment: CrossAxisAlignment.stretch,
+                        children: [
+                          // Status Filter Chips
+                          SingleChildScrollView(
+                            scrollDirection: Axis.horizontal,
+                            child: Row(
+                              children: [
+                                _FilterChip(
+                                  label: 'All',
+                                  count: controller.tickets.length,
+                                  isSelected: currentFilter == null,
+                                  onSelected: () => controller.setFilter(null),
+                                ),
+                                const SizedBox(width: AppDimens.gapSm),
+                                ...LaundryStatus.values.map(
+                                  (s) => Padding(
+                                    padding: const EdgeInsets.only(
+                                      right: AppDimens.gapSm,
+                                    ),
+                                    child: _FilterChip(
+                                      label: s.label,
+                                      count: controller.countForStatus(s),
+                                      isSelected: currentFilter == s,
+                                      statusColor: s.color,
+                                      onSelected: () =>
+                                          controller.setFilter(s),
+                                    ),
                                   ),
                                 ),
-                              ),
-                            ],
-                          ),
-                        ),
-                        const SizedBox(height: AppDimens.gapLg),
-                        if (displayedTickets.isEmpty)
-                          const EmptyState(
-                            icon: Icons.checkroom_outlined,
-                            title: 'No laundry tickets found',
-                            message:
-                                'Drop your clothes off and create a ticket to track them.',
-                          )
-                        else ...[
-                          SectionHeader(
-                            title: 'Your tickets (${displayedTickets.length})',
-                          ),
-                          for (final t in displayedTickets)
-                            Padding(
-                              padding: const EdgeInsets.only(
-                                bottom: AppDimens.gapMd,
-                              ),
-                              child: _TicketCard(ticket: t),
+                              ],
                             ),
+                          ),
+                          const SizedBox(height: AppDimens.gapLg),
+                          if (displayedTickets.isEmpty)
+                            EmptyState(
+                              icon: Icons.checkroom_outlined,
+                              title: currentFilter == null
+                                  ? 'No laundry tickets found'
+                                  : 'No ${currentFilter.label.toLowerCase()} tickets',
+                              message: currentFilter == null
+                                  ? 'Drop your clothes off and create a ticket to track them.'
+                                  : 'You currently have no tickets marked as ${currentFilter.label}.',
+                            )
+                          else ...[
+                            SectionHeader(
+                              title: currentFilter == null
+                                  ? 'Your tickets (${displayedTickets.length})'
+                                  : '${currentFilter.label} tickets (${displayedTickets.length})',
+                            ),
+                            const SizedBox(height: AppDimens.gapSm),
+                            for (final t in displayedTickets)
+                              Padding(
+                                padding: const EdgeInsets.only(
+                                  bottom: AppDimens.gapMd,
+                                ),
+                                child: _TicketCard(ticket: t),
+                              ),
+                          ],
                         ],
-                      ],
-                    ),
+                      );
+                    }),
                   ),
                 ],
               ),
@@ -374,3 +380,86 @@ class _StageBar extends StatelessWidget {
     );
   }
 }
+
+class _FilterChip extends StatelessWidget {
+  final String label;
+  final int count;
+  final bool isSelected;
+  final VoidCallback onSelected;
+  final Color? statusColor;
+
+  const _FilterChip({
+    required this.label,
+    required this.count,
+    required this.isSelected,
+    required this.onSelected,
+    this.statusColor,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final activeBg = isSelected ? AppColors.primary : AppColors.surfaceMuted;
+    final activeText = isSelected ? Colors.white : AppColors.textPrimary;
+    final countBg = isSelected
+        ? Colors.white.withValues(alpha: 0.22)
+        : AppColors.border;
+
+    return Material(
+      color: activeBg,
+      borderRadius: BorderRadius.circular(AppDimens.radiusPill),
+      child: InkWell(
+        borderRadius: BorderRadius.circular(AppDimens.radiusPill),
+        onTap: onSelected,
+        child: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(AppDimens.radiusPill),
+            border: Border.all(
+              color: isSelected ? AppColors.primary : AppColors.border,
+            ),
+          ),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              if (statusColor != null) ...[
+                Container(
+                  width: 8,
+                  height: 8,
+                  decoration: BoxDecoration(
+                    color: statusColor,
+                    shape: BoxShape.circle,
+                  ),
+                ),
+                const SizedBox(width: 6),
+              ],
+              Text(
+                label,
+                style: AppTextStyles.label.copyWith(
+                  color: activeText,
+                  fontWeight: isSelected ? FontWeight.w700 : FontWeight.w500,
+                ),
+              ),
+              const SizedBox(width: 6),
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                decoration: BoxDecoration(
+                  color: countBg,
+                  borderRadius: BorderRadius.circular(AppDimens.radiusPill),
+                ),
+                child: Text(
+                  '$count',
+                  style: AppTextStyles.caption.copyWith(
+                    color: activeText,
+                    fontSize: 11,
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+

@@ -1,0 +1,8 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(flutter pub *)",
+      "Bash(curl -s https://pub.dev/api/packages/isar_generator)"
+    ]
+  }
+}

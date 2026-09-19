@@ -1,0 +1,54 @@
+name: hsh_app2
+description: "Hari Saurabh Hostel App"
+publish_to: 'none'
+
+version: 1.0.0+1
+
+environment:
+  sdk: ^3.11.4
+
+dependencies:
+  flutter:
+    sdk: flutter
+
+  cupertino_icons: ^1.0.8
+
+  # State management + routing
+  get: ^4.7.3
+
+  # Networking (repositories are mocked for now, wired for real API later)
+  dio: ^5.8.0+1
+
+  # Secure token storage + cached session/aadhar
+  flutter_secure_storage: ^9.2.4
+
+  # Media / scanning
+  image_picker: ^1.1.2
+  mobile_scanner: ^5.2.3
+
+  # Notes (local rich text)
+  appflowy_editor: ^6.2.0
+
+  # Charts (laundry/fees stats)
+  fl_chart: ^1.0.0
+
+  # Dates
+  intl: ^0.20.2
+
+  # Markdown rendering
+  flutter_markdown: ^0.7.7+1
+
+  # Typography without bundling font files
+  google_fonts: ^6.2.1
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+
+  flutter_lints: ^6.0.0
+
+flutter:
+  uses-material-design: true
+
+  assets:
+    - assets/images/

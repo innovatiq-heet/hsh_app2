@@ -13,6 +13,27 @@ class AddLeaveController extends GetxController {
   final Rxn<DateTime> endTime = Rxn<DateTime>();
   final isSaving = false.obs;
 
+  Duration? get duration {
+    if (startTime.value == null || endTime.value == null) return null;
+    return endTime.value!.difference(startTime.value!);
+  }
+
+  String? get durationText {
+    final d = duration;
+    if (d == null) return null;
+    if (d.isNegative) return 'Invalid duration';
+    final days = (d.inHours / 24).ceil();
+    if (days <= 1) {
+      if (d.inHours > 0) return '${d.inHours}h Outing';
+      return 'Same Day';
+    }
+    return '$days Days';
+  }
+
+  void setQuickReason(String reason) {
+    reasonController.text = reason;
+  }
+
   @override
   void onClose() {
     reasonController.dispose();

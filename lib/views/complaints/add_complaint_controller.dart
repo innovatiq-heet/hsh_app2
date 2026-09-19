@@ -40,15 +40,21 @@ class AddComplaintController extends GetxController with AadharResolvingMixin {
     if (categories.isNotEmpty) selectedCategory.value = categories.first;
   }
 
-  Future<void> pickImage() async {
+  Future<void> pickImage() => pickImageFromSource(ImageSource.gallery);
+
+  Future<void> pickImageFromSource(ImageSource source) async {
     final picked = await ImagePicker().pickImage(
-      source: ImageSource.gallery,
+      source: source,
       imageQuality: 80,
     );
     if (picked != null) images.add(File(picked.path));
   }
 
   void removeImage(int index) => images.removeAt(index);
+
+  void setQuickTitle(String title) {
+    titleController.text = title;
+  }
 
   Future<bool> submit() async {
     if (!formKey.currentState!.validate()) return false;

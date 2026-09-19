@@ -30,8 +30,7 @@ class ComplainManagementController extends GetxController {
   @override
   void onInit() {
     super.onInit();
-    // Default search with room A-204 for immediate rich preview
-    searchRoom('A-204');
+    loadAll();
   }
 
   @override
@@ -42,20 +41,35 @@ class ComplainManagementController extends GetxController {
     super.onClose();
   }
 
+  Future<void> loadAll() async {
+    isSearching.value = true;
+    try {
+      searchedRoom.value = '';
+      final all = await _repository.adminComplaints();
+      searchedComplaints.assignAll(all);
+      selectedComplaint.value =
+          searchedComplaints.isNotEmpty ? searchedComplaints.first : null;
+    } catch (e) {
+      Get.snackbar('Load Failed', 'Could not load complaints: $e');
+    } finally {
+      isSearching.value = false;
+    }
+  }
+
   Future<void> searchRoom(String query) async {
     final clean = query.trim();
-    if (clean.isEmpty) return;
+    if (clean.isEmpty) {
+      await loadAll();
+      return;
+    }
 
     isSearching.value = true;
     try {
       searchedRoom.value = clean.toUpperCase();
       final all = await _repository.adminComplaints(room: clean);
       searchedComplaints.assignAll(all);
-      if (searchedComplaints.isNotEmpty) {
-        selectedComplaint.value = searchedComplaints.first;
-      } else {
-        selectedComplaint.value = null;
-      }
+      selectedComplaint.value =
+          searchedComplaints.isNotEmpty ? searchedComplaints.first : null;
     } catch (e) {
       Get.snackbar('Search Failed', 'Could not load room history: $e');
     } finally {
@@ -66,7 +80,7 @@ class ComplainManagementController extends GetxController {
   void selectBlock(String block) {
     selectedBlock.value = block;
     if (block == 'All') {
-      searchRoom('A-204');
+      loadAll();
     } else {
       final prefix = block.split('-').first;
       searchRoom(prefix);

@@ -2,7 +2,6 @@ import 'dart:developer' as developer;
 import 'package:dio/dio.dart';
 import 'package:get/get.dart' hide FormData, MultipartFile;
 import '../../../common_enums/complaint_status.dart';
-import '../../../common_models/attachments/attachment_model.dart';
 import '../../api_client.dart';
 import '../../api_exception.dart';
 import '../../request/complaints/submit_complaint_request.dart';
@@ -12,114 +11,40 @@ import '../../responses/complaints/complaint_response.dart';
 class ComplaintsRepository {
   Dio get _dio => Get.find<ApiClient>().dio;
 
-  final List<ComplaintResponse> _complaints = [
-    ComplaintResponse(
-      id: 'c1',
-      studentAadhar: '123456789012',
-      studentName: 'Krutarth Solanki',
-      room: 'A-204',
-      category: 'Electrical',
-      title: 'Fan regulator broken & ceiling fan jerky',
-      description:
-          'The ceiling fan regulator in room A-204 is completely jammed at full speed, and the fan makes loud humming noises.',
-      status: ComplaintStatus.pending,
-      submittedAt: DateTime.now().toUtc().subtract(const Duration(hours: 3)),
-      phone: '+91 98765 43210',
-      imagesCount: 2,
-    ),
-    ComplaintResponse(
-      id: 'c2',
-      studentAadhar: '234567890123',
-      studentName: 'Aarav Patel',
-      room: 'B-105',
-      category: 'Plumbing',
-      title: 'Washroom tap leaking continuously',
-      description:
-          'The sink tap in the washroom cannot be closed tightly and has been dripping water constantly for 2 days.',
-      status: ComplaintStatus.reviewed,
-      submittedAt: DateTime.now().toUtc().subtract(const Duration(days: 1, hours: 4)),
-      review: 'Plumber Mahendra assigned. Inspection scheduled today at 4:30 PM.',
-      reviewTime: DateTime.now().toUtc().subtract(const Duration(hours: 5)),
-      phone: '+91 98234 56789',
-      imagesCount: 1,
-    ),
-    ComplaintResponse(
-      id: 'c3',
-      studentAadhar: '345678901234',
-      studentName: 'Rohan Sharma',
-      room: 'A-204',
-      category: 'Furniture',
-      title: 'Study table drawer slider stuck',
-      description: 'The right side drawer rail came off its hinges and won\'t close completely.',
-      status: ComplaintStatus.resolved,
-      submittedAt: DateTime.now().toUtc().subtract(const Duration(days: 4)),
-      review: 'Carpenter inspected and ordered replacement slider.',
-      reviewTime: DateTime.now().toUtc().subtract(const Duration(days: 3)),
-      feedback: 'Replaced rail sliders and tightened drawer brackets. Tested and working smoothly.',
-      resolveTime: DateTime.now().toUtc().subtract(const Duration(days: 2)),
-      phone: '+91 97123 45678',
-      imagesCount: 0,
-    ),
-    ComplaintResponse(
-      id: 'c4',
-      studentAadhar: '456789012345',
-      studentName: 'Devang Joshi',
-      room: 'C-302',
-      category: 'Internet/Wifi',
-      title: 'No Wi-Fi signal in C-Block corridor',
-      description:
-          'Repeated disconnection and low RSSI near room C-302. Access point LED shows blinking amber.',
-      status: ComplaintStatus.pending,
-      submittedAt: DateTime.now().toUtc().subtract(const Duration(hours: 8)),
-      phone: '+91 99012 34567',
-      imagesCount: 1,
-    ),
-    ComplaintResponse(
-      id: 'c5',
-      studentAadhar: '567890123456',
-      studentName: 'Manan Shah',
-      room: 'A-101',
-      category: 'Housekeeping',
-      title: 'Window glass panel dirty & spider cobwebs',
-      description: 'Outer window mesh has torn and dust accumulation needs deep cleaning.',
-      status: ComplaintStatus.reviewed,
-      submittedAt: DateTime.now().toUtc().subtract(const Duration(days: 2)),
-      review: 'Housekeeping supervisor Ravi instructed to assign morning shift crew.',
-      reviewTime: DateTime.now().toUtc().subtract(const Duration(days: 1)),
-      phone: '+91 91234 56780',
-      imagesCount: 1,
-    ),
-    ComplaintResponse(
-      id: 'c6',
-      studentAadhar: '678901234567',
-      studentName: 'Harshil Mehta',
-      room: 'B-208',
-      category: 'Plumbing',
-      title: 'Hot water geyser tripping MCB',
-      description: 'Whenever geyser switch is toggled, main MCB trips immediately. Possible short circuit.',
-      status: ComplaintStatus.resolved,
-      submittedAt: DateTime.now().toUtc().subtract(const Duration(days: 6)),
-      review: 'High priority electrical & plumbing check assigned.',
-      reviewTime: DateTime.now().toUtc().subtract(const Duration(days: 5)),
-      feedback: 'Geyser heating element was corroded causing earth fault. Element replaced with genuine 2kW spare.',
-      resolveTime: DateTime.now().toUtc().subtract(const Duration(days: 4)),
-      phone: '+91 93456 78901',
-      imagesCount: 2,
-    ),
-  ];
+  String _message(DioException e) {
+    final data = e.response?.data;
+    if (data is Map && data['message'] is String) {
+      return data['message'] as String;
+    }
+    return e.message ??
+        'Server communication error. Please check your network connection.';
+  }
 
-  // --- Categories ---
+  // --- Categories (GET /complains/categories) ---
   Future<List<String>> categories() async {
     try {
       final response = await _dio.get('/complains/categories');
       final data = response.data;
-      if (data is Map && data['data'] is Map && data['data']['categories'] is List) {
-        return (data['data']['categories'] as List).map((e) => e.toString()).toList();
+      if (data is Map &&
+          data['data'] is Map &&
+          data['data']['categories'] is List) {
+        return (data['data']['categories'] as List)
+            .map((e) => e.toString())
+            .toList();
       }
+    } on DioException catch (e) {
+      developer.log(
+        'GET /complains/categories error: ${e.message}',
+        name: 'ComplaintsRepository',
+      );
+      throw ApiException(_message(e), statusCode: e.response?.statusCode);
     } catch (e) {
-      developer.log('GET /complains/categories fallback: $e', name: 'ComplaintsRepository');
+      developer.log(
+        'GET /complains/categories error: $e',
+        name: 'ComplaintsRepository',
+      );
     }
-    return [
+    return const [
       'Electrical',
       'Plumbing',
       'Furniture',
@@ -129,20 +54,31 @@ class ComplaintsRepository {
     ];
   }
 
-  // --- List Own Complaints (Student) ---
+  // --- List Own Complaints (Student: GET /complains) ---
   Future<List<ComplaintResponse>> list({String? studentAadhar}) async {
     try {
-      final response = await _dio.get('/complains');
-      final list = _extractComplaintList(response.data);
-      if (list.isNotEmpty) return list;
+      final query = <String, dynamic>{};
+      if (studentAadhar != null && studentAadhar.isNotEmpty) {
+        query['aadhar'] = studentAadhar;
+      }
+      final response = await _dio.get('/complains', queryParameters: query);
+      return _extractComplaintList(response.data);
+    } on DioException catch (e) {
+      developer.log(
+        'GET /complains error: ${e.message}',
+        name: 'ComplaintsRepository',
+      );
+      throw ApiException(_message(e), statusCode: e.response?.statusCode);
     } catch (e) {
-      developer.log('GET /complains fallback: $e', name: 'ComplaintsRepository');
+      developer.log(
+        'GET /complains parsing error: $e',
+        name: 'ComplaintsRepository',
+      );
+      throw ApiException('Failed to load complaints: $e');
     }
-    if (studentAadhar == null) return List.unmodifiable(_complaints);
-    return _complaints.where((c) => c.studentAadhar == studentAadhar).toList();
   }
 
-  // --- List All Complaints (Admin/Solver Desk) ---
+  // --- List All Complaints (Admin/Solver: GET /complains) ---
   Future<List<ComplaintResponse>> adminComplaints({
     ComplaintStatus? status,
     String? room,
@@ -155,26 +91,23 @@ class ComplaintsRepository {
       if (aadhar != null && aadhar.isNotEmpty) query['aadhar'] = aadhar;
 
       final response = await _dio.get('/complains', queryParameters: query);
-      final list = _extractComplaintList(response.data);
-      if (list.isNotEmpty) return list;
+      return _extractComplaintList(response.data);
+    } on DioException catch (e) {
+      developer.log(
+        'GET /complains (admin) error: ${e.message}',
+        name: 'ComplaintsRepository',
+      );
+      throw ApiException(_message(e), statusCode: e.response?.statusCode);
     } catch (e) {
-      developer.log('GET /complains (admin) fallback: $e', name: 'ComplaintsRepository');
+      developer.log(
+        'GET /complains (admin) parsing error: $e',
+        name: 'ComplaintsRepository',
+      );
+      throw ApiException('Failed to load complaints: $e');
     }
-
-    // Fallback to in-memory list
-    return _complaints.where((c) {
-      if (status != null && c.status != status) return false;
-      if (room != null && room.isNotEmpty && !c.room.toLowerCase().contains(room.toLowerCase())) {
-        return false;
-      }
-      if (aadhar != null && aadhar.isNotEmpty && !c.studentAadhar.contains(aadhar)) {
-        return false;
-      }
-      return true;
-    }).toList();
   }
 
-  // --- Detail ---
+  // --- Complaint Details (GET /complains/:id) ---
   Future<ComplaintResponse> detail(String id) async {
     try {
       final response = await _dio.get('/complains/$id');
@@ -185,22 +118,31 @@ class ComplaintsRepository {
           return ComplaintResponse.fromJson(compJson);
         }
       }
+      throw ApiException('Unexpected server response format');
+    } on DioException catch (e) {
+      developer.log(
+        'GET /complains/$id error: ${e.message}',
+        name: 'ComplaintsRepository',
+      );
+      throw ApiException(_message(e), statusCode: e.response?.statusCode);
     } catch (e) {
-      developer.log('GET /complains/$id fallback: $e', name: 'ComplaintsRepository');
+      developer.log(
+        'GET /complains/$id error: $e',
+        name: 'ComplaintsRepository',
+      );
+      throw ApiException('Failed to load complaint details: $e');
     }
-    return _complaints.firstWhere(
-      (c) => c.id == id,
-      orElse: () => _complaints.first,
-    );
   }
 
-  // --- Submit Complaint ---
+  // --- Submit Complaint (POST /complains) ---
   Future<ComplaintResponse> submit(SubmitComplaintRequest request) async {
     try {
       final formData = FormData.fromMap({
         'aadhar': request.studentAadhar,
         'compType': request.category,
-        'compDesc': '${request.title}\n\n${request.description}',
+        'compDesc': request.title.isNotEmpty
+            ? '${request.title}\n\n${request.description}'
+            : request.description,
       });
 
       for (int i = 0; i < request.images.length; i++) {
@@ -215,34 +157,28 @@ class ComplaintsRepository {
 
       final response = await _dio.post('/complains', data: formData);
       final data = response.data;
-      if (data is Map && data['data'] is Map && data['data']['complain'] is Map) {
-        final newComp = ComplaintResponse.fromJson(data['data']['complain']);
-        _complaints.insert(0, newComp);
-        return newComp;
+      if (data is Map &&
+          data['data'] is Map &&
+          data['data']['complain'] is Map) {
+        return ComplaintResponse.fromJson(data['data']['complain']);
       }
+      throw ApiException('Unexpected server response format');
+    } on DioException catch (e) {
+      developer.log(
+        'POST /complains error: ${e.message}',
+        name: 'ComplaintsRepository',
+      );
+      throw ApiException(_message(e), statusCode: e.response?.statusCode);
     } catch (e) {
-      developer.log('POST /complains fallback: $e', name: 'ComplaintsRepository');
+      developer.log(
+        'POST /complains error: $e',
+        name: 'ComplaintsRepository',
+      );
+      throw ApiException('Failed to submit complaint: $e');
     }
-
-    // Mock fallback
-    final complaint = ComplaintResponse(
-      id: 'c${_complaints.length + 1}',
-      studentAadhar: request.studentAadhar,
-      studentName: 'Krutarth Solanki',
-      room: 'A-204',
-      category: request.category,
-      title: request.title,
-      description: request.description,
-      status: ComplaintStatus.pending,
-      submittedAt: DateTime.now().toUtc(),
-      attachments: request.images.map((f) => AttachmentModel(file: f)).toList(),
-      imagesCount: request.images.length,
-    );
-    _complaints.insert(0, complaint);
-    return complaint;
   }
 
-  // --- Update Complaint (Admin/Solver) ---
+  // --- Update Complaint (PATCH /complains/:id) ---
   Future<ComplaintResponse> updateComplaint(
     String id,
     UpdateComplaintRequest request,
@@ -253,40 +189,38 @@ class ComplaintsRepository {
         data: request.toJson(),
       );
       final data = response.data;
-      if (data is Map && data['data'] is Map && data['data']['complain'] is Map) {
-        final updated = ComplaintResponse.fromJson(data['data']['complain']);
-        final idx = _complaints.indexWhere((c) => c.id == id);
-        if (idx != -1) _complaints[idx] = updated;
-        return updated;
+      if (data is Map &&
+          data['data'] is Map &&
+          data['data']['complain'] is Map) {
+        return ComplaintResponse.fromJson(data['data']['complain']);
       }
+      throw ApiException('Unexpected server response format');
+    } on DioException catch (e) {
+      developer.log(
+        'PATCH /complains/$id error: ${e.message}',
+        name: 'ComplaintsRepository',
+      );
+      throw ApiException(_message(e), statusCode: e.response?.statusCode);
     } catch (e) {
-      developer.log('PATCH /complains/$id fallback: $e', name: 'ComplaintsRepository');
+      developer.log(
+        'PATCH /complains/$id error: $e',
+        name: 'ComplaintsRepository',
+      );
+      throw ApiException('Failed to update complaint: $e');
     }
-
-    // In-memory update
-    final index = _complaints.indexWhere((c) => c.id == id);
-    if (index == -1) throw ApiException('Complaint not found');
-
-    final current = _complaints[index];
-    final updated = current.copyWith(
-      status: request.status ?? current.status,
-      feedback: request.response ?? current.feedback,
-      review: request.review ?? current.review,
-      reviewTime: request.status == ComplaintStatus.reviewed ? DateTime.now() : current.reviewTime,
-      resolveTime: request.status == ComplaintStatus.resolved ? DateTime.now() : current.resolveTime,
-    );
-    _complaints[index] = updated;
-    return updated;
   }
 
-  // --- Delete Complaint (Admin) ---
+  // --- Delete Complaint (DELETE /complains/:id) ---
   Future<void> deleteComplaint(String id) async {
     try {
       await _dio.delete('/complains/$id');
-    } catch (e) {
-      developer.log('DELETE /complains/$id fallback: $e', name: 'ComplaintsRepository');
+    } on DioException catch (e) {
+      developer.log(
+        'DELETE /complains/$id error: ${e.message}',
+        name: 'ComplaintsRepository',
+      );
+      throw ApiException(_message(e), statusCode: e.response?.statusCode);
     }
-    _complaints.removeWhere((c) => c.id == id);
   }
 
   // --- Backward compatibility helpers ---

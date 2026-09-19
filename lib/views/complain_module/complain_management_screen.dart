@@ -42,7 +42,11 @@ class ComplainManagementScreen extends GetView<ComplainManagementController> {
               tooltip: 'Refresh',
               onPressed: () {
                 final room = controller.queryController.text.trim();
-                controller.searchRoom(room.isNotEmpty ? room : 'A-204');
+                if (room.isNotEmpty) {
+                  controller.searchRoom(room);
+                } else {
+                  controller.loadAll();
+                }
               },
             ),
             HeaderIconButton(

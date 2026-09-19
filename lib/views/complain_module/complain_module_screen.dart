@@ -1,18 +1,18 @@
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import '../../constants/app_colors.dart';
-import 'laundry_home_screen.dart';
-import 'laundry_management_screen.dart';
-import 'laundry_module_controller.dart';
-import 'laundry_orders_screen.dart';
+import 'complain_home_screen.dart';
+import 'complain_management_screen.dart';
+import 'complain_module_controller.dart';
+import 'complain_orders_screen.dart';
 
-class LaundryModuleScreen extends GetView<LaundryModuleController> {
-  const LaundryModuleScreen({super.key});
+class ComplainModuleScreen extends GetView<ComplainModuleController> {
+  const ComplainModuleScreen({super.key});
 
   static const _tabs = [
-    LaundryOrdersScreen(),
-    LaundryManagementScreen(),
-    LaundryHomeScreen(),
+    ComplainOrdersScreen(),
+    ComplainManagementScreen(),
+    ComplainHomeScreen(),
   ];
 
   @override
@@ -40,18 +40,21 @@ class LaundryModuleScreen extends GetView<LaundryModuleController> {
             indicatorColor: AppColors.primarySoft,
             destinations: const [
               NavigationDestination(
-                icon: Icon(Icons.receipt_long_outlined),
-                selectedIcon: Icon(Icons.receipt_long_rounded, color: AppColors.primary),
-                label: 'Orders',
+                icon: Icon(Icons.assignment_outlined),
+                selectedIcon:
+                    Icon(Icons.assignment_rounded, color: AppColors.primary),
+                label: 'Desk',
               ),
               NavigationDestination(
-                icon: Icon(Icons.account_balance_wallet_outlined),
-                selectedIcon: Icon(Icons.account_balance_wallet_rounded, color: AppColors.primary),
-                label: 'Recharge',
+                icon: Icon(Icons.meeting_room_outlined),
+                selectedIcon:
+                    Icon(Icons.meeting_room_rounded, color: AppColors.primary),
+                label: 'Inspect',
               ),
               NavigationDestination(
                 icon: Icon(Icons.insights_outlined),
-                selectedIcon: Icon(Icons.insights_rounded, color: AppColors.primary),
+                selectedIcon:
+                    Icon(Icons.insights_rounded, color: AppColors.primary),
                 label: 'Overview',
               ),
             ],

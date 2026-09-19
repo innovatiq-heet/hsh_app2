@@ -72,10 +72,69 @@ class StudentProfileModel {
     lastName,
   ].where((e) => e.trim().isNotEmpty).join(' ');
 
-  /// Fields a student is never allowed to edit on their own profile (spec
-  /// §5.3 / §7.3). Reused by both the student edit form (disables these
-  /// inputs) and, eventually, request-building code (never sends these
-  /// as student-initiated changes).
+  /// `GET /students/:aadhar` → `data.student` (API_HANDOFF.md §5.1). Every
+  /// field is defaulted so a sparse response (or one missing a field this
+  /// app doesn't know about yet) never throws.
+  /// Parses the backend `data.student` object from GET /students/:aadhar.
+  ///
+  /// Key mappings (backend → model):
+  ///   whatsAppNumber → whatsappNumber
+  ///   cricket        → playsCricket
+  ///   badminton      → playsBadminton
+  ///   gym            → goesToGym
+  ///   status string  → AdmissionStatus enum
+  factory StudentProfileModel.fromJson(Map<String, dynamic> json) {
+    return StudentProfileModel(
+      aadhar: json['aadhar']?.toString() ?? '',
+      firstName: json['firstName']?.toString() ?? '',
+      middleName: json['middleName']?.toString() ?? '',
+      lastName: json['lastName']?.toString() ?? '',
+      phone: json['phone']?.toString() ?? '',
+      whatsappNumber: json['whatsAppNumber']?.toString() ?? '',
+      email: json['email']?.toString() ?? '',
+      room: json['room']?.toString() ?? '',
+      status: _statusFromApi(json['status']?.toString()),
+      subStatus: json['subStatus']?.toString() ?? '',
+      bloodGroup: json['bloodGroup']?.toString() ?? '',
+      address: json['address']?.toString() ?? '',
+      pinCode: json['pinCode']?.toString() ?? '',
+      fatherFirstName: json['fatherFirstName']?.toString() ?? '',
+      fatherPhone: json['fatherPhone']?.toString() ?? '',
+      fatherProfession: json['fatherProfession']?.toString() ?? '',
+      motherFirstName: json['motherFirstName']?.toString() ?? '',
+      motherPhone: json['motherPhone']?.toString() ?? '',
+      playsCricket: json['cricket'] as bool? ?? false,
+      playsBadminton: json['badminton'] as bool? ?? false,
+      goesToGym: json['gym'] as bool? ?? false,
+      vehicleNumber: json['vehicleNumber']?.toString() ?? '',
+      category: json['category']?.toString() ?? '',
+      groupName: json['groupName']?.toString() ?? '',
+      bankCode: json['bankCode']?.toString() ?? '',
+      bankCodeChecked: json['bankCodeChecked'] as bool? ?? false,
+      notes: json['notes']?.toString() ?? '',
+    );
+  }
+
+  static AdmissionStatus _statusFromApi(String? value) {
+    switch (value) {
+      case 'staying':
+      case 'active':
+        return AdmissionStatus.active;
+      case 'left':
+        return AdmissionStatus.left;
+      case 'pending':
+      case 'pendingApproval':
+        return AdmissionStatus.pendingApproval;
+      default:
+        return AdmissionStatus.active;
+    }
+  }
+
+  /// Fields a student is never allowed to edit on their own profile
+  /// (API_HANDOFF.md §5.2). `firstName`/`middleName`/`lastName` are included
+  /// too: the backend's update allow-list doesn't mention them, so a name
+  /// change would silently be dropped — better to show them as read-only
+  /// than let a student believe an edit was saved.
   static const Set<String> studentBlockedFields = {
     'aadhar',
     'email',
@@ -87,6 +146,9 @@ class StudentProfileModel {
     'bankCode',
     'bankCodeChecked',
     'notes',
+    'firstName',
+    'middleName',
+    'lastName',
   };
 
   static bool isEditableByStudent(String fieldKey) =>
@@ -142,34 +204,24 @@ class StudentProfileModel {
     );
   }
 
-  factory StudentProfileModel.mock({String? aadhar, String? room}) {
-    return StudentProfileModel(
-      aadhar: aadhar ?? '123456789012',
-      firstName: 'Krutarth',
-      middleName: 'B',
-      lastName: 'Solanki',
-      phone: '9876543210',
-      whatsappNumber: '9876543210',
-      email: 'krutarth.solanki@example.com',
-      room: room ?? 'A-204',
-      status: AdmissionStatus.active,
-      bloodGroup: 'O+',
-      address: '12, Shanti Nagar Society, Ahmedabad',
-      pinCode: '380001',
-      fatherFirstName: 'Bharat',
-      fatherPhone: '9898989898',
-      fatherProfession: 'Business',
-      motherFirstName: 'Kajal',
-      motherPhone: '9797979797',
-      playsCricket: true,
-      playsBadminton: false,
-      goesToGym: true,
-      vehicleNumber: 'GJ01AB1234',
-      category: 'General',
-      groupName: 'Group A',
-      bankCode: 'HDFC0001234',
-      bankCodeChecked: true,
-      notes: 'No remarks.',
-    );
-  }
+  /// Same allow-list the backend accepts on `PATCH /students/:aadhar`
+  /// (API_HANDOFF.md §5.2), keyed by the API's own field names. Lets any
+  /// code already holding a full [StudentProfileModel] (e.g. an operator
+  /// edit flow) build a safe update payload without hand-picking fields.
+  Map<String, dynamic> toUpdateJson() => {
+    'whatsAppNumber': whatsappNumber,
+    'phone': phone,
+    'address': address,
+    'pinCode': pinCode,
+    'bloodGroup': bloodGroup,
+    'fatherFirstName': fatherFirstName,
+    'fatherPhone': fatherPhone,
+    'fatherProfession': fatherProfession,
+    'motherFirstName': motherFirstName,
+    'motherPhone': motherPhone,
+    'cricket': playsCricket,
+    'badminton': playsBadminton,
+    'gym': goesToGym,
+    'vehicleNumber': vehicleNumber,
+  };
 }

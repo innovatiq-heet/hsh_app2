@@ -8,6 +8,21 @@ class LeaveController extends GetxController with LoadStateMixin {
   final LeaveRepository _repository = Get.find();
 
   final leaves = <LeaveResponse>[].obs;
+  final selectedFilter = Rxn<LeaveStatus>();
+
+  List<LeaveResponse> get filteredLeaves {
+    final filter = selectedFilter.value;
+    if (filter == null) return leaves;
+    return leaves.where((l) => l.status == filter).toList();
+  }
+
+  void setFilter(LeaveStatus? status) {
+    if (selectedFilter.value == status) {
+      selectedFilter.value = null;
+    } else {
+      selectedFilter.value = status;
+    }
+  }
 
   @override
   void onInit() {

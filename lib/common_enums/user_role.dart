@@ -1,8 +1,8 @@
-enum UserRole { student, admin, warden, staff, complainsolver, unknown }
+enum UserRole { student, admin, warden, staff, complainsolver, laundry, unknown }
 
 extension UserRoleX on UserRole {
   static UserRole fromApi(String? value) {
-    switch (value) {
+    switch (value?.toLowerCase().trim()) {
       case 'student':
         return UserRole.student;
       case 'admin':
@@ -12,7 +12,11 @@ extension UserRoleX on UserRole {
       case 'staff':
         return UserRole.staff;
       case 'complainsolver':
+      case 'complain_solver':
         return UserRole.complainsolver;
+      case 'laundry':
+      case 'laundary':
+        return UserRole.laundry;
       default:
         return UserRole.unknown;
     }
@@ -32,6 +36,8 @@ extension UserRoleX on UserRole {
         return 'Staff';
       case UserRole.complainsolver:
         return 'Complaint Solver';
+      case UserRole.laundry:
+        return 'Laundry';
       case UserRole.unknown:
         return 'Unknown';
     }
@@ -41,7 +47,8 @@ extension UserRoleX on UserRole {
   bool get canOperateLaundry =>
       this == UserRole.admin ||
       this == UserRole.warden ||
-      this == UserRole.staff;
+      this == UserRole.staff ||
+      this == UserRole.laundry;
 
   /// Complaint resolution is shared across these roles.
   bool get canSolveComplaints =>

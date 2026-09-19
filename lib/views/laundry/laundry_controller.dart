@@ -1,15 +1,32 @@
 import 'package:get/get.dart';
 import '../../abstracts/mixins/load_state_mixin.dart';
+import '../../common_enums/laundry_status.dart';
 import '../../network/repository/laundry/laundry_repository.dart';
-import '../../network/request/laundry/submit_laundry_request.dart';
 import '../../network/responses/laundry/laundry_responses.dart';
 
 class LaundryController extends GetxController with LoadStateMixin {
   final LaundryRepository _repository = Get.find();
 
+  final balanceModel = Rxn<LaundryBalanceModel>();
   final balance = 0.0.obs;
-  final tickets = <LaundryTicketResponse>[].obs;
-  final isSubmitting = false.obs;
+  final totalRecharges = 0.0.obs;
+  final totalSpend = 0.0.obs;
+
+  final tickets = <LaundryTicketModel>[].obs;
+  final selectedStatusFilter = Rxn<LaundryStatus>();
+
+  int get activeCount =>
+      tickets.where((t) => t.status != LaundryStatus.received).length;
+
+  int countForStatus(LaundryStatus? status) {
+    if (status == null) return tickets.length;
+    return tickets.where((t) => t.status == status).length;
+  }
+
+  List<LaundryTicketModel> get filteredTickets {
+    if (selectedStatusFilter.value == null) return tickets;
+    return tickets.where((t) => t.status == selectedStatusFilter.value).toList();
+  }
 
   @override
   void onInit() {
@@ -22,19 +39,16 @@ class LaundryController extends GetxController with LoadStateMixin {
       _repository.balance(),
       _repository.tickets(),
     ]);
-    balance.value = (results[0] as LaundryBalanceResponse).balance;
-    tickets.assignAll(results[1] as List<LaundryTicketResponse>);
+    final b = results[0] as LaundryBalanceModel;
+    balanceModel.value = b;
+    balance.value = b.balance;
+    totalRecharges.value = b.totalRecharges;
+    totalSpend.value = b.totalSpend;
+
+    tickets.assignAll(results[1] as List<LaundryTicketModel>);
   });
 
-  Future<void> submit(int itemCount, String note) async {
-    isSubmitting.value = true;
-    try {
-      await _repository.submit(
-        SubmitLaundryRequest(itemCount: itemCount, note: note),
-      );
-      await load();
-    } finally {
-      isSubmitting.value = false;
-    }
+  void setFilter(LaundryStatus? status) {
+    selectedStatusFilter.value = status;
   }
 }

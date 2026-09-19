@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
-import '../../common_enums/laundry_status.dart';
+import '../../common_enums/complaint_status.dart';
 import '../../constants/app_colors.dart';
 import '../../constants/app_dimens.dart';
 import '../../constants/app_routes.dart';
@@ -11,10 +11,10 @@ import '../shared/widgets/async_state_view.dart';
 import '../shared/widgets/chart_card.dart';
 import '../shared/widgets/gradient_header.dart';
 import '../shared/widgets/section_header.dart';
-import 'laundry_home_controller.dart';
+import 'complain_home_controller.dart';
 
-class LaundryHomeScreen extends GetView<LaundryHomeController> {
-  const LaundryHomeScreen({super.key});
+class ComplainHomeScreen extends GetView<ComplainHomeController> {
+  const ComplainHomeScreen({super.key});
 
   Future<void> _logout() async {
     await SessionStore.instance.clear();
@@ -37,8 +37,9 @@ class LaundryHomeScreen extends GetView<LaundryHomeController> {
               // Gradient Header
               GradientHeader(
                 overline: 'Performance & Analytics',
-                title: 'Laundry Overview',
-                subtitle: 'Ticket metrics, order distribution and processing queue',
+                title: 'Complaints Overview',
+                subtitle:
+                    'Resolution velocity, category distribution and queue health',
                 actions: [
                   HeaderIconButton(
                     icon: Icons.refresh_rounded,
@@ -54,13 +55,15 @@ class LaundryHomeScreen extends GetView<LaundryHomeController> {
                 child: Row(
                   children: [
                     HeaderPill(
-                      icon: Icons.receipt_long_rounded,
-                      label: '${controller.totalTickets.value} Total Orders',
+                      icon: Icons.assignment_rounded,
+                      label:
+                          '${controller.totalComplaints.value} Total Complaints',
                     ),
                     const SizedBox(width: AppDimens.gapSm),
                     HeaderPill(
-                      icon: Icons.checkroom_rounded,
-                      label: '${controller.totalGarments.value} Garments Processed',
+                      icon: Icons.check_circle_rounded,
+                      label:
+                          '${controller.resolutionRate.value.toStringAsFixed(0)}% Resolved Rate',
                     ),
                   ],
                 ),
@@ -86,14 +89,14 @@ class LaundryHomeScreen extends GetView<LaundryHomeController> {
                               crossAxisAlignment: CrossAxisAlignment.start,
                               children: [
                                 Text(
-                                  'Total Orders',
+                                  'Total Complaints',
                                   style: AppTextStyles.bodySm.copyWith(
                                     color: AppColors.textSecondary,
                                   ),
                                 ),
                                 const SizedBox(height: 4),
                                 Text(
-                                  '${controller.totalTickets.value}',
+                                  '${controller.totalComplaints.value}',
                                   style: AppTextStyles.displayLg.copyWith(
                                     color: AppColors.textPrimary,
                                     fontWeight: FontWeight.w800,
@@ -113,16 +116,16 @@ class LaundryHomeScreen extends GetView<LaundryHomeController> {
                               crossAxisAlignment: CrossAxisAlignment.start,
                               children: [
                                 Text(
-                                  'Total Garments',
+                                  'Resolution Rate',
                                   style: AppTextStyles.bodySm.copyWith(
                                     color: AppColors.textSecondary,
                                   ),
                                 ),
                                 const SizedBox(height: 4),
                                 Text(
-                                  '${controller.totalGarments.value}',
+                                  '${controller.resolutionRate.value.toStringAsFixed(0)}%',
                                   style: AppTextStyles.displayLg.copyWith(
-                                    color: AppColors.primary,
+                                    color: AppColors.successGreen,
                                     fontWeight: FontWeight.w800,
                                   ),
                                 ),
@@ -144,17 +147,17 @@ class LaundryHomeScreen extends GetView<LaundryHomeController> {
                           child: _StatusStatCard(
                             title: 'Pending Intake',
                             count: controller.pendingCount.value,
-                            color: LaundryStatus.pending.color,
+                            color: ComplaintStatus.pending.color,
                             icon: Icons.hourglass_top_rounded,
                           ),
                         ),
                         const SizedBox(width: AppDimens.gapMd),
                         Expanded(
                           child: _StatusStatCard(
-                            title: 'Accepted',
-                            count: controller.acceptedCount.value,
-                            color: LaundryStatus.accepted.color,
-                            icon: Icons.assignment_turned_in_outlined,
+                            title: 'Under Review',
+                            count: controller.reviewedCount.value,
+                            color: ComplaintStatus.reviewed.color,
+                            icon: Icons.sync_rounded,
                           ),
                         ),
                       ],
@@ -164,31 +167,42 @@ class LaundryHomeScreen extends GetView<LaundryHomeController> {
                       children: [
                         Expanded(
                           child: _StatusStatCard(
-                            title: 'In Washing',
-                            count: controller.washedCount.value,
-                            color: LaundryStatus.washed.color,
-                            icon: Icons.local_laundry_service_outlined,
+                            title: 'Resolved & Closed',
+                            count: controller.resolvedCount.value,
+                            color: ComplaintStatus.resolved.color,
+                            icon: Icons.check_circle_outline_rounded,
                           ),
                         ),
                         const SizedBox(width: AppDimens.gapMd),
                         Expanded(
                           child: _StatusStatCard(
-                            title: 'Delivered',
-                            count: controller.receivedCount.value,
-                            color: LaundryStatus.received.color,
-                            icon: Icons.check_circle_outline_rounded,
+                            title: 'Active Queue',
+                            count: controller.activeCount.value,
+                            color: const Color(0xFF8B5CF6),
+                            icon: Icons.pending_actions_rounded,
                           ),
                         ),
                       ],
                     ),
                     const SizedBox(height: AppDimens.gapXl),
 
-                    // Distribution Chart
+                    // Category Breakdown Chart
+                    const SectionHeader(title: 'Category Distribution'),
+                    const SizedBox(height: AppDimens.gapSm),
+                    ChartCard(
+                      title: 'Complaints by Category',
+                      points: controller.categoryCounts,
+                      barColor: AppColors.secondary,
+                    ),
+                    const SizedBox(height: AppDimens.gapLg),
+
+                    // Status Breakdown Chart
                     const SectionHeader(title: 'Status Distribution'),
                     const SizedBox(height: AppDimens.gapSm),
                     ChartCard(
-                      title: 'Tickets by Status',
+                      title: 'Complaints by Status',
                       points: controller.statusCounts,
+                      barColor: AppColors.primary,
                     ),
                   ],
                 ),
@@ -230,11 +244,15 @@ class _StatusStatCard extends StatelessWidget {
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              Text(
-                title,
-                style: AppTextStyles.label.copyWith(
-                  color: AppColors.textSecondary,
-                  fontWeight: FontWeight.w600,
+              Expanded(
+                child: Text(
+                  title,
+                  style: AppTextStyles.label.copyWith(
+                    color: AppColors.textSecondary,
+                    fontWeight: FontWeight.w600,
+                  ),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
                 ),
               ),
               Container(

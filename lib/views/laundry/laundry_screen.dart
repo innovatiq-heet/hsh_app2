@@ -7,9 +7,7 @@ import '../../constants/app_routes.dart';
 import '../../constants/app_text_styles.dart';
 import '../../network/responses/laundry/laundry_responses.dart';
 import '../../utils/date_formatting.dart';
-import '../shared/widgets/app_button.dart';
 import '../shared/widgets/app_card.dart';
-import '../shared/widgets/app_text_field.dart';
 import '../shared/widgets/async_state_view.dart';
 import '../shared/widgets/empty_state.dart';
 import '../shared/widgets/gradient_header.dart';
@@ -17,6 +15,7 @@ import '../shared/widgets/icon_badge.dart';
 import '../shared/widgets/section_header.dart';
 import '../shared/widgets/status_badge.dart';
 import 'laundry_controller.dart';
+import 'submit_laundry_ticket_sheet.dart';
 
 class LaundryScreen extends GetView<LaundryController> {
   const LaundryScreen({super.key});
@@ -31,43 +30,112 @@ class LaundryScreen extends GetView<LaundryController> {
           errorMessage: controller.errorMessage.value,
           onRetry: controller.load,
           builder: (context) {
-            final active = controller.tickets
-                .where((t) => t.status != LaundryStatus.received)
-                .length;
             return RefreshIndicator(
               onRefresh: controller.load,
               child: ListView(
                 padding: EdgeInsets.zero,
                 children: [
                   GradientHeader(
-                    overline: 'Laundry',
+                    overline: 'Laundry Service',
                     title: 'Wash & Wear',
-                    child: Row(
-                      crossAxisAlignment: CrossAxisAlignment.end,
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        Expanded(
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
+                        Row(
+                          crossAxisAlignment: CrossAxisAlignment.end,
+                          children: [
+                            Expanded(
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Text(
+                                    'Available balance',
+                                    style: AppTextStyles.bodyMd.copyWith(
+                                      color: Colors.white.withValues(alpha: 0.72),
+                                    ),
+                                  ),
+                                  const SizedBox(height: 2),
+                                  Text(
+                                    '₹${controller.balance.value.toStringAsFixed(0)}',
+                                    style: AppTextStyles.displayXl.copyWith(
+                                      color: Colors.white,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                            HeaderPill(
+                              icon: Icons.autorenew_rounded,
+                              label: '${controller.activeCount} in progress',
+                            ),
+                          ],
+                        ),
+                        const SizedBox(height: AppDimens.gapMd),
+                        Container(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: AppDimens.gapMd,
+                            vertical: AppDimens.gapSm,
+                          ),
+                          decoration: BoxDecoration(
+                            color: Colors.white.withValues(alpha: 0.12),
+                            borderRadius:
+                                BorderRadius.circular(AppDimens.radiusMd),
+                            border: Border.all(
+                              color: Colors.white.withValues(alpha: 0.18),
+                            ),
+                          ),
+                          child: Row(
                             children: [
-                              Text(
-                                'Available balance',
-                                style: AppTextStyles.bodyMd.copyWith(
-                                  color: Colors.white.withValues(alpha: 0.72),
+                              Expanded(
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Text(
+                                      'Total Recharges',
+                                      style: AppTextStyles.caption.copyWith(
+                                        color: Colors.white.withValues(alpha: 0.75),
+                                      ),
+                                    ),
+                                    const SizedBox(height: 2),
+                                    Text(
+                                      '₹${controller.totalRecharges.value.toStringAsFixed(0)}',
+                                      style: AppTextStyles.subtitle.copyWith(
+                                        color: Colors.white,
+                                        fontWeight: FontWeight.w700,
+                                      ),
+                                    ),
+                                  ],
                                 ),
                               ),
-                              const SizedBox(height: 2),
-                              Text(
-                                '₹${controller.balance.value.toStringAsFixed(0)}',
-                                style: AppTextStyles.displayXl.copyWith(
-                                  color: Colors.white,
+                              Container(
+                                width: 1,
+                                height: 26,
+                                color: Colors.white.withValues(alpha: 0.25),
+                              ),
+                              const SizedBox(width: AppDimens.gapMd),
+                              Expanded(
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Text(
+                                      'Total Spend',
+                                      style: AppTextStyles.caption.copyWith(
+                                        color: Colors.white.withValues(alpha: 0.75),
+                                      ),
+                                    ),
+                                    const SizedBox(height: 2),
+                                    Text(
+                                      '₹${controller.totalSpend.value.toStringAsFixed(0)}',
+                                      style: AppTextStyles.subtitle.copyWith(
+                                        color: Colors.white,
+                                        fontWeight: FontWeight.w700,
+                                      ),
+                                    ),
+                                  ],
                                 ),
                               ),
                             ],
                           ),
-                        ),
-                        HeaderPill(
-                          icon: Icons.autorenew_rounded,
-                          label: '$active in progress',
                         ),
                       ],
                     ),
@@ -75,30 +143,76 @@ class LaundryScreen extends GetView<LaundryController> {
                   Padding(
                     padding: const EdgeInsets.fromLTRB(
                       AppDimens.screenPadding,
-                      AppDimens.gapXl,
+                      AppDimens.gapMd,
                       AppDimens.screenPadding,
                       100,
                     ),
-                    child: controller.tickets.isEmpty
-                        ? const EmptyState(
-                            icon: Icons.checkroom_outlined,
-                            title: 'No laundry tickets yet',
-                            message:
-                                'Drop your clothes off and create a ticket to track them.',
-                          )
-                        : Column(
-                            crossAxisAlignment: CrossAxisAlignment.stretch,
-                            children: [
-                              const SectionHeader(title: 'Your tickets'),
-                              for (final t in controller.tickets)
-                                Padding(
-                                  padding: const EdgeInsets.only(
-                                    bottom: AppDimens.gapMd,
-                                  ),
-                                  child: _TicketCard(ticket: t),
+                    child: Obx(() {
+                      final displayedTickets = controller.filteredTickets;
+                      final currentFilter =
+                          controller.selectedStatusFilter.value;
+                      return Column(
+                        crossAxisAlignment: CrossAxisAlignment.stretch,
+                        children: [
+                          // Status Filter Chips
+                          SingleChildScrollView(
+                            scrollDirection: Axis.horizontal,
+                            child: Row(
+                              children: [
+                                _FilterChip(
+                                  label: 'All',
+                                  count: controller.tickets.length,
+                                  isSelected: currentFilter == null,
+                                  onSelected: () => controller.setFilter(null),
                                 ),
-                            ],
+                                const SizedBox(width: AppDimens.gapSm),
+                                ...LaundryStatus.values.map(
+                                  (s) => Padding(
+                                    padding: const EdgeInsets.only(
+                                      right: AppDimens.gapSm,
+                                    ),
+                                    child: _FilterChip(
+                                      label: s.label,
+                                      count: controller.countForStatus(s),
+                                      isSelected: currentFilter == s,
+                                      statusColor: s.color,
+                                      onSelected: () =>
+                                          controller.setFilter(s),
+                                    ),
+                                  ),
+                                ),
+                              ],
+                            ),
                           ),
+                          const SizedBox(height: AppDimens.gapLg),
+                          if (displayedTickets.isEmpty)
+                            EmptyState(
+                              icon: Icons.checkroom_outlined,
+                              title: currentFilter == null
+                                  ? 'No laundry tickets found'
+                                  : 'No ${currentFilter.label.toLowerCase()} tickets',
+                              message: currentFilter == null
+                                  ? 'Drop your clothes off and create a ticket to track them.'
+                                  : 'You currently have no tickets marked as ${currentFilter.label}.',
+                            )
+                          else ...[
+                            SectionHeader(
+                              title: currentFilter == null
+                                  ? 'Your tickets (${displayedTickets.length})'
+                                  : '${currentFilter.label} tickets (${displayedTickets.length})',
+                            ),
+                            const SizedBox(height: AppDimens.gapSm),
+                            for (final t in displayedTickets)
+                              Padding(
+                                padding: const EdgeInsets.only(
+                                  bottom: AppDimens.gapMd,
+                                ),
+                                child: _TicketCard(ticket: t),
+                              ),
+                          ],
+                        ],
+                      );
+                    }),
                   ),
                 ],
               ),
@@ -111,7 +225,10 @@ class LaundryScreen extends GetView<LaundryController> {
         onPressed: () => showModalBottomSheet(
           context: context,
           isScrollControlled: true,
-          builder: (_) => const _NewTicketSheet(),
+          backgroundColor: Colors.transparent,
+          builder: (_) => SubmitLaundryTicketSheet(
+            onSuccess: controller.load,
+          ),
         ),
         icon: const Icon(Icons.add_rounded),
         label: const Text('New ticket'),
@@ -121,7 +238,7 @@ class LaundryScreen extends GetView<LaundryController> {
 }
 
 class _TicketCard extends StatelessWidget {
-  final LaundryTicketResponse ticket;
+  final LaundryTicketModel ticket;
 
   const _TicketCard({required this.ticket});
 
@@ -144,14 +261,32 @@ class _TicketCard extends StatelessWidget {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text(
-                      '${ticket.itemCount} items  ·  ₹${ticket.totalAmount.toStringAsFixed(0)}',
-                      style: AppTextStyles.subtitle,
+                    Row(
+                      children: [
+                        Text(
+                          '${ticket.totalItems} items',
+                          style: AppTextStyles.subtitle.copyWith(
+                            fontWeight: FontWeight.w700,
+                          ),
+                        ),
+                        if (ticket.totalPrice > 0) ...[
+                          const SizedBox(width: 6),
+                          Text(
+                            '·  ₹${ticket.totalPrice.toStringAsFixed(0)}',
+                            style: AppTextStyles.subtitle.copyWith(
+                              color: AppColors.primary,
+                              fontWeight: FontWeight.w700,
+                            ),
+                          ),
+                        ],
+                      ],
                     ),
                     const SizedBox(height: 2),
                     Text(
                       DateFormatting.dateTime(ticket.submittedAt),
-                      style: AppTextStyles.bodySm,
+                      style: AppTextStyles.caption.copyWith(
+                        color: AppColors.textSecondary,
+                      ),
                     ),
                   ],
                 ),
@@ -162,8 +297,54 @@ class _TicketCard extends StatelessWidget {
               ),
             ],
           ),
-          const SizedBox(height: AppDimens.gapLg),
+          const SizedBox(height: AppDimens.gapSm),
+          Wrap(
+            spacing: 6,
+            runSpacing: 4,
+            children: [
+              if (ticket.totalWash > 0)
+                _categoryChip(
+                  icon: Icons.local_laundry_service_outlined,
+                  label: '${ticket.totalWash} Wash',
+                ),
+              if (ticket.totalPress > 0)
+                _categoryChip(
+                  icon: Icons.iron_outlined,
+                  label: '${ticket.totalPress} Press',
+                ),
+              if (ticket.totalSpecial > 0)
+                _categoryChip(
+                  icon: Icons.star_outline_rounded,
+                  label: '${ticket.totalSpecial} Special',
+                ),
+            ],
+          ),
+          const SizedBox(height: AppDimens.gapMd),
           _StageBar(status: ticket.status),
+        ],
+      ),
+    );
+  }
+
+  Widget _categoryChip({required IconData icon, required String label}) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+      decoration: BoxDecoration(
+        color: AppColors.surfaceMuted,
+        borderRadius: BorderRadius.circular(AppDimens.radiusPill),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(icon, size: 12, color: AppColors.textSecondary),
+          const SizedBox(width: 4),
+          Text(
+            label,
+            style: AppTextStyles.caption.copyWith(
+              color: AppColors.textSecondary,
+              fontWeight: FontWeight.w500,
+            ),
+          ),
         ],
       ),
     );
@@ -200,127 +381,85 @@ class _StageBar extends StatelessWidget {
   }
 }
 
-class _NewTicketSheet extends StatefulWidget {
-  const _NewTicketSheet();
+class _FilterChip extends StatelessWidget {
+  final String label;
+  final int count;
+  final bool isSelected;
+  final VoidCallback onSelected;
+  final Color? statusColor;
 
-  @override
-  State<_NewTicketSheet> createState() => _NewTicketSheetState();
-}
-
-class _NewTicketSheetState extends State<_NewTicketSheet> {
-  static const _pricePerItem = 10;
-
-  final _noteController = TextEditingController();
-  int _items = 1;
-
-  @override
-  void dispose() {
-    _noteController.dispose();
-    super.dispose();
-  }
+  const _FilterChip({
+    required this.label,
+    required this.count,
+    required this.isSelected,
+    required this.onSelected,
+    this.statusColor,
+  });
 
   @override
   Widget build(BuildContext context) {
-    final controller = Get.find<LaundryController>();
-    return Padding(
-      padding: EdgeInsets.fromLTRB(
-        AppDimens.screenPadding,
-        0,
-        AppDimens.screenPadding,
-        MediaQuery.viewInsetsOf(context).bottom + AppDimens.gapXl,
-      ),
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          Text('New laundry ticket', style: AppTextStyles.headline),
-          const SizedBox(height: 4),
-          Text(
-            'Count the items you are dropping off.',
-            style: AppTextStyles.bodySm,
-          ),
-          const SizedBox(height: AppDimens.gapXl),
-          Container(
-            padding: const EdgeInsets.all(AppDimens.gapLg),
-            decoration: BoxDecoration(
-              color: AppColors.surfaceMuted,
-              borderRadius: BorderRadius.circular(AppDimens.radiusLg),
+    final activeBg = isSelected ? AppColors.primary : AppColors.surfaceMuted;
+    final activeText = isSelected ? Colors.white : AppColors.textPrimary;
+    final countBg = isSelected
+        ? Colors.white.withValues(alpha: 0.22)
+        : AppColors.border;
+
+    return Material(
+      color: activeBg,
+      borderRadius: BorderRadius.circular(AppDimens.radiusPill),
+      child: InkWell(
+        borderRadius: BorderRadius.circular(AppDimens.radiusPill),
+        onTap: onSelected,
+        child: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(AppDimens.radiusPill),
+            border: Border.all(
+              color: isSelected ? AppColors.primary : AppColors.border,
             ),
-            child: Row(
-              children: [
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text('Items', style: AppTextStyles.label),
-                      Text(
-                        'Total ₹${_items * _pricePerItem}',
-                        style: AppTextStyles.subtitle,
-                      ),
-                    ],
+          ),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              if (statusColor != null) ...[
+                Container(
+                  width: 8,
+                  height: 8,
+                  decoration: BoxDecoration(
+                    color: statusColor,
+                    shape: BoxShape.circle,
                   ),
                 ),
-                _StepperButton(
-                  icon: Icons.remove_rounded,
-                  onPressed: _items > 1 ? () => setState(() => _items--) : null,
-                ),
-                SizedBox(
-                  width: 52,
-                  child: Text(
-                    '$_items',
-                    textAlign: TextAlign.center,
-                    style: AppTextStyles.displayMd,
-                  ),
-                ),
-                _StepperButton(
-                  icon: Icons.add_rounded,
-                  onPressed: _items < 50
-                      ? () => setState(() => _items++)
-                      : null,
-                ),
+                const SizedBox(width: 6),
               ],
-            ),
+              Text(
+                label,
+                style: AppTextStyles.label.copyWith(
+                  color: activeText,
+                  fontWeight: isSelected ? FontWeight.w700 : FontWeight.w500,
+                ),
+              ),
+              const SizedBox(width: 6),
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                decoration: BoxDecoration(
+                  color: countBg,
+                  borderRadius: BorderRadius.circular(AppDimens.radiusPill),
+                ),
+                child: Text(
+                  '$count',
+                  style: AppTextStyles.caption.copyWith(
+                    color: activeText,
+                    fontSize: 11,
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+              ),
+            ],
           ),
-          const SizedBox(height: AppDimens.gapLg),
-          AppTextField(
-            controller: _noteController,
-            label: 'Note (optional)',
-            maxLines: 2,
-          ),
-          const SizedBox(height: AppDimens.gapXl),
-          Obx(
-            () => AppButton(
-              label: 'Create ticket',
-              icon: Icons.check_rounded,
-              isLoading: controller.isSubmitting.value,
-              onPressed: () async {
-                await controller.submit(_items, _noteController.text.trim());
-                if (context.mounted) Navigator.of(context).pop();
-              },
-            ),
-          ),
-        ],
+        ),
       ),
     );
   }
 }
 
-class _StepperButton extends StatelessWidget {
-  final IconData icon;
-  final VoidCallback? onPressed;
-
-  const _StepperButton({required this.icon, required this.onPressed});
-
-  @override
-  Widget build(BuildContext context) {
-    return IconButton.filled(
-      onPressed: onPressed,
-      style: IconButton.styleFrom(
-        backgroundColor: AppColors.surface,
-        foregroundColor: AppColors.primary,
-        disabledBackgroundColor: AppColors.surface.withValues(alpha: 0.6),
-      ),
-      icon: Icon(icon),
-    );
-  }
-}

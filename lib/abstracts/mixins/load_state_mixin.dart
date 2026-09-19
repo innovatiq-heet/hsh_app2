@@ -1,4 +1,5 @@
 import 'package:get/get.dart';
+import '../../network/api_exception.dart';
 
 /// Standard loading/error/content lifecycle for any controller that fetches
 /// data on init. Wrap the fetch in [guard] instead of hand-rolling
@@ -17,6 +18,9 @@ mixin LoadStateMixin on GetxController {
     hasError.value = false;
     try {
       await action();
+    } on ApiException catch (e) {
+      hasError.value = true;
+      errorMessage.value = e.message;
     } catch (_) {
       hasError.value = true;
       errorMessage.value = 'Something went wrong. Please try again.';

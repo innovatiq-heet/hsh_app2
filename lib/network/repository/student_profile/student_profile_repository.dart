@@ -1,41 +1,44 @@
+import 'package:dio/dio.dart';
+import 'package:get/get.dart';
 import '../../../common_models/student_profile/student_profile_model.dart';
-import '../../../constants/app_config.dart';
+import '../../api_client.dart';
+import '../../api_exception.dart';
 import '../../request/student_profile/update_profile_request.dart';
 
 class StudentProfileRepository {
-  StudentProfileModel? _cached;
+  final Dio _dio = Get.find<ApiClient>().dio;
 
   Future<StudentProfileModel> fetchProfile(String aadhar) async {
-    await Future.delayed(AppConfig.mockNetworkDelay);
-    _cached ??= StudentProfileModel.mock(aadhar: aadhar);
-    return _cached!;
+    try {
+      final response = await _dio.get('/students/$aadhar');
+      final student = response.data['data']['student'] as Map<String, dynamic>;
+      return StudentProfileModel.fromJson(student);
+    } on DioException catch (e) {
+      throw ApiException(_message(e), statusCode: e.response?.statusCode);
+    }
   }
 
   Future<StudentProfileModel> updateProfile(
     String aadhar,
     UpdateProfileRequest request,
   ) async {
-    await Future.delayed(AppConfig.mockNetworkDelay);
-    final current = _cached ?? StudentProfileModel.mock(aadhar: aadhar);
-    _cached = current.copyWith(
-      firstName: request.firstName,
-      middleName: request.middleName,
-      lastName: request.lastName,
-      phone: request.phone,
-      whatsappNumber: request.whatsappNumber,
-      bloodGroup: request.bloodGroup,
-      address: request.address,
-      pinCode: request.pinCode,
-      fatherFirstName: request.fatherFirstName,
-      fatherPhone: request.fatherPhone,
-      fatherProfession: request.fatherProfession,
-      motherFirstName: request.motherFirstName,
-      motherPhone: request.motherPhone,
-      playsCricket: request.playsCricket,
-      playsBadminton: request.playsBadminton,
-      goesToGym: request.goesToGym,
-      vehicleNumber: request.vehicleNumber,
-    );
-    return _cached!;
+    try {
+      final response = await _dio.patch(
+        '/students/$aadhar',
+        data: request.toJson(),
+      );
+      final student = response.data['data']['student'] as Map<String, dynamic>;
+      return StudentProfileModel.fromJson(student);
+    } on DioException catch (e) {
+      throw ApiException(_message(e), statusCode: e.response?.statusCode);
+    }
+  }
+
+  String _message(DioException e) {
+    final data = e.response?.data;
+    if (data is Map && data['message'] is String) {
+      return data['message'] as String;
+    }
+    return e.message ?? 'Something went wrong. Please try again.';
   }
 }

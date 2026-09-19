@@ -1,16 +1,19 @@
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
-import '../../abstracts/mixins/aadhar_resolving_mixin.dart';
 import '../../common_models/student_profile/student_profile_model.dart';
+import '../../network/api_exception.dart';
 import '../../network/repository/student_profile/student_profile_repository.dart';
 import '../../network/request/student_profile/update_profile_request.dart';
 
-class EditProfileController extends GetxController with AadharResolvingMixin {
+class EditProfileController extends GetxController {
   final StudentProfileRepository _repository = Get.find();
 
   late final StudentProfileModel initialProfile =
       Get.arguments as StudentProfileModel;
 
+  // Name fields are display-only — the backend's update allow-list doesn't
+  // include them (see StudentProfileModel.studentBlockedFields), so these
+  // controllers exist only to show the current value, never to send it.
   late final firstNameController = TextEditingController(
     text: initialProfile.firstName,
   );
@@ -92,9 +95,6 @@ class EditProfileController extends GetxController with AadharResolvingMixin {
       await _repository.updateProfile(
         initialProfile.aadhar,
         UpdateProfileRequest(
-          firstName: firstNameController.text.trim(),
-          middleName: middleNameController.text.trim(),
-          lastName: lastNameController.text.trim(),
           phone: phoneController.text.trim(),
           whatsappNumber: whatsappController.text.trim(),
           bloodGroup: bloodGroupController.text.trim(),
@@ -112,9 +112,23 @@ class EditProfileController extends GetxController with AadharResolvingMixin {
         ),
       );
       Get.back(result: true);
-      Get.snackbar('Profile updated', 'Your changes have been saved.');
+      Get.snackbar('Success', 'Profile updated successfully');
+    } on ApiException catch (e) {
+      _showError(e.message);
+    } catch (_) {
+      _showError('Something went wrong. Please try again.');
     } finally {
       isSaving.value = false;
     }
+  }
+
+  void _showError(String message) {
+    Get.snackbar(
+      'Update Failed',
+      message,
+      snackPosition: SnackPosition.BOTTOM,
+      backgroundColor: Colors.redAccent,
+      colorText: Colors.white,
+    );
   }
 }

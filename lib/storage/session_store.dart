@@ -56,12 +56,24 @@ class SessionStore {
     required String email,
     required String name,
   }) async {
+    await clearAadhar();
     await Future.wait([
       _write(_kToken, token),
       _write(_kRole, role.apiValue),
       _write(_kEmail, email),
       _write(_kName, name),
     ]);
+  }
+
+  Future<void> clearAadhar() async {
+    try {
+      await _storage.delete(key: _kAadhar).timeout(_timeout);
+    } catch (e) {
+      developer.log(
+        'SessionStore: clearAadhar failed: $e',
+        name: 'SessionStore',
+      );
+    }
   }
 
   Future<String?> get token => _read(_kToken);

@@ -86,6 +86,13 @@ class OperatorHomeScreen extends StatelessWidget {
         AppColors.primaryLight,
         Routes.operatorFeeApprovals,
       ),
+      _OperatorAction(
+        'Complaints desk',
+        'Inspect and resolve',
+        Icons.handyman_outlined,
+        AppColors.secondary,
+        Routes.complainSolverModule,
+      ),
     ]),
     _OperatorGroup('Finance & events', [
       _OperatorAction(

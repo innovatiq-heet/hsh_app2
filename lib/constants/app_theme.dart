@@ -34,14 +34,14 @@ class AppTheme {
       ),
       appBarTheme: AppBarTheme(
         backgroundColor: AppColors.mainBackground,
-        foregroundColor: AppColors.headerBlue,
+        foregroundColor: AppColors.textPrimary,
         surfaceTintColor: Colors.transparent,
         elevation: 0,
         scrolledUnderElevation: 0,
         centerTitle: false,
         systemOverlayStyle: SystemUiOverlayStyle.dark,
         titleTextStyle: AppTextStyles.headline.copyWith(
-          color: AppColors.headerBlue,
+          color: AppColors.textPrimary,
         ),
       ),
       tabBarTheme: TabBarThemeData(
@@ -208,7 +208,7 @@ class AppTheme {
       ),
       snackBarTheme: SnackBarThemeData(
         behavior: SnackBarBehavior.floating,
-        backgroundColor: AppColors.headerBlue,
+        backgroundColor: AppColors.accentDark,
         contentTextStyle: AppTextStyles.bodyMd.copyWith(color: Colors.white),
         shape: RoundedRectangleBorder(
           borderRadius: BorderRadius.circular(AppDimens.radiusMd),

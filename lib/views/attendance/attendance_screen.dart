@@ -36,15 +36,14 @@ class AttendanceScreen extends GetView<AttendanceController> {
                 GradientHeader(
                   overline: DateFormat('EEEE, d MMMM').format(DateTime.now()),
                   title: 'Attendance',
-                  // actions: [
-                  //   HeaderIconButton(
-                  //     icon: Icons.history_rounded,
-                  //     tooltip: 'History',
-                  //     onPressed: () => Get.toNamed(Routes.attendanceHistory),
-                  //   ),
-                  // ],
-                  // child: const _ProgressSummary(),
-
+                  actions: [
+                    HeaderIconButton(
+                      icon: Icons.history_rounded,
+                      tooltip: 'History',
+                      onPressed: () => Get.toNamed(Routes.attendanceHistory),
+                    ),
+                  ],
+                  child: const _ProgressSummary(),
                 ),
                 Padding(
                   padding: const EdgeInsets.fromLTRB(

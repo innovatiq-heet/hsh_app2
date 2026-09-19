@@ -156,11 +156,12 @@ class ComplainManagementScreen extends GetView<ComplainManagementController> {
                         ),
                         const SizedBox(width: AppDimens.gapSm),
                         Padding(
-                          padding: const EdgeInsets.only(top: 24),
+                          padding: const EdgeInsets.only(top: 4),
                           child: Obx(
                             () => AppButton(
+                              expand: false,
                               label: 'Search',
-                              icon: Icons.arrow_forward_rounded,
+                              icon: Icons.search_rounded,
                               isLoading: controller.isSearching.value,
                               onPressed: () => controller.searchRoom(
                                 controller.queryController.text,

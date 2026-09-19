@@ -38,7 +38,10 @@ class AuthRepository {
   /// in" the same way.
   Future<AuthSessionResponse?> checkSession(String token) async {
     try {
-      final response = await _dio.get('/auth/me');
+      final response = await _dio.get(
+        '/auth/me',
+        options: Options(headers: {'Authorization': 'Bearer $token'}),
+      );
       final user = response.data['data']['user'] as Map<String, dynamic>;
       return AuthSessionResponse.fromJson(user, token: token);
     } on DioException {

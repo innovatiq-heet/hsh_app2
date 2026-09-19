@@ -11,6 +11,15 @@ class ApiClient {
 
   final Dio dio;
 
+  /// Updates the default Authorization header on the underlying Dio instance.
+  void setAuthToken(String? token) {
+    if (token != null && token.isNotEmpty) {
+      dio.options.headers['Authorization'] = 'Bearer $token';
+    } else {
+      dio.options.headers.remove('Authorization');
+    }
+  }
+
   factory ApiClient.create() {
     final dio = Dio(
       BaseOptions(
@@ -40,6 +49,15 @@ class _RedactingLogInterceptor extends Interceptor {
   @override
   void onRequest(RequestOptions options, RequestInterceptorHandler handler) {
     developer.log('--> ${options.method} ${options.uri}', name: 'HTTP');
+    final authHeader = options.headers['Authorization'];
+    if (authHeader is String && authHeader.isNotEmpty) {
+      final preview = authHeader.length > 25
+          ? '${authHeader.substring(0, 15)}...${authHeader.substring(authHeader.length - 6)}'
+          : authHeader;
+      developer.log('    header: Authorization = $preview', name: 'HTTP');
+    } else {
+      developer.log('    header: Authorization = [NONE]', name: 'HTTP');
+    }
     final data = options.data;
     if (data is Map) {
       developer.log('    body: ${_redact(data)}', name: 'HTTP');

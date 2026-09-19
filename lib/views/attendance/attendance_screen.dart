@@ -6,15 +6,15 @@ import '../../constants/app_colors.dart';
 import '../../constants/app_dimens.dart';
 import '../../constants/app_routes.dart';
 import '../../constants/app_text_styles.dart';
-import '../../network/responses/attendance/attendance_responses.dart';
+import '../../network/responses/attendance/attendance_models.dart';
 import '../../utils/date_formatting.dart';
 import '../shared/widgets/app_card.dart';
 import '../shared/widgets/async_state_view.dart';
 import '../shared/widgets/gradient_header.dart';
-import '../shared/widgets/icon_badge.dart';
 import '../shared/widgets/section_header.dart';
+import '../shared/widgets/status_badge.dart';
 import 'attendance_controller.dart';
-import 'scan_attendance_sheet.dart';
+import 'attendance_event_style.dart';
 
 class AttendanceScreen extends GetView<AttendanceController> {
   const AttendanceScreen({super.key});
@@ -22,6 +22,20 @@ class AttendanceScreen extends GetView<AttendanceController> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
+      floatingActionButton: FloatingActionButton.extended(
+        icon: const Icon(Icons.qr_code_scanner_rounded),
+        label: Text(
+          'Scan QR Code',
+          style: AppTextStyles.subtitle.copyWith(color: Colors.white),
+        ),
+        backgroundColor: AppColors.primary,
+        foregroundColor: Colors.white,
+        elevation: 6,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(AppDimens.radiusLg),
+        ),
+        onPressed: () => Get.toNamed(Routes.attendanceScanner),
+      ),
       body: Obx(
         () => AsyncStateView(
           isLoading: controller.isLoading.value,
@@ -36,22 +50,37 @@ class AttendanceScreen extends GetView<AttendanceController> {
                 GradientHeader(
                   overline: DateFormat('EEEE, d MMMM').format(DateTime.now()),
                   title: 'Attendance',
-                  // actions: [
-                  //   HeaderIconButton(
-                  //     icon: Icons.history_rounded,
-                  //     tooltip: 'History',
-                  //     onPressed: () => Get.toNamed(Routes.attendanceHistory),
-                  //   ),
-                  // ],
-                  // child: const _ProgressSummary(),
-
+                  subtitle: 'Daily routine & rotating QR verification',
+                  leading: Navigator.canPop(context)
+                      ? Material(
+                          color: Colors.white.withValues(alpha: 0.14),
+                          shape: const CircleBorder(),
+                          child: IconButton(
+                            tooltip: 'Back',
+                            onPressed: () => Get.back(),
+                            icon: const Icon(
+                              Icons.arrow_back_rounded,
+                              color: Colors.white,
+                              size: 22,
+                            ),
+                          ),
+                        )
+                      : null,
+                  actions: [
+                    HeaderIconButton(
+                      icon: Icons.history_rounded,
+                      tooltip: 'History',
+                      onPressed: () => Get.toNamed(Routes.attendanceHistory),
+                    ),
+                  ],
+                  child: const _ProgressSummary(),
                 ),
                 Padding(
                   padding: const EdgeInsets.fromLTRB(
                     AppDimens.screenPadding,
                     AppDimens.gapXl,
                     AppDimens.screenPadding,
-                    AppDimens.gapXxl,
+                    AppDimens.gapXxl + 40, // Space for FAB
                   ),
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -148,8 +177,8 @@ class _ProgressSummary extends StatelessWidget {
                   const SizedBox(height: 4),
                   Text(
                     remaining == 0
-                        ? 'Every session is marked.'
-                        : '$remaining ${remaining == 1 ? 'session' : 'sessions'} left to mark',
+                        ? 'All 5 daily sessions are attended.'
+                        : '$remaining ${remaining == 1 ? 'session' : 'sessions'} remaining today',
                     style: AppTextStyles.bodyMd.copyWith(
                       color: Colors.white.withValues(alpha: 0.75),
                     ),
@@ -172,74 +201,92 @@ class _SessionCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final controller = Get.find<AttendanceController>();
+    final style = AttendanceEventStyle.of(type);
+
     return Obx(() {
       final markedAt = controller.todayStatus[type];
-      final isMarking = controller.markingType.value == type;
       final isMarked = markedAt != null;
 
       return AnimatedContainer(
         duration: const Duration(milliseconds: 250),
         decoration: BoxDecoration(
           color: isMarked
-              ? AppColors.successGreen.withValues(alpha: 0.08)
+              ? AppColors.successGreen.withValues(alpha: 0.07)
               : AppColors.surface,
-          borderRadius: BorderRadius.circular(AppDimens.radiusLg),
+          borderRadius: BorderRadius.circular(AppDimens.radiusMd),
           border: Border.all(
             color: isMarked
                 ? AppColors.successGreen.withValues(alpha: 0.3)
-                : Colors.transparent,
+                : AppColors.border,
           ),
           boxShadow: isMarked ? null : AppColors.softShadow,
         ),
-        padding: const EdgeInsets.all(AppDimens.gapLg),
+        padding: const EdgeInsets.all(AppDimens.cardPadding),
         child: Row(
           children: [
-            IconBadge(
-              icon: isMarked ? Icons.check_rounded : type.icon,
-              color: isMarked ? AppColors.successGreen : AppColors.primary,
-              solid: isMarked,
+            Container(
+              width: 44,
+              height: 44,
+              decoration: BoxDecoration(
+                color: isMarked
+                    ? AppColors.successGreen.withValues(alpha: 0.12)
+                    : style.softBackgroundColor,
+                borderRadius: BorderRadius.circular(AppDimens.radiusMd),
+              ),
+              child: Icon(
+                isMarked ? Icons.check_circle_rounded : style.icon,
+                color: isMarked ? AppColors.successGreen : style.primaryColor,
+                size: 22,
+              ),
             ),
-            const SizedBox(width: AppDimens.gapLg),
+            const SizedBox(width: AppDimens.gapMd),
             Expanded(
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text(type.label, style: AppTextStyles.subtitle),
-                  const SizedBox(height: 2),
+                  Row(
+                    children: [
+                      Text(
+                        '${style.emoji} ${type.label}',
+                        style: AppTextStyles.subtitle,
+                      ),
+                      const Spacer(),
+                      StatusBadge(
+                        label: isMarked ? 'Attended' : 'Pending',
+                        color: isMarked
+                            ? AppColors.successGreen
+                            : AppColors.textMuted,
+                        icon: isMarked
+                            ? Icons.check_rounded
+                            : Icons.schedule_rounded,
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 3),
                   Text(
                     isMarked
-                        ? 'Marked at ${DateFormatting.time(markedAt)}'
-                        : 'Not marked yet',
+                        ? 'Attended at ${DateFormatting.time(markedAt)}'
+                        : style.timingHint,
                     style: AppTextStyles.bodySm.copyWith(
                       color: isMarked
                           ? AppColors.successGreen
                           : AppColors.textMuted,
-                      fontWeight: isMarked ? FontWeight.w700 : null,
+                      fontWeight: isMarked ? FontWeight.w600 : FontWeight.normal,
                     ),
                   ),
                 ],
               ),
             ),
-            if (isMarking)
-              const SizedBox(
-                height: 22,
-                width: 22,
-                child: CircularProgressIndicator(strokeWidth: 2.4),
-              )
-            else if (!isMarked) ...[
+            if (!isMarked) ...[
+              const SizedBox(width: AppDimens.gapSm),
               IconButton.filledTonal(
-                tooltip: 'Scan to mark',
+                tooltip: 'Scan QR Code',
                 style: IconButton.styleFrom(
-                  backgroundColor: AppColors.surfaceMuted,
-                  foregroundColor: AppColors.secondary,
+                  backgroundColor: style.softBackgroundColor,
+                  foregroundColor: style.primaryColor,
                 ),
                 icon: const Icon(Icons.qr_code_scanner_rounded, size: 20),
-                onPressed: () => showScanAttendanceSheet(context, type),
-              ),
-              const SizedBox(width: 6),
-              FilledButton(
-                onPressed: () => controller.mark(type, viaCode: false),
-                child: const Text('Mark'),
+                onPressed: () => Get.toNamed(Routes.attendanceScanner),
               ),
             ],
           ],
@@ -250,7 +297,7 @@ class _SessionCard extends StatelessWidget {
 }
 
 class _SabhaCard extends StatelessWidget {
-  final SabhaResponse sabha;
+  final SabhaSession sabha;
 
   const _SabhaCard({required this.sabha});
 
@@ -288,16 +335,16 @@ class _SabhaCard extends StatelessWidget {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(sabha.title, style: AppTextStyles.subtitle),
-                const SizedBox(height: 4),
+                Text(sabha.description, style: AppTextStyles.subtitle),
+                const SizedBox(height: AppDimens.gapXs),
                 Row(
                   children: [
                     const Icon(
                       Icons.schedule_rounded,
-                      size: 14,
+                      size: AppDimens.iconSm,
                       color: AppColors.textMuted,
                     ),
-                    const SizedBox(width: 4),
+                    const SizedBox(width: AppDimens.gapXs),
                     Text(
                       '${DateFormatting.time(sabha.startTime)} – ${DateFormatting.time(sabha.endTime)}',
                       style: AppTextStyles.bodySm,

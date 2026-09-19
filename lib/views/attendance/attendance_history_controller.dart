@@ -1,13 +1,13 @@
 import 'package:get/get.dart';
+import '../../abstracts/mixins/load_state_mixin.dart';
 import '../../common_enums/attendance_type.dart';
 import '../../network/repository/attendance/attendance_repository.dart';
-import '../../network/responses/attendance/attendance_responses.dart';
+import '../../network/responses/attendance/attendance_models.dart';
 
-class AttendanceHistoryController extends GetxController {
+class AttendanceHistoryController extends GetxController with LoadStateMixin {
   final AttendanceRepository _repository = Get.find();
 
-  final isLoading = true.obs;
-  final entries = <AttendanceLogEntry>[].obs;
+  final entries = <AttendanceRecord>[].obs;
   final Rxn<AttendanceType> typeFilter = Rxn<AttendanceType>();
   final Rxn<DateTime> fromDate = Rxn<DateTime>();
   final Rxn<DateTime> toDate = Rxn<DateTime>();
@@ -18,17 +18,15 @@ class AttendanceHistoryController extends GetxController {
     load();
   }
 
-  Future<void> load() async {
-    isLoading.value = true;
-    entries.assignAll(
-      await _repository.history(
-        from: fromDate.value,
-        to: toDate.value,
-        type: typeFilter.value,
-      ),
+  Future<void> load() => guard(() async {
+    final list = await _repository.history(
+      from: fromDate.value,
+      to: toDate.value,
+      type: typeFilter.value,
+      limit: 50,
     );
-    isLoading.value = false;
-  }
+    entries.assignAll(list);
+  });
 
   void setTypeFilter(AttendanceType? type) {
     typeFilter.value = type;

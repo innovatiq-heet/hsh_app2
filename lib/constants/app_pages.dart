@@ -1,6 +1,8 @@
 import 'package:get/get.dart';
 import '../views/attendance/attendance_binding.dart';
 import '../views/attendance/attendance_history_screen.dart';
+import '../views/attendance/attendance_qr_display_screen.dart';
+import '../views/attendance/attendance_scanner_screen.dart';
 import '../views/chat/chat_screen.dart';
 import '../views/complain_solver/complain_admin_detail_screen.dart';
 import '../views/complain_solver/complain_solver_binding.dart';
@@ -85,6 +87,11 @@ class AppPages {
       binding: AttendanceBinding(),
     ),
     GetPage(
+      name: Routes.attendanceScanner,
+      page: () => const AttendanceScannerScreen(),
+      binding: AttendanceScannerBinding(),
+    ),
+    GetPage(
       name: Routes.leave,
       page: () => const LeaveScreen(),
       binding: LeaveBinding(),
@@ -157,38 +164,52 @@ class AppPages {
     GetPage(
       name: Routes.operatorDirectory,
       page: () => const OperatorDirectoryScreen(),
+      binding: OperatorBinding(),
     ),
     GetPage(
       name: Routes.operatorAdmissions,
       page: () => const OperatorAdmissionsScreen(),
+      binding: OperatorBinding(),
     ),
     GetPage(
       name: Routes.operatorRoomSwap,
       page: () => const OperatorRoomSwapScreen(),
+      binding: OperatorBinding(),
     ),
     GetPage(
       name: Routes.operatorMarkLeft,
       page: () => const OperatorMarkLeftScreen(),
+      binding: OperatorBinding(),
     ),
     GetPage(
       name: Routes.operatorLeaveApprovals,
       page: () => const OperatorLeaveApprovalsScreen(),
+      binding: OperatorBinding(),
     ),
     GetPage(
       name: Routes.operatorFeeApprovals,
       page: () => const OperatorFeeApprovalsScreen(),
+      binding: OperatorBinding(),
     ),
     GetPage(
       name: Routes.operatorDepositDebit,
       page: () => const OperatorDepositDebitScreen(),
+      binding: OperatorBinding(),
     ),
     GetPage(
       name: Routes.operatorSabha,
       page: () => const OperatorSabhaScreen(),
+      binding: OperatorBinding(),
     ),
     GetPage(
       name: Routes.operatorAttendanceOnBehalf,
       page: () => const OperatorAttendanceBehalfScreen(),
+      binding: OperatorBinding(),
+    ),
+    GetPage(
+      name: Routes.operatorAttendanceQrDisplay,
+      page: () => const AttendanceQrDisplayScreen(),
+      binding: AttendanceQrDisplayBinding(),
     ),
   ];
 }

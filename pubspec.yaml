@@ -25,6 +25,7 @@ dependencies:
   # Media / scanning
   image_picker: ^1.1.2
   mobile_scanner: ^5.2.3
+  qr_flutter: ^4.1.0
 
   # Notes (local rich text)
   appflowy_editor: ^6.2.0

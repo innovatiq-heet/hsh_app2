@@ -6,7 +6,7 @@ import '../../network/repository/attendance/attendance_repository.dart';
 import '../../network/repository/fees/fees_repository.dart';
 import '../../network/repository/laundry/laundry_repository.dart';
 import '../../network/request/attendance/mark_attendance_request.dart';
-import '../../network/responses/attendance/attendance_responses.dart';
+import '../../network/responses/attendance/attendance_models.dart';
 
 class AttendanceController extends GetxController
     with AadharResolvingMixin, LoadStateMixin {
@@ -16,7 +16,8 @@ class AttendanceController extends GetxController
 
   final todayStatus = <AttendanceType, DateTime?>{}.obs;
   final markingType = Rxn<AttendanceType>();
-  final upcomingSabhas = <SabhaResponse>[].obs;
+  final upcomingSabhas = <SabhaSession>[].obs;
+  final activeDates = <String>[].obs;
 
   @override
   void onInit() {
@@ -25,27 +26,50 @@ class AttendanceController extends GetxController
   }
 
   Future<void> load() => guard(() async {
-    await resolveAadhar(
-      fromFeeSummary: _feesRepository.resolveAadhar,
-      fromLaundryBalance: () async =>
-          (await _laundryRepository.balance()).studentAadhar,
-    );
+    // Lazily ensure Aadhar is resolved for the session
+    try {
+      await resolveAadhar(
+        fromFeeSummary: _feesRepository.resolveAadhar,
+        fromLaundryBalance: () async =>
+            (await _laundryRepository.balance()).studentAadhar,
+      );
+    } catch (_) {}
+
     final status = await _repository.todayStatus();
     todayStatus.assignAll(status);
-    upcomingSabhas.assignAll(await _repository.upcomingSabhas());
+
+    final sabhas = await _repository.upcomingSabhas();
+    upcomingSabhas.assignAll(sabhas);
+
+    final dates = await _repository.getActiveDates();
+    activeDates.assignAll(dates);
   });
 
-  Future<void> mark(AttendanceType type, {required bool viaCode}) async {
-    if (todayStatus[type] != null) return;
+  /// Mark attendance directly or after a scan
+  Future<AttendanceRecord?> mark(
+    AttendanceType type, {
+    required bool viaCode,
+    String? qrToken,
+  }) async {
     markingType.value = type;
     try {
       final result = await _repository.mark(
-        MarkAttendanceRequest(type: type, viaCode: viaCode),
+        MarkAttendanceRequest(
+          type: type,
+          viaCode: viaCode,
+          qrToken: qrToken,
+        ),
       );
-      todayStatus[type] = result.markedAt;
+      todayStatus[type] = result.time;
       todayStatus.refresh();
+      return result;
     } finally {
       markingType.value = null;
     }
+  }
+
+  void onAttendanceMarked(AttendanceRecord record) {
+    todayStatus[record.type] = record.time;
+    todayStatus.refresh();
   }
 }

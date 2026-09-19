@@ -9,9 +9,19 @@ class AuthInterceptor extends Interceptor {
     RequestOptions options,
     RequestInterceptorHandler handler,
   ) async {
-    final token = await SessionStore.instance.token;
-    if (token != null) {
-      options.headers['Authorization'] = 'Bearer $token';
+    final path = options.path;
+    final isAuthCall =
+        path.contains('/auth/login') || path.contains('/auth/register');
+
+    if (!isAuthCall) {
+      final existingAuth = options.headers['Authorization'];
+      if (existingAuth == null || (existingAuth is String && existingAuth.trim().isEmpty)) {
+        final token =
+            SessionStore.instance.currentToken ?? await SessionStore.instance.token;
+        if (token != null && token.isNotEmpty) {
+          options.headers['Authorization'] = 'Bearer $token';
+        }
+      }
     }
     handler.next(options);
   }

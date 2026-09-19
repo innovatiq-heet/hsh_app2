@@ -8,6 +8,7 @@ class Routes {
   static const studentHome = '/student';
   static const studentProfileEdit = '/student/profile/edit';
   static const attendanceHistory = '/student/attendance/history';
+  static const attendanceScanner = '/student/attendance/scan';
   static const leave = '/student/leave';
   static const leaveAdd = '/student/leave/add';
   static const fees = '/student/fees';
@@ -36,4 +37,5 @@ class Routes {
   static const operatorDepositDebit = '/operator/deposit-debit';
   static const operatorSabha = '/operator/sabha';
   static const operatorAttendanceOnBehalf = '/operator/attendance-on-behalf';
+  static const operatorAttendanceQrDisplay = '/operator/attendance/qr-display';
 }

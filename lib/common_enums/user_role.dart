@@ -1,4 +1,4 @@
-enum UserRole { student, admin, warden, staff, complainsolver, laundry, unknown }
+enum UserRole { student, admin, warden, staff, complainsolver,attendance, laundry, unknown }
 
 extension UserRoleX on UserRole {
   static UserRole fromApi(String? value) {
@@ -17,6 +17,8 @@ extension UserRoleX on UserRole {
       case 'laundry':
       case 'laundary':
         return UserRole.laundry;
+      case 'attendance':
+        return UserRole.attendance;
       default:
         return UserRole.unknown;
     }
@@ -38,6 +40,8 @@ extension UserRoleX on UserRole {
         return 'Complaint Solver';
       case UserRole.laundry:
         return 'Laundry';
+      case UserRole.attendance:
+        return 'Attendance Operator';
       case UserRole.unknown:
         return 'Unknown';
     }
@@ -58,4 +62,10 @@ extension UserRoleX on UserRole {
 
   /// Admission approval, room swap, deposits, sabha scheduling, etc.
   bool get canOperate => this == UserRole.admin || this == UserRole.warden;
+
+  /// Attendance dynamic QR and manual logging.
+  bool get canOperateAttendance =>
+      this == UserRole.admin ||
+      this == UserRole.warden ||
+      this == UserRole.attendance;
 }

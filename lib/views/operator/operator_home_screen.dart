@@ -83,7 +83,7 @@ class OperatorHomeScreen extends StatelessWidget {
         'Fee slips',
         'Verify payments',
         Icons.fact_check_outlined,
-        Color(0xFF8B5CF6),
+        AppColors.primaryLight,
         Routes.operatorFeeApprovals,
       ),
     ]),
@@ -108,6 +108,13 @@ class OperatorHomeScreen extends StatelessWidget {
         Icons.edit_calendar_outlined,
         AppColors.secondary,
         Routes.operatorAttendanceOnBehalf,
+      ),
+      _OperatorAction(
+        'Dynamic QR',
+        'Display rotating code',
+        Icons.qr_code_2_rounded,
+        AppColors.primary,
+        Routes.operatorAttendanceQrDisplay,
       ),
     ]),
   ];

@@ -1,9 +1,8 @@
 import 'package:dio/dio.dart';
+import 'package:get/get.dart';
+import '../../constants/app_routes.dart';
 import '../../storage/session_store.dart';
 
-/// Wired into the shared Dio instance ahead of real API integration —
-/// attaches the bearer token and will redirect to login on 401 once actual
-/// network calls replace the mocked repositories.
 class AuthInterceptor extends Interceptor {
   @override
   void onRequest(
@@ -19,9 +18,16 @@ class AuthInterceptor extends Interceptor {
 
   @override
   void onError(DioException err, ErrorInterceptorHandler handler) {
-    if (err.response?.statusCode == 401) {
+    // A 401 from the login/register call itself just means "wrong
+    // credentials" — the caller (LoginController/RegisterController) shows
+    // that inline. Force-navigating to /login here would tear down the very
+    // screen that's about to display the error.
+    final path = err.requestOptions.path;
+    final isAuthCall =
+        path.contains('/auth/login') || path.contains('/auth/register');
+    if (err.response?.statusCode == 401 && !isAuthCall) {
       SessionStore.instance.clear();
-      // TODO(api): navigate to login once GetX navigation is reachable from here.
+      Get.offAllNamed(Routes.login);
     }
     handler.next(err);
   }

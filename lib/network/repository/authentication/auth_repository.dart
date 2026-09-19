@@ -1,48 +1,56 @@
-import '../../../common_enums/user_role.dart';
-import '../../../constants/app_config.dart';
+import 'package:dio/dio.dart';
+import 'package:get/get.dart';
+import '../../api_client.dart';
+import '../../api_exception.dart';
 import '../../request/authentication/login_request.dart';
 import '../../responses/authentication/auth_session_response.dart';
 
-/// Mocked for now — every method matches the shape a real Dio call will
-/// return, so swapping the body for an HTTP call later doesn't touch
-/// callers.
 class AuthRepository {
-  // TODO(api): remove [devRoleOverride] once real login returns role from the JWT.
-  Future<AuthSessionResponse> login(
-    LoginRequest request, {
-    UserRole devRoleOverride = UserRole.student,
-  }) async {
-    await Future.delayed(AppConfig.mockNetworkDelay);
-    return AuthSessionResponse(
-      id: 'mock-user-id',
-      name: devRoleOverride == UserRole.student
-          ? 'Krutarth Solanki'
-          : '${devRoleOverride.label} User',
-      email: request.email,
-      role: devRoleOverride,
-      token: 'mock.jwt.token',
-    );
+  final Dio _dio = Get.find<ApiClient>().dio;
+
+  Future<AuthSessionResponse> login(LoginRequest request) async {
+    try {
+      final response = await _dio.post('/auth/login', data: request.toJson());
+      final token = response.data['token'] as String;
+      final user = response.data['data']['user'] as Map<String, dynamic>;
+      return AuthSessionResponse.fromJson(user, token: token);
+    } on DioException catch (e) {
+      throw ApiException(_message(e), statusCode: e.response?.statusCode);
+    }
   }
 
+  /// Registration creates the account but doesn't return a token, so a
+  /// successful register immediately logs in with the same credentials to
+  /// get a real session.
   Future<AuthSessionResponse> register(RegisterRequest request) async {
-    await Future.delayed(AppConfig.mockNetworkDelay);
-    return AuthSessionResponse(
-      id: 'mock-new-user-id',
-      name: request.name,
-      email: request.email,
-      role: UserRole.student,
-      token: 'mock.jwt.token',
+    try {
+      await _dio.post('/auth/register', data: request.toJson());
+    } on DioException catch (e) {
+      throw ApiException(_message(e), statusCode: e.response?.statusCode);
+    }
+    return login(
+      LoginRequest(email: request.email, password: request.password),
     );
   }
 
+  /// Returns `null` on any failure (expired/invalid token) rather than
+  /// throwing — the splash flow treats "couldn't verify" and "not logged
+  /// in" the same way.
   Future<AuthSessionResponse?> checkSession(String token) async {
-    await Future.delayed(AppConfig.mockNetworkDelay);
-    return AuthSessionResponse(
-      id: 'mock-user-id',
-      name: 'Krutarth Solanki',
-      email: 'krutarth.solanki@example.com',
-      role: UserRole.student,
-      token: token,
-    );
+    try {
+      final response = await _dio.get('/auth/me');
+      final user = response.data['data']['user'] as Map<String, dynamic>;
+      return AuthSessionResponse.fromJson(user, token: token);
+    } on DioException {
+      return null;
+    }
+  }
+
+  String _message(DioException e) {
+    final data = e.response?.data;
+    if (data is Map && data['message'] is String) {
+      return data['message'] as String;
+    }
+    return e.message ?? 'Something went wrong. Please try again.';
   }
 }

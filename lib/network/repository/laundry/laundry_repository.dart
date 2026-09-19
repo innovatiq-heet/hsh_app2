@@ -1,9 +1,13 @@
+import 'package:dio/dio.dart';
+import 'package:get/get.dart';
 import '../../../common_enums/laundry_status.dart';
 import '../../../constants/app_config.dart';
+import '../../api_client.dart';
 import '../../request/laundry/submit_laundry_request.dart';
 import '../../responses/laundry/laundry_responses.dart';
 
 class LaundryRepository {
+  final Dio _dio = Get.find<ApiClient>().dio;
   double _balance = 350;
 
   final List<LaundryTicketResponse> _tickets = [
@@ -53,17 +57,32 @@ class LaundryRepository {
     ),
   ];
 
-  Future<String> resolveAadhar() async {
-    await Future.delayed(AppConfig.mockNetworkDelay);
-    return '123456789012';
-  }
-
+  /// Calls GET /laundry/balance — the backend auto-resolves the student's
+  /// aadhar from the JWT email, so no aadhar param is needed.
+  /// Also used as the secondary aadhar-resolver fallback by AadharResolvingMixin.
   Future<LaundryBalanceResponse> balance() async {
-    await Future.delayed(AppConfig.mockNetworkDelay);
-    return LaundryBalanceResponse(
-      studentAadhar: '123456789012',
-      balance: _balance,
-    );
+    try {
+      final response = await _dio.get('/laundry/balance');
+      final data = response.data;
+      if (data is Map<String, dynamic>) {
+        final payload = data['data'];
+        if (payload is Map<String, dynamic>) {
+          final bal = payload['balance'];
+          if (bal is Map<String, dynamic>) {
+            return LaundryBalanceResponse(
+              studentAadhar: bal['aadhar']?.toString() ?? '',
+              balance: (bal['balance'] as num?)?.toDouble() ?? 0,
+            );
+          }
+        }
+      }
+      return LaundryBalanceResponse(studentAadhar: '', balance: _balance);
+    } on DioException {
+      // Fallback to cached local balance on network failure.
+      return LaundryBalanceResponse(studentAadhar: '', balance: _balance);
+    } catch (_) {
+      return LaundryBalanceResponse(studentAadhar: '', balance: _balance);
+    }
   }
 
   Future<List<LaundryTicketResponse>> tickets() async {

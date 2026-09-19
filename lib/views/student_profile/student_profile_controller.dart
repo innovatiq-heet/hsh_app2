@@ -5,6 +5,7 @@ import '../../common_models/student_profile/student_profile_model.dart';
 import '../../network/repository/fees/fees_repository.dart';
 import '../../network/repository/laundry/laundry_repository.dart';
 import '../../network/repository/student_profile/student_profile_repository.dart';
+import '../../constants/app_routes.dart';
 import '../../storage/session_store.dart';
 
 class StudentProfileController extends GetxController
@@ -22,15 +23,27 @@ class StudentProfileController extends GetxController
   }
 
   Future<void> loadProfile() => guard(() async {
-    final aadhar = await resolveAadhar(
-      fromFeeSummary: _feesRepository.resolveAadhar,
-      fromLaundryBalance: () async =>
-          (await _laundryRepository.balance()).studentAadhar,
-    );
-    profile.value = await _repository.fetchProfile(aadhar);
+    try {
+      final aadhar = await resolveAadhar(
+        fromFeeSummary: _feesRepository.resolveAadhar,
+        fromLaundryBalance: () async =>
+            (await _laundryRepository.balance()).studentAadhar,
+      );
+      profile.value = await _repository.fetchProfile(aadhar);
+    } catch (_) {
+      await SessionStore.instance.clearAadhar();
+      rethrow;
+    }
   });
+
+  /// Pull-to-refresh / post-edit reload entry point — same as the initial
+  /// load, kept as a distinct name so call sites read intent rather than
+  /// implementation. (Not named `refresh()`: GetX's `ListNotifierMixin`
+  /// already defines that, for forcing a `GetBuilder` rebuild.)
+  Future<void> refreshProfile() => loadProfile();
 
   Future<void> logout() async {
     await SessionStore.instance.clear();
+    Get.offAllNamed(Routes.login);
   }
 }

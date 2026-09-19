@@ -1,3 +1,4 @@
+import '../../network/api_exception.dart';
 import '../../storage/session_store.dart';
 
 /// Aadhar is never returned by login — it's resolved from the fee-summary
@@ -13,7 +14,7 @@ mixin AadharResolvingMixin {
     Future<String?> Function()? fromFeeSummary,
     Future<String?> Function()? fromLaundryBalance,
   }) async {
-    if (_aadhar != null) return _aadhar!;
+    if (_aadhar != null && _aadhar!.isNotEmpty) return _aadhar!;
 
     final cached = await SessionStore.instance.cachedAadhar;
     if (cached != null && cached.isNotEmpty) {
@@ -35,6 +36,11 @@ mixin AadharResolvingMixin {
       return fromLaundry;
     }
 
-    throw StateError('Unable to resolve student aadhar from any source.');
+    final email = await SessionStore.instance.email;
+    final accountDesc = (email != null && email.isNotEmpty) ? email : 'your account';
+    throw ApiException(
+      'No student profile is linked with $accountDesc yet. Please contact the hostel administration or warden to register your profile.',
+      statusCode: 404,
+    );
   }
 }

@@ -1,37 +1,9 @@
-import '../../../common_enums/laundry_status.dart';
+export 'laundry_balance_model.dart';
+export 'laundry_recharge_model.dart';
+export 'laundry_ticket_model.dart';
 
-class LaundryBalanceResponse {
-  final String studentAadhar;
-  final double balance;
+import 'laundry_balance_model.dart';
+import 'laundry_ticket_model.dart';
 
-  const LaundryBalanceResponse({
-    required this.studentAadhar,
-    required this.balance,
-  });
-}
-
-class LaundryTicketResponse {
-  final String id;
-  final String studentName;
-  final String room;
-  final int itemCount;
-  final double totalAmount;
-  final LaundryStatus status;
-  final DateTime submittedAt;
-  final DateTime? acceptedAt;
-  final DateTime? washedAt;
-  final DateTime? receivedAt;
-
-  const LaundryTicketResponse({
-    required this.id,
-    required this.studentName,
-    required this.room,
-    required this.itemCount,
-    required this.totalAmount,
-    required this.status,
-    required this.submittedAt,
-    this.acceptedAt,
-    this.washedAt,
-    this.receivedAt,
-  });
-}
+typedef LaundryTicketResponse = LaundryTicketModel;
+typedef LaundryBalanceResponse = LaundryBalanceModel;

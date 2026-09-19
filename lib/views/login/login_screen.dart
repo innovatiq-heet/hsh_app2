@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:get/get.dart';
-import '../../common_enums/user_role.dart';
 import '../../constants/app_colors.dart';
 import '../../constants/app_dimens.dart';
 import '../../constants/app_routes.dart';
@@ -123,8 +122,6 @@ class _FormPanel extends StatelessWidget {
                 onPressed: controller.login,
               ),
             ),
-            const SizedBox(height: AppDimens.gapXl),
-            _DevRoleSwitcher(controller: controller),
             const SizedBox(height: AppDimens.gapLg),
             Row(
               mainAxisAlignment: MainAxisAlignment.center,
@@ -143,58 +140,6 @@ class _FormPanel extends StatelessWidget {
             ),
           ],
         ),
-      ),
-    );
-  }
-}
-
-/// TODO(api): remove once real login returns role from the JWT — every
-/// shell is reachable through this for UI review without a backend.
-class _DevRoleSwitcher extends StatelessWidget {
-  final LoginController controller;
-
-  const _DevRoleSwitcher({required this.controller});
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.all(AppDimens.gapLg),
-      decoration: BoxDecoration(
-        color: AppColors.surfaceMuted,
-        borderRadius: BorderRadius.circular(AppDimens.radiusMd),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            children: [
-              const Icon(
-                Icons.science_outlined,
-                size: 14,
-                color: AppColors.textMuted,
-              ),
-              const SizedBox(width: 6),
-              Text('PREVIEW AS · DEV ONLY', style: AppTextStyles.overline),
-            ],
-          ),
-          const SizedBox(height: AppDimens.gapMd),
-          Obx(
-            () => Wrap(
-              spacing: AppDimens.gapSm,
-              runSpacing: AppDimens.gapSm,
-              children: UserRole.values
-                  .where((r) => r != UserRole.unknown)
-                  .map(
-                    (role) => ChoiceChip(
-                      label: Text(role.label),
-                      selected: controller.devRole.value == role,
-                      onSelected: (_) => controller.devRole.value = role,
-                    ),
-                  )
-                  .toList(),
-            ),
-          ),
-        ],
       ),
     );
   }

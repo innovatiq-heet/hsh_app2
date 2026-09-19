@@ -3,6 +3,8 @@ class LoginRequest {
   final String password;
 
   const LoginRequest({required this.email, required this.password});
+
+  Map<String, dynamic> toJson() => {'email': email, 'password': password};
 }
 
 class RegisterRequest {
@@ -15,4 +17,10 @@ class RegisterRequest {
     required this.email,
     required this.password,
   });
+
+  Map<String, dynamic> toJson() => {
+    'name': name,
+    'email': email,
+    'password': password,
+  };
 }

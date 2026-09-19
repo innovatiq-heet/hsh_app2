@@ -1,4 +1,5 @@
 import 'package:get/get.dart';
+import 'api_client.dart';
 import 'repository/attendance/attendance_repository.dart';
 import 'repository/authentication/auth_repository.dart';
 import 'repository/complaints/complaints_repository.dart';
@@ -15,6 +16,7 @@ import 'repository/student_profile/student_profile_repository.dart';
 class GlobalBindings extends Bindings {
   @override
   void dependencies() {
+    Get.put(ApiClient.create(), permanent: true);
     Get.put(AuthRepository(), permanent: true);
     Get.put(StudentProfileRepository(), permanent: true);
     Get.put(AttendanceRepository(), permanent: true);

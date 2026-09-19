@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import '../../constants/app_routes.dart';
+import '../../network/api_exception.dart';
 import '../../network/repository/authentication/auth_repository.dart';
 import '../../network/request/authentication/login_request.dart';
 import '../../storage/session_store.dart';
@@ -48,8 +49,26 @@ class RegisterController extends GetxController {
         name: session.name,
       );
       Get.offAllNamed(Routes.studentHome);
+    } on ApiException catch (e) {
+      _showError(
+        e.statusCode == 409
+            ? 'Email already exists. Please login instead.'
+            : e.message,
+      );
+    } catch (_) {
+      _showError('Something went wrong. Please try again.');
     } finally {
       isLoading.value = false;
     }
+  }
+
+  void _showError(String message) {
+    Get.snackbar(
+      'Registration Failed',
+      message,
+      snackPosition: SnackPosition.BOTTOM,
+      backgroundColor: Colors.redAccent,
+      colorText: Colors.white,
+    );
   }
 }

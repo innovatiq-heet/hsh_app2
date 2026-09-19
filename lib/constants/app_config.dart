@@ -1,10 +1,13 @@
-/// App-wide runtime config. `baseUrl` is a placeholder until real API
-/// integration — network/repository/* currently return mock data and never
-/// read this value.
+/// App-wide runtime config.
 class AppConfig {
   AppConfig._();
 
-  static const String baseUrl = 'https://api.hsh-hostel.example.com';
+  /// Dev backend on the LAN — reachable from a real device on the same
+  /// Wi-Fi and from the Android emulator (which routes host-machine IPs
+  /// through normally, unlike `localhost`/`10.0.2.2` special-casing).
+  /// Swap this for a real host before release.
+  static const String baseUrl = 'http://192.168.29.7:5000/api';
+
   static const String appName = 'Hari Saurabh Hostel App';
   static const Duration mockNetworkDelay = Duration(milliseconds: 600);
 }

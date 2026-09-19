@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import '../../common_enums/user_role.dart';
 import '../../constants/app_routes.dart';
+import '../../network/api_exception.dart';
 import '../../network/repository/authentication/auth_repository.dart';
 import '../../network/request/authentication/login_request.dart';
 import '../../storage/session_store.dart';
@@ -15,9 +16,6 @@ class LoginController extends GetxController {
   final passwordController = TextEditingController();
 
   final isLoading = false.obs;
-
-  // TODO(api): remove dev role switcher once real login returns role from the JWT.
-  final Rx<UserRole> devRole = UserRole.student.obs;
 
   @override
   void onClose() {
@@ -39,7 +37,6 @@ class LoginController extends GetxController {
           email: emailController.text.trim(),
           password: passwordController.text,
         ),
-        devRoleOverride: devRole.value,
       );
       await SessionStore.instance.saveSession(
         token: session.token,
@@ -48,9 +45,23 @@ class LoginController extends GetxController {
         name: session.name,
       );
       _routeByRole(session.role);
+    } on ApiException catch (e) {
+      _showError(e.message);
+    } catch (_) {
+      _showError('Something went wrong. Please try again.');
     } finally {
       isLoading.value = false;
     }
+  }
+
+  void _showError(String message) {
+    Get.snackbar(
+      'Login Failed',
+      message,
+      snackPosition: SnackPosition.BOTTOM,
+      backgroundColor: Colors.redAccent,
+      colorText: Colors.white,
+    );
   }
 
   void _routeByRole(UserRole role) {
@@ -69,7 +80,7 @@ class LoginController extends GetxController {
         Get.offAllNamed(Routes.complainSolverModule);
         break;
       case UserRole.unknown:
-        Get.snackbar('Login failed', 'Unrecognized role for this account.');
+        _showError('Unrecognized role for this account.');
         break;
     }
   }

@@ -1,12 +1,9 @@
 import 'package:flutter/material.dart';
 import '../../../constants/app_colors.dart';
 import '../../../constants/app_dimens.dart';
-import 'pressable.dart';
 
-/// Base surface for every card in the app: layered depth via a hairline
-/// gradient border and a tinted two-layer ambient shadow. Pass [gradient]
-/// for hero-style cards (balance, net due, ...). Tappable cards get tactile
-/// scale feedback automatically.
+/// Base surface for every card in the app: borderless, rounded, soft
+/// shadow. Pass [gradient] for hero-style cards (balance, net due, ...).
 class AppCard extends StatelessWidget {
   final Widget child;
   final EdgeInsetsGeometry padding;
@@ -29,48 +26,33 @@ class AppCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final isHero = gradient != null;
-    final outer = BorderRadius.circular(radius);
-    final inner = BorderRadius.circular(radius - 1);
-
-    final card = Container(
-      padding: const EdgeInsets.all(1),
+    final borderRadius = BorderRadius.circular(radius);
+    return Container(
       decoration: BoxDecoration(
-        borderRadius: outer,
-        gradient: isHero
-            ? LinearGradient(
-                begin: Alignment.topLeft,
-                end: Alignment.bottomRight,
-                colors: [
-                  Colors.white.withValues(alpha: 0.28),
-                  Colors.white.withValues(alpha: 0.04),
-                ],
-              )
-            : AppColors.cardBorderGradient,
+        color: gradient == null ? (color ?? AppColors.surface) : null,
+        gradient: gradient,
+        borderRadius: borderRadius,
         boxShadow: elevated
-            ? (isHero
-                  ? AppColors.tintedShadow(AppColors.indigo, 0.30)
+            ? (gradient != null
+                  ? [
+                      BoxShadow(
+                        color: AppColors.primary.withValues(alpha: 0.28),
+                        blurRadius: 28,
+                        offset: const Offset(0, 12),
+                      ),
+                    ]
                   : AppColors.softShadow)
             : null,
       ),
       child: Material(
         color: Colors.transparent,
-        borderRadius: inner,
+        borderRadius: borderRadius,
         clipBehavior: Clip.antiAlias,
-        child: Ink(
-          decoration: BoxDecoration(
-            color: isHero ? null : (color ?? AppColors.surface),
-            gradient: gradient,
-            borderRadius: inner,
-          ),
-          child: InkWell(
-            onTap: onTap,
-            child: Padding(padding: padding, child: child),
-          ),
+        child: InkWell(
+          onTap: onTap,
+          child: Padding(padding: padding, child: child),
         ),
       ),
     );
-
-    return Pressable(enabled: onTap != null, child: card);
   }
 }

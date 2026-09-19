@@ -2,7 +2,6 @@ import 'package:flutter/material.dart';
 import '../../../constants/app_colors.dart';
 import '../../../constants/app_dimens.dart';
 import '../../../constants/app_text_styles.dart';
-import 'pressable.dart';
 
 enum AppButtonVariant { primary, secondary, outline, danger, text }
 
@@ -75,10 +74,7 @@ class AppButton extends StatelessWidget {
       ),
     };
 
-    return Pressable(
-      enabled: !_disabled,
-      child: expand ? SizedBox(width: double.infinity, child: button) : button,
-    );
+    return expand ? SizedBox(width: double.infinity, child: button) : button;
   }
 
   Widget _content(Color color) {

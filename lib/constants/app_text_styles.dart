@@ -8,16 +8,6 @@ class AppTextStyles {
   static TextStyle get _base =>
       GoogleFonts.plusJakartaSans(color: AppColors.textPrimary);
 
-  /// Tabular figures keep digit widths fixed, so animated counters don't
-  /// jitter horizontally while ticking.
-  static TextStyle numeric(double size, {FontWeight weight = FontWeight.w800}) =>
-      _base.copyWith(
-        fontSize: size,
-        fontWeight: weight,
-        letterSpacing: -0.8,
-        fontFeatures: const [FontFeature.tabularFigures()],
-      );
-
   static TextStyle get displayXl => _base.copyWith(
     fontSize: 34,
     fontWeight: FontWeight.w800,

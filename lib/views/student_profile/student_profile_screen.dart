@@ -42,117 +42,57 @@ class StudentProfileScreen extends GetView<StudentProfileController> {
                         AppDimens.screenPadding,
                         AppDimens.gapXl,
                         AppDimens.screenPadding,
-                        100,
+                        AppDimens.gapXl,
                       ),
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.stretch,
                         children: [
-                        const SectionHeader(title: 'Quick actions'),
-                        const _QuickActions(),
-                        const SizedBox(height: AppDimens.gapXl),
-                        const SectionHeader(title: 'Personal details'),
-                        _DetailsCard(
-                          rows: [
-                            InfoRow(
-                              icon: Icons.phone_outlined,
-                              label: 'Phone',
-                              value: profile.phone,
-                            ),
-                            InfoRow(
-                              icon: Icons.chat_outlined,
-                              label: 'WhatsApp',
-                              value: profile.whatsappNumber,
-                            ),
-                            InfoRow(
-                              icon: Icons.alternate_email_rounded,
-                              label: 'Email',
-                              value: profile.email,
-                              locked: true,
-                            ),
-                            InfoRow(
-                              icon: Icons.bloodtype_outlined,
-                              label: 'Blood group',
-                              value: profile.bloodGroup,
-                            ),
-                            InfoRow(
-                              icon: Icons.two_wheeler_outlined,
-                              label: 'Vehicle',
-                              value: profile.vehicleNumber,
-                            ),
-                          ],
-                        ),
-                        const SizedBox(height: AppDimens.gapXl),
-                        const SectionHeader(title: 'Address'),
-                        _DetailsCard(
-                          rows: [
-                            InfoRow(
-                              icon: Icons.home_outlined,
-                              label: 'Address',
-                              value: profile.address,
-                            ),
-                            InfoRow(
-                              icon: Icons.pin_drop_outlined,
-                              label: 'Pin code',
-                              value: profile.pinCode,
-                            ),
-                          ],
-                        ),
-                        const SizedBox(height: AppDimens.gapXl),
-                        const SectionHeader(title: 'Family'),
-                        _DetailsCard(
-                          rows: [
-                            InfoRow(
-                              icon: Icons.man_outlined,
-                              label: 'Father',
-                              value: profile.fatherFirstName,
-                            ),
-                            InfoRow(
-                              icon: Icons.phone_outlined,
-                              label: "Father's phone",
-                              value: profile.fatherPhone,
-                            ),
-                            InfoRow(
-                              icon: Icons.work_outline_rounded,
-                              label: 'Profession',
-                              value: profile.fatherProfession,
-                            ),
-                            InfoRow(
-                              icon: Icons.woman_outlined,
-                              label: 'Mother',
-                              value: profile.motherFirstName,
-                            ),
-                            InfoRow(
-                              icon: Icons.phone_outlined,
-                              label: "Mother's phone",
-                              value: profile.motherPhone,
-                            ),
-                          ],
-                        ),
-                        const SizedBox(height: AppDimens.gapXl),
-                        const SectionHeader(title: 'Sports & fitness'),
-                        _LifestyleChips(profile: profile),
-                      ],
+                          const SectionHeader(title: 'Quick actions'),
+                          const _QuickActions(),
+                          const SizedBox(height: AppDimens.gapXl),
+                          const SectionHeader(title: 'Personal details'),
+                          _DetailsCard(
+                            rows: [
+                              InfoRow(
+                                icon: Icons.phone_outlined,
+                                label: 'Phone',
+                                value: profile.phone,
+                              ),
+                              InfoRow(
+                                icon: Icons.chat_outlined,
+                                label: 'WhatsApp',
+                                value: profile.whatsappNumber,
+                              ),
+                              InfoRow(
+                                icon: Icons.alternate_email_rounded,
+                                label: 'Email',
+                                value: profile.email,
+                                locked: true,
+                              ),
+                              InfoRow(
+                                icon: Icons.bloodtype_outlined,
+                                label: 'Blood group',
+                                value: profile.bloodGroup,
+                              ),
+                              InfoRow(
+                                icon: Icons.two_wheeler_outlined,
+                                label: 'Vehicle',
+                                value: profile.vehicleNumber,
+                              ),
+                            ],
+                          ),
+                          const SizedBox(height: AppDimens.gapXl),
+                          const SectionHeader(title: 'Sports & fitness'),
+                          _LifestyleChips(profile: profile),
+                        ],
+                      ),
                     ),
                   ),
-                ),
-              ],
-            ),
-          );
-        },
-      ),
-    ),
-      floatingActionButton: FloatingActionButton.extended(
-        // Tabs share one route via IndexedStack; default hero tags would collide.
-        heroTag: null,
-        onPressed: () =>
-            Get.toNamed(
-              Routes.studentProfileEdit,
-              arguments: controller.profile.value,
-            )?.then((saved) {
-              if (saved == true) controller.refreshProfile();
-            }),
-        icon: const Icon(Icons.edit_rounded),
-        label: const Text('Edit profile'),
+                ],
+              ),
+            );
+          },
+        ),
       ),
     );
   }

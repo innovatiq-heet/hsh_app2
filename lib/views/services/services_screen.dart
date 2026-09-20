@@ -6,6 +6,7 @@ import '../../constants/app_routes.dart';
 import '../../constants/app_text_styles.dart';
 import '../home/home_controller.dart';
 import '../shared/widgets/app_card.dart';
+import '../shared/widgets/gradient_header.dart';
 import '../shared/widgets/icon_badge.dart';
 import '../shared/widgets/section_header.dart';
 import '../student_profile/student_profile_controller.dart';
@@ -67,10 +68,16 @@ class ServicesScreen extends StatelessWidget {
           'Vehicle',
           Icons.two_wheeler_outlined,
           const Color(0xFF8B5CF6),
-          () => Get.toNamed(
-            Routes.studentProfileEdit,
-            arguments: Get.find<StudentProfileController>().profile.value,
-          ),
+          () {
+            final profileController =
+                Get.isRegistered<StudentProfileController>()
+                    ? Get.find<StudentProfileController>()
+                    : null;
+            Get.toNamed(
+              Routes.studentProfileEdit,
+              arguments: profileController?.profile.value,
+            );
+          },
         ),
       ],
       'Personal': [
@@ -96,48 +103,85 @@ class ServicesScreen extends StatelessWidget {
     };
 
     return Scaffold(
-      appBar: AppBar(title: const Text('All services')),
-      body: ListView(
-        padding: const EdgeInsets.fromLTRB(
-          AppDimens.screenPadding,
-          AppDimens.gapSm,
-          AppDimens.screenPadding,
-          AppDimens.gapXxl,
-        ),
-        children: [
-          for (final entry in sections.entries) ...[
-            SectionHeader(title: entry.key),
-            GridView.count(
-              crossAxisCount: 3,
-              shrinkWrap: true,
-              physics: const NeverScrollableScrollPhysics(),
-              mainAxisSpacing: AppDimens.gapMd,
-              crossAxisSpacing: AppDimens.gapMd,
-              childAspectRatio: 0.95,
-              children: [
-                for (final item in entry.value)
-                  AppCard(
-                    padding: const EdgeInsets.all(AppDimens.gapSm),
-                    onTap: item.onTap,
-                    child: Column(
-                      mainAxisAlignment: MainAxisAlignment.center,
+      backgroundColor: AppColors.mainBackground,
+      body: CustomScrollView(
+        physics: const AlwaysScrollableScrollPhysics(),
+        slivers: [
+          SliverGradientHeader(
+            overline: 'Hostel Portal',
+            title: 'All services',
+            subtitle: 'Quick access to all hostel facilities & features',
+            expandedHeight: 220.0,
+            leading: Navigator.canPop(context)
+                ? HeaderIconButton(
+                    icon: Icons.arrow_back_rounded,
+                    tooltip: 'Back',
+                    onPressed: () => Get.back(),
+                  )
+                : null,
+            child: const HeaderPill(
+              icon: Icons.grid_view_rounded,
+              label: '9 Services available',
+            ),
+          ),
+          SliverToBoxAdapter(
+            child: Padding(
+              padding: const EdgeInsets.fromLTRB(
+                AppDimens.screenPadding,
+                AppDimens.gapXl,
+                AppDimens.screenPadding,
+                AppDimens.gapXxl,
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  for (final entry in sections.entries) ...[
+                    SectionHeader(title: entry.key),
+                    GridView.count(
+                      crossAxisCount: 3,
+                      shrinkWrap: true,
+                      physics: const NeverScrollableScrollPhysics(),
+                      mainAxisSpacing: AppDimens.gapMd,
+                      crossAxisSpacing: AppDimens.gapMd,
+                      childAspectRatio: 0.96,
                       children: [
-                        IconBadge(icon: item.icon, color: item.color, size: 48),
-                        const SizedBox(height: AppDimens.gapMd),
-                        Text(
-                          item.label,
-                          style: AppTextStyles.label.copyWith(
-                            color: AppColors.textPrimary,
+                        for (final item in entry.value)
+                          AppCard(
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: AppDimens.gapSm,
+                              vertical: AppDimens.gapMd,
+                            ),
+                            onTap: item.onTap,
+                            child: Column(
+                              mainAxisAlignment: MainAxisAlignment.center,
+                              children: [
+                                IconBadge(
+                                  icon: item.icon,
+                                  color: item.color,
+                                  size: 46,
+                                ),
+                                const SizedBox(height: AppDimens.gapSm),
+                                Text(
+                                  item.label,
+                                  style: AppTextStyles.label.copyWith(
+                                    color: AppColors.textPrimary,
+                                    fontWeight: FontWeight.w600,
+                                  ),
+                                  textAlign: TextAlign.center,
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                ),
+                              ],
+                            ),
                           ),
-                          textAlign: TextAlign.center,
-                        ),
                       ],
                     ),
-                  ),
-              ],
+                    const SizedBox(height: AppDimens.gapXl),
+                  ],
+                ],
+              ),
             ),
-            const SizedBox(height: AppDimens.gapXl),
-          ],
+          ),
         ],
       ),
     );

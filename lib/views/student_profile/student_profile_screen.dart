@@ -7,6 +7,7 @@ import '../../constants/app_dimens.dart';
 import '../../constants/app_routes.dart';
 import '../../constants/app_text_styles.dart';
 import '../shared/widgets/app_card.dart';
+import '../shared/widgets/app_refresh_indicator.dart';
 import '../shared/widgets/async_state_view.dart';
 import '../shared/widgets/gradient_header.dart';
 import '../shared/widgets/icon_badge.dart';
@@ -29,9 +30,10 @@ class StudentProfileScreen extends GetView<StudentProfileController> {
           builder: (context) {
             final profile = controller.profile.value;
             if (profile == null) return const SizedBox.shrink();
-            return RefreshIndicator(
+            return AppRefreshIndicator(
               onRefresh: controller.refreshProfile,
               child: CustomScrollView(
+                physics: const AlwaysScrollableScrollPhysics(),
                 slivers: [
                   _ProfileHero(profile: profile),
                   SliverToBoxAdapter(

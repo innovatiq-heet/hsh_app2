@@ -8,6 +8,7 @@ import '../../network/responses/laundry/laundry_responses.dart';
 import '../../utils/date_formatting.dart';
 import '../shared/widgets/app_button.dart';
 import '../shared/widgets/app_card.dart';
+import '../shared/widgets/app_refresh_indicator.dart';
 import '../shared/widgets/app_text_field.dart';
 import '../shared/widgets/gradient_header.dart';
 import '../shared/widgets/section_header.dart';
@@ -29,9 +30,10 @@ class LaundryTicketDetailScreen extends GetView<LaundryTicketDetailController> {
         if (t == null) {
           return const Center(child: Text('Ticket not found'));
         }
-        return RefreshIndicator(
+        return AppRefreshIndicator(
           onRefresh: controller.load,
           child: CustomScrollView(
+            physics: const AlwaysScrollableScrollPhysics(),
             slivers: [
               // Hero Gradient Header
               SliverGradientHeader(

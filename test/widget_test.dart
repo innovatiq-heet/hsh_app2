@@ -6,8 +6,6 @@ import 'package:hsh_app2/main.dart';
 void main() {
   testWidgets('App boots to the splash screen', (WidgetTester tester) async {
     await tester.pumpWidget(const HshApp());
-    await tester.pump();
-
     expect(find.byType(CircularProgressIndicator), findsOneWidget);
     await tester.pump(const Duration(seconds: 6));
   });

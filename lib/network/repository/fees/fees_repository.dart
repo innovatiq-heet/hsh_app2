@@ -1,60 +1,55 @@
+import 'dart:developer' as developer;
 import 'package:dio/dio.dart';
 import 'package:get/get.dart';
-import '../../../common_enums/payment_type.dart';
-import '../../../common_enums/transaction_status.dart';
 import '../../../constants/app_config.dart';
+import '../../../storage/session_store.dart';
 import '../../api_client.dart';
+import '../../api_exception.dart';
 import '../../request/fees/submit_payment_request.dart';
 import '../../responses/fees/fee_responses.dart';
 
 class FeesRepository {
-  final Dio _dio = Get.find<ApiClient>().dio;
+  Dio get _dio => Get.find<ApiClient>().dio;
 
-  final List<FeeTransactionResponse> _transactions = [
-    FeeTransactionResponse(
-      id: 'txn-1',
-      receiptNumber: 'HSH-REC-2026-0891',
-      amount: 15000,
-      type: PaymentType.online,
-      status: TransactionStatus.approved,
-      submittedAt: DateTime.now().toUtc().subtract(const Duration(days: 30)),
-      transactionRef: 'UPI/524391823910/ICICI',
-      bankName: 'Google Pay · ICICI Bank',
-      narration: 'Term 1 Hostel & Room charges',
-    ),
-    FeeTransactionResponse(
-      id: 'txn-2',
-      receiptNumber: 'HSH-REC-2026-1044',
-      amount: 5000,
-      type: PaymentType.cheque,
-      status: TransactionStatus.pending,
-      submittedAt: DateTime.now().toUtc().subtract(const Duration(days: 2)),
-      chequeNumber: '000123',
-      chequeDate: DateTime.now().toUtc().subtract(const Duration(days: 2)),
-      bankName: 'HDFC Bank (Navrangpura)',
-      narration: 'Mess & Maintenance advance',
-    ),
-    FeeTransactionResponse(
-      id: 'txn-3',
-      receiptNumber: 'HSH-REC-2025-0720',
-      amount: 75000,
-      type: PaymentType.online,
-      status: TransactionStatus.approved,
-      submittedAt: DateTime.now().toUtc().subtract(const Duration(days: 180)),
-      transactionRef: 'NEFT/CMS291038102/AXIS',
-      bankName: 'Axis Bank NetBanking',
-      narration: 'Annual Accommodation Fee 2025-26',
-    ),
-  ];
+  Future<Options> _authOptions([Options? base]) async {
+    final token = SessionStore.instance.currentToken ??
+        await SessionStore.instance.token;
+    final headers = Map<String, dynamic>.from(base?.headers ?? {});
+    if (token != null && token.isNotEmpty) {
+      headers['Authorization'] = 'Bearer $token';
+    }
+    return (base ?? Options()).copyWith(headers: headers);
+  }
+
+  String _extractErrorMessage(DioException e) {
+    final data = e.response?.data;
+    if (data is Map) {
+      if (data['message'] is String &&
+          (data['message'] as String).isNotEmpty) {
+        return data['message'] as String;
+      }
+      if (data['error'] is String && (data['error'] as String).isNotEmpty) {
+        return data['error'] as String;
+      }
+    }
+    if (e.type == DioExceptionType.connectionTimeout ||
+        e.type == DioExceptionType.receiveTimeout ||
+        e.type == DioExceptionType.connectionError) {
+      return 'Could not connect to host at ${AppConfig.baseUrl}. Please verify Wi-Fi and server status.';
+    }
+    return e.message ?? 'Fee request failed. Please try again.';
+  }
 
   /// Bootstrap aadhar resolver — `GET /fees/summary` also happens to be the
-  /// endpoint the JWT's student aadhar comes back on (API_HANDOFF.md §8.1),
+  /// endpoint the JWT's student aadhar comes back on,
   /// so this doubles as the primary source for [AadharResolvingMixin].
-  /// Returns `null` on failure rather than throwing — the mixin falls back
-  /// to the laundry-balance call.
+  /// Returns `null` on failure rather than throwing.
   Future<String?> resolveAadhar() async {
     try {
-      final response = await _dio.get('/fees/summary');
+      final response = await _dio.get(
+        '/fees/summary',
+        options: await _authOptions(),
+      );
       final data = response.data;
       if (data is Map<String, dynamic>) {
         final payload = data['data'];
@@ -76,104 +71,194 @@ class FeesRepository {
     }
   }
 
+  /// Get student financial summary, net due, and balances
+  /// `GET /api/fees/summary`
   Future<FeeSummaryResponse> summary() async {
-    await Future.delayed(AppConfig.mockNetworkDelay);
-    return const FeeSummaryResponse(
-      totalBilled: 120000,
-      totalApproved: 95000,
-      depositBalance: 10000,
-      netDue: 25000,
-    );
+    try {
+      final response = await _dio.get(
+        '/fees/summary',
+        options: await _authOptions(),
+      );
+      final data = response.data;
+      if (data is Map<String, dynamic>) {
+        final payload = data['data'];
+        if (payload is Map<String, dynamic>) {
+          final summaryData = payload['summary'];
+          if (summaryData is Map<String, dynamic>) {
+            return FeeSummaryResponse.fromJson(summaryData);
+          }
+        }
+      }
+      throw const ApiException('Invalid fee summary format received from server.');
+    } on DioException catch (e) {
+      developer.log('FeesRepository.summary error: ${e.response?.data}', name: 'FEES');
+      throw ApiException(
+        _extractErrorMessage(e),
+        statusCode: e.response?.statusCode,
+      );
+    }
   }
 
-  Future<List<FeeDebitResponse>> debits({String? academicYear}) async {
-    await Future.delayed(AppConfig.mockNetworkDelay);
-    final all = [
-      FeeDebitResponse(
-        id: 'd1',
-        label: 'Hostel Fee',
-        amount: 80000,
-        academicYear: '2025-26',
-        billedAt: DateTime.now().toUtc().subtract(const Duration(days: 90)),
-      ),
-      FeeDebitResponse(
-        id: 'd2',
-        label: 'Electricity',
-        amount: 5000,
-        academicYear: '2025-26',
-        billedAt: DateTime.now().toUtc().subtract(const Duration(days: 40)),
-      ),
-      FeeDebitResponse(
-        id: 'd3',
-        label: 'Maintenance',
-        amount: 3000,
-        academicYear: '2025-26',
-        billedAt: DateTime.now().toUtc().subtract(const Duration(days: 20)),
-      ),
-      FeeDebitResponse(
-        id: 'd4',
-        label: 'Damages',
-        amount: 2000,
-        academicYear: '2024-25',
-        billedAt: DateTime.now().toUtc().subtract(const Duration(days: 400)),
-      ),
-      FeeDebitResponse(
-        id: 'd5',
-        label: 'Hostel Fee',
-        amount: 75000,
-        academicYear: '2024-25',
-        billedAt: DateTime.now().toUtc().subtract(const Duration(days: 450)),
-      ),
-    ];
-    if (academicYear == null) return all;
-    return all.where((e) => e.academicYear == academicYear).toList();
+  /// List fee debits/invoices charged to student
+  /// `GET /api/fees/debits`
+  Future<List<FeeDebitResponse>> debits({
+    dynamic year,
+    int limit = 100,
+    int offset = 0,
+  }) async {
+    try {
+      final queryParams = <String, dynamic>{
+        'limit': limit,
+        'offset': offset,
+      };
+      if (year != null) {
+        queryParams['year'] = year;
+      }
+
+      final response = await _dio.get(
+        '/fees/debits',
+        queryParameters: queryParams,
+        options: await _authOptions(),
+      );
+      final data = response.data;
+      if (data is Map<String, dynamic>) {
+        final payload = data['data'];
+        if (payload is Map<String, dynamic>) {
+          final list = payload['debits'];
+          if (list is List) {
+            return list
+                .whereType<Map<String, dynamic>>()
+                .map((e) => FeeDebitResponse.fromJson(e))
+                .toList();
+          }
+        }
+      }
+      return [];
+    } on DioException catch (e) {
+      developer.log('FeesRepository.debits error: ${e.response?.data}', name: 'FEES');
+      throw ApiException(
+        _extractErrorMessage(e),
+        statusCode: e.response?.statusCode,
+      );
+    }
   }
 
-  Future<List<DepositEntryResponse>> deposits() async {
-    await Future.delayed(AppConfig.mockNetworkDelay);
-    return [
-      DepositEntryResponse(
-        id: 'dep1',
-        amount: 15000,
-        isCredit: true,
-        narration: 'Initial security deposit',
-        date: DateTime.now().toUtc().subtract(const Duration(days: 200)),
-      ),
-      DepositEntryResponse(
-        id: 'dep2',
-        amount: 5000,
-        isCredit: false,
-        narration: 'Damage deduction',
-        date: DateTime.now().toUtc().subtract(const Duration(days: 60)),
-      ),
-    ];
+  /// List security/caution deposits ledger
+  /// `GET /api/fees/deposits`
+  Future<List<DepositEntryResponse>> deposits({
+    dynamic year,
+    int limit = 100,
+    int offset = 0,
+  }) async {
+    try {
+      final queryParams = <String, dynamic>{
+        'limit': limit,
+        'offset': offset,
+      };
+      if (year != null) {
+        queryParams['year'] = year;
+      }
+
+      final response = await _dio.get(
+        '/fees/deposits',
+        queryParameters: queryParams,
+        options: await _authOptions(),
+      );
+      final data = response.data;
+      if (data is Map<String, dynamic>) {
+        final payload = data['data'];
+        if (payload is Map<String, dynamic>) {
+          final list = payload['deposits'];
+          if (list is List) {
+            return list
+                .whereType<Map<String, dynamic>>()
+                .map((e) => DepositEntryResponse.fromJson(e))
+                .toList();
+          }
+        }
+      }
+      return [];
+    } on DioException catch (e) {
+      developer.log('FeesRepository.deposits error: ${e.response?.data}', name: 'FEES');
+      throw ApiException(
+        _extractErrorMessage(e),
+        statusCode: e.response?.statusCode,
+      );
+    }
   }
 
-  Future<List<FeeTransactionResponse>> transactions() async {
-    await Future.delayed(AppConfig.mockNetworkDelay);
-    return List.unmodifiable(_transactions);
+  /// List payment transactions submitted by student
+  /// `GET /api/fees/transactions`
+  Future<List<FeeTransactionResponse>> transactions({
+    String? status,
+    int limit = 100,
+    int offset = 0,
+  }) async {
+    try {
+      final queryParams = <String, dynamic>{
+        'limit': limit,
+        'offset': offset,
+      };
+      if (status != null && status.isNotEmpty) {
+        queryParams['status'] = status;
+      }
+
+      final response = await _dio.get(
+        '/fees/transactions',
+        queryParameters: queryParams,
+        options: await _authOptions(),
+      );
+      final data = response.data;
+      if (data is Map<String, dynamic>) {
+        final payload = data['data'];
+        if (payload is Map<String, dynamic>) {
+          final list = payload['transactions'];
+          if (list is List) {
+            return list
+                .whereType<Map<String, dynamic>>()
+                .map((e) => FeeTransactionResponse.fromJson(e))
+                .toList();
+          }
+        }
+      }
+      return [];
+    } on DioException catch (e) {
+      developer.log('FeesRepository.transactions error: ${e.response?.data}', name: 'FEES');
+      throw ApiException(
+        _extractErrorMessage(e),
+        statusCode: e.response?.statusCode,
+      );
+    }
   }
 
+  /// Submit a payment transaction slip for verification
+  /// `POST /api/fees/transactions`
   Future<FeeTransactionResponse> submitPayment(
     SubmitPaymentRequest request,
   ) async {
-    await Future.delayed(AppConfig.mockNetworkDelay);
-    final txn = FeeTransactionResponse(
-      id: 'txn-${_transactions.length + 1}',
-      receiptNumber:
-          'HSH-REC-2026-${(1000 + _transactions.length + 1).toString()}',
-      amount: request.amount,
-      type: request.type,
-      status: TransactionStatus.pending,
-      submittedAt: DateTime.now().toUtc(),
-      chequeNumber: request.chequeNumber,
-      chequeDate: request.chequeDate,
-      bankName: request.bankName,
-      narration: request.narration,
-      transactionRef: request.transactionRef,
-      attachmentUrl: request.attachmentPath,
-    );
-    _transactions.insert(0, txn);
-    return txn;
+    try {
+      final response = await _dio.post(
+        '/fees/transactions',
+        data: request.toJson(),
+        options: await _authOptions(),
+      );
+      final data = response.data;
+      if (data is Map<String, dynamic>) {
+        final payload = data['data'];
+        if (payload is Map<String, dynamic>) {
+          final txn = payload['transaction'];
+          if (txn is Map<String, dynamic>) {
+            return FeeTransactionResponse.fromJson(txn);
+          }
+        }
+      }
+      throw const ApiException('Invalid transaction confirmation received from server.');
+    } on DioException catch (e) {
+      developer.log('FeesRepository.submitPayment error: ${e.response?.data}', name: 'FEES');
+      throw ApiException(
+        _extractErrorMessage(e),
+        statusCode: e.response?.statusCode,
+      );
+    }
   }
 }

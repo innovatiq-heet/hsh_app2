@@ -34,7 +34,7 @@ class LaundryOrdersScreen extends GetView<LaundryOrdersController> {
         hasError: controller.hasError.value,
         errorMessage: controller.errorMessage.value,
         onRetry: controller.load,
-        builder: (context) {
+        builder: (context) => Obx(() {
           final list = controller.filtered;
           return RefreshIndicator(
             onRefresh: controller.load,
@@ -62,19 +62,46 @@ class LaundryOrdersScreen extends GetView<LaundryOrdersController> {
                     scrollDirection: Axis.horizontal,
                     child: Row(
                       children: [
-                        HeaderPill(
-                          icon: Icons.hourglass_top_rounded,
-                          label: '${controller.pendingCount} Pending',
+                        GestureDetector(
+                          onTap: () {
+                            controller.statusFilter.value =
+                                controller.statusFilter.value ==
+                                        LaundryStatus.pending
+                                    ? null
+                                    : LaundryStatus.pending;
+                          },
+                          child: HeaderPill(
+                            icon: Icons.hourglass_top_rounded,
+                            label: '${controller.pendingCount} Pending',
+                          ),
                         ),
                         const SizedBox(width: AppDimens.gapSm),
-                        HeaderPill(
-                          icon: Icons.local_laundry_service_rounded,
-                          label: '${controller.acceptedCount + controller.washedCount} In Process',
+                        GestureDetector(
+                          onTap: () {
+                            controller.statusFilter.value =
+                                controller.statusFilter.value ==
+                                        LaundryStatus.accepted
+                                    ? null
+                                    : LaundryStatus.accepted;
+                          },
+                          child: HeaderPill(
+                            icon: Icons.local_laundry_service_rounded,
+                            label: '${controller.acceptedCount + controller.washedCount} In Process',
+                          ),
                         ),
                         const SizedBox(width: AppDimens.gapSm),
-                        HeaderPill(
-                          icon: Icons.check_circle_rounded,
-                          label: '${controller.receivedCount} Delivered',
+                        GestureDetector(
+                          onTap: () {
+                            controller.statusFilter.value =
+                                controller.statusFilter.value ==
+                                        LaundryStatus.received
+                                    ? null
+                                    : LaundryStatus.received;
+                          },
+                          child: HeaderPill(
+                            icon: Icons.check_circle_rounded,
+                            label: '${controller.receivedCount} Delivered',
+                          ),
                         ),
                       ],
                     ),
@@ -132,9 +159,16 @@ class LaundryOrdersScreen extends GetView<LaundryOrdersController> {
                                             controller.statusFilter.value ==
                                                 status,
                                         statusColor: status.color,
-                                        onSelected: () =>
+                                        onSelected: () {
+                                          if (controller.statusFilter.value ==
+                                              status) {
                                             controller.statusFilter.value =
-                                                status,
+                                                null;
+                                          } else {
+                                            controller.statusFilter.value =
+                                                status;
+                                          }
+                                        },
                                       ),
                                     ),
                                   ),
@@ -188,7 +222,7 @@ class LaundryOrdersScreen extends GetView<LaundryOrdersController> {
               ],
             ),
           );
-        },
+        }),
       ),
     );
   }

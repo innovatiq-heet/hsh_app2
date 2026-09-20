@@ -27,7 +27,7 @@ class LeaveScreen extends GetView<LeaveController> {
           hasError: controller.hasError.value,
           errorMessage: controller.errorMessage.value,
           onRetry: controller.load,
-          builder: (context) {
+          builder: (context) => Obx(() {
             final allLeaves = controller.leaves;
             final filtered = controller.filteredLeaves;
 
@@ -143,7 +143,7 @@ class LeaveScreen extends GetView<LeaveController> {
                 ],
               ),
             );
-          },
+          }),
         ),
       ),
       floatingActionButton: FloatingActionButton.extended(

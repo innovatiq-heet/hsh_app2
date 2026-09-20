@@ -32,21 +32,21 @@ class StudentProfileScreen extends GetView<StudentProfileController> {
             if (profile == null) return const SizedBox.shrink();
             return AppRefreshIndicator(
               onRefresh: controller.refreshProfile,
-              child: ListView(
+              child: CustomScrollView(
                 physics: const AlwaysScrollableScrollPhysics(),
-                padding: EdgeInsets.zero,
-                children: [
+                slivers: [
                   _ProfileHero(profile: profile),
-                  Padding(
-                    padding: const EdgeInsets.fromLTRB(
-                      AppDimens.screenPadding,
-                      AppDimens.gapXl,
-                      AppDimens.screenPadding,
-                      100,
-                    ),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.stretch,
-                      children: [
+                  SliverToBoxAdapter(
+                    child: Padding(
+                      padding: const EdgeInsets.fromLTRB(
+                        AppDimens.screenPadding,
+                        AppDimens.gapXl,
+                        AppDimens.screenPadding,
+                        100,
+                      ),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.stretch,
+                        children: [
                         const SectionHeader(title: 'Quick actions'),
                         const _QuickActions(),
                         const SizedBox(height: AppDimens.gapXl),
@@ -134,12 +134,13 @@ class StudentProfileScreen extends GetView<StudentProfileController> {
                       ],
                     ),
                   ),
-                ],
-              ),
-            );
-          },
-        ),
+                ),
+              ],
+            ),
+          );
+        },
       ),
+    ),
       floatingActionButton: FloatingActionButton.extended(
         // Tabs share one route via IndexedStack; default hero tags would collide.
         heroTag: null,
@@ -175,11 +176,11 @@ class _ProfileHero extends StatelessWidget {
         ? profile.firstName[0].toUpperCase()
         : '?';
 
-    return GradientHeader(
+    return SliverGradientHeader(
       overline: _greeting,
       title: profile.fullName,
       subtitle: profile.email,
-      leading: Container(
+      heroLeading: Container(
         width: 60,
         height: 60,
         padding: const EdgeInsets.all(3),

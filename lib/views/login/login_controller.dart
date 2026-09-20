@@ -80,6 +80,9 @@ class LoginController extends GetxController {
       case UserRole.complainsolver:
         Get.offAllNamed(Routes.complainSolverModule);
         break;
+      case UserRole.attendance:
+        Get.offAllNamed(Routes.operatorAttendanceQrDisplay);
+        break;
       case UserRole.unknown:
         _showError('Unrecognized role for this account.');
         break;

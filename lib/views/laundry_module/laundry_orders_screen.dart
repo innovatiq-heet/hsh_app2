@@ -35,19 +35,19 @@ class LaundryOrdersScreen extends GetView<LaundryOrdersController> {
         hasError: controller.hasError.value,
         errorMessage: controller.errorMessage.value,
         onRetry: controller.load,
-        builder: (context) {
+        builder: (context) => Obx(() {
           final list = controller.filtered;
           return AppRefreshIndicator(
             onRefresh: controller.load,
-            child: ListView(
+            child: CustomScrollView(
               physics: const AlwaysScrollableScrollPhysics(),
-              padding: EdgeInsets.zero,
-              children: [
+              slivers: [
                 // Hero Gradient Header
-                GradientHeader(
+                SliverGradientHeader(
                   overline: 'Staff Operations',
                   title: 'Laundry Desk',
                   subtitle: 'Manage garment intake, pricing & deliveries',
+                  expandedHeight: 250.0,
                   actions: [
                     HeaderIconButton(
                       icon: Icons.refresh_rounded,
@@ -64,19 +64,46 @@ class LaundryOrdersScreen extends GetView<LaundryOrdersController> {
                     scrollDirection: Axis.horizontal,
                     child: Row(
                       children: [
-                        HeaderPill(
-                          icon: Icons.hourglass_top_rounded,
-                          label: '${controller.pendingCount} Pending',
+                        GestureDetector(
+                          onTap: () {
+                            controller.statusFilter.value =
+                                controller.statusFilter.value ==
+                                        LaundryStatus.pending
+                                    ? null
+                                    : LaundryStatus.pending;
+                          },
+                          child: HeaderPill(
+                            icon: Icons.hourglass_top_rounded,
+                            label: '${controller.pendingCount} Pending',
+                          ),
                         ),
                         const SizedBox(width: AppDimens.gapSm),
-                        HeaderPill(
-                          icon: Icons.local_laundry_service_rounded,
-                          label: '${controller.acceptedCount + controller.washedCount} In Process',
+                        GestureDetector(
+                          onTap: () {
+                            controller.statusFilter.value =
+                                controller.statusFilter.value ==
+                                        LaundryStatus.accepted
+                                    ? null
+                                    : LaundryStatus.accepted;
+                          },
+                          child: HeaderPill(
+                            icon: Icons.local_laundry_service_rounded,
+                            label: '${controller.acceptedCount + controller.washedCount} In Process',
+                          ),
                         ),
                         const SizedBox(width: AppDimens.gapSm),
-                        HeaderPill(
-                          icon: Icons.check_circle_rounded,
-                          label: '${controller.receivedCount} Delivered',
+                        GestureDetector(
+                          onTap: () {
+                            controller.statusFilter.value =
+                                controller.statusFilter.value ==
+                                        LaundryStatus.received
+                                    ? null
+                                    : LaundryStatus.received;
+                          },
+                          child: HeaderPill(
+                            icon: Icons.check_circle_rounded,
+                            label: '${controller.receivedCount} Delivered',
+                          ),
                         ),
                       ],
                     ),
@@ -84,14 +111,15 @@ class LaundryOrdersScreen extends GetView<LaundryOrdersController> {
                 ),
 
                 // Main Content
-                Padding(
-                  padding: const EdgeInsets.fromLTRB(
-                    AppDimens.screenPadding,
-                    AppDimens.gapLg,
-                    AppDimens.screenPadding,
-                    100,
-                  ),
-                  child: Column(
+                SliverToBoxAdapter(
+                  child: Padding(
+                    padding: const EdgeInsets.fromLTRB(
+                      AppDimens.screenPadding,
+                      AppDimens.gapLg,
+                      AppDimens.screenPadding,
+                      100,
+                    ),
+                    child: Column(
                     crossAxisAlignment: CrossAxisAlignment.stretch,
                     children: [
                       // Search & Quick Filter Card
@@ -134,9 +162,16 @@ class LaundryOrdersScreen extends GetView<LaundryOrdersController> {
                                             controller.statusFilter.value ==
                                                 status,
                                         statusColor: status.color,
-                                        onSelected: () =>
+                                        onSelected: () {
+                                          if (controller.statusFilter.value ==
+                                              status) {
                                             controller.statusFilter.value =
-                                                status,
+                                                null;
+                                          } else {
+                                            controller.statusFilter.value =
+                                                status;
+                                          }
+                                        },
                                       ),
                                     ),
                                   ),
@@ -187,10 +222,11 @@ class LaundryOrdersScreen extends GetView<LaundryOrdersController> {
                     ],
                   ),
                 ),
-              ],
-            ),
-          );
-        },
+              ),
+            ],
+          ),
+        );
+        }),
       ),
     );
   }

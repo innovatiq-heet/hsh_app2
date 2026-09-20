@@ -47,27 +47,19 @@ class ComplaintDetailScreen extends GetView<ComplaintDetailController> {
 
         return AppRefreshIndicator(
           onRefresh: controller.load,
-          child: ListView(
-            padding: EdgeInsets.zero,
+          child: CustomScrollView(
             physics: const AlwaysScrollableScrollPhysics(),
-            children: [
+            slivers: [
               // Hero Gradient Header
-              GradientHeader(
+              SliverGradientHeader(
                 overline: 'Complaint #${c.id.toUpperCase()}',
                 title: 'Complaint Details',
                 subtitle: '${c.category} · Room ${c.room}',
-                leading: Material(
-                  color: Colors.white.withValues(alpha: 0.14),
-                  shape: const CircleBorder(),
-                  child: IconButton(
-                    tooltip: 'Back',
-                    onPressed: () => Get.back(),
-                    icon: const Icon(
-                      Icons.arrow_back_rounded,
-                      color: Colors.white,
-                      size: 22,
-                    ),
-                  ),
+                expandedHeight: 220.0,
+                leading: HeaderIconButton(
+                  icon: Icons.arrow_back_rounded,
+                  tooltip: 'Back',
+                  onPressed: () => Get.back(),
                 ),
                 child: HeaderPill(
                   icon: Icons.calendar_today_rounded,
@@ -76,7 +68,8 @@ class ComplaintDetailScreen extends GetView<ComplaintDetailController> {
               ),
 
               // Content Body
-              Padding(
+              SliverToBoxAdapter(
+                child: Padding(
                 padding: const EdgeInsets.fromLTRB(
                   AppDimens.screenPadding,
                   AppDimens.gapXl,
@@ -123,9 +116,10 @@ class ComplaintDetailScreen extends GetView<ComplaintDetailController> {
                   ],
                 ),
               ),
-            ],
-          ),
-        );
+            ),
+          ],
+        ),
+      );
       }),
     );
   }

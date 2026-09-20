@@ -32,16 +32,16 @@ class ComplainHomeScreen extends GetView<ComplainHomeController> {
         onRetry: controller.load,
         builder: (context) => AppRefreshIndicator(
           onRefresh: controller.load,
-          child: ListView(
-            padding: EdgeInsets.zero,
+          child: CustomScrollView(
             physics: const AlwaysScrollableScrollPhysics(),
-            children: [
+            slivers: [
               // Gradient Header
-              GradientHeader(
+              SliverGradientHeader(
                 overline: 'Performance & Analytics',
                 title: 'Complaints Overview',
                 subtitle:
                     'Resolution velocity, category distribution and queue health',
+                expandedHeight: 220.0,
                 actions: [
                   HeaderIconButton(
                     icon: Icons.refresh_rounded,
@@ -72,141 +72,143 @@ class ComplainHomeScreen extends GetView<ComplainHomeController> {
               ),
 
               // Body Content
-              Padding(
-                padding: const EdgeInsets.fromLTRB(
-                  AppDimens.screenPadding,
-                  AppDimens.gapLg,
-                  AppDimens.screenPadding,
-                  100,
-                ),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.stretch,
-                  children: [
-                    // Top Volume Summary Card
-                    AppCard(
-                      child: Row(
+              SliverToBoxAdapter(
+                child: Padding(
+                  padding: const EdgeInsets.fromLTRB(
+                    AppDimens.screenPadding,
+                    AppDimens.gapLg,
+                    AppDimens.screenPadding,
+                    100,
+                  ),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      // Top Volume Summary Card
+                      AppCard(
+                        child: Row(
+                          children: [
+                            Expanded(
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Text(
+                                    'Total Complaints',
+                                    style: AppTextStyles.bodySm.copyWith(
+                                      color: AppColors.textSecondary,
+                                    ),
+                                  ),
+                                  const SizedBox(height: 4),
+                                  Text(
+                                    '${controller.totalComplaints.value}',
+                                    style: AppTextStyles.displayLg.copyWith(
+                                      color: AppColors.textPrimary,
+                                      fontWeight: FontWeight.w800,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                            Container(
+                              width: 1,
+                              height: 46,
+                              color: AppColors.border,
+                            ),
+                            const SizedBox(width: AppDimens.gapLg),
+                            Expanded(
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Text(
+                                    'Resolution Rate',
+                                    style: AppTextStyles.bodySm.copyWith(
+                                      color: AppColors.textSecondary,
+                                    ),
+                                  ),
+                                  const SizedBox(height: 4),
+                                  Text(
+                                    '${controller.resolutionRate.value.toStringAsFixed(0)}%',
+                                    style: AppTextStyles.displayLg.copyWith(
+                                      color: AppColors.successGreen,
+                                      fontWeight: FontWeight.w800,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                      const SizedBox(height: AppDimens.gapLg),
+
+                      // 4 Status Cards Grid
+                      const SectionHeader(title: 'Queue Breakdown'),
+                      const SizedBox(height: AppDimens.gapSm),
+
+                      Row(
                         children: [
                           Expanded(
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                Text(
-                                  'Total Complaints',
-                                  style: AppTextStyles.bodySm.copyWith(
-                                    color: AppColors.textSecondary,
-                                  ),
-                                ),
-                                const SizedBox(height: 4),
-                                Text(
-                                  '${controller.totalComplaints.value}',
-                                  style: AppTextStyles.displayLg.copyWith(
-                                    color: AppColors.textPrimary,
-                                    fontWeight: FontWeight.w800,
-                                  ),
-                                ),
-                              ],
+                            child: _StatusStatCard(
+                              title: 'Pending Intake',
+                              count: controller.pendingCount.value,
+                              color: ComplaintStatus.pending.color,
+                              icon: Icons.hourglass_top_rounded,
                             ),
                           ),
-                          Container(
-                            width: 1,
-                            height: 46,
-                            color: AppColors.border,
-                          ),
-                          const SizedBox(width: AppDimens.gapLg),
+                          const SizedBox(width: AppDimens.gapMd),
                           Expanded(
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                Text(
-                                  'Resolution Rate',
-                                  style: AppTextStyles.bodySm.copyWith(
-                                    color: AppColors.textSecondary,
-                                  ),
-                                ),
-                                const SizedBox(height: 4),
-                                Text(
-                                  '${controller.resolutionRate.value.toStringAsFixed(0)}%',
-                                  style: AppTextStyles.displayLg.copyWith(
-                                    color: AppColors.successGreen,
-                                    fontWeight: FontWeight.w800,
-                                  ),
-                                ),
-                              ],
+                            child: _StatusStatCard(
+                              title: 'Under Review',
+                              count: controller.reviewedCount.value,
+                              color: ComplaintStatus.reviewed.color,
+                              icon: Icons.sync_rounded,
                             ),
                           ),
                         ],
                       ),
-                    ),
-                    const SizedBox(height: AppDimens.gapLg),
-
-                    // 4 Status Cards Grid
-                    const SectionHeader(title: 'Queue Breakdown'),
-                    const SizedBox(height: AppDimens.gapSm),
-
-                    Row(
-                      children: [
-                        Expanded(
-                          child: _StatusStatCard(
-                            title: 'Pending Intake',
-                            count: controller.pendingCount.value,
-                            color: ComplaintStatus.pending.color,
-                            icon: Icons.hourglass_top_rounded,
+                      const SizedBox(height: AppDimens.gapMd),
+                      Row(
+                        children: [
+                          Expanded(
+                            child: _StatusStatCard(
+                              title: 'Resolved & Closed',
+                              count: controller.resolvedCount.value,
+                              color: ComplaintStatus.resolved.color,
+                              icon: Icons.check_circle_outline_rounded,
+                            ),
                           ),
-                        ),
-                        const SizedBox(width: AppDimens.gapMd),
-                        Expanded(
-                          child: _StatusStatCard(
-                            title: 'Under Review',
-                            count: controller.reviewedCount.value,
-                            color: ComplaintStatus.reviewed.color,
-                            icon: Icons.sync_rounded,
+                          const SizedBox(width: AppDimens.gapMd),
+                          Expanded(
+                            child: _StatusStatCard(
+                              title: 'Active Queue',
+                              count: controller.activeCount.value,
+                              color: const Color(0xFF8B5CF6),
+                              icon: Icons.pending_actions_rounded,
+                            ),
                           ),
-                        ),
-                      ],
-                    ),
-                    const SizedBox(height: AppDimens.gapMd),
-                    Row(
-                      children: [
-                        Expanded(
-                          child: _StatusStatCard(
-                            title: 'Resolved & Closed',
-                            count: controller.resolvedCount.value,
-                            color: ComplaintStatus.resolved.color,
-                            icon: Icons.check_circle_outline_rounded,
-                          ),
-                        ),
-                        const SizedBox(width: AppDimens.gapMd),
-                        Expanded(
-                          child: _StatusStatCard(
-                            title: 'Active Queue',
-                            count: controller.activeCount.value,
-                            color: const Color(0xFF8B5CF6),
-                            icon: Icons.pending_actions_rounded,
-                          ),
-                        ),
-                      ],
-                    ),
-                    const SizedBox(height: AppDimens.gapXl),
+                        ],
+                      ),
+                      const SizedBox(height: AppDimens.gapXl),
 
-                    // Category Breakdown Chart
-                    const SectionHeader(title: 'Category Distribution'),
-                    const SizedBox(height: AppDimens.gapSm),
-                    ChartCard(
-                      title: 'Complaints by Category',
-                      points: controller.categoryCounts,
-                      barColor: AppColors.secondary,
-                    ),
-                    const SizedBox(height: AppDimens.gapLg),
+                      // Category Breakdown Chart
+                      const SectionHeader(title: 'Category Distribution'),
+                      const SizedBox(height: AppDimens.gapSm),
+                      ChartCard(
+                        title: 'Complaints by Category',
+                        points: controller.categoryCounts,
+                        barColor: AppColors.secondary,
+                      ),
+                      const SizedBox(height: AppDimens.gapLg),
 
-                    // Status Breakdown Chart
-                    const SectionHeader(title: 'Status Distribution'),
-                    const SizedBox(height: AppDimens.gapSm),
-                    ChartCard(
-                      title: 'Complaints by Status',
-                      points: controller.statusCounts,
-                      barColor: AppColors.primary,
-                    ),
-                  ],
+                      // Status Breakdown Chart
+                      const SectionHeader(title: 'Status Distribution'),
+                      const SizedBox(height: AppDimens.gapSm),
+                      ChartCard(
+                        title: 'Complaints by Status',
+                        points: controller.statusCounts,
+                        barColor: AppColors.primary,
+                      ),
+                    ],
+                  ),
                 ),
               ),
             ],

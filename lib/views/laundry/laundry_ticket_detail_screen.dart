@@ -32,29 +32,21 @@ class LaundryTicketDetailScreen extends GetView<LaundryTicketDetailController> {
         }
         return AppRefreshIndicator(
           onRefresh: controller.load,
-          child: ListView(
+          child: CustomScrollView(
             physics: const AlwaysScrollableScrollPhysics(),
-            padding: EdgeInsets.zero,
-            children: [
+            slivers: [
               // Hero Gradient Header
-              GradientHeader(
+              SliverGradientHeader(
                 overline: 'Ticket #${t.id}',
                 title: 'Ticket Details',
                 subtitle: t.studentName.isNotEmpty
                     ? '${t.studentName}${t.room.isNotEmpty ? ' · Room ${t.room}' : ''}'
                     : 'Aadhar: ${t.aadhar}',
-                leading: Material(
-                  color: Colors.white.withValues(alpha: 0.14),
-                  shape: const CircleBorder(),
-                  child: IconButton(
-                    tooltip: 'Back',
-                    onPressed: () => Get.back(),
-                    icon: const Icon(
-                      Icons.arrow_back_rounded,
-                      color: Colors.white,
-                      size: 22,
-                    ),
-                  ),
+                expandedHeight: 220.0,
+                leading: HeaderIconButton(
+                  icon: Icons.arrow_back_rounded,
+                  tooltip: 'Back',
+                  onPressed: () => Get.back(),
                 ),
                 child: Row(
                   children: [
@@ -70,7 +62,8 @@ class LaundryTicketDetailScreen extends GetView<LaundryTicketDetailController> {
                 ),
               ),
 
-              Padding(
+              SliverToBoxAdapter(
+                child: Padding(
                 padding: const EdgeInsets.fromLTRB(
                   AppDimens.screenPadding,
                   AppDimens.gapLg,
@@ -338,9 +331,10 @@ class LaundryTicketDetailScreen extends GetView<LaundryTicketDetailController> {
                   ],
                 ),
               ),
-            ],
-          ),
-        );
+            ),
+          ],
+        ),
+      );
       }),
     );
   }

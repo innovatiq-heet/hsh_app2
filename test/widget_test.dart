@@ -7,6 +7,6 @@ void main() {
   testWidgets('App boots to the splash screen', (WidgetTester tester) async {
     await tester.pumpWidget(const HshApp());
     expect(find.byType(CircularProgressIndicator), findsOneWidget);
-    await tester.pump(const Duration(milliseconds: 1000));
+    await tester.pump(const Duration(seconds: 6));
   });
 }

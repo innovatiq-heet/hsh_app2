@@ -48,6 +48,9 @@ class SplashController extends GetxController {
       case UserRole.complainsolver:
         Get.offAllNamed(Routes.complainSolverModule);
         break;
+      case UserRole.attendance:
+        Get.offAllNamed(Routes.operatorAttendanceQrDisplay);
+        break;
       case UserRole.unknown:
         // Defensive fallback for a role the client doesn't recognize yet.
         Get.offAllNamed(Routes.login);

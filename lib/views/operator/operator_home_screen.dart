@@ -83,7 +83,7 @@ class OperatorHomeScreen extends StatelessWidget {
         'Fee slips',
         'Verify payments',
         Icons.fact_check_outlined,
-        Color(0xFF8B5CF6),
+        AppColors.primaryLight,
         Routes.operatorFeeApprovals,
       ),
       _OperatorAction(
@@ -116,6 +116,20 @@ class OperatorHomeScreen extends StatelessWidget {
         AppColors.secondary,
         Routes.operatorAttendanceOnBehalf,
       ),
+      _OperatorAction(
+        'Dynamic QR',
+        'Display rotating code',
+        Icons.qr_code_2_rounded,
+        AppColors.primary,
+        Routes.operatorAttendanceQrDisplay,
+      ),
+      _OperatorAction(
+        'Attendance history',
+        'View logs & records',
+        Icons.history_rounded,
+        AppColors.primaryLight,
+        Routes.attendanceHistory,
+      ),
     ]),
   ];
 
@@ -127,13 +141,13 @@ class OperatorHomeScreen extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      body: ListView(
-        padding: EdgeInsets.zero,
-        children: [
-          GradientHeader(
+      body: CustomScrollView(
+        slivers: [
+          SliverGradientHeader(
             overline: 'Operator console',
             title: 'Hostel admin',
             subtitle: 'Manage students, approvals and finance',
+            expandedHeight: 220.0,
             actions: [
               HeaderIconButton(
                 icon: Icons.logout_rounded,
@@ -146,13 +160,14 @@ class OperatorHomeScreen extends StatelessWidget {
               label: DateFormat('EEE, d MMM yyyy').format(DateTime.now()),
             ),
           ),
-          Padding(
-            padding: const EdgeInsets.fromLTRB(
-              AppDimens.screenPadding,
-              AppDimens.gapXl,
-              AppDimens.screenPadding,
-              AppDimens.gapXxl,
-            ),
+          SliverToBoxAdapter(
+            child: Padding(
+              padding: const EdgeInsets.fromLTRB(
+                AppDimens.screenPadding,
+                AppDimens.gapXl,
+                AppDimens.screenPadding,
+                AppDimens.gapXxl,
+              ),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
@@ -175,9 +190,10 @@ class OperatorHomeScreen extends StatelessWidget {
               ],
             ),
           ),
-        ],
-      ),
-    );
+        ),
+      ],
+    ),
+  );
   }
 }
 

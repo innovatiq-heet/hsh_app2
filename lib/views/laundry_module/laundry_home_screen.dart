@@ -32,15 +32,16 @@ class LaundryHomeScreen extends GetView<LaundryHomeController> {
         onRetry: controller.load,
         builder: (context) => AppRefreshIndicator(
           onRefresh: controller.load,
-          child: ListView(
+          child: CustomScrollView(
             physics: const AlwaysScrollableScrollPhysics(),
-            padding: EdgeInsets.zero,
-            children: [
+            slivers: [
               // Gradient Header
-              GradientHeader(
+              SliverGradientHeader(
                 overline: 'Performance & Analytics',
                 title: 'Laundry Overview',
-                subtitle: 'Ticket metrics, order distribution and processing queue',
+                subtitle:
+                    'Ticket metrics, order distribution and processing queue',
+                expandedHeight: 220.0,
                 actions: [
                   HeaderIconButton(
                     icon: Icons.refresh_rounded,
@@ -62,137 +63,140 @@ class LaundryHomeScreen extends GetView<LaundryHomeController> {
                     const SizedBox(width: AppDimens.gapSm),
                     HeaderPill(
                       icon: Icons.checkroom_rounded,
-                      label: '${controller.totalGarments.value} Garments Processed',
+                      label:
+                          '${controller.totalGarments.value} Garments Processed',
                     ),
                   ],
                 ),
               ),
 
               // Body Content
-              Padding(
-                padding: const EdgeInsets.fromLTRB(
-                  AppDimens.screenPadding,
-                  AppDimens.gapLg,
-                  AppDimens.screenPadding,
-                  100,
-                ),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.stretch,
-                  children: [
-                    // Top Volume Summary Card
-                    AppCard(
-                      child: Row(
+              SliverToBoxAdapter(
+                child: Padding(
+                  padding: const EdgeInsets.fromLTRB(
+                    AppDimens.screenPadding,
+                    AppDimens.gapLg,
+                    AppDimens.screenPadding,
+                    100,
+                  ),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      // Top Volume Summary Card
+                      AppCard(
+                        child: Row(
+                          children: [
+                            Expanded(
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Text(
+                                    'Total Orders',
+                                    style: AppTextStyles.bodySm.copyWith(
+                                      color: AppColors.textSecondary,
+                                    ),
+                                  ),
+                                  const SizedBox(height: 4),
+                                  Text(
+                                    '${controller.totalTickets.value}',
+                                    style: AppTextStyles.displayLg.copyWith(
+                                      color: AppColors.textPrimary,
+                                      fontWeight: FontWeight.w800,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                            Container(
+                              width: 1,
+                              height: 46,
+                              color: AppColors.border,
+                            ),
+                            const SizedBox(width: AppDimens.gapLg),
+                            Expanded(
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Text(
+                                    'Total Garments',
+                                    style: AppTextStyles.bodySm.copyWith(
+                                      color: AppColors.textSecondary,
+                                    ),
+                                  ),
+                                  const SizedBox(height: 4),
+                                  Text(
+                                    '${controller.totalGarments.value}',
+                                    style: AppTextStyles.displayLg.copyWith(
+                                      color: AppColors.primary,
+                                      fontWeight: FontWeight.w800,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                      const SizedBox(height: AppDimens.gapLg),
+
+                      // 4 Status Cards Grid
+                      const SectionHeader(title: 'Queue Breakdown'),
+                      const SizedBox(height: AppDimens.gapSm),
+
+                      Row(
                         children: [
                           Expanded(
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                Text(
-                                  'Total Orders',
-                                  style: AppTextStyles.bodySm.copyWith(
-                                    color: AppColors.textSecondary,
-                                  ),
-                                ),
-                                const SizedBox(height: 4),
-                                Text(
-                                  '${controller.totalTickets.value}',
-                                  style: AppTextStyles.displayLg.copyWith(
-                                    color: AppColors.textPrimary,
-                                    fontWeight: FontWeight.w800,
-                                  ),
-                                ),
-                              ],
+                            child: _StatusStatCard(
+                              title: 'Pending Intake',
+                              count: controller.pendingCount.value,
+                              color: LaundryStatus.pending.color,
+                              icon: Icons.hourglass_top_rounded,
                             ),
                           ),
-                          Container(
-                            width: 1,
-                            height: 46,
-                            color: AppColors.border,
-                          ),
-                          const SizedBox(width: AppDimens.gapLg),
+                          const SizedBox(width: AppDimens.gapMd),
                           Expanded(
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                Text(
-                                  'Total Garments',
-                                  style: AppTextStyles.bodySm.copyWith(
-                                    color: AppColors.textSecondary,
-                                  ),
-                                ),
-                                const SizedBox(height: 4),
-                                Text(
-                                  '${controller.totalGarments.value}',
-                                  style: AppTextStyles.displayLg.copyWith(
-                                    color: AppColors.primary,
-                                    fontWeight: FontWeight.w800,
-                                  ),
-                                ),
-                              ],
+                            child: _StatusStatCard(
+                              title: 'Accepted',
+                              count: controller.acceptedCount.value,
+                              color: LaundryStatus.accepted.color,
+                              icon: Icons.assignment_turned_in_outlined,
                             ),
                           ),
                         ],
                       ),
-                    ),
-                    const SizedBox(height: AppDimens.gapLg),
+                      const SizedBox(height: AppDimens.gapMd),
+                      Row(
+                        children: [
+                          Expanded(
+                            child: _StatusStatCard(
+                              title: 'In Washing',
+                              count: controller.washedCount.value,
+                              color: LaundryStatus.washed.color,
+                              icon: Icons.local_laundry_service_outlined,
+                            ),
+                          ),
+                          const SizedBox(width: AppDimens.gapMd),
+                          Expanded(
+                            child: _StatusStatCard(
+                              title: 'Delivered',
+                              count: controller.receivedCount.value,
+                              color: LaundryStatus.received.color,
+                              icon: Icons.check_circle_outline_rounded,
+                            ),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: AppDimens.gapXl),
 
-                    // 4 Status Cards Grid
-                    const SectionHeader(title: 'Queue Breakdown'),
-                    const SizedBox(height: AppDimens.gapSm),
-
-                    Row(
-                      children: [
-                        Expanded(
-                          child: _StatusStatCard(
-                            title: 'Pending Intake',
-                            count: controller.pendingCount.value,
-                            color: LaundryStatus.pending.color,
-                            icon: Icons.hourglass_top_rounded,
-                          ),
-                        ),
-                        const SizedBox(width: AppDimens.gapMd),
-                        Expanded(
-                          child: _StatusStatCard(
-                            title: 'Accepted',
-                            count: controller.acceptedCount.value,
-                            color: LaundryStatus.accepted.color,
-                            icon: Icons.assignment_turned_in_outlined,
-                          ),
-                        ),
-                      ],
-                    ),
-                    const SizedBox(height: AppDimens.gapMd),
-                    Row(
-                      children: [
-                        Expanded(
-                          child: _StatusStatCard(
-                            title: 'In Washing',
-                            count: controller.washedCount.value,
-                            color: LaundryStatus.washed.color,
-                            icon: Icons.local_laundry_service_outlined,
-                          ),
-                        ),
-                        const SizedBox(width: AppDimens.gapMd),
-                        Expanded(
-                          child: _StatusStatCard(
-                            title: 'Delivered',
-                            count: controller.receivedCount.value,
-                            color: LaundryStatus.received.color,
-                            icon: Icons.check_circle_outline_rounded,
-                          ),
-                        ),
-                      ],
-                    ),
-                    const SizedBox(height: AppDimens.gapXl),
-
-                    // Distribution Chart
-                    const SectionHeader(title: 'Status Distribution'),
-                    const SizedBox(height: AppDimens.gapSm),
-                    ChartCard(
-                      title: 'Tickets by Status',
-                      points: controller.statusCounts,
-                    ),
-                  ],
+                      // Distribution Chart
+                      const SectionHeader(title: 'Status Distribution'),
+                      const SizedBox(height: AppDimens.gapSm),
+                      ChartCard(
+                        title: 'Tickets by Status',
+                        points: controller.statusCounts,
+                      ),
+                    ],
+                  ),
                 ),
               ),
             ],

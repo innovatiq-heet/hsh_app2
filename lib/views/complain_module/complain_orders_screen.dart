@@ -31,236 +31,276 @@ class ComplainOrdersScreen extends GetView<ComplainOrdersController> {
 
   @override
   Widget build(BuildContext context) {
-    return Obx(
-      () => AsyncStateView(
-        isLoading: controller.isLoading.value,
-        hasError: controller.hasError.value,
-        errorMessage: controller.errorMessage.value,
-        onRetry: controller.load,
-        builder: (context) {
-          final list = controller.filtered;
-          return AppRefreshIndicator(
-            onRefresh: controller.load,
-            child: ListView(
-              padding: EdgeInsets.zero,
-              physics: const AlwaysScrollableScrollPhysics(),
-              children: [
-                // Hero Gradient Header
-                GradientHeader(
-                  overline: 'Staff Operations',
-                  title: 'Complaints Desk',
-                  subtitle: 'Review reports, assign maintenance & resolve issues',
-                  actions: [
-                    HeaderIconButton(
-                      icon: Icons.refresh_rounded,
-                      tooltip: 'Refresh',
-                      onPressed: controller.load,
+    return Scaffold(
+      body: Obx(
+        () => AsyncStateView(
+          isLoading: controller.isLoading.value,
+          hasError: controller.hasError.value,
+          errorMessage: controller.errorMessage.value,
+          onRetry: controller.load,
+          builder: (context) => Obx(() {
+            final list = controller.filtered;
+            return AppRefreshIndicator(
+              onRefresh: controller.load,
+              child: CustomScrollView(
+                physics: const AlwaysScrollableScrollPhysics(),
+                slivers: [
+                  // Hero Gradient Header
+                  SliverGradientHeader(
+                    overline: 'Staff Operations',
+                    title: 'Complaints Desk',
+                    subtitle: 'Review reports, assign maintenance & resolve issues',
+                    expandedHeight: 250.0,
+                    actions: [
+                      HeaderIconButton(
+                        icon: Icons.refresh_rounded,
+                        tooltip: 'Refresh',
+                        onPressed: controller.load,
+                      ),
+                      HeaderIconButton(
+                        icon: Icons.logout_rounded,
+                        tooltip: 'Log out',
+                        onPressed: _logout,
+                      ),
+                    ],
+                    child: SingleChildScrollView(
+                      scrollDirection: Axis.horizontal,
+                      child: Row(
+                        children: [
+                          GestureDetector(
+                            onTap: () {
+                              controller.statusFilter.value =
+                                  controller.statusFilter.value ==
+                                          ComplaintStatus.pending
+                                      ? null
+                                      : ComplaintStatus.pending;
+                            },
+                            child: HeaderPill(
+                              icon: Icons.hourglass_top_rounded,
+                              label: '${controller.pendingCount} Pending',
+                            ),
+                          ),
+                          const SizedBox(width: AppDimens.gapSm),
+                          GestureDetector(
+                            onTap: () {
+                              controller.statusFilter.value =
+                                  controller.statusFilter.value ==
+                                          ComplaintStatus.reviewed
+                                      ? null
+                                      : ComplaintStatus.reviewed;
+                            },
+                            child: HeaderPill(
+                              icon: Icons.sync_rounded,
+                              label: '${controller.reviewedCount} Under Review',
+                            ),
+                          ),
+                          const SizedBox(width: AppDimens.gapSm),
+                          GestureDetector(
+                            onTap: () {
+                              controller.statusFilter.value =
+                                  controller.statusFilter.value ==
+                                          ComplaintStatus.resolved
+                                      ? null
+                                      : ComplaintStatus.resolved;
+                            },
+                            child: HeaderPill(
+                              icon: Icons.check_circle_rounded,
+                              label: '${controller.resolvedCount} Resolved',
+                            ),
+                          ),
+                        ],
+                      ),
                     ),
-                    HeaderIconButton(
-                      icon: Icons.logout_rounded,
-                      tooltip: 'Log out',
-                      onPressed: _logout,
-                    ),
-                  ],
-                  child: SingleChildScrollView(
-                    scrollDirection: Axis.horizontal,
-                    child: Row(
+                  ),
+
+                  // Main Content
+                  SliverToBoxAdapter(
+                    child: Padding(
+                      padding: const EdgeInsets.fromLTRB(
+                        AppDimens.screenPadding,
+                        AppDimens.gapLg,
+                        AppDimens.screenPadding,
+                        100,
+                      ),
+                      child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
                       children: [
-                        HeaderPill(
-                          icon: Icons.hourglass_top_rounded,
-                          label: '${controller.pendingCount} Pending',
+                        // Search & Quick Filter Card
+                        AppCard(
+                          padding: const EdgeInsets.all(AppDimens.gapMd),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.stretch,
+                            children: [
+                              AppTextField(
+                                label: 'Search Complaints',
+                                hint: 'Search by room, name, category, title or ID...',
+                                prefixIcon: Icons.search_rounded,
+                                onChanged: (val) =>
+                                    controller.searchQuery.value = val,
+                              ),
+                              const SizedBox(height: AppDimens.gapMd),
+
+                              // Status Filter Chips
+                              Text(
+                                'Status Filter',
+                                style: AppTextStyles.label.copyWith(
+                                  color: AppColors.textSecondary,
+                                  fontSize: 12,
+                                ),
+                              ),
+                              const SizedBox(height: AppDimens.gapXs),
+                              SingleChildScrollView(
+                                scrollDirection: Axis.horizontal,
+                                child: Row(
+                                  children: [
+                                    _FilterChip(
+                                      label: 'All',
+                                      count: controller.complaints.length,
+                                      isSelected:
+                                          controller.statusFilter.value == null,
+                                      onSelected: () =>
+                                          controller.statusFilter.value = null,
+                                    ),
+                                    const SizedBox(width: AppDimens.gapSm),
+                                    ...ComplaintStatus.values.map(
+                                      (status) => Padding(
+                                        padding: const EdgeInsets.only(
+                                          right: AppDimens.gapSm,
+                                        ),
+                                        child: _FilterChip(
+                                          label: status.label,
+                                          count:
+                                              controller.countForStatus(status),
+                                          isSelected:
+                                              controller.statusFilter.value ==
+                                                  status,
+                                          statusColor: status.color,
+                                          onSelected: () {
+                                            if (controller.statusFilter.value ==
+                                                status) {
+                                              controller.statusFilter.value =
+                                                  null;
+                                            } else {
+                                              controller.statusFilter.value =
+                                                  status;
+                                            }
+                                          },
+                                        ),
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                              const SizedBox(height: AppDimens.gapMd),
+
+                              // Category Filter Chips
+                              Text(
+                                'Category Filter',
+                                style: AppTextStyles.label.copyWith(
+                                  color: AppColors.textSecondary,
+                                  fontSize: 12,
+                                ),
+                              ),
+                              const SizedBox(height: AppDimens.gapXs),
+                              SingleChildScrollView(
+                                scrollDirection: Axis.horizontal,
+                                child: Row(
+                                  children: [
+                                    _CategoryChip(
+                                      label: 'All Categories',
+                                      isSelected:
+                                          controller.categoryFilter.value == null,
+                                      onSelected: () =>
+                                          controller.categoryFilter.value = null,
+                                    ),
+                                    const SizedBox(width: AppDimens.gapSm),
+                                    ...[
+                                      'Electrical',
+                                      'Plumbing',
+                                      'Furniture',
+                                      'Housekeeping',
+                                      'Internet/Wifi',
+                                      'Other'
+                                    ].map(
+                                      (cat) => Padding(
+                                        padding: const EdgeInsets.only(
+                                          right: AppDimens.gapSm,
+                                        ),
+                                        child: _CategoryChip(
+                                          label: cat,
+                                          count: controller.countForCategory(cat),
+                                          isSelected:
+                                              controller.categoryFilter.value
+                                                      ?.toLowerCase() ==
+                                                  cat.toLowerCase(),
+                                          onSelected: () {
+                                            if (controller.categoryFilter.value
+                                                    ?.toLowerCase() ==
+                                                cat.toLowerCase()) {
+                                              controller.categoryFilter.value =
+                                                  null;
+                                            } else {
+                                              controller.categoryFilter.value =
+                                                  cat;
+                                            }
+                                          },
+                                        ),
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                            ],
+                          ),
                         ),
-                        const SizedBox(width: AppDimens.gapSm),
-                        HeaderPill(
-                          icon: Icons.sync_rounded,
-                          label: '${controller.reviewedCount} Under Review',
+                        const SizedBox(height: AppDimens.gapLg),
+
+                        // Section Header with count
+                        SectionHeader(
+                          title: controller.statusFilter.value == null
+                              ? 'All Complaints (${list.length})'
+                              : '${controller.statusFilter.value!.label} Complaints (${list.length})',
                         ),
-                        const SizedBox(width: AppDimens.gapSm),
-                        HeaderPill(
-                          icon: Icons.check_circle_rounded,
-                          label: '${controller.resolvedCount} Resolved',
-                        ),
+                        const SizedBox(height: AppDimens.gapSm),
+
+                        // Complaints List
+                        if (list.isEmpty)
+                          Padding(
+                            padding: const EdgeInsets.symmetric(vertical: 40),
+                            child: EmptyState(
+                              icon: Icons.assignment_outlined,
+                              title: 'No complaints found',
+                              message: controller.searchQuery.value.isNotEmpty ||
+                                      controller.statusFilter.value != null ||
+                                      controller.categoryFilter.value != null
+                                  ? 'No complaints match your current filters. Try resetting search or filter chips.'
+                                  : 'There are currently no maintenance complaints in the system.',
+                            ),
+                          )
+                        else
+                          ListView.separated(
+                            shrinkWrap: true,
+                            physics: const NeverScrollableScrollPhysics(),
+                            itemCount: list.length,
+                            separatorBuilder: (_, _) =>
+                                const SizedBox(height: AppDimens.gapMd),
+                            itemBuilder: (context, i) {
+                              final c = list[i];
+                              return _StaffComplaintCard(
+                                complaint: c,
+                                controller: controller,
+                              );
+                            },
+                          ),
                       ],
                     ),
-                  ),
-                ),
-
-                // Main Content
-                Padding(
-                  padding: const EdgeInsets.fromLTRB(
-                    AppDimens.screenPadding,
-                    AppDimens.gapLg,
-                    AppDimens.screenPadding,
-                    100,
-                  ),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.stretch,
-                    children: [
-                      // Search & Quick Filter Card
-                      AppCard(
-                        padding: const EdgeInsets.all(AppDimens.gapMd),
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.stretch,
-                          children: [
-                            AppTextField(
-                              label: 'Search Complaints',
-                              hint: 'Search by room, name, category, title or ID...',
-                              prefixIcon: Icons.search_rounded,
-                              onChanged: (val) =>
-                                  controller.searchQuery.value = val,
-                            ),
-                            const SizedBox(height: AppDimens.gapMd),
-
-                            // Status Filter Chips
-                            Text(
-                              'Status Filter',
-                              style: AppTextStyles.label.copyWith(
-                                color: AppColors.textSecondary,
-                                fontSize: 12,
-                              ),
-                            ),
-                            const SizedBox(height: AppDimens.gapXs),
-                            SingleChildScrollView(
-                              scrollDirection: Axis.horizontal,
-                              child: Row(
-                                children: [
-                                  _FilterChip(
-                                    label: 'All',
-                                    count: controller.complaints.length,
-                                    isSelected:
-                                        controller.statusFilter.value == null,
-                                    onSelected: () =>
-                                        controller.statusFilter.value = null,
-                                  ),
-                                  const SizedBox(width: AppDimens.gapSm),
-                                  ...ComplaintStatus.values.map(
-                                    (status) => Padding(
-                                      padding: const EdgeInsets.only(
-                                        right: AppDimens.gapSm,
-                                      ),
-                                      child: _FilterChip(
-                                        label: status.label,
-                                        count:
-                                            controller.countForStatus(status),
-                                        isSelected:
-                                            controller.statusFilter.value ==
-                                                status,
-                                        statusColor: status.color,
-                                        onSelected: () =>
-                                            controller.statusFilter.value =
-                                                status,
-                                      ),
-                                    ),
-                                  ),
-                                ],
-                              ),
-                            ),
-                            const SizedBox(height: AppDimens.gapMd),
-
-                            // Category Filter Chips
-                            Text(
-                              'Category Filter',
-                              style: AppTextStyles.label.copyWith(
-                                color: AppColors.textSecondary,
-                                fontSize: 12,
-                              ),
-                            ),
-                            const SizedBox(height: AppDimens.gapXs),
-                            SingleChildScrollView(
-                              scrollDirection: Axis.horizontal,
-                              child: Row(
-                                children: [
-                                  _CategoryChip(
-                                    label: 'All Categories',
-                                    isSelected:
-                                        controller.categoryFilter.value == null,
-                                    onSelected: () =>
-                                        controller.categoryFilter.value = null,
-                                  ),
-                                  const SizedBox(width: AppDimens.gapSm),
-                                  ...[
-                                    'Electrical',
-                                    'Plumbing',
-                                    'Furniture',
-                                    'Housekeeping',
-                                    'Internet/Wifi',
-                                    'Other'
-                                  ].map(
-                                    (cat) => Padding(
-                                      padding: const EdgeInsets.only(
-                                        right: AppDimens.gapSm,
-                                      ),
-                                      child: _CategoryChip(
-                                        label: cat,
-                                        count: controller.countForCategory(cat),
-                                        isSelected:
-                                            controller.categoryFilter.value
-                                                    ?.toLowerCase() ==
-                                                cat.toLowerCase(),
-                                        onSelected: () {
-                                          if (controller.categoryFilter.value
-                                                  ?.toLowerCase() ==
-                                              cat.toLowerCase()) {
-                                            controller.categoryFilter.value = null;
-                                          } else {
-                                            controller.categoryFilter.value = cat;
-                                          }
-                                        },
-                                      ),
-                                    ),
-                                  ),
-                                ],
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                      const SizedBox(height: AppDimens.gapLg),
-
-                      // Section Header with count
-                      SectionHeader(
-                        title: controller.statusFilter.value == null
-                            ? 'All Complaints (${list.length})'
-                            : '${controller.statusFilter.value!.label} Complaints (${list.length})',
-                      ),
-                      const SizedBox(height: AppDimens.gapSm),
-
-                      // Complaints List
-                      if (list.isEmpty)
-                        Padding(
-                          padding: const EdgeInsets.symmetric(vertical: 40),
-                          child: EmptyState(
-                            icon: Icons.assignment_outlined,
-                            title: 'No complaints found',
-                            message: controller.searchQuery.value.isNotEmpty ||
-                                    controller.statusFilter.value != null ||
-                                    controller.categoryFilter.value != null
-                                ? 'No complaints match your current filters. Try resetting search or filter chips.'
-                                : 'There are currently no maintenance complaints in the system.',
-                          ),
-                        )
-                      else
-                        ListView.separated(
-                          shrinkWrap: true,
-                          physics: const NeverScrollableScrollPhysics(),
-                          itemCount: list.length,
-                          separatorBuilder: (_, _) =>
-                              const SizedBox(height: AppDimens.gapMd),
-                          itemBuilder: (context, i) {
-                            final c = list[i];
-                            return _StaffComplaintCard(
-                              complaint: c,
-                              controller: controller,
-                            );
-                          },
-                        ),
-                    ],
                   ),
                 ),
               ],
             ),
           );
-        },
+          }),
+        ),
       ),
     );
   }
@@ -363,21 +403,58 @@ class _CategoryChip extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return FilterChip(
-      label: Text(
-        count != null ? '$label ($count)' : label,
-        style: TextStyle(
-          color: isSelected ? Colors.white : AppColors.textPrimary,
-          fontSize: 12,
-          fontWeight: isSelected ? FontWeight.w700 : FontWeight.w500,
+    final activeBg = isSelected ? AppColors.secondary : AppColors.surfaceMuted;
+    final activeText = isSelected ? Colors.white : AppColors.textPrimary;
+    final countBg = isSelected
+        ? Colors.white.withValues(alpha: 0.22)
+        : AppColors.border;
+
+    return Material(
+      color: activeBg,
+      borderRadius: BorderRadius.circular(AppDimens.radiusPill),
+      child: InkWell(
+        borderRadius: BorderRadius.circular(AppDimens.radiusPill),
+        onTap: onSelected,
+        child: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(AppDimens.radiusPill),
+            border: Border.all(
+              color: isSelected ? AppColors.secondary : AppColors.border,
+            ),
+          ),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Text(
+                label,
+                style: AppTextStyles.label.copyWith(
+                  color: activeText,
+                  fontWeight: isSelected ? FontWeight.w700 : FontWeight.w500,
+                ),
+              ),
+              if (count != null) ...[
+                const SizedBox(width: 6),
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                  decoration: BoxDecoration(
+                    color: countBg,
+                    borderRadius: BorderRadius.circular(AppDimens.radiusPill),
+                  ),
+                  child: Text(
+                    '$count',
+                    style: AppTextStyles.caption.copyWith(
+                      color: activeText,
+                      fontSize: 11,
+                      fontWeight: FontWeight.w700,
+                    ),
+                  ),
+                ),
+              ],
+            ],
+          ),
         ),
       ),
-      selected: isSelected,
-      onSelected: (_) => onSelected(),
-      backgroundColor: AppColors.surfaceMuted,
-      selectedColor: AppColors.secondary,
-      checkmarkColor: Colors.white,
-      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
     );
   }
 }

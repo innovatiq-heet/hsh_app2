@@ -13,6 +13,7 @@ class Routes {
   static const leaveAdd = '/student/leave/add';
   static const fees = '/student/fees';
   static const feesPayNow = '/student/fees/pay';
+  static const feeReceipt = '/student/fees/receipt';
   static const laundryTicketDetail = '/student/laundry/ticket';
   static const complaintAdd = '/student/complaint/add';
   static const complaintDetail = '/student/complaint/detail';

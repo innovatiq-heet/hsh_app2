@@ -33,7 +33,7 @@ class PayNowScreen extends GetView<PayNowController> {
               overline: 'Hostel Fee Portal',
               title: 'Make Payment',
               subtitle: 'Submit fee payment or bank transfer slip',
-              expandedHeight: 250.0,
+              expandedHeight: 345.0,
               leading: HeaderIconButton(
                 icon: Icons.arrow_back_rounded,
                 onPressed: () => Get.back(),
@@ -180,91 +180,111 @@ class _OutstandingCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final due = controller.netDue;
+    return Obx(() {
+      final due = controller.netDue;
+      final hasDue = due > 0;
 
-    return Container(
-      padding: const EdgeInsets.all(AppDimens.gapLg),
-      decoration: BoxDecoration(
-        color: Colors.white.withValues(alpha: 0.12),
-        borderRadius: BorderRadius.circular(AppDimens.radiusLg),
-        border: Border.all(color: Colors.white.withValues(alpha: 0.2)),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            children: [
-              Text(
-                'CURRENT OUTSTANDING DUE',
-                style: AppTextStyles.overline.copyWith(
-                  color: Colors.white.withValues(alpha: 0.8),
-                  letterSpacing: 1.1,
-                ),
-              ),
-              const Spacer(),
-              Container(
-                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-                decoration: BoxDecoration(
-                  color: AppColors.warningOrange.withValues(alpha: 0.3),
-                  borderRadius: BorderRadius.circular(AppDimens.radiusPill),
-                  border: Border.all(color: AppColors.warningOrange),
-                ),
-                child: Text(
-                  'Due for 2025-26',
-                  style: AppTextStyles.caption.copyWith(
-                    color: Colors.white,
-                    fontSize: 11,
-                    fontWeight: FontWeight.w700,
+      return Container(
+        padding: const EdgeInsets.symmetric(
+          horizontal: AppDimens.gapMd,
+          vertical: AppDimens.gapMd,
+        ),
+        decoration: BoxDecoration(
+          color: Colors.white.withValues(alpha: 0.12),
+          borderRadius: BorderRadius.circular(AppDimens.radiusLg),
+          border: Border.all(color: Colors.white.withValues(alpha: 0.2)),
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Row(
+              children: [
+                Text(
+                  'CURRENT OUTSTANDING DUE',
+                  style: AppTextStyles.overline.copyWith(
+                    color: Colors.white.withValues(alpha: 0.8),
+                    letterSpacing: 1.1,
                   ),
                 ),
-              ),
-            ],
-          ),
-          const SizedBox(height: AppDimens.gapSm),
-          Text(
-            Money.format(due),
-            style: AppTextStyles.displayLg.copyWith(
-              color: Colors.white,
-              fontWeight: FontWeight.w800,
-            ),
-          ),
-          const SizedBox(height: AppDimens.gapMd),
-          Text(
-            'Quick select payment amount:',
-            style: AppTextStyles.caption.copyWith(
-              color: Colors.white.withValues(alpha: 0.75),
-            ),
-          ),
-          const SizedBox(height: AppDimens.gapSm),
-          SingleChildScrollView(
-            scrollDirection: Axis.horizontal,
-            child: Row(
-              children: [
-                _AmountChip(
-                  label: 'Full Due (${Money.format(due)})',
-                  onTap: () => controller.selectAmount(due),
-                ),
-                const SizedBox(width: AppDimens.gapSm),
-                _AmountChip(
-                  label: '₹10,000',
-                  onTap: () => controller.selectAmount(10000),
-                ),
-                const SizedBox(width: AppDimens.gapSm),
-                _AmountChip(
-                  label: '₹5,000',
-                  onTap: () => controller.selectAmount(5000),
-                ),
-                const SizedBox(width: AppDimens.gapSm),
-                _AmountChip(
-                  label: '₹2,500',
-                  onTap: () => controller.selectAmount(2500),
+                const Spacer(),
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                  decoration: BoxDecoration(
+                    color: hasDue
+                        ? AppColors.warningOrange.withValues(alpha: 0.3)
+                        : AppColors.successGreen.withValues(alpha: 0.3),
+                    borderRadius: BorderRadius.circular(AppDimens.radiusPill),
+                    border: Border.all(
+                      color: hasDue
+                          ? AppColors.warningOrange
+                          : AppColors.successGreen,
+                    ),
+                  ),
+                  child: Text(
+                    hasDue ? 'Due for 2025-26' : 'All Dues Cleared',
+                    style: AppTextStyles.caption.copyWith(
+                      color: Colors.white,
+                      fontSize: 11,
+                      fontWeight: FontWeight.w700,
+                    ),
+                  ),
                 ),
               ],
             ),
-          ),
-        ],
-      ),
-    );
+            const SizedBox(height: 4),
+            Text(
+              Money.format(due),
+              style: AppTextStyles.displayLg.copyWith(
+                color: Colors.white,
+                fontWeight: FontWeight.w800,
+              ),
+            ),
+            const SizedBox(height: 8),
+            Text(
+              'Quick select payment amount:',
+              style: AppTextStyles.caption.copyWith(
+                color: Colors.white.withValues(alpha: 0.75),
+              ),
+            ),
+            const SizedBox(height: 6),
+            SingleChildScrollView(
+              scrollDirection: Axis.horizontal,
+              child: Row(
+                children: [
+                  if (hasDue) ...[
+                    _AmountChip(
+                      label: 'Full Due (${Money.format(due)})',
+                      onTap: () => controller.selectAmount(due),
+                    ),
+                    const SizedBox(width: AppDimens.gapSm),
+                  ],
+                  _AmountChip(
+                    label: '₹25,000',
+                    onTap: () => controller.selectAmount(25000),
+                  ),
+                  const SizedBox(width: AppDimens.gapSm),
+                  _AmountChip(
+                    label: '₹10,000',
+                    onTap: () => controller.selectAmount(10000),
+                  ),
+                  const SizedBox(width: AppDimens.gapSm),
+                  _AmountChip(
+                    label: '₹5,000',
+                    onTap: () => controller.selectAmount(5000),
+                  ),
+                  const SizedBox(width: AppDimens.gapSm),
+                  _AmountChip(
+                    label: '₹2,500',
+                    onTap: () => controller.selectAmount(2500),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
+      );
+    });
   }
 }
 

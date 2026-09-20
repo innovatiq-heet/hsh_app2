@@ -257,6 +257,8 @@ class _HeroNetDueCard extends StatelessWidget {
                     backgroundColor: Colors.white,
                     foregroundColor: AppColors.primary,
                     elevation: 0,
+                    minimumSize: Size.zero,
+                    tapTargetSize: MaterialTapTargetSize.shrinkWrap,
                     padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
                     shape: RoundedRectangleBorder(
                       borderRadius: BorderRadius.circular(AppDimens.radiusPill),

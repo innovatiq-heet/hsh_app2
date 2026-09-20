@@ -58,7 +58,7 @@ class AppTheme {
           backgroundColor: AppColors.primary,
           foregroundColor: Colors.white,
           elevation: 0,
-          minimumSize: const Size.fromHeight(AppDimens.buttonHeight),
+          minimumSize: const Size(64, AppDimens.buttonHeight),
           shape: RoundedRectangleBorder(borderRadius: inputRadius),
           textStyle: AppTextStyles.button,
         ),

@@ -168,6 +168,16 @@ class PayNowController extends GetxController {
       }
 
       return txn;
+    } catch (e) {
+      Get.snackbar(
+        'Submission Failed',
+        e.toString().replaceAll('ApiException: ', '').replaceAll('Exception: ', ''),
+        backgroundColor: AppColors.cancelledRed,
+        colorText: Colors.white,
+        snackPosition: SnackPosition.BOTTOM,
+        margin: const EdgeInsets.all(AppDimens.gapMd),
+      );
+      return null;
     } finally {
       isSaving.value = false;
     }

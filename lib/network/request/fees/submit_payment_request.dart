@@ -9,6 +9,7 @@ class SubmitPaymentRequest {
   final String? narration;
   final String? transactionRef;
   final String? attachmentPath;
+  final String? aadhar;
 
   const SubmitPaymentRequest({
     required this.amount,
@@ -19,7 +20,47 @@ class SubmitPaymentRequest {
     this.narration,
     this.transactionRef,
     this.attachmentPath,
+    this.aadhar,
   });
+
+  Map<String, dynamic> toJson() {
+    final map = <String, dynamic>{
+      'amount': amount,
+      'paymentType': type.name, // online, cheque, cash
+    };
+
+    if (bankName != null && bankName!.trim().isNotEmpty) {
+      map['bankName'] = bankName!.trim();
+    }
+
+    String? effectiveNarration = narration?.trim();
+    if (transactionRef != null && transactionRef!.trim().isNotEmpty) {
+      final refStr = 'Ref: ${transactionRef!.trim()}';
+      if (effectiveNarration == null || effectiveNarration.isEmpty) {
+        effectiveNarration = refStr;
+      } else if (!effectiveNarration.contains(transactionRef!.trim())) {
+        effectiveNarration = '$effectiveNarration ($refStr)';
+      }
+    }
+    if (effectiveNarration != null && effectiveNarration.isNotEmpty) {
+      map['narration'] = effectiveNarration;
+    }
+
+    if (type == PaymentType.cheque) {
+      if (chequeNumber != null && chequeNumber!.trim().isNotEmpty) {
+        map['chequeNumber'] = chequeNumber!.trim();
+      }
+      if (chequeDate != null) {
+        map['chequeDate'] = chequeDate!.toUtc().toIso8601String();
+      }
+    }
+
+    if (aadhar != null && aadhar!.trim().isNotEmpty) {
+      map['aadhar'] = aadhar!.trim();
+    }
+
+    return map;
+  }
 }
 
 /// Operator-side: record a security deposit credit/debit.

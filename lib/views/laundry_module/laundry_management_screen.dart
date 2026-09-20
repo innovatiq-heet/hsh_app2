@@ -24,14 +24,14 @@ class LaundryManagementScreen extends GetView<LaundryManagementController> {
 
   @override
   Widget build(BuildContext context) {
-    return ListView(
-      padding: EdgeInsets.zero,
-      children: [
+    return CustomScrollView(
+      slivers: [
         // Gradient Header
-        GradientHeader(
+        SliverGradientHeader(
           overline: 'Student Accounts',
           title: 'Laundry Recharge',
           subtitle: 'Check student balance and add laundry credits',
+          expandedHeight: 220.0,
           actions: [
             HeaderIconButton(
               icon: Icons.refresh_rounded,
@@ -74,8 +74,9 @@ class LaundryManagementScreen extends GetView<LaundryManagementController> {
         ),
 
         // Main Body Form & History
-        Padding(
-          padding: const EdgeInsets.fromLTRB(
+        SliverToBoxAdapter(
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(
             AppDimens.screenPadding,
             AppDimens.gapLg,
             AppDimens.screenPadding,
@@ -437,7 +438,8 @@ class LaundryManagementScreen extends GetView<LaundryManagementController> {
             ],
           ),
         ),
-      ],
-    );
+      ),
+    ],
+  );
   }
 }

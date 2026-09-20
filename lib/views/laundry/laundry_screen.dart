@@ -32,12 +32,12 @@ class LaundryScreen extends GetView<LaundryController> {
           builder: (context) {
             return RefreshIndicator(
               onRefresh: controller.load,
-              child: ListView(
-                padding: EdgeInsets.zero,
-                children: [
-                  GradientHeader(
+              child: CustomScrollView(
+                slivers: [
+                  SliverGradientHeader(
                     overline: 'Laundry Service',
                     title: 'Wash & Wear',
+                    expandedHeight: 280.0,
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
@@ -140,13 +140,14 @@ class LaundryScreen extends GetView<LaundryController> {
                       ],
                     ),
                   ),
-                  Padding(
-                    padding: const EdgeInsets.fromLTRB(
-                      AppDimens.screenPadding,
-                      AppDimens.gapMd,
-                      AppDimens.screenPadding,
-                      100,
-                    ),
+                  SliverToBoxAdapter(
+                    child: Padding(
+                      padding: const EdgeInsets.fromLTRB(
+                        AppDimens.screenPadding,
+                        AppDimens.gapMd,
+                        AppDimens.screenPadding,
+                        100,
+                      ),
                     child: Obx(() {
                       final displayedTickets = controller.filteredTickets;
                       final currentFilter =
@@ -214,9 +215,10 @@ class LaundryScreen extends GetView<LaundryController> {
                       );
                     }),
                   ),
-                ],
-              ),
-            );
+                ),
+              ],
+            ),
+          );
           },
         ),
       ),

@@ -27,31 +27,21 @@ class OperatorAttendanceBehalfScreen
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      body: SingleChildScrollView(
-        padding: EdgeInsets.zero,
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            GradientHeader(
-              overline: 'Staff Operations',
-              title: 'Manual Attendance',
-              subtitle: 'Record attendance on behalf of students',
-              leading: Navigator.canPop(context)
-                  ? Material(
-                      color: Colors.white.withValues(alpha: 0.14),
-                      shape: const CircleBorder(),
-                      child: IconButton(
-                        tooltip: 'Back',
-                        onPressed: () => Get.back(),
-                        icon: const Icon(
-                          Icons.arrow_back_rounded,
-                          color: Colors.white,
-                          size: 22,
-                        ),
-                      ),
-                    )
-                  : null,
-              actions: [
+      body: CustomScrollView(
+        slivers: [
+          SliverGradientHeader(
+            overline: 'Staff Operations',
+            title: 'Manual Attendance',
+            subtitle: 'Record attendance on behalf of students',
+            expandedHeight: 220.0,
+            leading: Navigator.canPop(context)
+                ? HeaderIconButton(
+                    icon: Icons.arrow_back_rounded,
+                    tooltip: 'Back',
+                    onPressed: () => Get.back(),
+                  )
+                : null,
+            actions: [
                 HeaderIconButton(
                   icon: Icons.history_rounded,
                   tooltip: 'Attendance History',
@@ -63,7 +53,8 @@ class OperatorAttendanceBehalfScreen
                 label: 'Warden override & manual entry',
               ),
             ),
-            Padding(
+           SliverToBoxAdapter(
+            child: Padding(
               padding: const EdgeInsets.fromLTRB(
                 AppDimens.screenPadding,
                 AppDimens.gapXl,
@@ -140,16 +131,16 @@ class OperatorAttendanceBehalfScreen
                     },
                   ),
                 ),
+                      ],
+                    ),
+                  ),
+                ),
               ],
             ),
           ),
         ),
       ],
     ),
-  ),
-],
-),
-),
-);
+  );
 }
 }

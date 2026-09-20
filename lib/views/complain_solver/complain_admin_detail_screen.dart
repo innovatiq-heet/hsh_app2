@@ -48,26 +48,18 @@ class ComplainAdminDetailScreen
 
         return RefreshIndicator(
           onRefresh: controller.load,
-          child: ListView(
-            padding: EdgeInsets.zero,
-            children: [
+          child: CustomScrollView(
+            slivers: [
               // Hero Gradient Header
-              GradientHeader(
+              SliverGradientHeader(
                 overline: 'Complaint #${c.id.toUpperCase()}',
                 title: 'Complaint Review',
                 subtitle: '${c.category} · Room ${c.room}',
-                leading: Material(
-                  color: Colors.white.withValues(alpha: 0.14),
-                  shape: const CircleBorder(),
-                  child: IconButton(
-                    tooltip: 'Back',
-                    onPressed: () => Get.back(),
-                    icon: const Icon(
-                      Icons.arrow_back_rounded,
-                      color: Colors.white,
-                      size: 22,
-                    ),
-                  ),
+                expandedHeight: 220.0,
+                leading: HeaderIconButton(
+                  icon: Icons.arrow_back_rounded,
+                  tooltip: 'Back',
+                  onPressed: () => Get.back(),
                 ),
                 child: Row(
                   children: [
@@ -86,10 +78,11 @@ class ComplainAdminDetailScreen
               ),
 
               // Content Body
-              Padding(
-                padding: const EdgeInsets.fromLTRB(
-                  AppDimens.screenPadding,
-                  AppDimens.gapLg,
+              SliverToBoxAdapter(
+                child: Padding(
+                  padding: const EdgeInsets.fromLTRB(
+                    AppDimens.screenPadding,
+                    AppDimens.gapLg,
                   AppDimens.screenPadding,
                   60,
                 ),
@@ -264,12 +257,13 @@ class ComplainAdminDetailScreen
                   ],
                 ),
               ),
-            ],
-          ),
-        );
-      }),
-    );
-  }
+            ),
+          ],
+        ),
+      );
+    }),
+  );
+}
 }
 
 class _StatusTimelineCard extends StatelessWidget {

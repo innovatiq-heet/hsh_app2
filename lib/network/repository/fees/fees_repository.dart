@@ -13,20 +13,37 @@ class FeesRepository {
   final List<FeeTransactionResponse> _transactions = [
     FeeTransactionResponse(
       id: 'txn-1',
+      receiptNumber: 'HSH-REC-2026-0891',
       amount: 15000,
       type: PaymentType.online,
       status: TransactionStatus.approved,
       submittedAt: DateTime.now().toUtc().subtract(const Duration(days: 30)),
+      transactionRef: 'UPI/524391823910/ICICI',
+      bankName: 'Google Pay · ICICI Bank',
+      narration: 'Term 1 Hostel & Room charges',
     ),
     FeeTransactionResponse(
       id: 'txn-2',
+      receiptNumber: 'HSH-REC-2026-1044',
       amount: 5000,
       type: PaymentType.cheque,
       status: TransactionStatus.pending,
       submittedAt: DateTime.now().toUtc().subtract(const Duration(days: 2)),
       chequeNumber: '000123',
       chequeDate: DateTime.now().toUtc().subtract(const Duration(days: 2)),
-      bankName: 'HDFC Bank',
+      bankName: 'HDFC Bank (Navrangpura)',
+      narration: 'Mess & Maintenance advance',
+    ),
+    FeeTransactionResponse(
+      id: 'txn-3',
+      receiptNumber: 'HSH-REC-2025-0720',
+      amount: 75000,
+      type: PaymentType.online,
+      status: TransactionStatus.approved,
+      submittedAt: DateTime.now().toUtc().subtract(const Duration(days: 180)),
+      transactionRef: 'NEFT/CMS291038102/AXIS',
+      bankName: 'Axis Bank NetBanking',
+      narration: 'Annual Accommodation Fee 2025-26',
     ),
   ];
 
@@ -143,6 +160,8 @@ class FeesRepository {
     await Future.delayed(AppConfig.mockNetworkDelay);
     final txn = FeeTransactionResponse(
       id: 'txn-${_transactions.length + 1}',
+      receiptNumber:
+          'HSH-REC-2026-${(1000 + _transactions.length + 1).toString()}',
       amount: request.amount,
       type: request.type,
       status: TransactionStatus.pending,
@@ -151,6 +170,8 @@ class FeesRepository {
       chequeDate: request.chequeDate,
       bankName: request.bankName,
       narration: request.narration,
+      transactionRef: request.transactionRef,
+      attachmentUrl: request.attachmentPath,
     );
     _transactions.insert(0, txn);
     return txn;

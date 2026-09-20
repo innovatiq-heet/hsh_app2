@@ -27,43 +27,36 @@ class LeaveScreen extends GetView<LeaveController> {
           hasError: controller.hasError.value,
           errorMessage: controller.errorMessage.value,
           onRetry: controller.load,
-          builder: (context) {
+          builder: (context) => Obx(() {
             final allLeaves = controller.leaves;
             final filtered = controller.filteredLeaves;
 
             return RefreshIndicator(
               onRefresh: controller.load,
-              child: ListView(
-                padding: EdgeInsets.zero,
-                children: [
-                  GradientHeader(
+              child: CustomScrollView(
+                slivers: [
+                  SliverGradientHeader(
                     overline: 'Student Services',
                     title: 'Leave Requests',
                     subtitle: 'Apply for leave & track approval status',
+                    expandedHeight: 250.0,
                     leading: Navigator.canPop(context)
-                        ? Material(
-                            color: Colors.white.withValues(alpha: 0.14),
-                            shape: const CircleBorder(),
-                            child: IconButton(
-                              tooltip: 'Back',
-                              onPressed: () => Get.back(),
-                              icon: const Icon(
-                                Icons.arrow_back_rounded,
-                                color: Colors.white,
-                                size: 22,
-                              ),
-                            ),
+                        ? HeaderIconButton(
+                            icon: Icons.arrow_back_rounded,
+                            tooltip: 'Back',
+                            onPressed: () => Get.back(),
                           )
                         : null,
                     child: _LeaveSummaryRow(controller: controller),
                   ),
-                  Padding(
-                    padding: const EdgeInsets.fromLTRB(
-                      AppDimens.screenPadding,
-                      AppDimens.gapXl,
-                      AppDimens.screenPadding,
-                      100,
-                    ),
+                  SliverToBoxAdapter(
+                    child: Padding(
+                      padding: const EdgeInsets.fromLTRB(
+                        AppDimens.screenPadding,
+                        AppDimens.gapXl,
+                        AppDimens.screenPadding,
+                        100,
+                      ),
                     child: allLeaves.isEmpty
                         ? EmptyState(
                             icon: Icons.beach_access_outlined,
@@ -140,10 +133,11 @@ class LeaveScreen extends GetView<LeaveController> {
                             ],
                           ),
                   ),
-                ],
-              ),
-            );
-          },
+                ),
+              ],
+            ),
+          );
+          }),
         ),
       ),
       floatingActionButton: FloatingActionButton.extended(

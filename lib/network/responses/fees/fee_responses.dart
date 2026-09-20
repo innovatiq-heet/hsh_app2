@@ -57,6 +57,9 @@ class FeeTransactionResponse {
   final DateTime? chequeDate;
   final String? bankName;
   final String? narration;
+  final String? transactionRef;
+  final String? receiptNumber;
+  final String? attachmentUrl;
 
   const FeeTransactionResponse({
     required this.id,
@@ -68,5 +71,8 @@ class FeeTransactionResponse {
     this.chequeDate,
     this.bankName,
     this.narration,
+    this.transactionRef,
+    this.receiptNumber,
+    this.attachmentUrl,
   });
 }

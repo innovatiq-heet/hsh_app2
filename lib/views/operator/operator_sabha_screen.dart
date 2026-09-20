@@ -21,38 +21,29 @@ class OperatorSabhaScreen extends GetView<OperatorSabhaController> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      body: SingleChildScrollView(
-        padding: EdgeInsets.zero,
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            GradientHeader(
-              overline: 'Event Scheduling',
-              title: 'Sabha Sessions',
-              subtitle: 'Schedule and manage congregation assemblies',
-              leading: Navigator.canPop(context)
-                  ? Material(
-                      color: Colors.white.withValues(alpha: 0.14),
-                      shape: const CircleBorder(),
-                      child: IconButton(
-                        tooltip: 'Back',
-                        onPressed: () => Get.back(),
-                        icon: const Icon(
-                          Icons.arrow_back_rounded,
-                          color: Colors.white,
-                          size: 22,
-                        ),
-                      ),
-                    )
-                  : null,
-              child: Obx(
-                () => HeaderPill(
-                  icon: Icons.event_outlined,
-                  label: '${controller.sabhas.length} Scheduled Sessions',
-                ),
+      body: CustomScrollView(
+        slivers: [
+          SliverGradientHeader(
+            overline: 'Event Scheduling',
+            title: 'Sabha Sessions',
+            subtitle: 'Schedule and manage congregation assemblies',
+            expandedHeight: 220.0,
+            leading: Navigator.canPop(context)
+                ? HeaderIconButton(
+                    icon: Icons.arrow_back_rounded,
+                    tooltip: 'Back',
+                    onPressed: () => Get.back(),
+                  )
+                : null,
+            child: Obx(
+              () => HeaderPill(
+                icon: Icons.event_outlined,
+                label: '${controller.sabhas.length} Scheduled Sessions',
               ),
             ),
-            Padding(
+          ),
+          SliverToBoxAdapter(
+            child: Padding(
               padding: const EdgeInsets.fromLTRB(
                 AppDimens.screenPadding,
                 AppDimens.gapXl,
@@ -233,12 +224,12 @@ class OperatorSabhaScreen extends GetView<OperatorSabhaController> {
                 }).toList(),
               );
             }),
-          ],
+            ],
+          ),
         ),
       ),
     ],
   ),
-),
 );
   }
 

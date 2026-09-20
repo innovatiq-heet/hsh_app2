@@ -7,6 +7,8 @@ class SubmitPaymentRequest {
   final DateTime? chequeDate;
   final String? bankName;
   final String? narration;
+  final String? transactionRef;
+  final String? attachmentPath;
 
   const SubmitPaymentRequest({
     required this.amount,
@@ -15,6 +17,8 @@ class SubmitPaymentRequest {
     this.chequeDate,
     this.bankName,
     this.narration,
+    this.transactionRef,
+    this.attachmentPath,
   });
 }
 

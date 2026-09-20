@@ -28,14 +28,14 @@ class ComplainManagementScreen extends GetView<ComplainManagementController> {
 
   @override
   Widget build(BuildContext context) {
-    return ListView(
-      padding: EdgeInsets.zero,
-      children: [
+    return CustomScrollView(
+      slivers: [
         // Gradient Header
-        GradientHeader(
+        SliverGradientHeader(
           overline: 'Room Maintenance',
           title: 'Room & Student Lookup',
           subtitle: 'Inspect room complaint history and log on-site staff actions',
+          expandedHeight: 220.0,
           actions: [
             HeaderIconButton(
               icon: Icons.refresh_rounded,
@@ -81,8 +81,9 @@ class ComplainManagementScreen extends GetView<ComplainManagementController> {
         ),
 
         // Main Body Form & History
-        Padding(
-          padding: const EdgeInsets.fromLTRB(
+        SliverToBoxAdapter(
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(
             AppDimens.screenPadding,
             AppDimens.gapLg,
             AppDimens.screenPadding,
@@ -498,8 +499,9 @@ class ComplainManagementScreen extends GetView<ComplainManagementController> {
             ],
           ),
         ),
-      ],
-    );
+      ),
+    ],
+  );
   }
 }
 

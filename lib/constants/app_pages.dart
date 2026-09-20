@@ -14,6 +14,7 @@ import '../views/complaints/complaints_binding.dart';
 import '../views/fees/fees_binding.dart';
 import '../views/fees/fees_screen.dart';
 import '../views/fees/pay_now_screen.dart';
+import '../views/fees/payment_receipt_screen.dart';
 import '../views/home/home_binding.dart';
 import '../views/home/home_screen.dart';
 import '../views/laundry/laundry_ticket_detail_binding.dart';
@@ -110,6 +111,11 @@ class AppPages {
     GetPage(
       name: Routes.feesPayNow,
       page: () => const PayNowScreen(),
+      binding: FeesBinding(),
+    ),
+    GetPage(
+      name: Routes.feeReceipt,
+      page: () => const PaymentReceiptScreen(),
       binding: FeesBinding(),
     ),
     GetPage(

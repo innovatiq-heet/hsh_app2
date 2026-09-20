@@ -31,8 +31,12 @@ class AttendanceScannerController extends GetxController {
   @override
   void onInit() {
     super.onInit();
-    // Default intelligently based on current device time
-    selectedType.value = AttendanceEventStyle.defaultEventForNow();
+    // Pre-select if passed as route argument, else default intelligently based on current device time
+    if (Get.arguments is AttendanceType) {
+      selectedType.value = Get.arguments as AttendanceType;
+    } else {
+      selectedType.value = AttendanceEventStyle.defaultEventForNow();
+    }
 
     scannerController = MobileScannerController(
       detectionSpeed: DetectionSpeed.noDuplicates,

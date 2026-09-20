@@ -38,11 +38,6 @@ class AttendanceQrDisplayScreen
                 leading: null,
                 actions: [
                   HeaderIconButton(
-                    icon: Icons.history_rounded,
-                    tooltip: 'Attendance History',
-                    onPressed: () => Get.toNamed(Routes.attendanceHistory),
-                  ),
-                  HeaderIconButton(
                     icon: Icons.fullscreen_rounded,
                     tooltip: 'Fullscreen Kiosk',
                     onPressed: controller.toggleKioskMode,

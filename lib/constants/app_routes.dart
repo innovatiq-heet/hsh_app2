@@ -39,4 +39,6 @@ class Routes {
   static const operatorSabha = '/operator/sabha';
   static const operatorAttendanceOnBehalf = '/operator/attendance-on-behalf';
   static const operatorAttendanceQrDisplay = '/operator/attendance/qr-display';
+
+  static const noInternet = '/no-internet';
 }

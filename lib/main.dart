@@ -6,6 +6,8 @@ import 'constants/app_strings.dart';
 import 'constants/app_theme.dart';
 import 'network/global_bindings.dart';
 
+import 'views/shared/widgets/network_wrapper.dart';
+
 void main() {
   runApp(const HshApp());
 }
@@ -24,6 +26,9 @@ class HshApp extends StatelessWidget {
       getPages: AppPages.pages,
       defaultTransition: Transition.cupertino,
       transitionDuration: const Duration(milliseconds: 280),
+      builder: (context, child) => NetworkWrapper(
+        child: child ?? const SizedBox.shrink(),
+      ),
     );
   }
 }

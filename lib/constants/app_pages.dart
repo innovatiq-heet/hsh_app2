@@ -48,6 +48,7 @@ import '../views/splash/splash_screen.dart';
 import '../views/student_profile/edit_profile_binding.dart';
 import '../views/student_profile/edit_profile_screen.dart';
 import '../views/vehicle/vehicle_redirect_screen.dart';
+import '../views/shared/screens/no_internet_screen.dart';
 import 'app_routes.dart';
 
 /// The GetPage table for every route in [Routes]. Kept separate from
@@ -217,6 +218,10 @@ class AppPages {
       name: Routes.operatorAttendanceQrDisplay,
       page: () => const AttendanceQrDisplayScreen(),
       binding: AttendanceQrDisplayBinding(),
+    ),
+    GetPage(
+      name: Routes.noInternet,
+      page: () => const NoInternetScreen(showBackButton: true),
     ),
   ];
 }

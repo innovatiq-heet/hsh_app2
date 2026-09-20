@@ -8,6 +8,7 @@ import '../../constants/app_text_styles.dart';
 import '../../network/responses/laundry/laundry_responses.dart';
 import '../../utils/date_formatting.dart';
 import '../shared/widgets/app_card.dart';
+import '../shared/widgets/app_refresh_indicator.dart';
 import '../shared/widgets/async_state_view.dart';
 import '../shared/widgets/empty_state.dart';
 import '../shared/widgets/gradient_header.dart';
@@ -30,9 +31,10 @@ class LaundryScreen extends GetView<LaundryController> {
           errorMessage: controller.errorMessage.value,
           onRetry: controller.load,
           builder: (context) {
-            return RefreshIndicator(
+            return AppRefreshIndicator(
               onRefresh: controller.load,
               child: ListView(
+                physics: const AlwaysScrollableScrollPhysics(),
                 padding: EdgeInsets.zero,
                 children: [
                   GradientHeader(

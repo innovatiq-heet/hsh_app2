@@ -202,26 +202,18 @@ class SettingScreen extends StatelessWidget {
 
     return Scaffold(
       backgroundColor: AppColors.mainBackground,
-      body: ListView(
-        padding: EdgeInsets.zero,
-        children: [
+      body: CustomScrollView(
+        slivers: [
           // Hero Gradient Header matching the app theme
-          GradientHeader(
+          SliverGradientHeader(
             overline: 'Account & Preferences',
             title: 'Settings',
             subtitle: 'Manage your profile and app preferences',
-            leading: Material(
-              color: Colors.white.withValues(alpha: 0.14),
-              shape: const CircleBorder(),
-              child: IconButton(
-                tooltip: 'Back',
-                onPressed: () => Get.back(),
-                icon: const Icon(
-                  Icons.arrow_back_rounded,
-                  color: Colors.white,
-                  size: 22,
-                ),
-              ),
+            expandedHeight: 220.0,
+            leading: HeaderIconButton(
+              icon: Icons.arrow_back_rounded,
+              tooltip: 'Back',
+              onPressed: () => Get.back(),
             ),
             child: const HeaderPill(
               icon: Icons.apartment_rounded,
@@ -229,10 +221,11 @@ class SettingScreen extends StatelessWidget {
             ),
           ),
 
-          Padding(
-            padding: const EdgeInsets.fromLTRB(
-              AppDimens.screenPadding,
-              AppDimens.gapLg,
+          SliverToBoxAdapter(
+            child: Padding(
+              padding: const EdgeInsets.fromLTRB(
+                AppDimens.screenPadding,
+                AppDimens.gapLg,
               AppDimens.screenPadding,
               AppDimens.gapXxl,
             ),
@@ -436,8 +429,9 @@ class SettingScreen extends StatelessWidget {
               ],
             ),
           ),
-        ],
-      ),
+        ),
+      ],
+    ),
     );
   }
 }

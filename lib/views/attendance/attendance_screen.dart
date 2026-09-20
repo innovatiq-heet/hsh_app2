@@ -72,26 +72,18 @@ class AttendanceScreen extends GetView<AttendanceController> {
           onRetry: controller.load,
           builder: (context) => RefreshIndicator(
             onRefresh: controller.load,
-            child: ListView(
-              padding: EdgeInsets.zero,
-              children: [
-                GradientHeader(
+            child: CustomScrollView(
+              slivers: [
+                SliverGradientHeader(
                   overline: DateFormat('EEEE, d MMMM').format(DateTime.now()).toUpperCase(),
                   title: 'Attendance',
                   subtitle: 'Daily routine & QR verification',
+                  expandedHeight: 260.0,
                   leading: Navigator.canPop(context)
-                      ? Material(
-                          color: Colors.white.withValues(alpha: 0.14),
-                          shape: const CircleBorder(),
-                          child: IconButton(
-                            tooltip: 'Back',
-                            onPressed: () => Get.back(),
-                            icon: const Icon(
-                              Icons.arrow_back_rounded,
-                              color: Colors.white,
-                              size: 22,
-                            ),
-                          ),
+                      ? HeaderIconButton(
+                          icon: Icons.arrow_back_rounded,
+                          tooltip: 'Back',
+                          onPressed: () => Get.back(),
                         )
                       : null,
                   actions: [
@@ -103,11 +95,12 @@ class AttendanceScreen extends GetView<AttendanceController> {
                   ],
                   child: const _ProgressSummary(),
                 ),
-                Padding(
-                  padding: const EdgeInsets.fromLTRB(
-                    AppDimens.screenPadding,
-                    AppDimens.gapXl,
-                    AppDimens.screenPadding,
+                SliverToBoxAdapter(
+                  child: Padding(
+                    padding: const EdgeInsets.fromLTRB(
+                      AppDimens.screenPadding,
+                      AppDimens.gapXl,
+                      AppDimens.screenPadding,
                     110, // Generous clearance so FAB never obscures the last card
                   ),
                   child: Column(
@@ -135,9 +128,10 @@ class AttendanceScreen extends GetView<AttendanceController> {
                     ],
                   ),
                 ),
-              ],
-            ),
+              ),
+            ],
           ),
+        ),
         ),
       ),
     );

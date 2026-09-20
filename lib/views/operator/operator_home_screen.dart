@@ -134,13 +134,13 @@ class OperatorHomeScreen extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      body: ListView(
-        padding: EdgeInsets.zero,
-        children: [
-          GradientHeader(
+      body: CustomScrollView(
+        slivers: [
+          SliverGradientHeader(
             overline: 'Operator console',
             title: 'Hostel admin',
             subtitle: 'Manage students, approvals and finance',
+            expandedHeight: 220.0,
             actions: [
               HeaderIconButton(
                 icon: Icons.logout_rounded,
@@ -153,13 +153,14 @@ class OperatorHomeScreen extends StatelessWidget {
               label: DateFormat('EEE, d MMM yyyy').format(DateTime.now()),
             ),
           ),
-          Padding(
-            padding: const EdgeInsets.fromLTRB(
-              AppDimens.screenPadding,
-              AppDimens.gapXl,
-              AppDimens.screenPadding,
-              AppDimens.gapXxl,
-            ),
+          SliverToBoxAdapter(
+            child: Padding(
+              padding: const EdgeInsets.fromLTRB(
+                AppDimens.screenPadding,
+                AppDimens.gapXl,
+                AppDimens.screenPadding,
+                AppDimens.gapXxl,
+              ),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
@@ -182,9 +183,10 @@ class OperatorHomeScreen extends StatelessWidget {
               ],
             ),
           ),
-        ],
-      ),
-    );
+        ),
+      ],
+    ),
+  );
   }
 }
 

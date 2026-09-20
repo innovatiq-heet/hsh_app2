@@ -55,37 +55,28 @@ class AddComplaintScreen extends GetView<AddComplaintController> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      body: SingleChildScrollView(
-        padding: EdgeInsets.zero,
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            // Hero Header
-            GradientHeader(
-              overline: 'Help Desk',
-              title: 'New Complaint',
-              subtitle: 'Report a room issue to the maintenance team',
-              leading: Material(
-                color: Colors.white.withValues(alpha: 0.14),
-                shape: const CircleBorder(),
-                child: IconButton(
-                  tooltip: 'Back',
-                  onPressed: () => Get.back(),
-                  icon: const Icon(
-                    Icons.arrow_back_rounded,
-                    color: Colors.white,
-                    size: 22,
-                  ),
-                ),
-              ),
-              child: const HeaderPill(
-                icon: Icons.timer_outlined,
-                label: 'Standard resolution: 24 - 48 business hours',
-              ),
+      body: CustomScrollView(
+        slivers: [
+          // Hero Header
+          SliverGradientHeader(
+            overline: 'Help Desk',
+            title: 'New Complaint',
+            subtitle: 'Report a room issue to the maintenance team',
+            expandedHeight: 220.0,
+            leading: HeaderIconButton(
+              icon: Icons.arrow_back_rounded,
+              tooltip: 'Back',
+              onPressed: () => Get.back(),
             ),
+            child: const HeaderPill(
+              icon: Icons.timer_outlined,
+              label: 'Standard resolution: 24 - 48 business hours',
+            ),
+          ),
 
-            // Form Body
-            Padding(
+          // Form Body
+          SliverToBoxAdapter(
+            child: Padding(
               padding: const EdgeInsets.fromLTRB(
                 AppDimens.screenPadding,
                 AppDimens.gapXl,
@@ -139,8 +130,8 @@ class AddComplaintScreen extends GetView<AddComplaintController> {
                 ),
               ),
             ),
-          ],
-        ),
+          ),
+        ],
       ),
     );
   }

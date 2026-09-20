@@ -26,14 +26,14 @@ class PayNowScreen extends GetView<PayNowController> {
       backgroundColor: AppColors.mainBackground,
       body: Form(
         key: controller.formKey,
-        child: ListView(
-          padding: EdgeInsets.zero,
-          children: [
+        child: CustomScrollView(
+          slivers: [
             // Top Hero Header
-            GradientHeader(
+            SliverGradientHeader(
               overline: 'Hostel Fee Portal',
               title: 'Make Payment',
               subtitle: 'Submit fee payment or bank transfer slip',
+              expandedHeight: 250.0,
               leading: HeaderIconButton(
                 icon: Icons.arrow_back_rounded,
                 onPressed: () => Get.back(),
@@ -41,7 +41,8 @@ class PayNowScreen extends GetView<PayNowController> {
               child: _OutstandingCard(controller: controller),
             ),
 
-            Padding(
+            SliverToBoxAdapter(
+              child: Padding(
               padding: const EdgeInsets.all(AppDimens.screenPadding),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
@@ -163,8 +164,9 @@ class PayNowScreen extends GetView<PayNowController> {
                 ],
               ),
             ),
-          ],
-        ),
+          ),
+        ],
+      ),
       ),
     );
   }

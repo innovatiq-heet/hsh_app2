@@ -31,42 +31,44 @@ class ComplaintsScreen extends GetView<ComplaintsController> {
           onRetry: controller.load,
           builder: (context) => RefreshIndicator(
             onRefresh: controller.load,
-            child: ListView(
-              padding: EdgeInsets.zero,
-              children: [
-                GradientHeader(
+            child: CustomScrollView(
+              slivers: [
+                SliverGradientHeader(
                   overline: 'Help desk',
                   title: 'Complaints',
                   subtitle: 'Report and track issues in your room',
+                  expandedHeight: 240.0,
                   child: _StatusSummary(complaints: controller.complaints),
                 ),
-                Padding(
-                  padding: const EdgeInsets.fromLTRB(
-                    AppDimens.screenPadding,
-                    AppDimens.gapXl,
-                    AppDimens.screenPadding,
-                    100,
-                  ),
-                  child: controller.complaints.isEmpty
-                      ? const EmptyState(
-                          icon: Icons.support_agent_outlined,
-                          title: 'No complaints yet',
-                          message:
-                              'Something not working? Raise a complaint and the maintenance team will pick it up.',
-                        )
-                      : Column(
-                          crossAxisAlignment: CrossAxisAlignment.stretch,
-                          children: [
-                            const SectionHeader(title: 'Your complaints'),
-                            for (final c in controller.complaints)
-                              Padding(
-                                padding: const EdgeInsets.only(
-                                  bottom: AppDimens.gapMd,
+                SliverToBoxAdapter(
+                  child: Padding(
+                    padding: const EdgeInsets.fromLTRB(
+                      AppDimens.screenPadding,
+                      AppDimens.gapXl,
+                      AppDimens.screenPadding,
+                      100,
+                    ),
+                    child: controller.complaints.isEmpty
+                        ? const EmptyState(
+                            icon: Icons.support_agent_outlined,
+                            title: 'No complaints yet',
+                            message:
+                                'Something not working? Raise a complaint and the maintenance team will pick it up.',
+                          )
+                        : Column(
+                            crossAxisAlignment: CrossAxisAlignment.stretch,
+                            children: [
+                              const SectionHeader(title: 'Your complaints'),
+                              for (final c in controller.complaints)
+                                Padding(
+                                  padding: const EdgeInsets.only(
+                                    bottom: AppDimens.gapMd,
+                                  ),
+                                  child: _ComplaintCard(complaint: c),
                                 ),
-                                child: _ComplaintCard(complaint: c),
-                              ),
-                          ],
-                        ),
+                            ],
+                          ),
+                  ),
                 ),
               ],
             ),

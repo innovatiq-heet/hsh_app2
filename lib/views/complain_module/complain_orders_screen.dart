@@ -41,14 +41,14 @@ class ComplainOrdersScreen extends GetView<ComplainOrdersController> {
             final list = controller.filtered;
             return RefreshIndicator(
               onRefresh: controller.load,
-              child: ListView(
-                padding: EdgeInsets.zero,
-                children: [
+              child: CustomScrollView(
+                slivers: [
                   // Hero Gradient Header
-                  GradientHeader(
+                  SliverGradientHeader(
                     overline: 'Staff Operations',
                     title: 'Complaints Desk',
                     subtitle: 'Review reports, assign maintenance & resolve issues',
+                    expandedHeight: 250.0,
                     actions: [
                       HeaderIconButton(
                         icon: Icons.refresh_rounded,
@@ -112,14 +112,15 @@ class ComplainOrdersScreen extends GetView<ComplainOrdersController> {
                   ),
 
                   // Main Content
-                  Padding(
-                    padding: const EdgeInsets.fromLTRB(
-                      AppDimens.screenPadding,
-                      AppDimens.gapLg,
-                      AppDimens.screenPadding,
-                      100,
-                    ),
-                    child: Column(
+                  SliverToBoxAdapter(
+                    child: Padding(
+                      padding: const EdgeInsets.fromLTRB(
+                        AppDimens.screenPadding,
+                        AppDimens.gapLg,
+                        AppDimens.screenPadding,
+                        100,
+                      ),
+                      child: Column(
                       crossAxisAlignment: CrossAxisAlignment.stretch,
                       children: [
                         // Search & Quick Filter Card
@@ -292,9 +293,10 @@ class ComplainOrdersScreen extends GetView<ComplainOrdersController> {
                       ],
                     ),
                   ),
-                ],
-              ),
-            );
+                ),
+              ],
+            ),
+          );
           }),
         ),
       ),

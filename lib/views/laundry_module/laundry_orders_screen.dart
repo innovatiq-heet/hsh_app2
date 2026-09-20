@@ -38,14 +38,14 @@ class LaundryOrdersScreen extends GetView<LaundryOrdersController> {
           final list = controller.filtered;
           return RefreshIndicator(
             onRefresh: controller.load,
-            child: ListView(
-              padding: EdgeInsets.zero,
-              children: [
+            child: CustomScrollView(
+              slivers: [
                 // Hero Gradient Header
-                GradientHeader(
+                SliverGradientHeader(
                   overline: 'Staff Operations',
                   title: 'Laundry Desk',
                   subtitle: 'Manage garment intake, pricing & deliveries',
+                  expandedHeight: 250.0,
                   actions: [
                     HeaderIconButton(
                       icon: Icons.refresh_rounded,
@@ -109,14 +109,15 @@ class LaundryOrdersScreen extends GetView<LaundryOrdersController> {
                 ),
 
                 // Main Content
-                Padding(
-                  padding: const EdgeInsets.fromLTRB(
-                    AppDimens.screenPadding,
-                    AppDimens.gapLg,
-                    AppDimens.screenPadding,
-                    100,
-                  ),
-                  child: Column(
+                SliverToBoxAdapter(
+                  child: Padding(
+                    padding: const EdgeInsets.fromLTRB(
+                      AppDimens.screenPadding,
+                      AppDimens.gapLg,
+                      AppDimens.screenPadding,
+                      100,
+                    ),
+                    child: Column(
                     crossAxisAlignment: CrossAxisAlignment.stretch,
                     children: [
                       // Search & Quick Filter Card
@@ -219,9 +220,10 @@ class LaundryOrdersScreen extends GetView<LaundryOrdersController> {
                     ],
                   ),
                 ),
-              ],
-            ),
-          );
+              ),
+            ],
+          ),
+        );
         }),
       ),
     );

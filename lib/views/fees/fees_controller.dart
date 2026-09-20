@@ -14,6 +14,7 @@ class FeesController extends GetxController with LoadStateMixin {
 
   final Rxn<String> academicYearFilter = Rxn<String>();
   final Rxn<TransactionStatus> transactionStatusFilter = Rxn<TransactionStatus>();
+  final selectedTab = 0.obs;
 
   List<String> get academicYears =>
       debits.map((e) => e.academicYear).toSet().toList()

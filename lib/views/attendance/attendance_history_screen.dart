@@ -29,26 +29,18 @@ class AttendanceHistoryScreen extends GetView<AttendanceHistoryController> {
           onRetry: controller.load,
           builder: (context) => RefreshIndicator(
             onRefresh: controller.load,
-            child: ListView(
-              padding: EdgeInsets.zero,
-              children: [
-                GradientHeader(
+            child: CustomScrollView(
+              slivers: [
+                SliverGradientHeader(
                   overline: 'Student Services',
                   title: 'Attendance History',
                   subtitle: 'Review marked sessions & verification logs',
+                  expandedHeight: 220.0,
                   leading: Navigator.canPop(context)
-                      ? Material(
-                          color: Colors.white.withValues(alpha: 0.14),
-                          shape: const CircleBorder(),
-                          child: IconButton(
-                            tooltip: 'Back',
-                            onPressed: () => Get.back(),
-                            icon: const Icon(
-                              Icons.arrow_back_rounded,
-                              color: Colors.white,
-                              size: 22,
-                            ),
-                          ),
+                      ? HeaderIconButton(
+                          icon: Icons.arrow_back_rounded,
+                          tooltip: 'Back',
+                          onPressed: () => Get.back(),
                         )
                       : null,
                   actions: [
@@ -70,14 +62,15 @@ class AttendanceHistoryScreen extends GetView<AttendanceHistoryController> {
                     ),
                   ),
                 ),
-                Padding(
-                  padding: const EdgeInsets.fromLTRB(
-                    AppDimens.screenPadding,
-                    AppDimens.gapXl,
-                    AppDimens.screenPadding,
-                    AppDimens.gapXxl,
-                  ),
-                  child: Column(
+                SliverToBoxAdapter(
+                  child: Padding(
+                    padding: const EdgeInsets.fromLTRB(
+                      AppDimens.screenPadding,
+                      AppDimens.gapXl,
+                      AppDimens.screenPadding,
+                      AppDimens.gapXxl,
+                    ),
+                    child: Column(
                     crossAxisAlignment: CrossAxisAlignment.stretch,
                     children: [
                       // Filter chips
@@ -168,9 +161,10 @@ class AttendanceHistoryScreen extends GetView<AttendanceHistoryController> {
                     ],
                   ),
                 ),
-              ],
-            ),
+              ),
+            ],
           ),
+        ),
         ),
       ),
     );

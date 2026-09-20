@@ -24,10 +24,8 @@ class FeesScreen extends GetView<FeesController> {
 
   @override
   Widget build(BuildContext context) {
-    return DefaultTabController(
-      length: 4,
-      child: Scaffold(
-        backgroundColor: AppColors.mainBackground,
+    return Scaffold(
+      backgroundColor: AppColors.mainBackground,
         body: Obx(
           () => AsyncStateView(
             isLoading: controller.isLoading.value,
@@ -35,60 +33,57 @@ class FeesScreen extends GetView<FeesController> {
             errorMessage: controller.errorMessage.value,
             onRetry: controller.load,
             builder: (context) {
-              return NestedScrollView(
-                headerSliverBuilder: (context, innerBoxIsScrolled) {
-                  return [
-                    SliverToBoxAdapter(
-                      child: GradientHeader(
-                        overline: 'Fee Ledger & Billing',
-                        title: 'Hostel Payments',
-                        subtitle: 'Academic Year 2025–26',
-                        leading: HeaderIconButton(
-                          icon: Icons.arrow_back_rounded,
-                          onPressed: () => Get.back(),
-                        ),
-                        actions: [
-                          HeaderIconButton(
-                            icon: Icons.refresh_rounded,
-                            tooltip: 'Refresh',
-                            onPressed: controller.load,
-                          ),
-                        ],
-                        child: _HeroNetDueCard(controller: controller),
+              return RefreshIndicator(
+                onRefresh: controller.load,
+                child: CustomScrollView(
+                  slivers: [
+                    SliverGradientHeader(
+                      overline: 'Fee Ledger & Billing',
+                      title: 'Hostel Payments',
+                      subtitle: 'Academic Year 2025–26',
+                      expandedHeight: 330.0,
+                      leading: HeaderIconButton(
+                        icon: Icons.arrow_back_rounded,
+                        onPressed: () => Get.back(),
                       ),
+                      actions: [
+                        HeaderIconButton(
+                          icon: Icons.refresh_rounded,
+                          tooltip: 'Refresh',
+                          onPressed: controller.load,
+                        ),
+                      ],
+                      child: _HeroNetDueCard(controller: controller),
                     ),
-                    SliverPersistentHeader(
-                      pinned: true,
-                      delegate: _SliverTabBarDelegate(
-                        TabBar(
-                          isScrollable: true,
-                          labelColor: AppColors.primary,
-                          unselectedLabelColor: AppColors.textSecondary,
-                          indicatorColor: AppColors.primary,
-                          indicatorWeight: 3,
-                          labelStyle: AppTextStyles.subtitle.copyWith(
-                            fontWeight: FontWeight.w700,
-                          ),
-                          unselectedLabelStyle: AppTextStyles.subtitle.copyWith(
-                            fontWeight: FontWeight.w500,
-                          ),
-                          tabs: const [
-                            Tab(text: 'Summary'),
-                            Tab(text: 'Invoices'),
-                            Tab(text: 'Deposit Ledger'),
-                            Tab(text: 'Transactions'),
+                    SliverToBoxAdapter(
+                      child: Padding(
+                        padding: const EdgeInsets.fromLTRB(
+                          AppDimens.screenPadding,
+                          AppDimens.gapLg,
+                          AppDimens.screenPadding,
+                          100,
+                        ),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.stretch,
+                          children: [
+                            _TabSelector(controller: controller),
+                            const SizedBox(height: AppDimens.gapLg),
+                            Obx(() {
+                              switch (controller.selectedTab.value) {
+                                case 1:
+                                  return _DebitsTab(controller: controller);
+                                case 2:
+                                  return _DepositsTab(controller: controller);
+                                case 3:
+                                  return _TransactionsTab(controller: controller);
+                                default:
+                                  return _SummaryTab(controller: controller);
+                              }
+                            }),
                           ],
                         ),
                       ),
                     ),
-                  ];
-                },
-                body: TabBarView(
-                  children: [
-                    _SummaryTab(controller: controller),
-                    _DebitsTab(controller: controller),
-                    _DepositsTab(controller: controller),
-                    _TransactionsTab(controller: controller),
                   ],
                 ),
               );
@@ -109,41 +104,79 @@ class FeesScreen extends GetView<FeesController> {
             ),
           ),
         ),
-      ),
-    );
+      );
   }
 }
 
-class _SliverTabBarDelegate extends SliverPersistentHeaderDelegate {
-  final TabBar tabBar;
+/// Themed horizontal pill switcher for fee sub-sections
+class _TabSelector extends StatelessWidget {
+  final FeesController controller;
 
-  const _SliverTabBarDelegate(this.tabBar);
+  const _TabSelector({required this.controller});
+
+  static const _tabs = [
+    (title: 'Summary', icon: Icons.dashboard_outlined),
+    (title: 'Invoices', icon: Icons.receipt_long_outlined),
+    (title: 'Deposit Ledger', icon: Icons.savings_outlined),
+    (title: 'Transactions', icon: Icons.history_rounded),
+  ];
 
   @override
-  double get minExtent => 48.0;
-
-  @override
-  double get maxExtent => 48.0;
-
-  @override
-  Widget build(
-    BuildContext context,
-    double shrinkOffset,
-    bool overlapsContent,
-  ) {
-    return Container(
-      color: AppColors.mainBackground,
-      child: DecoratedBox(
-        decoration: const BoxDecoration(
-          border: Border(bottom: BorderSide(color: AppColors.border, width: 1)),
+  Widget build(BuildContext context) {
+    return Obx(() {
+      final current = controller.selectedTab.value;
+      return SingleChildScrollView(
+        scrollDirection: Axis.horizontal,
+        child: Row(
+          children: List.generate(_tabs.length, (i) {
+            final isSelected = current == i;
+            final item = _tabs[i];
+            return Padding(
+              padding: const EdgeInsets.only(right: AppDimens.gapSm),
+              child: Material(
+                color: isSelected ? AppColors.primary : AppColors.surfaceMuted,
+                borderRadius: BorderRadius.circular(AppDimens.radiusPill),
+                child: InkWell(
+                  borderRadius: BorderRadius.circular(AppDimens.radiusPill),
+                  onTap: () => controller.selectedTab.value = i,
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 16,
+                      vertical: 10,
+                    ),
+                    decoration: BoxDecoration(
+                      borderRadius: BorderRadius.circular(AppDimens.radiusPill),
+                      border: Border.all(
+                        color: isSelected ? AppColors.primary : AppColors.border,
+                      ),
+                    ),
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Icon(
+                          item.icon,
+                          size: 16,
+                          color: isSelected ? Colors.white : AppColors.textSecondary,
+                        ),
+                        const SizedBox(width: 6),
+                        Text(
+                          item.title,
+                          style: AppTextStyles.label.copyWith(
+                            color: isSelected ? Colors.white : AppColors.textPrimary,
+                            fontWeight: isSelected ? FontWeight.w700 : FontWeight.w600,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              ),
+            );
+          }),
         ),
-        child: tabBar,
-      ),
-    );
+      );
+    });
   }
-
-  @override
-  bool shouldRebuild(_SliverTabBarDelegate oldDelegate) => false;
 }
 
 /// Hero Net Due Card with progress ring and fast action button
@@ -154,123 +187,126 @@ class _HeroNetDueCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final summary = controller.summary.value;
-    if (summary == null) return const SizedBox.shrink();
+    return Obx(() {
+      final summary = controller.summary.value;
+      if (summary == null) return const SizedBox.shrink();
 
-    final paidRatio = summary.totalBilled == 0
-        ? 0.0
-        : (summary.totalApproved / summary.totalBilled).clamp(0.0, 1.0);
+      final paidRatio = summary.totalBilled == 0
+          ? 0.0
+          : (summary.totalApproved / summary.totalBilled).clamp(0.0, 1.0);
 
-    return Container(
-      padding: const EdgeInsets.all(AppDimens.gapLg),
-      decoration: BoxDecoration(
-        color: Colors.white.withValues(alpha: 0.12),
-        borderRadius: BorderRadius.circular(AppDimens.radiusLg),
-        border: Border.all(color: Colors.white.withValues(alpha: 0.2)),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            children: [
-              Text(
-                'OUTSTANDING NET DUE',
-                style: AppTextStyles.overline.copyWith(
-                  color: Colors.white.withValues(alpha: 0.8),
-                  letterSpacing: 1.2,
+      return Container(
+        padding: const EdgeInsets.all(AppDimens.gapLg),
+        decoration: BoxDecoration(
+          color: Colors.white.withValues(alpha: 0.12),
+          borderRadius: BorderRadius.circular(AppDimens.radiusLg),
+          border: Border.all(color: Colors.white.withValues(alpha: 0.2)),
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                Text(
+                  'OUTSTANDING NET DUE',
+                  style: AppTextStyles.overline.copyWith(
+                    color: Colors.white.withValues(alpha: 0.8),
+                    letterSpacing: 1.2,
+                  ),
                 ),
-              ),
-              const Spacer(),
-              Container(
-                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-                decoration: BoxDecoration(
-                  color: summary.netDue > 0
-                      ? AppColors.warningOrange.withValues(alpha: 0.3)
-                      : AppColors.successGreen.withValues(alpha: 0.3),
-                  borderRadius: BorderRadius.circular(AppDimens.radiusPill),
-                  border: Border.all(
+                const Spacer(),
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                  decoration: BoxDecoration(
                     color: summary.netDue > 0
-                        ? AppColors.warningOrange
-                        : AppColors.successGreen,
-                  ),
-                ),
-                child: Text(
-                  summary.netDue > 0 ? 'Pending Dues' : 'Fully Paid',
-                  style: AppTextStyles.caption.copyWith(
-                    color: Colors.white,
-                    fontWeight: FontWeight.w700,
-                  ),
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: AppDimens.gapSm),
-          Row(
-            crossAxisAlignment: CrossAxisAlignment.end,
-            children: [
-              Text(
-                Money.format(summary.netDue),
-                style: AppTextStyles.displayXl.copyWith(
-                  color: Colors.white,
-                  fontWeight: FontWeight.w800,
-                ),
-              ),
-              const Spacer(),
-              ElevatedButton.icon(
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: Colors.white,
-                  foregroundColor: AppColors.primary,
-                  elevation: 0,
-                  padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
-                  shape: RoundedRectangleBorder(
+                        ? AppColors.warningOrange.withValues(alpha: 0.3)
+                        : AppColors.successGreen.withValues(alpha: 0.3),
                     borderRadius: BorderRadius.circular(AppDimens.radiusPill),
+                    border: Border.all(
+                      color: summary.netDue > 0
+                          ? AppColors.warningOrange
+                          : AppColors.successGreen,
+                    ),
+                  ),
+                  child: Text(
+                    summary.netDue > 0 ? 'Pending Dues' : 'Fully Paid',
+                    style: AppTextStyles.caption.copyWith(
+                      color: Colors.white,
+                      fontWeight: FontWeight.w700,
+                    ),
                   ),
                 ),
-                icon: const Icon(Icons.bolt_rounded, size: 18),
-                label: Text(
-                  'Pay Now',
-                  style: AppTextStyles.subtitle.copyWith(
-                    color: AppColors.primary,
-                    fontWeight: FontWeight.w700,
-                  ),
-                ),
-                onPressed: () => Get.toNamed(Routes.feesPayNow)
-                    ?.then((_) => controller.load()),
-              ),
-            ],
-          ),
-          const SizedBox(height: AppDimens.gapLg),
-          ClipRRect(
-            borderRadius: BorderRadius.circular(AppDimens.radiusPill),
-            child: LinearProgressIndicator(
-              value: paidRatio,
-              minHeight: 8,
-              backgroundColor: Colors.white.withValues(alpha: 0.20),
-              color: Colors.white,
+              ],
             ),
-          ),
-          const SizedBox(height: AppDimens.gapSm),
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              Text(
-                '${(paidRatio * 100).round()}% of fees cleared',
-                style: AppTextStyles.bodySm.copyWith(
-                  color: Colors.white.withValues(alpha: 0.85),
+            const SizedBox(height: AppDimens.gapSm),
+            Row(
+              crossAxisAlignment: CrossAxisAlignment.end,
+              children: [
+                Text(
+                  Money.format(summary.netDue),
+                  style: AppTextStyles.displayXl.copyWith(
+                    color: Colors.white,
+                    fontWeight: FontWeight.w800,
+                  ),
                 ),
-              ),
-              Text(
-                'Approved: ${Money.format(summary.totalApproved)}',
-                style: AppTextStyles.caption.copyWith(
-                  color: Colors.white.withValues(alpha: 0.85),
-                  fontWeight: FontWeight.w600,
+                const Spacer(),
+                ElevatedButton.icon(
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: Colors.white,
+                    foregroundColor: AppColors.primary,
+                    elevation: 0,
+                    padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(AppDimens.radiusPill),
+                    ),
+                  ),
+                  icon: const Icon(Icons.bolt_rounded, size: 18),
+                  label: Text(
+                    'Pay Now',
+                    style: AppTextStyles.subtitle.copyWith(
+                      color: AppColors.primary,
+                      fontWeight: FontWeight.w700,
+                    ),
+                  ),
+                  onPressed: () => Get.toNamed(Routes.feesPayNow)
+                      ?.then((_) => controller.load()),
                 ),
+              ],
+            ),
+            const SizedBox(height: AppDimens.gapLg),
+            ClipRRect(
+              borderRadius: BorderRadius.circular(AppDimens.radiusPill),
+              child: LinearProgressIndicator(
+                value: paidRatio,
+                minHeight: 8,
+                backgroundColor: Colors.white.withValues(alpha: 0.20),
+                color: Colors.white,
               ),
-            ],
-          ),
-        ],
-      ),
-    );
+            ),
+            const SizedBox(height: AppDimens.gapSm),
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Text(
+                  '${(paidRatio * 100).round()}% of fees cleared',
+                  style: AppTextStyles.bodySm.copyWith(
+                    color: Colors.white.withValues(alpha: 0.85),
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+                Text(
+                  'Approved: ${Money.format(summary.totalApproved)}',
+                  style: AppTextStyles.bodySm.copyWith(
+                    color: Colors.white.withValues(alpha: 0.85),
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+              ],
+            ),
+          ],
+        ),
+      );
+    });
   }
 }
 
@@ -282,134 +318,131 @@ class _SummaryTab extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final summary = controller.summary.value;
-    if (summary == null) return const SizedBox.shrink();
+    return Obx(() {
+      final summary = controller.summary.value;
+      if (summary == null) return const SizedBox.shrink();
 
-    return ListView(
-      padding: const EdgeInsets.fromLTRB(
-        AppDimens.screenPadding,
-        AppDimens.gapLg,
-        AppDimens.screenPadding,
-        100,
-      ),
-      children: [
-        // 3 Key Stats
-        Row(
-          children: [
-            Expanded(
-              child: StatTile(
-                icon: Icons.receipt_long_outlined,
-                value: Money.format(summary.totalBilled),
-                label: 'Total Billed',
-                color: AppColors.primary,
-              ),
-            ),
-            const SizedBox(width: AppDimens.gapMd),
-            Expanded(
-              child: StatTile(
-                icon: Icons.verified_outlined,
-                value: Money.format(summary.totalApproved),
-                label: 'Total Paid',
-                color: AppColors.successGreen,
-              ),
-            ),
-          ],
-        ),
-        const SizedBox(height: AppDimens.gapMd),
-        StatTile(
-          icon: Icons.savings_outlined,
-          value: Money.format(summary.depositBalance),
-          label: 'Security Deposit (Refundable on Checkout)',
-          color: AppColors.secondary,
-        ),
-
-        const SizedBox(height: AppDimens.gapXl),
-
-        // Fee Heads Breakdown
-        const SectionHeader(
-          title: 'Fee Distribution',
-          actionLabel: 'Active Year',
-        ),
-        const SizedBox(height: AppDimens.gapMd),
-        _FeeBreakdownCard(controller: controller),
-
-        const SizedBox(height: AppDimens.gapXl),
-
-        // Recent Payments Section
-        SectionHeader(
-          title: 'Recent Payments',
-          actionLabel: 'View All',
-          onAction: () => DefaultTabController.of(context).animateTo(3),
-        ),
-        const SizedBox(height: AppDimens.gapMd),
-        Obx(() {
-          final txns = controller.transactions.take(2).toList();
-          if (txns.isEmpty) {
-            return const EmptyState(
-              icon: Icons.receipt_outlined,
-              title: 'No payments yet',
-            );
-          }
-          return Column(
-            children: txns
-                .map(
-                  (t) => Padding(
-                    padding: const EdgeInsets.only(bottom: AppDimens.gapMd),
-                    child: _TransactionCard(
-                      transaction: t,
-                      onTap: () =>
-                          Get.toNamed(Routes.feeReceipt, arguments: t),
-                    ),
-                  ),
-                )
-                .toList(),
-          );
-        }),
-
-        const SizedBox(height: AppDimens.gapLg),
-
-        // Support Notice Card
-        AppCard(
-          child: Row(
+      return Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          // 3 Key Stats
+          Row(
             children: [
-              Container(
-                padding: const EdgeInsets.all(10),
-                decoration: BoxDecoration(
-                  color: AppColors.primarySoft,
-                  borderRadius: BorderRadius.circular(AppDimens.radiusMd),
-                ),
-                child: const Icon(
-                  Icons.support_agent_rounded,
+              Expanded(
+                child: StatTile(
+                  icon: Icons.receipt_long_outlined,
+                  value: Money.format(summary.totalBilled),
+                  label: 'Total Billed',
                   color: AppColors.primary,
-                  size: 24,
                 ),
               ),
               const SizedBox(width: AppDimens.gapMd),
               Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      'Need Payment Assistance?',
-                      style: AppTextStyles.subtitle.copyWith(
-                        fontWeight: FontWeight.w700,
-                      ),
-                    ),
-                    const SizedBox(height: 2),
-                    Text(
-                      'Hostel Accounts Office: Mon-Sat 9 AM - 5 PM\nFor RTGS/NEFT slips or cheque verification.',
-                      style: AppTextStyles.caption.copyWith(
-                        color: AppColors.textSecondary,
-                      ),
-                    ),
-                  ],
+                child: StatTile(
+                  icon: Icons.verified_outlined,
+                  value: Money.format(summary.totalApproved),
+                  label: 'Total Paid',
+                  color: AppColors.successGreen,
                 ),
               ),
             ],
           ),
-        ),
-      ],
-    );
+          const SizedBox(height: AppDimens.gapMd),
+          StatTile(
+            icon: Icons.savings_outlined,
+            value: Money.format(summary.depositBalance),
+            label: 'Security Deposit (Refundable on Checkout)',
+            color: AppColors.secondary,
+          ),
+
+          const SizedBox(height: AppDimens.gapXl),
+
+          // Fee Heads Breakdown
+          const SectionHeader(
+            title: 'Fee Distribution',
+            actionLabel: 'Active Year',
+          ),
+          const SizedBox(height: AppDimens.gapMd),
+          _FeeBreakdownCard(controller: controller),
+
+          const SizedBox(height: AppDimens.gapXl),
+
+          // Recent Payments Section
+          SectionHeader(
+            title: 'Recent Payments',
+            actionLabel: 'View All',
+            onAction: () => controller.selectedTab.value = 3,
+          ),
+          const SizedBox(height: AppDimens.gapMd),
+          Obx(() {
+            final txns = controller.transactions.take(2).toList();
+            if (txns.isEmpty) {
+              return const EmptyState(
+                icon: Icons.receipt_outlined,
+                title: 'No payments yet',
+              );
+            }
+            return Column(
+              children: txns
+                  .map(
+                    (t) => Padding(
+                      padding: const EdgeInsets.only(bottom: AppDimens.gapMd),
+                      child: _TransactionCard(
+                        transaction: t,
+                        onTap: () =>
+                            Get.toNamed(Routes.feeReceipt, arguments: t),
+                      ),
+                    ),
+                  )
+                  .toList(),
+            );
+          }),
+
+          const SizedBox(height: AppDimens.gapLg),
+
+          // Support Notice Card
+          AppCard(
+            child: Row(
+              children: [
+                Container(
+                  padding: const EdgeInsets.all(10),
+                  decoration: BoxDecoration(
+                    color: AppColors.primarySoft,
+                    borderRadius: BorderRadius.circular(AppDimens.radiusMd),
+                  ),
+                  child: const Icon(
+                    Icons.support_agent_rounded,
+                    color: AppColors.primary,
+                    size: 24,
+                  ),
+                ),
+                const SizedBox(width: AppDimens.gapMd),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        'Need Payment Assistance?',
+                        style: AppTextStyles.subtitle.copyWith(
+                          fontWeight: FontWeight.w700,
+                        ),
+                      ),
+                      const SizedBox(height: 2),
+                      Text(
+                        'Hostel Accounts Office: Mon-Sat 9 AM - 5 PM\nFor RTGS/NEFT slips or cheque verification.',
+                        style: AppTextStyles.caption.copyWith(
+                          color: AppColors.textSecondary,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+      );
+    });
   }
 }
 
@@ -497,16 +530,12 @@ class _DebitsTab extends StatelessWidget {
       final filtered = controller.filteredDebits;
 
       return Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          if (years.isNotEmpty)
-            SizedBox(
-              height: 60,
-              child: ListView(
-                scrollDirection: Axis.horizontal,
-                padding: const EdgeInsets.symmetric(
-                  horizontal: AppDimens.screenPadding,
-                  vertical: AppDimens.gapSm,
-                ),
+          if (years.isNotEmpty) ...[
+            SingleChildScrollView(
+              scrollDirection: Axis.horizontal,
+              child: Row(
                 children: [
                   ChoiceChip(
                     label: const Text('All Years'),
@@ -539,65 +568,66 @@ class _DebitsTab extends StatelessWidget {
                 ],
               ),
             ),
-          Expanded(
-            child: filtered.isEmpty
-                ? const EmptyState(
-                    icon: Icons.receipt_long_outlined,
-                    title: 'No invoices found',
-                  )
-                : ListView.separated(
-                    padding: const EdgeInsets.fromLTRB(
-                      AppDimens.screenPadding,
-                      AppDimens.gapSm,
-                      AppDimens.screenPadding,
-                      100,
-                    ),
-                    itemCount: filtered.length,
-                    separatorBuilder: (_, _) =>
-                        const SizedBox(height: AppDimens.gapMd),
-                    itemBuilder: (context, i) {
-                      final item = filtered[i];
-                      return AppCard(
-                        child: Row(
+            const SizedBox(height: AppDimens.gapLg),
+          ],
+          if (filtered.isEmpty)
+            const Padding(
+              padding: EdgeInsets.symmetric(vertical: 40),
+              child: EmptyState(
+                icon: Icons.receipt_long_outlined,
+                title: 'No invoices found',
+              ),
+            )
+          else
+            ListView.separated(
+              shrinkWrap: true,
+              physics: const NeverScrollableScrollPhysics(),
+              padding: EdgeInsets.zero,
+              itemCount: filtered.length,
+              separatorBuilder: (_, _) =>
+                  const SizedBox(height: AppDimens.gapMd),
+              itemBuilder: (context, i) {
+                final item = filtered[i];
+                return AppCard(
+                  child: Row(
+                    children: [
+                      IconBadge(
+                        icon: Icons.receipt_long_rounded,
+                        color: AppColors.primary,
+                      ),
+                      const SizedBox(width: AppDimens.gapMd),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
-                            IconBadge(
-                              icon: Icons.receipt_long_rounded,
-                              color: AppColors.primary,
-                            ),
-                            const SizedBox(width: AppDimens.gapMd),
-                            Expanded(
-                              child: Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  Text(
-                                    item.label,
-                                    style: AppTextStyles.subtitle.copyWith(
-                                      fontWeight: FontWeight.w700,
-                                    ),
-                                  ),
-                                  const SizedBox(height: 2),
-                                  Text(
-                                    '${item.academicYear} · Billed on ${DateFormatting.dateOnly(item.billedAt)}',
-                                    style: AppTextStyles.bodySm.copyWith(
-                                      color: AppColors.textSecondary,
-                                    ),
-                                  ),
-                                ],
+                            Text(
+                              item.label,
+                              style: AppTextStyles.subtitle.copyWith(
+                                fontWeight: FontWeight.w700,
                               ),
                             ),
+                            const SizedBox(height: 2),
                             Text(
-                              Money.format(item.amount),
-                              style: AppTextStyles.subtitle.copyWith(
-                                color: AppColors.primary,
-                                fontWeight: FontWeight.w800,
+                              '${item.academicYear} · Billed on ${DateFormatting.dateOnly(item.billedAt)}',
+                              style: AppTextStyles.bodySm.copyWith(
+                                color: AppColors.textSecondary,
                               ),
                             ),
                           ],
                         ),
-                      );
-                    },
+                      ),
+                      Text(
+                        Money.format(item.amount),
+                        style: AppTextStyles.subtitle.copyWith(
+                          color: AppColors.primary,
+                          fontWeight: FontWeight.w800,
+                        ),
+                      ),
+                    ],
                   ),
-          ),
+                );
+              },
+            ),
         ],
       );
     });
@@ -616,13 +646,8 @@ class _DepositsTab extends StatelessWidget {
       final deposits = controller.deposits;
       final summary = controller.summary.value;
 
-      return ListView(
-        padding: const EdgeInsets.fromLTRB(
-          AppDimens.screenPadding,
-          AppDimens.gapLg,
-          AppDimens.screenPadding,
-          100,
-        ),
+      return Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
           // Current Security Balance Banner
           if (summary != null)
@@ -750,16 +775,12 @@ class _TransactionsTab extends StatelessWidget {
       final selectedFilter = controller.transactionStatusFilter.value;
 
       return Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
           // Filter Chips
-          SizedBox(
-            height: 60,
-            child: ListView(
-              scrollDirection: Axis.horizontal,
-              padding: const EdgeInsets.symmetric(
-                horizontal: AppDimens.screenPadding,
-                vertical: AppDimens.gapSm,
-              ),
+          SingleChildScrollView(
+            scrollDirection: Axis.horizontal,
+            child: Row(
               children: [
                 ChoiceChip(
                   label: const Text('All'),
@@ -793,33 +814,33 @@ class _TransactionsTab extends StatelessWidget {
               ],
             ),
           ),
-          Expanded(
-            child: filtered.isEmpty
-                ? const EmptyState(
-                    icon: Icons.receipt_outlined,
-                    title: 'No transactions found',
-                    message: 'Payment slips and receipts will appear here.',
-                  )
-                : ListView.separated(
-                    padding: const EdgeInsets.fromLTRB(
-                      AppDimens.screenPadding,
-                      AppDimens.gapSm,
-                      AppDimens.screenPadding,
-                      100,
-                    ),
-                    itemCount: filtered.length,
-                    separatorBuilder: (_, _) =>
-                        const SizedBox(height: AppDimens.gapMd),
-                    itemBuilder: (context, i) {
-                      final t = filtered[i];
-                      return _TransactionCard(
-                        transaction: t,
-                        onTap: () =>
-                            Get.toNamed(Routes.feeReceipt, arguments: t),
-                      );
-                    },
-                  ),
-          ),
+          const SizedBox(height: AppDimens.gapLg),
+          if (filtered.isEmpty)
+            const Padding(
+              padding: EdgeInsets.symmetric(vertical: 40),
+              child: EmptyState(
+                icon: Icons.receipt_outlined,
+                title: 'No transactions found',
+                message: 'Payment slips and receipts will appear here.',
+              ),
+            )
+          else
+            ListView.separated(
+              shrinkWrap: true,
+              physics: const NeverScrollableScrollPhysics(),
+              padding: EdgeInsets.zero,
+              itemCount: filtered.length,
+              separatorBuilder: (_, _) =>
+                  const SizedBox(height: AppDimens.gapMd),
+              itemBuilder: (context, i) {
+                final t = filtered[i];
+                return _TransactionCard(
+                  transaction: t,
+                  onTap: () =>
+                      Get.toNamed(Routes.feeReceipt, arguments: t),
+                );
+              },
+            ),
         ],
       );
     });

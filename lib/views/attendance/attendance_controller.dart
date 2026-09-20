@@ -18,6 +18,7 @@ class AttendanceController extends GetxController
   final markingType = Rxn<AttendanceType>();
   final upcomingSabhas = <SabhaSession>[].obs;
   final activeDates = <String>[].obs;
+  final recentHistory = <AttendanceRecord>[].obs;
 
   @override
   void onInit() {
@@ -43,6 +44,11 @@ class AttendanceController extends GetxController
 
     final dates = await _repository.getActiveDates();
     activeDates.assignAll(dates);
+
+    try {
+      final historyLogs = await _repository.history(limit: 5);
+      recentHistory.assignAll(historyLogs);
+    } catch (_) {}
   });
 
   /// Mark attendance directly or after a scan
@@ -62,6 +68,8 @@ class AttendanceController extends GetxController
       );
       todayStatus[type] = result.time;
       todayStatus.refresh();
+      recentHistory.removeWhere((r) => r.id == result.id);
+      recentHistory.insert(0, result);
       return result;
     } finally {
       markingType.value = null;
@@ -71,5 +79,7 @@ class AttendanceController extends GetxController
   void onAttendanceMarked(AttendanceRecord record) {
     todayStatus[record.type] = record.time;
     todayStatus.refresh();
+    recentHistory.removeWhere((r) => r.id == record.id);
+    recentHistory.insert(0, record);
   }
 }

@@ -38,6 +38,11 @@ class AttendanceQrDisplayScreen
                 leading: null,
                 actions: [
                   HeaderIconButton(
+                    icon: Icons.history_rounded,
+                    tooltip: 'Attendance History',
+                    onPressed: () => Get.toNamed(Routes.attendanceHistory),
+                  ),
+                  HeaderIconButton(
                     icon: Icons.fullscreen_rounded,
                     tooltip: 'Fullscreen Kiosk',
                     onPressed: controller.toggleKioskMode,
@@ -474,7 +479,9 @@ class AttendanceQrDisplayScreen
               borderRadius: BorderRadius.circular(AppDimens.radiusLg),
             ),
             onSelected: (val) {
-              if (val == 'on_behalf') {
+              if (val == 'history') {
+                Get.toNamed(Routes.attendanceHistory);
+              } else if (val == 'on_behalf') {
                 Get.toNamed(Routes.operatorAttendanceOnBehalf);
               } else if (val == 'sabha') {
                 Get.toNamed(Routes.operatorSabha);
@@ -484,6 +491,20 @@ class AttendanceQrDisplayScreen
               }
             },
             itemBuilder: (ctx) => [
+              PopupMenuItem(
+                value: 'history',
+                child: Row(
+                  children: [
+                    const Icon(
+                      Icons.history_rounded,
+                      size: 20,
+                      color: AppColors.primary,
+                    ),
+                    const SizedBox(width: 10),
+                    Text('Attendance History', style: AppTextStyles.bodySm),
+                  ],
+                ),
+              ),
               PopupMenuItem(
                 value: 'on_behalf',
                 child: Row(

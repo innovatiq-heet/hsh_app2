@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
+import 'package:intl/intl.dart';
 import '../../common_enums/attendance_type.dart';
 import '../../constants/app_colors.dart';
 import '../../constants/app_dimens.dart';
@@ -33,7 +34,7 @@ class AttendanceHistoryScreen extends GetView<AttendanceHistoryController> {
               padding: EdgeInsets.zero,
               children: [
                 GradientHeader(
-                  overline: 'Student Services',
+                  overline: 'Attendance Records',
                   title: 'Attendance History',
                   subtitle: 'Review marked sessions & verification logs',
                   leading: Navigator.canPop(context)
@@ -162,7 +163,7 @@ class AttendanceHistoryScreen extends GetView<AttendanceHistoryController> {
                       else
                         for (final entry in controller.entries)
                           Padding(
-                            padding: const EdgeInsets.only(bottom: AppDimens.gapMd),
+                            padding: const EdgeInsets.only(bottom: AppDimens.gapSm),
                             child: _HistoryCard(entry: entry),
                           ),
                     ],
@@ -233,53 +234,81 @@ class _HistoryCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final style = AttendanceEventStyle.of(entry.type);
+    final dateStr = DateFormat('dd MMM yyyy').format(entry.date);
 
     return AppCard(
-      padding: const EdgeInsets.all(AppDimens.cardPadding),
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+      radius: AppDimens.radiusMd,
       child: Row(
         children: [
           Container(
-            width: 44,
-            height: 44,
+            width: 36,
+            height: 36,
             decoration: BoxDecoration(
               color: style.softBackgroundColor,
-              borderRadius: BorderRadius.circular(AppDimens.radiusMd),
+              borderRadius: BorderRadius.circular(AppDimens.radiusSm),
             ),
             child: Icon(
               style.icon,
               color: style.primaryColor,
-              size: 22,
+              size: 18,
             ),
           ),
           const SizedBox(width: AppDimens.gapMd),
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisSize: MainAxisSize.min,
               children: [
                 Row(
                   children: [
                     Text(
-                      '${style.emoji} ${entry.type.label}',
-                      style: AppTextStyles.subtitle,
+                      entry.type.label,
+                      style: AppTextStyles.subtitle.copyWith(
+                        fontWeight: FontWeight.w600,
+                        fontSize: 14,
+                      ),
                     ),
                     const Spacer(),
                     StatusBadge(
-                      label: entry.viaCode ? 'QR Verified' : 'Logged',
+                      label: entry.viaCode ? 'Code' : 'QR Verified',
                       color: entry.viaCode
-                          ? AppColors.successGreen
-                          : AppColors.primary,
+                          ? AppColors.primary
+                          : AppColors.successGreen,
                       icon: entry.viaCode
-                          ? Icons.qr_code_2_rounded
-                          : Icons.check_circle_outline_rounded,
+                          ? Icons.pin_outlined
+                          : Icons.qr_code_2_rounded,
                     ),
                   ],
                 ),
-                const SizedBox(height: AppDimens.gapXs),
-                Text(
-                  DateFormatting.dateTime(entry.time),
-                  style: AppTextStyles.bodySm.copyWith(
-                    color: AppColors.textSecondary,
-                  ),
+                const SizedBox(height: 3),
+                Row(
+                  children: [
+                    const Icon(
+                      Icons.calendar_today_outlined,
+                      size: 12,
+                      color: AppColors.textMuted,
+                    ),
+                    const SizedBox(width: 4),
+                    Text(
+                      dateStr,
+                      style: AppTextStyles.caption.copyWith(
+                        color: AppColors.textSecondary,
+                        fontWeight: FontWeight.w500,
+                      ),
+                    ),
+                    if (entry.aadhar != null && entry.aadhar!.isNotEmpty) ...[
+                      const Spacer(),
+                      Text(
+                        'Aadhar: ${entry.aadhar}',
+                        style: AppTextStyles.caption.copyWith(
+                          color: AppColors.textMuted,
+                          fontSize: 11,
+                          fontWeight: FontWeight.w500,
+                        ),
+                      ),
+                    ],
+                  ],
                 ),
               ],
             ),

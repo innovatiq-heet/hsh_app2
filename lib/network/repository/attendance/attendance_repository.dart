@@ -214,21 +214,42 @@ class AttendanceRepository {
         options: await _authOptions(),
       );
 
-      final data = response.data['data'];
+      final body = response.data;
+      final data = body is Map ? body['data'] : null;
       List list = [];
-      if (data is Map && data['attendance'] is List) {
-        list = data['attendance'] as List;
+      if (data is Map) {
+        if (data['logs'] is List) {
+          list = data['logs'] as List;
+        } else if (data['attendance'] is List) {
+          list = data['attendance'] as List;
+        } else if (data['records'] is List) {
+          list = data['records'] as List;
+        } else if (data['history'] is List) {
+          list = data['history'] as List;
+        }
       } else if (data is List) {
         list = data;
+      } else if (body is Map) {
+        if (body['logs'] is List) {
+          list = body['logs'] as List;
+        } else if (body['attendance'] is List) {
+          list = body['attendance'] as List;
+        } else if (body['records'] is List) {
+          list = body['records'] as List;
+        }
       }
 
       final records = list
-          .map((item) => AttendanceRecord.fromJson(item as Map<String, dynamic>))
+          .map((item) {
+            if (item is Map) {
+              return AttendanceRecord.fromJson(Map<String, dynamic>.from(item));
+            }
+            return null;
+          })
+          .whereType<AttendanceRecord>()
           .toList();
 
-      if (records.isNotEmpty) {
-        return records;
-      }
+      return records;
     } on DioException catch (e) {
       if (e.response != null) {
         throw ApiException(_extractErrorMessage(e), statusCode: e.response?.statusCode);

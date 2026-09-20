@@ -123,6 +123,13 @@ class OperatorHomeScreen extends StatelessWidget {
         AppColors.primary,
         Routes.operatorAttendanceQrDisplay,
       ),
+      _OperatorAction(
+        'Attendance history',
+        'View logs & records',
+        Icons.history_rounded,
+        AppColors.primaryLight,
+        Routes.attendanceHistory,
+      ),
     ]),
   ];
 

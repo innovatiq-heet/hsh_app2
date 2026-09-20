@@ -3,6 +3,7 @@ import 'package:get/get.dart';
 import '../../common_enums/attendance_type.dart';
 import '../../constants/app_colors.dart';
 import '../../constants/app_dimens.dart';
+import '../../constants/app_routes.dart';
 import '../../constants/app_strings.dart';
 import '../../constants/app_text_styles.dart';
 import '../../utils/date_formatting.dart';
@@ -50,6 +51,13 @@ class OperatorAttendanceBehalfScreen
                       ),
                     )
                   : null,
+              actions: [
+                HeaderIconButton(
+                  icon: Icons.history_rounded,
+                  tooltip: 'Attendance History',
+                  onPressed: () => Get.toNamed(Routes.attendanceHistory),
+                ),
+              ],
               child: const HeaderPill(
                 icon: Icons.edit_calendar_outlined,
                 label: 'Warden override & manual entry',

@@ -33,7 +33,25 @@ class AttendanceRecord {
 
     final rawType = json['type']?.toString() ?? 'aarti';
     final dateVal = parseDate(json['date']);
-    final timeVal = json['time'] != null ? parseDate(json['time']) : dateVal;
+    DateTime timeVal;
+    if (json['time'] != null) {
+      final parsedTime = parseDate(json['time']);
+      if (parsedTime.year <= 1970) {
+        timeVal = DateTime.utc(
+          dateVal.year,
+          dateVal.month,
+          dateVal.day,
+          parsedTime.hour,
+          parsedTime.minute,
+          parsedTime.second,
+          parsedTime.millisecond,
+        );
+      } else {
+        timeVal = parsedTime;
+      }
+    } else {
+      timeVal = dateVal;
+    }
 
     return AttendanceRecord(
       id: json['id'] ?? json['_id'] ?? 0,

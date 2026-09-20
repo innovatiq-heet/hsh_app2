@@ -2,9 +2,11 @@ import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import '../../constants/app_colors.dart';
 import '../../constants/app_dimens.dart';
+import '../../constants/app_routes.dart';
 import '../../constants/app_text_styles.dart';
 import '../../utils/date_formatting.dart';
 import '../shared/widgets/app_card.dart';
+import '../shared/widgets/app_refresh_indicator.dart';
 import '../shared/widgets/async_state_view.dart';
 import '../shared/widgets/empty_state.dart';
 import 'operator_fee_approvals_controller.dart';
@@ -30,9 +32,10 @@ class OperatorFeeApprovalsScreen
                 title: 'No pending transactions',
               );
             }
-            return RefreshIndicator(
+            return AppRefreshIndicator(
               onRefresh: controller.load,
               child: ListView.separated(
+                physics: const AlwaysScrollableScrollPhysics(),
                 padding: const EdgeInsets.all(AppDimens.screenPadding),
                 itemCount: controller.transactions.length,
                 separatorBuilder: (_, _) =>
@@ -44,10 +47,34 @@ class OperatorFeeApprovalsScreen
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        Text(
-                          '₹${t.amount.toStringAsFixed(0)} · ${t.type.name}',
-                          style: AppTextStyles.subtitle,
+                        Row(
+                          children: [
+                            Expanded(
+                              child: Text(
+                                '₹${t.amount.toStringAsFixed(0)} · ${t.type.name.toUpperCase()}',
+                                style: AppTextStyles.subtitle.copyWith(
+                                  fontWeight: FontWeight.w700,
+                                ),
+                              ),
+                            ),
+                            TextButton.icon(
+                              onPressed: () => Get.toNamed(
+                                Routes.feeReceipt,
+                                arguments: t,
+                              ),
+                              icon: const Icon(Icons.receipt_outlined, size: 16),
+                              label: const Text('View Slip'),
+                            ),
+                          ],
                         ),
+                        if (t.transactionRef != null)
+                          Text(
+                            'Ref/UTR: ${t.transactionRef}',
+                            style: AppTextStyles.bodySm.copyWith(
+                              color: AppColors.primary,
+                              fontWeight: FontWeight.w600,
+                            ),
+                          ),
                         if (t.chequeNumber != null)
                           Text(
                             'Cheque #${t.chequeNumber}',

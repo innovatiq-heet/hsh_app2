@@ -8,6 +8,7 @@ import '../../constants/app_text_styles.dart';
 import '../../network/responses/leave/leave_response.dart';
 import '../../utils/date_formatting.dart';
 import '../shared/widgets/app_card.dart';
+import '../shared/widgets/app_refresh_indicator.dart';
 import '../shared/widgets/async_state_view.dart';
 import '../shared/widgets/empty_state.dart';
 import '../shared/widgets/gradient_header.dart';
@@ -31,9 +32,10 @@ class LeaveScreen extends GetView<LeaveController> {
             final allLeaves = controller.leaves;
             final filtered = controller.filteredLeaves;
 
-            return RefreshIndicator(
+            return AppRefreshIndicator(
               onRefresh: controller.load,
               child: ListView(
+                physics: const AlwaysScrollableScrollPhysics(),
                 padding: EdgeInsets.zero,
                 children: [
                   GradientHeader(

@@ -10,6 +10,7 @@ import '../../utils/date_formatting.dart';
 import '../shared/screens/image_gallery_viewer_screen.dart';
 import '../shared/utils/complaint_category_style.dart';
 import '../shared/widgets/app_card.dart';
+import '../shared/widgets/app_refresh_indicator.dart';
 import '../shared/widgets/gradient_header.dart';
 import '../shared/widgets/info_row.dart';
 import '../shared/widgets/section_header.dart';
@@ -44,10 +45,11 @@ class ComplaintDetailScreen extends GetView<ComplaintDetailController> {
           );
         }
 
-        return RefreshIndicator(
+        return AppRefreshIndicator(
           onRefresh: controller.load,
           child: ListView(
             padding: EdgeInsets.zero,
+            physics: const AlwaysScrollableScrollPhysics(),
             children: [
               // Hero Gradient Header
               GradientHeader(

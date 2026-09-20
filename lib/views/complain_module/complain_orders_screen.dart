@@ -11,6 +11,7 @@ import '../../utils/date_formatting.dart';
 import '../shared/utils/complaint_category_style.dart';
 import '../shared/widgets/app_button.dart';
 import '../shared/widgets/app_card.dart';
+import '../shared/widgets/app_refresh_indicator.dart';
 import '../shared/widgets/app_text_field.dart';
 import '../shared/widgets/async_state_view.dart';
 import '../shared/widgets/empty_state.dart';
@@ -38,10 +39,11 @@ class ComplainOrdersScreen extends GetView<ComplainOrdersController> {
         onRetry: controller.load,
         builder: (context) {
           final list = controller.filtered;
-          return RefreshIndicator(
+          return AppRefreshIndicator(
             onRefresh: controller.load,
             child: ListView(
               padding: EdgeInsets.zero,
+              physics: const AlwaysScrollableScrollPhysics(),
               children: [
                 // Hero Gradient Header
                 GradientHeader(

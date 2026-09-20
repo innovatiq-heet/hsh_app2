@@ -10,6 +10,7 @@ import '../../utils/date_formatting.dart';
 import '../shared/utils/complaint_category_style.dart';
 import '../shared/widgets/app_button.dart';
 import '../shared/widgets/app_card.dart';
+import '../shared/widgets/app_refresh_indicator.dart';
 import '../shared/widgets/app_text_field.dart';
 import '../shared/widgets/empty_state.dart';
 import '../shared/widgets/gradient_header.dart';
@@ -28,9 +29,19 @@ class ComplainManagementScreen extends GetView<ComplainManagementController> {
 
   @override
   Widget build(BuildContext context) {
-    return ListView(
-      padding: EdgeInsets.zero,
-      children: [
+    return AppRefreshIndicator(
+      onRefresh: () async {
+        final room = controller.queryController.text.trim();
+        if (room.isNotEmpty) {
+          await controller.searchRoom(room);
+        } else {
+          await controller.loadAll();
+        }
+      },
+      child: ListView(
+        padding: EdgeInsets.zero,
+        physics: const AlwaysScrollableScrollPhysics(),
+        children: [
         // Gradient Header
         GradientHeader(
           overline: 'Room Maintenance',
@@ -499,8 +510,9 @@ class ComplainManagementScreen extends GetView<ComplainManagementController> {
           ),
         ),
       ],
-    );
-  }
+    ),
+  );
+}
 }
 
 class _MetricTile extends StatelessWidget {

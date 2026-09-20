@@ -5,6 +5,7 @@ import '../../constants/app_text_styles.dart';
 import '../../utils/date_formatting.dart';
 import '../shared/widgets/app_button.dart';
 import '../shared/widgets/app_card.dart';
+import '../shared/widgets/app_refresh_indicator.dart';
 import '../shared/widgets/async_state_view.dart';
 import '../shared/widgets/empty_state.dart';
 import 'operator_admissions_controller.dart';
@@ -29,9 +30,10 @@ class OperatorAdmissionsScreen extends GetView<OperatorAdmissionsController> {
                 title: 'No pending admissions',
               );
             }
-            return RefreshIndicator(
+            return AppRefreshIndicator(
               onRefresh: controller.load,
               child: ListView.separated(
+                physics: const AlwaysScrollableScrollPhysics(),
                 padding: const EdgeInsets.all(AppDimens.screenPadding),
                 itemCount: controller.requests.length,
                 separatorBuilder: (_, _) =>

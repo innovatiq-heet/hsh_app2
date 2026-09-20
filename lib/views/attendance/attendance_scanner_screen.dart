@@ -1,3 +1,4 @@
+import 'dart:ui';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:mobile_scanner/mobile_scanner.dart';
@@ -78,18 +79,63 @@ class AttendanceScannerScreen extends GetView<AttendanceScannerController> {
 
                           return Padding(
                             padding: const EdgeInsets.only(right: 8),
-                            child: ChoiceChip(
-                              avatar: Text(style.emoji, style: const TextStyle(fontSize: 14)),
-                              label: Text(type.label),
-                              selected: isSelected,
-                              selectedColor: style.primaryColor,
-                              shape: const StadiumBorder(),
-                              labelStyle: AppTextStyles.label.copyWith(
-                                color: isSelected ? Colors.white : Colors.white70,
-                                fontWeight: FontWeight.bold,
+                            child: InkWell(
+                              onTap: () => controller.setEventType(type),
+                              borderRadius: BorderRadius.circular(AppDimens.radiusPill),
+                              child: AnimatedContainer(
+                                duration: const Duration(milliseconds: 200),
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: 14,
+                                  vertical: 8,
+                                ),
+                                decoration: BoxDecoration(
+                                  gradient: isSelected
+                                      ? AppColors.buttonGradient
+                                      : null,
+                                  color: isSelected
+                                      ? null
+                                      : Colors.black.withValues(alpha: 0.50),
+                                  borderRadius: BorderRadius.circular(
+                                    AppDimens.radiusPill,
+                                  ),
+                                  border: Border.all(
+                                    color: isSelected
+                                        ? Colors.white
+                                        : Colors.white.withValues(alpha: 0.22),
+                                    width: isSelected ? 1.5 : 1,
+                                  ),
+                                  boxShadow: isSelected
+                                      ? [
+                                          BoxShadow(
+                                            color: AppColors.primary.withValues(
+                                              alpha: 0.40,
+                                            ),
+                                            blurRadius: 10,
+                                            offset: const Offset(0, 3),
+                                          ),
+                                        ]
+                                      : null,
+                                ),
+                                child: Row(
+                                  mainAxisSize: MainAxisSize.min,
+                                  children: [
+                                    Text(
+                                      style.emoji,
+                                      style: const TextStyle(fontSize: 14),
+                                    ),
+                                    const SizedBox(width: 6),
+                                    Text(
+                                      type.label,
+                                      style: AppTextStyles.label.copyWith(
+                                        color: Colors.white,
+                                        fontWeight: isSelected
+                                            ? FontWeight.w700
+                                            : FontWeight.w500,
+                                      ),
+                                    ),
+                                  ],
+                                ),
                               ),
-                              backgroundColor: Colors.black54,
-                              onSelected: (_) => controller.setEventType(type),
                             ),
                           );
                         }).toList(),
@@ -110,48 +156,83 @@ class AttendanceScannerScreen extends GetView<AttendanceScannerController> {
               top: false,
               child: Obx(() {
                 final style = AttendanceEventStyle.of(controller.selectedType.value);
-                return Container(
-                  padding: const EdgeInsets.all(AppDimens.cardPadding),
-                  decoration: BoxDecoration(
-                    color: Colors.black.withValues(alpha: 0.75),
-                    borderRadius: BorderRadius.circular(AppDimens.radiusLg),
-                    border: Border.all(
-                      color: Colors.white.withValues(alpha: 0.16),
-                    ),
-                  ),
-                  child: Column(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      Row(
-                        mainAxisAlignment: MainAxisAlignment.center,
+                return ClipRRect(
+                  borderRadius: BorderRadius.circular(AppDimens.radiusXl),
+                  child: BackdropFilter(
+                    filter: ImageFilter.blur(sigmaX: 12, sigmaY: 12),
+                    child: Container(
+                      padding: const EdgeInsets.all(AppDimens.cardPadding),
+                      decoration: BoxDecoration(
+                        color: Colors.black.withValues(alpha: 0.70),
+                        borderRadius: BorderRadius.circular(AppDimens.radiusXl),
+                        border: Border.all(
+                          color: Colors.white.withValues(alpha: 0.16),
+                        ),
+                      ),
+                      child: Column(
+                        mainAxisSize: MainAxisSize.min,
                         children: [
-                          Icon(style.icon, color: style.primaryColor, size: 20),
-                          const SizedBox(width: AppDimens.gapSm),
+                          Row(
+                            mainAxisAlignment: MainAxisAlignment.center,
+                            children: [
+                              Container(
+                                width: 32,
+                                height: 32,
+                                decoration: BoxDecoration(
+                                  color: style.primaryColor.withValues(alpha: 0.20),
+                                  shape: BoxShape.circle,
+                                ),
+                                alignment: Alignment.center,
+                                child: Icon(
+                                  style.icon,
+                                  color: style.primaryColor,
+                                  size: 18,
+                                ),
+                              ),
+                              const SizedBox(width: AppDimens.gapSm),
+                              Text(
+                                'Marking ${style.emoji} ${style.label}',
+                                style: AppTextStyles.subtitle.copyWith(
+                                  color: Colors.white,
+                                  fontWeight: FontWeight.bold,
+                                ),
+                              ),
+                            ],
+                          ),
+                          const SizedBox(height: AppDimens.gapSm),
                           Text(
-                            'Marking ${style.emoji} ${style.label}',
-                            style: AppTextStyles.subtitle.copyWith(
-                              color: Colors.white,
+                            'Align the dynamic QR code displayed on the hostel kiosk/screen inside the frame',
+                            textAlign: TextAlign.center,
+                            style: AppTextStyles.bodySm.copyWith(
+                              color: Colors.white.withValues(alpha: 0.82),
+                              height: 1.35,
+                            ),
+                          ),
+                          const SizedBox(height: AppDimens.gapSm),
+                          Container(
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 10,
+                              vertical: 4,
+                            ),
+                            decoration: BoxDecoration(
+                              color: style.primaryColor.withValues(alpha: 0.18),
+                              borderRadius: BorderRadius.circular(AppDimens.radiusPill),
+                              border: Border.all(
+                                color: style.primaryColor.withValues(alpha: 0.35),
+                              ),
+                            ),
+                            child: Text(
+                              style.timingHint,
+                              textAlign: TextAlign.center,
+                              style: AppTextStyles.caption.copyWith(
+                                color: style.primaryColor,
+                                fontWeight: FontWeight.w600,
+                              ),
                             ),
                           ),
                         ],
                       ),
-                      const SizedBox(height: AppDimens.gapXs),
-                      Text(
-                        'Align the dynamic QR code displayed on the hostel kiosk/screen inside the frame.',
-                        textAlign: TextAlign.center,
-                        style: AppTextStyles.bodySm.copyWith(
-                          color: Colors.white.withValues(alpha: 0.8),
-                        ),
-                      ),
-                      const SizedBox(height: AppDimens.gapXs),
-                      Text(
-                        style.timingHint,
-                        textAlign: TextAlign.center,
-                        style: AppTextStyles.caption.copyWith(
-                          color: style.primaryColor,
-                        ),
-                      ),
-                    ],
+                    ),
                   ),
                 );
               }),
@@ -333,7 +414,7 @@ class _CircleIconButton extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Material(
-      color: active ? AppColors.secondary : Colors.black45,
+      color: active ? AppColors.primary : Colors.black.withValues(alpha: 0.45),
       shape: const CircleBorder(),
       child: IconButton(
         icon: Icon(icon, color: Colors.white, size: 22),
@@ -409,9 +490,9 @@ class _ScannerPainter extends CustomPainter {
       ..fillType = PathFillType.evenOdd;
     canvas.drawPath(path, backgroundPaint);
 
-    // 2. Corner Brackets
+    // 2. Corner Brackets in vibrant Terracotta brand color
     final cornerPaint = Paint()
-      ..color = AppColors.secondary
+      ..color = AppColors.primary
       ..style = PaintingStyle.stroke
       ..strokeWidth = 4.0
       ..strokeCap = StrokeCap.round;
@@ -443,9 +524,9 @@ class _ScannerPainter extends CustomPainter {
     final laserPaint = Paint()
       ..shader = LinearGradient(
         colors: [
-          AppColors.secondary.withValues(alpha: 0.0),
-          AppColors.secondary,
-          AppColors.secondary.withValues(alpha: 0.0),
+          AppColors.primary.withValues(alpha: 0.0),
+          AppColors.primaryLight,
+          AppColors.primary.withValues(alpha: 0.0),
         ],
       ).createShader(Rect.fromLTWH(rect.left, laserY - 1.5, rect.width, 3))
       ..strokeWidth = 3.0;

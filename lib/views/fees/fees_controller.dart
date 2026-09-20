@@ -1,5 +1,6 @@
 import 'package:get/get.dart';
 import '../../abstracts/mixins/load_state_mixin.dart';
+import '../../common_enums/transaction_status.dart';
 import '../../network/repository/fees/fees_repository.dart';
 import '../../network/responses/fees/fee_responses.dart';
 
@@ -12,6 +13,8 @@ class FeesController extends GetxController with LoadStateMixin {
   final transactions = <FeeTransactionResponse>[].obs;
 
   final Rxn<String> academicYearFilter = Rxn<String>();
+  final Rxn<TransactionStatus> transactionStatusFilter = Rxn<TransactionStatus>();
+
   List<String> get academicYears =>
       debits.map((e) => e.academicYear).toSet().toList()
         ..sort((a, b) => b.compareTo(a));
@@ -40,4 +43,11 @@ class FeesController extends GetxController with LoadStateMixin {
       : debits
             .where((d) => d.academicYear == academicYearFilter.value)
             .toList();
+
+  List<FeeTransactionResponse> get filteredTransactions =>
+      transactionStatusFilter.value == null
+          ? transactions
+          : transactions
+              .where((t) => t.status == transactionStatusFilter.value)
+              .toList();
 }

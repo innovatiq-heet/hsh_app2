@@ -12,10 +12,17 @@ class LoginController extends GetxController {
   final AuthRepository _authRepository = Get.find();
 
   final formKey = GlobalKey<FormState>();
-  final emailController = TextEditingController();
-  final passwordController = TextEditingController();
+  late TextEditingController emailController;
+  late TextEditingController passwordController;
 
   final isLoading = false.obs;
+
+  @override
+  void onInit() {
+    super.onInit();
+    emailController = TextEditingController();
+    passwordController = TextEditingController();
+  }
 
   @override
   void onClose() {

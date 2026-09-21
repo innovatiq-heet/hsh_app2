@@ -10,6 +10,12 @@ class AppConfig {
   static const String baseUrl = 'http://192.168.29.7:5000/api';
   static const String healthUrl = 'http://192.168.29.7:5000/health';
 
+  /// Server origin without the `/api` prefix — statically served uploads
+  /// (e.g. complaint photos, mounted at `/uploads` — see server.ts) live
+  /// here, not under `/api`.
+  static String get mediaBaseUrl =>
+      baseUrl.endsWith('/api') ? baseUrl.substring(0, baseUrl.length - 4) : baseUrl;
+
   static const String appName = 'Hari Saurabh Hostel App';
   static const Duration mockNetworkDelay = Duration(milliseconds: 600);
 }

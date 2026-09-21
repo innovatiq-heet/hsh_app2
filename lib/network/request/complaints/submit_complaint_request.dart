@@ -4,6 +4,7 @@ import 'dart:io';
 /// leaves/fees/attendance/laundry where it's silently injected server-side.
 class SubmitComplaintRequest {
   final String studentAadhar;
+  final String room;
   final String category;
   final String title;
   final String description;
@@ -11,6 +12,7 @@ class SubmitComplaintRequest {
 
   const SubmitComplaintRequest({
     required this.studentAadhar,
+    required this.room,
     required this.category,
     required this.title,
     required this.description,

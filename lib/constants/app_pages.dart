@@ -1,3 +1,5 @@
+import '../views/screentime/student_screen_time_binding.dart';
+import '../views/screentime/student_screen_time_screen.dart';
 import 'package:get/get.dart';
 import '../views/attendance/attendance_binding.dart';
 import '../views/attendance/attendance_history_screen.dart';
@@ -57,7 +59,12 @@ class AppPages {
   AppPages._();
 
   static final List<GetPage> pages = [
-    GetPage(
+        GetPage(
+      name: Routes.studentScreenTime,
+      page: () => const StudentScreenTimeScreen(),
+      binding: StudentScreenTimeBinding(),
+    ),
+GetPage(
       name: Routes.splash,
       page: () => const SplashScreen(),
       binding: SplashBinding(),

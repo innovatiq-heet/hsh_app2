@@ -67,6 +67,7 @@ class LoginController extends GetxController {
   void _routeByRole(UserRole role) {
     switch (role) {
       case UserRole.student:
+      case UserRole.leader:
         Get.offAllNamed(Routes.studentHome);
         break;
       case UserRole.admin:

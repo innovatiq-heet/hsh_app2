@@ -16,136 +16,393 @@ class StudentScreenTimeScreen extends GetView<StudentScreenTimeController> {
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: AppColors.mainBackground,
-      body: CustomScrollView(
-        slivers: [
-          SliverGradientHeader(
-            title: 'Screen Time Monitor',
-            subtitle: '10-minute live device activity',
-            leading: HeaderIconButton(
-              icon: Icons.arrow_back_rounded,
-              tooltip: 'Back',
-              onPressed: () => Get.back(),
+      body: Obx(() {
+        final isLeader = controller.currentRole.value.canViewScreenTime;
+        final selected = controller.selectedStudent.value;
+
+        return CustomScrollView(
+          slivers: [
+            GradientHeader(
+              title: selected != null
+                  ? (selected['name'] ?? 'Student Screen Time')
+                  : (isLeader ? 'Students Screen Time' : 'Screen Time Monitor'),
+              subtitle: selected != null
+                  ? 'Room ${selected['room'] ?? 'N/A'} • Aadhar ${selected['aadhar'] ?? ''}'
+                  : (isLeader
+                      ? 'Live device activity directory'
+                      : '10-minute live device activity'),
+              leading: selected != null
+                  ? IconButton(
+                      icon: const Icon(Icons.arrow_back_rounded, color: Colors.white),
+                      onPressed: controller.clearSelectedStudent,
+                    )
+                  : null,
+              actions: [
+                HeaderIconButton(
+                  icon: Icons.refresh_rounded,
+                  tooltip: 'Refresh',
+                  onPressed: () {
+                    if (isLeader && selected == null) {
+                      controller.fetchStudentsList();
+                    } else {
+                      controller.fetchLiveStatus();
+                      controller.fetchHistory();
+                    }
+                  },
+                ),
+              ],
             ),
-            actions: [
-              HeaderIconButton(
-                icon: Icons.refresh_rounded,
-                tooltip: 'Refresh',
-                onPressed: () {
-                  controller.fetchLiveStatus();
-                  controller.fetchHistory();
-                },
+            SliverToBoxAdapter(
+              child: Padding(
+                padding: const EdgeInsets.all(AppDimens.screenPadding),
+                child: isLeader && selected == null
+                    ? _buildStudentsDirectoryView()
+                    : _buildDetailedScreenTimeView(isLeader, selected),
+              ),
+            ),
+          ],
+        );
+      }),
+    );
+  }
+
+  /// Directory view for Leader: list of all students with live status & screen time
+  Widget _buildStudentsDirectoryView() {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        // Search & Filter Box
+        AppCard(
+          padding: const EdgeInsets.all(AppDimens.cardPadding),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                children: [
+                  Container(
+                    padding: const EdgeInsets.all(8),
+                    decoration: BoxDecoration(
+                      color: AppColors.primary.withValues(alpha: 0.1),
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                    child: const Icon(Icons.people_alt_outlined, color: AppColors.primary, size: 20),
+                  ),
+                  const SizedBox(width: 10),
+                  Text('Student Directory', style: AppTextStyles.title),
+                  const Spacer(),
+                  Obx(() => Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                        decoration: BoxDecoration(
+                          color: AppColors.primary.withValues(alpha: 0.1),
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                        child: Text(
+                          '${controller.filteredStudents.length} Students',
+                          style: AppTextStyles.bodySm.copyWith(
+                            color: AppColors.primary,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                      )),
+                ],
+              ),
+              const SizedBox(height: 12),
+              TextField(
+                controller: controller.searchFilterController,
+                onChanged: controller.filterStudents,
+                decoration: InputDecoration(
+                  hintText: 'Search by name, room (e.g. A-204), or Aadhar...',
+                  isDense: true,
+                  prefixIcon: const Icon(Icons.search_rounded, size: 20),
+                  suffixIcon: controller.searchFilterController.text.isNotEmpty
+                      ? IconButton(
+                          icon: const Icon(Icons.clear_rounded, size: 18),
+                          onPressed: () {
+                            controller.searchFilterController.clear();
+                            controller.filterStudents('');
+                          },
+                        )
+                      : null,
+                  border: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                ),
               ),
             ],
           ),
-          SliverToBoxAdapter(
-            child: Obx(() {
-              final isLeader = controller.currentRole.value.canViewScreenTime;
+        ),
+        const SizedBox(height: AppDimens.gapMd),
 
-              return Padding(
-                padding: const EdgeInsets.all(AppDimens.screenPadding),
+        // Students List
+        Obx(() {
+          if (controller.isLoadingStudents.value) {
+            return const Center(
+              child: Padding(
+                padding: EdgeInsets.symmetric(vertical: 40),
+                child: CircularProgressIndicator(),
+              ),
+            );
+          }
+
+          final list = controller.filteredStudents;
+          if (list.isEmpty) {
+            return AppCard(
+              padding: const EdgeInsets.all(32),
+              child: Center(
                 child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    // Leader Aadhar Search Bar
-                    if (isLeader) ...[
-                      AppCard(
-                        padding: const EdgeInsets.all(AppDimens.cardPadding),
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Row(
-                              children: [
-                                Container(
-                                  padding: const EdgeInsets.all(8),
-                                  decoration: BoxDecoration(
-                                    color: AppColors.primary.withValues(alpha: 0.1),
-                                    borderRadius: BorderRadius.circular(8),
-                                  ),
-                                  child: const Icon(Icons.shield_outlined, color: AppColors.primary, size: 20),
-                                ),
-                                const SizedBox(width: 10),
-                                Text(
-                                  'Leader Monitoring Section',
-                                  style: AppTextStyles.title,
-                                ),
-                              ],
-                            ),
-                            const SizedBox(height: 12),
-                            Row(
-                              children: [
-                                Expanded(
-                                  child: TextField(
-                                    controller: controller.searchAadharController,
-                                    keyboardType: TextInputType.number,
-                                    maxLength: 12,
-                                    decoration: InputDecoration(
-                                      hintText: 'Enter Student Aadhar (12 digits)',
-                                      counterText: '',
-                                      isDense: true,
-                                      prefixIcon: const Icon(Icons.search_rounded, size: 20),
-                                      border: OutlineInputBorder(
-                                        borderRadius: BorderRadius.circular(12),
-                                      ),
-                                    ),
-                                  ),
-                                ),
-                                const SizedBox(width: 8),
-                                ElevatedButton(
-                                  onPressed: controller.searchStudent,
-                                  style: ElevatedButton.styleFrom(
-                                    backgroundColor: AppColors.primary,
-                                    foregroundColor: Colors.white,
-                                    shape: RoundedRectangleBorder(
-                                      borderRadius: BorderRadius.circular(12),
-                                    ),
-                                    padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
-                                  ),
-                                  child: const Text('View'),
-                                ),
-                                if (controller.targetedAadhar.isNotEmpty) ...[
-                                  const SizedBox(width: 6),
-                                  IconButton(
-                                    icon: const Icon(Icons.close_rounded),
-                                    tooltip: 'Clear search',
-                                    onPressed: controller.clearSearch,
-                                  ),
-                                ],
-                              ],
-                            ),
-                            if (controller.targetedAadhar.isNotEmpty)
-                              Padding(
-                                padding: const EdgeInsets.only(top: 8),
-                                child: Text(
-                                  'Showing data for Aadhar: ${controller.targetedAadhar.value}',
-                                  style: AppTextStyles.bodySm.copyWith(
-                                    color: AppColors.primary,
-                                    fontWeight: FontWeight.w600,
-                                  ),
-                                ),
-                              ),
-                          ],
-                        ),
-                      ),
-                      const SizedBox(height: AppDimens.gapMd),
-                    ],
-
-                    // Live Status Card
-                    _buildLiveCard(),
-                    const SizedBox(height: AppDimens.gapMd),
-
-                    // Daily Screen Time Card
-                    _buildTodayUsageCard(),
-                    const SizedBox(height: AppDimens.gapMd),
-
-                    // Top Apps Breakdown
-                    _buildAppBreakdownCard(),
+                    Icon(Icons.search_off_rounded, size: 48, color: Colors.grey.shade400),
+                    const SizedBox(height: 12),
+                    Text('No students found', style: AppTextStyles.title),
+                    const SizedBox(height: 4),
+                    Text(
+                      'Try searching with a different name or room number.',
+                      style: AppTextStyles.bodySm.copyWith(color: AppColors.textSecondary),
+                    ),
                   ],
                 ),
-              );
-            }),
+              ),
+            );
+          }
+
+          return ListView.separated(
+            shrinkWrap: true,
+            physics: const NeverScrollableScrollPhysics(),
+            itemCount: list.length,
+            separatorBuilder: (_, index) => const SizedBox(height: 10),
+            itemBuilder: (context, index) {
+              final student = list[index];
+              return _buildStudentListItem(student);
+            },
+          );
+        }),
+      ],
+    );
+  }
+
+  /// Individual student list card in directory
+  Widget _buildStudentListItem(dynamic student) {
+    final name = (student['name'] ?? 'Student').toString();
+    final room = (student['room'] ?? 'N/A').toString();
+    final aadhar = (student['aadhar'] ?? '').toString();
+    final isOnline = student['isOnline'] == true;
+    final isScreenOn = student['isScreenOn'] == true;
+    final totalMins = (student['totalScreenTimeMinutes'] as int?) ?? 0;
+    final nightMins = (student['nightScreenTimeMinutes'] as int?) ?? 0;
+    final hours = totalMins ~/ 60;
+    final mins = totalMins % 60;
+
+    // Status styling
+    final Color statusColor = isOnline
+        ? (isScreenOn ? Colors.green : Colors.amber)
+        : Colors.grey.shade400;
+    final String statusText = isOnline
+        ? (isScreenOn ? 'Screen Active' : 'Standby')
+        : 'Offline';
+
+    // Initials for avatar
+    final initials = name.trim().isNotEmpty
+        ? name.trim().split(' ').map((p) => p.isNotEmpty ? p[0] : '').take(2).join('').toUpperCase()
+        : 'S';
+
+    final aadharSuffix = aadhar.length >= 4 ? '...${aadhar.substring(aadhar.length - 4)}' : aadhar;
+
+    return AppCard(
+      onTap: () => controller.selectStudent(student),
+      padding: const EdgeInsets.all(14),
+      child: Row(
+        children: [
+          // Avatar with status indicator
+          Stack(
+            children: [
+              CircleAvatar(
+                radius: 24,
+                backgroundColor: AppColors.primary.withValues(alpha: 0.12),
+                child: Text(
+                  initials,
+                  style: const TextStyle(
+                    color: AppColors.primary,
+                    fontWeight: FontWeight.bold,
+                    fontSize: 16,
+                  ),
+                ),
+              ),
+              Positioned(
+                bottom: 0,
+                right: 0,
+                child: Container(
+                  width: 12,
+                  height: 12,
+                  decoration: BoxDecoration(
+                    color: statusColor,
+                    shape: BoxShape.circle,
+                    border: Border.all(color: Colors.white, width: 2),
+                  ),
+                ),
+              ),
+            ],
           ),
+          const SizedBox(width: 14),
+
+          // Student Details
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  children: [
+                    Flexible(
+                      child: Text(
+                        name,
+                        style: AppTextStyles.bodyMd.copyWith(fontWeight: FontWeight.bold),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                      decoration: BoxDecoration(
+                        color: AppColors.mainBackground,
+                        borderRadius: BorderRadius.circular(6),
+                        border: Border.all(color: Colors.grey.shade300),
+                      ),
+                      child: Text(
+                        room,
+                        style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w600),
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 4),
+                Row(
+                  children: [
+                    Text(
+                      statusText,
+                      style: TextStyle(
+                        color: statusColor,
+                        fontSize: 12,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                    const Text(' • ', style: TextStyle(color: Colors.grey, fontSize: 12)),
+                    Text(
+                      'Aadhar: $aadharSuffix',
+                      style: AppTextStyles.bodySm.copyWith(color: AppColors.textSecondary),
+                    ),
+                  ],
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(width: 8),
+
+          // Screen Time badge & Navigation Chevron
+          Column(
+            crossAxisAlignment: CrossAxisAlignment.end,
+            children: [
+              Text(
+                '${hours}h ${mins}m',
+                style: const TextStyle(
+                  fontWeight: FontWeight.bold,
+                  fontSize: 14,
+                  color: AppColors.primary,
+                ),
+              ),
+              if (nightMins > 0)
+                Container(
+                  margin: const EdgeInsets.only(top: 4),
+                  padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                  decoration: BoxDecoration(
+                    color: Colors.red.withValues(alpha: 0.1),
+                    borderRadius: BorderRadius.circular(6),
+                  ),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      const Icon(Icons.nightlight_round, color: Colors.redAccent, size: 10),
+                      const SizedBox(width: 3),
+                      Text(
+                        '${nightMins}m night',
+                        style: const TextStyle(color: Colors.redAccent, fontSize: 10, fontWeight: FontWeight.bold),
+                      ),
+                    ],
+                  ),
+                ),
+            ],
+          ),
+          const SizedBox(width: 8),
+          const Icon(Icons.arrow_forward_ios_rounded, size: 14, color: Colors.grey),
         ],
       ),
+    );
+  }
+
+  /// Detailed screen time view for selected student or self
+  Widget _buildDetailedScreenTimeView(bool isLeader, dynamic selectedStudent) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        // Back bar if inspected by leader
+        if (isLeader && selectedStudent != null) ...[
+          Container(
+            margin: const EdgeInsets.only(bottom: AppDimens.gapMd),
+            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+            decoration: BoxDecoration(
+              color: Colors.white,
+              borderRadius: BorderRadius.circular(12),
+              border: Border.all(color: AppColors.primary.withValues(alpha: 0.2)),
+            ),
+            child: Row(
+              children: [
+                IconButton(
+                  icon: const Icon(Icons.arrow_back_rounded, color: AppColors.primary),
+                  onPressed: controller.clearSelectedStudent,
+                ),
+                const SizedBox(width: 6),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        selectedStudent['name'] ?? 'Selected Student',
+                        style: AppTextStyles.bodyMd.copyWith(fontWeight: FontWeight.bold),
+                      ),
+                      Text(
+                        'Room ${selectedStudent['room'] ?? 'N/A'} • Aadhar ${selectedStudent['aadhar'] ?? ''}',
+                        style: AppTextStyles.bodySm.copyWith(color: AppColors.textSecondary),
+                      ),
+                    ],
+                  ),
+                ),
+                TextButton.icon(
+                  onPressed: controller.clearSelectedStudent,
+                  icon: const Icon(Icons.list_alt_rounded, size: 16),
+                  label: const Text('All Students'),
+                  style: TextButton.styleFrom(
+                    foregroundColor: AppColors.primary,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+
+        // Live Status Card
+        _buildLiveCard(),
+        const SizedBox(height: AppDimens.gapMd),
+
+        // Daily Screen Time Hero Card
+        _buildTodayUsageCard(),
+        const SizedBox(height: AppDimens.gapMd),
+
+        // Top Apps Breakdown from API
+        _buildAppBreakdownCard(),
+        const SizedBox(height: AppDimens.gapMd),
+
+        // Historical Daily Logs from API
+        _buildHistoryCard(),
+      ],
     );
   }
 
@@ -178,7 +435,7 @@ class StudentScreenTimeScreen extends GetView<StudentScreenTimeController> {
                         : 'Device Offline',
                     style: AppTextStyles.title,
                   ),
-                  if (app.isNotEmpty)
+                  if (app.isNotEmpty && app != 'Idle')
                     Text(
                       'Foreground: $app',
                       style: AppTextStyles.bodySm.copyWith(color: AppColors.textSecondary),
@@ -271,7 +528,22 @@ class StudentScreenTimeScreen extends GetView<StudentScreenTimeController> {
   Widget _buildAppBreakdownCard() {
     return Obx(() {
       final list = controller.appBreakdown;
-      if (list.isEmpty) return const SizedBox.shrink();
+      if (list.isEmpty) {
+        return AppCard(
+          padding: const EdgeInsets.all(AppDimens.cardPadding),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const SectionHeader(title: 'App Usage Breakdown'),
+              const SizedBox(height: 8),
+              Text(
+                'No app breakdown recorded by device for today.',
+                style: AppTextStyles.bodySm.copyWith(color: AppColors.textSecondary),
+              ),
+            ],
+          ),
+        );
+      }
 
       final total = controller.totalMinutesToday.value > 0 ? controller.totalMinutesToday.value : 1;
 
@@ -280,7 +552,7 @@ class StudentScreenTimeScreen extends GetView<StudentScreenTimeController> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            const SectionHeader(title: 'Top App Breakdown'),
+            const SectionHeader(title: 'App Usage Breakdown'),
             const SizedBox(height: 12),
             ...list.map((item) {
               final mins = item['minutes'] as int? ?? 0;
@@ -311,6 +583,77 @@ class StudentScreenTimeScreen extends GetView<StudentScreenTimeController> {
                 ),
               );
             }),
+          ],
+        ),
+      );
+    });
+  }
+
+  Widget _buildHistoryCard() {
+    return Obx(() {
+      final records = controller.historyRecords;
+      if (records.isEmpty) {
+        return AppCard(
+          padding: const EdgeInsets.all(AppDimens.cardPadding),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const SectionHeader(title: 'Recent Activity Logs'),
+              const SizedBox(height: 8),
+              Text(
+                'No past screen time activity recorded yet.',
+                style: AppTextStyles.bodySm.copyWith(color: AppColors.textSecondary),
+              ),
+            ],
+          ),
+        );
+      }
+
+      return AppCard(
+        padding: const EdgeInsets.all(AppDimens.cardPadding),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const SectionHeader(title: 'Recent Activity Logs'),
+            const SizedBox(height: 12),
+            ListView.separated(
+              shrinkWrap: true,
+              physics: const NeverScrollableScrollPhysics(),
+              itemCount: records.length,
+              separatorBuilder: (_, index) => const Divider(height: 16),
+              itemBuilder: (context, index) {
+                final rec = records[index];
+                final date = (rec['date'] ?? '').toString().split('T').first;
+                final mins = (rec['totalScreenTimeMinutes'] as int?) ?? 0;
+                final night = (rec['nightScreenTimeMinutes'] as int?) ?? 0;
+                final h = mins ~/ 60;
+                final m = mins % 60;
+
+                return Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(date, style: AppTextStyles.bodyMd.copyWith(fontWeight: FontWeight.w600)),
+                        if (night > 0)
+                          Text(
+                            '🌙 ${night}m night curfew',
+                            style: const TextStyle(fontSize: 11, color: Colors.redAccent),
+                          ),
+                      ],
+                    ),
+                    Text(
+                      '${h}h ${m}m',
+                      style: AppTextStyles.bodyMd.copyWith(
+                        color: AppColors.primary,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                  ],
+                );
+              },
+            ),
           ],
         ),
       );

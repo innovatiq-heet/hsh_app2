@@ -51,6 +51,14 @@ class ServicesScreen extends StatelessWidget {
           () => _goToTab(1),
         ),
       ],
+      'Leader': [
+        _ServiceItem(
+          'Student Screen Time',
+          Icons.phone_android_rounded,
+          AppColors.primary,
+          () => Get.toNamed(Routes.studentScreenTime),
+        ),
+      ],
       'Requests & money': [
         _ServiceItem(
           'Leave',

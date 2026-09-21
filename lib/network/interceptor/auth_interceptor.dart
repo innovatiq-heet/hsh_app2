@@ -34,10 +34,14 @@ class AuthInterceptor extends Interceptor {
     // screen that's about to display the error.
     final path = err.requestOptions.path;
     final isAuthCall =
-        path.contains('/auth/login') || path.contains('/auth/register');
+        path.contains('/auth/login') ||
+        path.contains('/auth/register') ||
+        path.contains('/auth/me');
     if (err.response?.statusCode == 401 && !isAuthCall) {
-      SessionStore.instance.clear();
-      Get.offAllNamed(Routes.login);
+      if (Get.currentRoute != Routes.login) {
+        SessionStore.instance.clear();
+        Get.offAllNamed(Routes.login);
+      }
     }
     handler.next(err);
   }

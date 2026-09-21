@@ -66,5 +66,11 @@
 		<string>UIInterfaceOrientationLandscapeLeft</string>
 		<string>UIInterfaceOrientationLandscapeRight</string>
 	</array>
+	<key>NSCameraUsageDescription</key>
+	<string>Camera access is required to scan attendance QR codes and capture photos for fee receipts and complaints.</string>
+	<key>NSPhotoLibraryUsageDescription</key>
+	<string>Photo library access is required to select and upload fee payment receipts and complaint attachments.</string>
+	<key>NSMicrophoneUsageDescription</key>
+	<string>Microphone access is required for media recording if needed.</string>
 </dict>
 </plist>

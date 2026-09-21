@@ -25,7 +25,9 @@ class SplashController extends GetxController {
     final session = await _authRepository.checkSession(token!);
     if (session == null) {
       await SessionStore.instance.clear();
-      Get.offAllNamed(Routes.login);
+      if (Get.currentRoute != Routes.login) {
+        Get.offAllNamed(Routes.login);
+      }
       return;
     }
 
@@ -35,6 +37,7 @@ class SplashController extends GetxController {
   void _routeByRole(UserRole role) {
     switch (role) {
       case UserRole.student:
+      case UserRole.leader:
         Get.offAllNamed(Routes.studentHome);
         break;
       case UserRole.admin:

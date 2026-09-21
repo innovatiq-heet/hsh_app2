@@ -24,6 +24,7 @@ class SessionStore {
   static const _kAadhar = 'student_aadhar';
   static const _kEmail = 'user_email';
   static const _kName = 'user_name';
+  static const _kRoom = 'student_room';
 
   static const _timeout = Duration(seconds: 5);
 
@@ -32,6 +33,7 @@ class SessionStore {
   String? _cachedEmail;
   String? _cachedName;
   String? _cachedAadhar;
+  String? _cachedRoom;
 
   /// Synchronous access to the currently loaded token in memory.
   String? get currentToken => _cachedToken;
@@ -129,6 +131,17 @@ class SessionStore {
     return _cachedAadhar;
   }
 
+  Future<void> cacheRoom(String room) {
+    _cachedRoom = room;
+    return _write(_kRoom, room);
+  }
+
+  Future<String?> get cachedRoom async {
+    if (_cachedRoom != null) return _cachedRoom;
+    _cachedRoom = await _read(_kRoom);
+    return _cachedRoom;
+  }
+
   Future<bool> get hasSession async => (await token) != null;
 
   Future<void> clear() async {
@@ -137,6 +150,7 @@ class SessionStore {
     _cachedEmail = null;
     _cachedName = null;
     _cachedAadhar = null;
+    _cachedRoom = null;
 
     try {
       await _storage.deleteAll().timeout(_timeout);

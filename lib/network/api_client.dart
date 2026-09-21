@@ -24,10 +24,11 @@ class ApiClient {
     final dio = Dio(
       BaseOptions(
         baseUrl: AppConfig.baseUrl,
-        connectTimeout: const Duration(seconds: 15),
-        receiveTimeout: const Duration(seconds: 15),
+        connectTimeout: const Duration(seconds: 30),
+        receiveTimeout: const Duration(seconds: 30),
+        sendTimeout: const Duration(seconds: 30),
+        contentType: 'application/json',
         headers: const {
-          'Content-Type': 'application/json',
           'Accept': 'application/json',
         },
       ),
@@ -61,6 +62,13 @@ class _RedactingLogInterceptor extends Interceptor {
     final data = options.data;
     if (data is Map) {
       developer.log('    body: ${_redact(data)}', name: 'HTTP');
+    } else if (data is FormData) {
+      final fields = data.fields.map((f) => '${f.key}: "${f.value}"').join(', ');
+      final files = data.files.map((f) => '${f.key}: "${f.value.filename}"').join(', ');
+      developer.log('    form fields: {$fields}', name: 'HTTP');
+      if (files.isNotEmpty) {
+        developer.log('    form files: [$files]', name: 'HTTP');
+      }
     }
     handler.next(options);
   }
@@ -81,6 +89,10 @@ class _RedactingLogInterceptor extends Interceptor {
       '<-- ERROR ${err.response?.statusCode} ${err.requestOptions.uri}: ${err.message}',
       name: 'HTTP',
     );
+    if (err.response?.data != null) {
+      developer.log('    response body: ${err.response?.data}', name: 'HTTP');
+      debugPrint('[HTTP ERROR RESPONSE] Status: ${err.response?.statusCode}, Body: ${err.response?.data}');
+    }
     handler.next(err);
   }
 

@@ -1,10 +1,22 @@
-enum UserRole { student, admin, warden, staff, complainsolver,attendance, laundry, unknown }
+enum UserRole {
+  student,
+  admin,
+  warden,
+  staff,
+  complainsolver,
+  attendance,
+  laundry,
+  leader,
+  unknown,
+}
 
 extension UserRoleX on UserRole {
   static UserRole fromApi(String? value) {
     switch (value?.toLowerCase().trim()) {
       case 'student':
         return UserRole.student;
+      case 'leader':
+        return UserRole.leader;
       case 'admin':
         return UserRole.admin;
       case 'warden':
@@ -30,6 +42,8 @@ extension UserRoleX on UserRole {
     switch (this) {
       case UserRole.student:
         return 'Student';
+      case UserRole.leader:
+        return 'Leader';
       case UserRole.admin:
         return 'Admin';
       case UserRole.warden:
@@ -46,6 +60,18 @@ extension UserRoleX on UserRole {
         return 'Unknown';
     }
   }
+
+  /// True if user is a student or leader
+  bool get isStudentOrLeader => this == UserRole.student || this == UserRole.leader;
+
+  /// True if user is a student leader
+  bool get isLeader => this == UserRole.leader;
+
+  /// Can view student phone screen time data.
+  bool get canViewScreenTime =>
+      this == UserRole.leader ||
+      this == UserRole.admin ||
+      this == UserRole.warden;
 
   /// Laundry recharge/status actions are shared across these operator roles.
   bool get canOperateLaundry =>

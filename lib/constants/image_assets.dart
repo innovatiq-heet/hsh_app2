@@ -5,5 +5,5 @@ class ImageAssets {
   ImageAssets._();
 
   static const String loginBackground = 'assets/images/login_screen_bg.jpeg';
-  static const String appLogo = 'assets/images/app_logo.png';
+  static const String appLogo = 'assets/images/hsh_top.png';
 }

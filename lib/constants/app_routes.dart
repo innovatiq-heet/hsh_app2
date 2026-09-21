@@ -20,6 +20,7 @@ class Routes {
   static const notes = '/student/notes';
   static const chat = '/student/chat';
   static const services = '/student/services';
+  static const studentScreenTime = '/student/screen-time';
   static const setting = '/student/setting';
   static const vehicle = '/student/vehicle';
 

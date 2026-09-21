@@ -1,5 +1,6 @@
 import '../../../common_enums/complaint_status.dart';
 import '../../../common_models/attachments/attachment_model.dart';
+import '../../../constants/app_config.dart';
 
 class ComplaintResponse {
   final String id;
@@ -92,6 +93,19 @@ class ComplaintResponse {
           .map((a) => a is AttachmentModel ? a : null)
           .whereType<AttachmentModel>()
           .toList();
+    } else if (imagesCount > 0 && rawId.isNotEmpty) {
+      // The backend never returns a URL list — createComplain() only tracks
+      // an image *count* on the row — but it renames uploads to a fixed,
+      // predictable pattern (complain_<id>_<index>.<ext>) and serves them
+      // statically from /uploads (see complain.service.ts, server.ts). Our
+      // own upload always sends `.jpg` filenames (ComplaintsRepository.
+      // submit), so that's the extension the server ends up storing under.
+      attachments = List.generate(
+        imagesCount,
+        (index) => AttachmentModel(
+          url: '${AppConfig.mediaBaseUrl}/uploads/complains/complain_${rawId}_$index.jpg',
+        ),
+      );
     }
 
     return ComplaintResponse(

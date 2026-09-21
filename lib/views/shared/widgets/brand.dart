@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import '../../../constants/app_colors.dart';
+import '../../../constants/image_assets.dart';
 
 /// Full-bleed brand gradient with soft decorative orbs. Stand-in for
 /// assets/images/login_screen_bg.jpeg until the real asset is supplied.
@@ -35,8 +36,7 @@ class BrandBackdrop extends StatelessWidget {
   );
 }
 
-/// App mark: frosted rounded tile with the building glyph. Stand-in for
-/// assets/images/app_logo.png.
+/// App mark displaying the official hostel building logo.
 class BrandLogo extends StatelessWidget {
   final double size;
 
@@ -47,29 +47,35 @@ class BrandLogo extends StatelessWidget {
     return Container(
       width: size,
       height: size,
+      padding: EdgeInsets.all(size * 0.14),
       decoration: BoxDecoration(
-        borderRadius: BorderRadius.circular(size * 0.3),
-        gradient: LinearGradient(
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-          colors: [
-            Colors.white.withValues(alpha: 0.28),
-            Colors.white.withValues(alpha: 0.10),
-          ],
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(size * 0.24),
+        border: Border.all(
+          color: Colors.white.withValues(alpha: 0.9),
+          width: 1.5,
         ),
-        border: Border.all(color: Colors.white.withValues(alpha: 0.35)),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withValues(alpha: 0.18),
-            blurRadius: 30,
-            offset: const Offset(0, 14),
+            color: Colors.black.withValues(alpha: 0.14),
+            blurRadius: 24,
+            offset: const Offset(0, 10),
+          ),
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.04),
+            blurRadius: 6,
+            offset: const Offset(0, 2),
           ),
         ],
       ),
-      child: Icon(
-        Icons.apartment_rounded,
-        color: Colors.white,
-        size: size * 0.5,
+      child: Image.asset(
+        ImageAssets.appLogo,
+        fit: BoxFit.contain,
+        errorBuilder: (context, error, stackTrace) => Icon(
+          Icons.apartment_rounded,
+          color: AppColors.primary,
+          size: size * 0.5,
+        ),
       ),
     );
   }

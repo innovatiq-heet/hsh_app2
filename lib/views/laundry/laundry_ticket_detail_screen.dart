@@ -343,19 +343,20 @@ class LaundryTicketDetailScreen extends GetView<LaundryTicketDetailController> {
     switch (ticket.status) {
       case LaundryStatus.pending:
         return AppButton(
-          label: 'Accept Order (Advance to Stage 2)',
+          label: 'Accept Order',
           icon: Icons.check_circle_outline_rounded,
           onPressed: controller.acceptTicket,
         );
       case LaundryStatus.accepted:
         return AppButton(
-          label: 'Mark Washed & Enter Rates (Stage 3)',
+          label: 'Mark Washed & Enter Rates',
           icon: Icons.local_laundry_service_outlined,
           onPressed: () => _showMarkWashedSheet(context, ticket),
         );
       case LaundryStatus.washed:
         return AppButton(
-          label: 'Mark Delivered & Completed (Stage 4)',
+
+          label: 'Mark Delivered & Completed',
           icon: Icons.done_all_rounded,
           onPressed: controller.markReceived,
         );

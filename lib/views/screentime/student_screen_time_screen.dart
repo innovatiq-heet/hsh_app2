@@ -22,7 +22,7 @@ class StudentScreenTimeScreen extends GetView<StudentScreenTimeController> {
 
         return CustomScrollView(
           slivers: [
-            GradientHeader(
+            SliverGradientHeader(
               title: selected != null
                   ? (selected['name'] ?? 'Student Screen Time')
                   : (isLeader ? 'Students Screen Time' : 'Screen Time Monitor'),
@@ -31,12 +31,13 @@ class StudentScreenTimeScreen extends GetView<StudentScreenTimeController> {
                   : (isLeader
                       ? 'Live device activity directory'
                       : '10-minute live device activity'),
-              leading: selected != null
-                  ? IconButton(
-                      icon: const Icon(Icons.arrow_back_rounded, color: Colors.white),
-                      onPressed: controller.clearSelectedStudent,
-                    )
-                  : null,
+              leading: HeaderIconButton(
+                icon: Icons.arrow_back_rounded,
+                tooltip: selected != null ? 'Back to directory' : 'Back',
+                onPressed: selected != null
+                    ? controller.clearSelectedStudent
+                    : () => Get.back(),
+              ),
               actions: [
                 HeaderIconButton(
                   icon: Icons.refresh_rounded,

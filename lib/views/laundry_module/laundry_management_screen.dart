@@ -39,7 +39,7 @@ class LaundryManagementScreen extends GetView<LaundryManagementController> {
               onPressed: () {
                 final aadhar = controller.aadharController.text.trim();
                 if (aadhar.isNotEmpty) {
-                  controller.checkStudent(aadhar);
+                  controller.checkStudent(aadhar, isManual: true, force: true);
                 }
               },
             ),
@@ -119,11 +119,7 @@ class LaundryManagementScreen extends GetView<LaundryManagementController> {
                               prefixIcon: Icons.badge_outlined,
                               keyboardType: TextInputType.number,
                               validator: Validators.required,
-                              onChanged: (val) {
-                                if (val.trim().length >= 10) {
-                                  controller.checkStudent(val);
-                                }
-                              },
+                              onChanged: controller.onAadharChanged,
                             ),
                           ),
                           const SizedBox(width: AppDimens.gapSm),
@@ -158,6 +154,8 @@ class LaundryManagementScreen extends GetView<LaundryManagementController> {
                                         ),
                                   onPressed: () => controller.checkStudent(
                                     controller.aadharController.text.trim(),
+                                    isManual: true,
+                                    force: true,
                                   ),
                                 ),
                               ),
@@ -165,6 +163,33 @@ class LaundryManagementScreen extends GetView<LaundryManagementController> {
                           ),
                         ],
                       ),
+                      Obx(() {
+                        final err = controller.lookupError.value;
+                        if (err == null || controller.studentBalance.value != null) {
+                          return const SizedBox.shrink();
+                        }
+                        return Padding(
+                          padding: const EdgeInsets.only(top: AppDimens.gapSm),
+                          child: Row(
+                            children: [
+                              const Icon(
+                                Icons.info_outline_rounded,
+                                size: 16,
+                                color: AppColors.cancelledRed,
+                              ),
+                              const SizedBox(width: 6),
+                              Expanded(
+                                child: Text(
+                                  err,
+                                  style: AppTextStyles.caption.copyWith(
+                                    color: AppColors.cancelledRed,
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ),
+                        );
+                      }),
                       const SizedBox(height: AppDimens.gapMd),
 
                       // Student Balance Preview Card

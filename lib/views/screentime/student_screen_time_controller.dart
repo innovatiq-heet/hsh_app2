@@ -31,7 +31,8 @@ class StudentScreenTimeController extends GetxController with WidgetsBindingObse
 
   Timer? _heartbeatTimer;
   DateTime? _lastResumeTime;
-  int _sessionMinutes = 0;
+  /// Track active time in seconds to avoid minute-level truncation loss.
+  int _sessionSeconds = 0;
 
   @override
   void onInit() {
@@ -56,14 +57,16 @@ class StudentScreenTimeController extends GetxController with WidgetsBindingObse
       _lastResumeTime = DateTime.now();
     } else if (state == AppLifecycleState.paused || state == AppLifecycleState.inactive) {
       _flushActiveTime();
+      // Fire a final ping before the app goes to background
+      pingHeartbeat();
     }
   }
 
   void _flushActiveTime() {
     if (_lastResumeTime != null) {
-      final elapsed = DateTime.now().difference(_lastResumeTime!).inMinutes;
+      final elapsed = DateTime.now().difference(_lastResumeTime!).inSeconds;
       if (elapsed > 0) {
-        _sessionMinutes += elapsed;
+        _sessionSeconds += elapsed;
       }
       _lastResumeTime = DateTime.now();
     }
@@ -81,19 +84,23 @@ class StudentScreenTimeController extends GetxController with WidgetsBindingObse
     }
   }
 
-  /// Start periodic 10-minute ping from device
+  /// Start periodic 5-minute ping from device
   void startHeartbeatTimer() {
     pingHeartbeat();
     _heartbeatTimer?.cancel();
-    _heartbeatTimer = Timer.periodic(const Duration(minutes: 10), (_) {
+    _heartbeatTimer = Timer.periodic(const Duration(minutes: 5), (_) {
       pingHeartbeat();
     });
   }
 
-  /// 10-minute real device heartbeat ping to backend
+  /// 5-minute real device heartbeat ping to backend (sends delta, not cumulative)
   Future<void> pingHeartbeat() async {
     try {
       _flushActiveTime();
+
+      final deltaMinutes = _sessionSeconds ~/ 60;
+      final remainderSeconds = _sessionSeconds % 60;
+
       final now = DateTime.now();
       final dateStr = DateFormat('yyyy-MM-dd').format(now);
       final isResumed = WidgetsBinding.instance.lifecycleState == AppLifecycleState.resumed;
@@ -102,11 +109,11 @@ class StudentScreenTimeController extends GetxController with WidgetsBindingObse
       final currentAppName = AppConfig.appName;
 
       final breakdown = <Map<String, dynamic>>[];
-      if (_sessionMinutes > 0) {
+      if (deltaMinutes > 0) {
         breakdown.add({
           'packageName': currentPackage,
           'appName': currentAppName,
-          'minutes': _sessionMinutes,
+          'minutes': deltaMinutes,
         });
       }
 
@@ -114,13 +121,22 @@ class StudentScreenTimeController extends GetxController with WidgetsBindingObse
         '/screen-time/ping',
         data: {
           'date': dateStr,
-          'totalScreenTimeMinutes': _sessionMinutes,
+          'totalScreenTimeMinutes': deltaMinutes,
           'isScreenOn': isResumed,
           'currentApp': currentPackage,
           if (breakdown.isNotEmpty) 'appUsageBreakdown': breakdown,
         },
       );
+
+      // Reset, keeping leftover seconds that didn't make a full minute
+      _sessionSeconds = remainderSeconds;
+
+      // Refresh UI for own screen time (skip if leader is viewing another student)
+      if (!currentRole.value.canViewScreenTime || targetedAadhar.isEmpty) {
+        await fetchLiveStatus();
+      }
     } catch (e) {
+      // Do NOT reset _sessionSeconds on failure so the delta is retried next cycle
       debugPrint('[ScreenTime] Ping error: $e');
     }
   }

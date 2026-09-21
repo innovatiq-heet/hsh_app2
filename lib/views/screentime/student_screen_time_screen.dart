@@ -18,9 +18,14 @@ class StudentScreenTimeScreen extends GetView<StudentScreenTimeController> {
       backgroundColor: AppColors.mainBackground,
       body: CustomScrollView(
         slivers: [
-          GradientHeader(
+          SliverGradientHeader(
             title: 'Screen Time Monitor',
             subtitle: '10-minute live device activity',
+            leading: HeaderIconButton(
+              icon: Icons.arrow_back_rounded,
+              tooltip: 'Back',
+              onPressed: () => Get.back(),
+            ),
             actions: [
               HeaderIconButton(
                 icon: Icons.refresh_rounded,

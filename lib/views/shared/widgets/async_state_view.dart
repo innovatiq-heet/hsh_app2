@@ -26,16 +26,39 @@ class AsyncStateView extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    if (isLoading) return SkeletonList(count: skeletonCount);
-    if (hasError) {
-      return EmptyState(
+    final Widget child;
+    if (isLoading) {
+      child = SkeletonList(
+        key: const ValueKey<String>('async_loading'),
+        count: skeletonCount,
+      );
+    } else if (hasError) {
+      child = EmptyState(
+        key: const ValueKey<String>('async_error'),
         icon: Icons.error_outline,
         title: 'Something went wrong',
         message: errorMessage.isEmpty ? null : errorMessage,
         actionLabel: 'Retry',
         onAction: onRetry,
       );
+    } else {
+      child = KeyedSubtree(
+        key: const ValueKey<String>('async_content'),
+        child: builder(context),
+      );
     }
-    return builder(context);
+
+    return AnimatedSwitcher(
+      duration: const Duration(milliseconds: 320),
+      switchInCurve: Curves.easeOutCubic,
+      switchOutCurve: Curves.easeInCubic,
+      transitionBuilder: (child, animation) {
+        return FadeTransition(
+          opacity: animation,
+          child: child,
+        );
+      },
+      child: child,
+    );
   }
 }

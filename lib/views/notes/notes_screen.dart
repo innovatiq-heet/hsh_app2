@@ -354,10 +354,26 @@ class NotesScreen extends GetView<NotesController> {
                         color: AppColors.primary,
                       ),
                       const SizedBox(height: AppDimens.gapSm),
-                      if (isGrid)
-                        _NotesGrid(notes: pinned, onNoteTap: _openEditor)
-                      else
-                        _NotesGroupedList(notes: pinned, onNoteTap: _openEditor),
+                      AnimatedSwitcher(
+                        duration: const Duration(milliseconds: 260),
+                        switchInCurve: Curves.easeOutCubic,
+                        switchOutCurve: Curves.easeInCubic,
+                        child: isGrid
+                            ? KeyedSubtree(
+                                key: const ValueKey('grid_pinned'),
+                                child: _NotesGrid(
+                                  notes: pinned,
+                                  onNoteTap: _openEditor,
+                                ),
+                              )
+                            : KeyedSubtree(
+                                key: const ValueKey('list_pinned'),
+                                child: _NotesGroupedList(
+                                  notes: pinned,
+                                  onNoteTap: _openEditor,
+                                ),
+                              ),
+                      ),
                       const SizedBox(height: AppDimens.gapXl),
                     ],
 
@@ -371,10 +387,26 @@ class NotesScreen extends GetView<NotesController> {
                         ),
                       if (pinned.isNotEmpty)
                         const SizedBox(height: AppDimens.gapSm),
-                      if (isGrid)
-                        _NotesGrid(notes: others, onNoteTap: _openEditor)
-                      else
-                        _NotesGroupedList(notes: others, onNoteTap: _openEditor),
+                      AnimatedSwitcher(
+                        duration: const Duration(milliseconds: 260),
+                        switchInCurve: Curves.easeOutCubic,
+                        switchOutCurve: Curves.easeInCubic,
+                        child: isGrid
+                            ? KeyedSubtree(
+                                key: const ValueKey('grid_others'),
+                                child: _NotesGrid(
+                                  notes: others,
+                                  onNoteTap: _openEditor,
+                                ),
+                              )
+                            : KeyedSubtree(
+                                key: const ValueKey('list_others'),
+                                child: _NotesGroupedList(
+                                  notes: others,
+                                  onNoteTap: _openEditor,
+                                ),
+                              ),
+                      ),
                     ],
                   ]),
                 ),

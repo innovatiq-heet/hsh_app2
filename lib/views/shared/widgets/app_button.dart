@@ -78,23 +78,38 @@ class AppButton extends StatelessWidget {
   }
 
   Widget _content(Color color) {
-    if (isLoading) {
-      return SizedBox(
-        height: 22,
-        width: 22,
-        child: CircularProgressIndicator(strokeWidth: 2.4, color: color),
-      );
-    }
-    return Row(
-      mainAxisSize: MainAxisSize.min,
-      mainAxisAlignment: MainAxisAlignment.center,
-      children: [
-        if (icon != null) ...[
-          Icon(icon, size: 20, color: color),
-          const SizedBox(width: AppDimens.gapSm),
-        ],
-        Text(label, style: AppTextStyles.button.copyWith(color: color)),
-      ],
+    return AnimatedSwitcher(
+      duration: const Duration(milliseconds: 220),
+      switchInCurve: Curves.easeOutCubic,
+      switchOutCurve: Curves.easeInCubic,
+      transitionBuilder: (child, animation) {
+        return FadeTransition(
+          opacity: animation,
+          child: ScaleTransition(
+            scale: Tween<double>(begin: 0.85, end: 1.0).animate(animation),
+            child: child,
+          ),
+        );
+      },
+      child: isLoading
+          ? SizedBox(
+              key: const ValueKey<String>('btn_loading'),
+              height: 22,
+              width: 22,
+              child: CircularProgressIndicator(strokeWidth: 2.4, color: color),
+            )
+          : Row(
+              key: const ValueKey<String>('btn_label'),
+              mainAxisSize: MainAxisSize.min,
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                if (icon != null) ...[
+                  Icon(icon, size: 20, color: color),
+                  const SizedBox(width: AppDimens.gapSm),
+                ],
+                Text(label, style: AppTextStyles.button.copyWith(color: color)),
+              ],
+            ),
     );
   }
 }

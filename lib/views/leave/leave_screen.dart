@@ -13,6 +13,7 @@ import '../shared/widgets/async_state_view.dart';
 import '../shared/widgets/empty_state.dart';
 import '../shared/widgets/gradient_header.dart';
 import '../shared/widgets/section_header.dart';
+import '../shared/widgets/staggered_slide_fade.dart';
 import '../shared/widgets/status_badge.dart';
 import 'leave_controller.dart';
 
@@ -120,16 +121,19 @@ class LeaveScreen extends GetView<LeaveController> {
                                   ),
                                 )
                               else
-                                for (final leave in filtered)
-                                  Padding(
-                                    padding: const EdgeInsets.only(
-                                      bottom: AppDimens.gapMd,
-                                    ),
-                                    child: _LeaveCard(
-                                      leave: leave,
-                                      canCancel: controller.canCancel(leave),
-                                      onCancel: () =>
-                                          _showCancelDialog(context, leave),
+                                for (int i = 0; i < filtered.length; i++)
+                                  StaggeredSlideFade(
+                                    index: i,
+                                    child: Padding(
+                                      padding: const EdgeInsets.only(
+                                        bottom: AppDimens.gapMd,
+                                      ),
+                                      child: _LeaveCard(
+                                        leave: filtered[i],
+                                        canCancel: controller.canCancel(filtered[i]),
+                                        onCancel: () =>
+                                            _showCancelDialog(context, filtered[i]),
+                                      ),
                                     ),
                                   ),
                             ],
@@ -367,23 +371,37 @@ class _FilterChips extends StatelessWidget {
   }) {
     final color = activeColor ?? AppColors.primary;
     return Material(
-      color: isSelected ? color : AppColors.surface,
-      shape: StadiumBorder(
-        side: BorderSide(
-          color: isSelected ? color : AppColors.border,
-        ),
-      ),
+      color: Colors.transparent,
       child: InkWell(
         borderRadius: BorderRadius.circular(AppDimens.radiusPill),
         onTap: onTap,
-        child: Padding(
+        child: AnimatedContainer(
+          duration: const Duration(milliseconds: 200),
+          curve: Curves.easeOutCubic,
           padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
-          child: Text(
-            label,
+          decoration: BoxDecoration(
+            color: isSelected ? color : AppColors.surface,
+            borderRadius: BorderRadius.circular(AppDimens.radiusPill),
+            border: Border.all(
+              color: isSelected ? color : AppColors.border,
+            ),
+            boxShadow: isSelected
+                ? [
+                    BoxShadow(
+                      color: color.withValues(alpha: 0.28),
+                      blurRadius: 8,
+                      offset: const Offset(0, 2),
+                    ),
+                  ]
+                : null,
+          ),
+          child: AnimatedDefaultTextStyle(
+            duration: const Duration(milliseconds: 200),
             style: AppTextStyles.label.copyWith(
               color: isSelected ? Colors.white : AppColors.textSecondary,
               fontWeight: isSelected ? FontWeight.w700 : FontWeight.w600,
             ),
+            child: Text(label),
           ),
         ),
       ),

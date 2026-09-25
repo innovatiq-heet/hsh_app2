@@ -82,6 +82,8 @@ class ChartCard extends StatelessWidget {
                           ),
                       ],
                     ),
+                    duration: const Duration(milliseconds: 450),
+                    curve: Curves.easeOutCubic,
                   ),
           ),
         ],

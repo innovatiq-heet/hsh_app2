@@ -80,31 +80,26 @@ class StepperTimeline extends StatelessWidget {
           );
         }
 
+        final circleWidget = stage.isActive
+            ? _ActivePulseCircle(child: Center(child: circleChild))
+            : Container(
+                width: 30,
+                height: 30,
+                decoration: BoxDecoration(
+                  color: circleBg,
+                  shape: BoxShape.circle,
+                  border: Border.all(
+                    color: circleBorder,
+                    width: 2,
+                  ),
+                ),
+                child: Center(child: circleChild),
+              );
+
         final content = Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            Container(
-              width: 30,
-              height: 30,
-              decoration: BoxDecoration(
-                color: circleBg,
-                shape: BoxShape.circle,
-                border: Border.all(
-                  color: circleBorder,
-                  width: 2,
-                ),
-                boxShadow: stage.isActive
-                    ? [
-                        BoxShadow(
-                          color: AppColors.primary.withValues(alpha: 0.35),
-                          blurRadius: 8,
-                          offset: const Offset(0, 2),
-                        ),
-                      ]
-                    : null,
-              ),
-              child: Center(child: circleChild),
-            ),
+            circleWidget,
             const SizedBox(height: AppDimens.gapXs),
             SizedBox(
               width: 72,
@@ -177,3 +172,62 @@ class StepperTimeline extends StatelessWidget {
     );
   }
 }
+
+class _ActivePulseCircle extends StatefulWidget {
+  final Widget child;
+
+  const _ActivePulseCircle({required this.child});
+
+  @override
+  State<_ActivePulseCircle> createState() => _ActivePulseCircleState();
+}
+
+class _ActivePulseCircleState extends State<_ActivePulseCircle>
+    with SingleTickerProviderStateMixin {
+  late final AnimationController _pulse;
+
+  @override
+  void initState() {
+    super.initState();
+    _pulse = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 1400),
+    )..repeat(reverse: true);
+  }
+
+  @override
+  void dispose() {
+    _pulse.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return AnimatedBuilder(
+      animation: _pulse,
+      builder: (context, child) {
+        final spread = 1.5 + (_pulse.value * 5.0);
+        final opacity = 0.22 + (_pulse.value * 0.22);
+        return Container(
+          width: 30,
+          height: 30,
+          decoration: BoxDecoration(
+            color: AppColors.primary,
+            shape: BoxShape.circle,
+            border: Border.all(color: AppColors.primary, width: 2),
+            boxShadow: [
+              BoxShadow(
+                color: AppColors.primary.withValues(alpha: opacity),
+                blurRadius: 10,
+                spreadRadius: spread,
+              ),
+            ],
+          ),
+          child: child,
+        );
+      },
+      child: widget.child,
+    );
+  }
+}
+

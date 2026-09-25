@@ -39,12 +39,17 @@ class BrandBackdrop extends StatelessWidget {
 /// App mark displaying the official hostel building logo.
 class BrandLogo extends StatelessWidget {
   final double size;
+  final String? heroTag;
 
-  const BrandLogo({super.key, this.size = 88});
+  const BrandLogo({
+    super.key,
+    this.size = 88,
+    this.heroTag = 'app_brand_logo',
+  });
 
   @override
   Widget build(BuildContext context) {
-    return Container(
+    final logo = Container(
       width: size,
       height: size,
       padding: EdgeInsets.all(size * 0.14),
@@ -78,5 +83,17 @@ class BrandLogo extends StatelessWidget {
         ),
       ),
     );
+
+    if (heroTag != null) {
+      return Hero(
+        tag: heroTag!,
+        child: Material(
+          type: MaterialType.transparency,
+          child: logo,
+        ),
+      );
+    }
+
+    return logo;
   }
 }

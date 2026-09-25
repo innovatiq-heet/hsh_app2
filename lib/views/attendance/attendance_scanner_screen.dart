@@ -290,36 +290,58 @@ class AttendanceScannerScreen extends GetView<AttendanceScannerController> {
               child: Center(
                 child: Padding(
                   padding: const EdgeInsets.all(AppDimens.screenPadding),
-                  child: Container(
-                    padding: const EdgeInsets.all(AppDimens.gapXxl),
-                    decoration: BoxDecoration(
-                      color: AppColors.surface,
-                      borderRadius: BorderRadius.circular(AppDimens.radiusXl),
-                      boxShadow: AppColors.softShadow,
-                    ),
-                    child: Column(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        Container(
-                          width: AppDimens.bottomNavHeight,
-                          height: AppDimens.bottomNavHeight,
-                          decoration: BoxDecoration(
-                            color: AppColors.successGreen.withValues(alpha: 0.12),
-                            shape: BoxShape.circle,
+                  child: TweenAnimationBuilder<double>(
+                    tween: Tween<double>(begin: 0.8, end: 1.0),
+                    duration: const Duration(milliseconds: 400),
+                    curve: Curves.easeOutBack,
+                    builder: (context, scale, child) {
+                      return Transform.scale(
+                        scale: scale,
+                        child: child,
+                      );
+                    },
+                    child: Container(
+                      padding: const EdgeInsets.all(AppDimens.gapXxl),
+                      decoration: BoxDecoration(
+                        color: AppColors.surface,
+                        borderRadius: BorderRadius.circular(AppDimens.radiusXl),
+                        boxShadow: AppColors.softShadow,
+                      ),
+                      child: Column(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          TweenAnimationBuilder<double>(
+                            tween: Tween<double>(begin: 0.0, end: 1.0),
+                            duration: const Duration(milliseconds: 500),
+                            curve: Curves.elasticOut,
+                            builder: (context, iconScale, child) {
+                              return Transform.scale(
+                                scale: iconScale,
+                                child: child,
+                              );
+                            },
+                            child: Container(
+                              width: AppDimens.bottomNavHeight,
+                              height: AppDimens.bottomNavHeight,
+                              decoration: BoxDecoration(
+                                color: AppColors.successGreen
+                                    .withValues(alpha: 0.12),
+                                shape: BoxShape.circle,
+                              ),
+                              child: const Icon(
+                                Icons.check_circle_rounded,
+                                color: AppColors.successGreen,
+                                size: 48,
+                              ),
+                            ),
                           ),
-                          child: const Icon(
-                            Icons.check_circle_rounded,
-                            color: AppColors.successGreen,
-                            size: 48,
+                          const SizedBox(height: AppDimens.gapLg),
+                          Text(
+                            'Attendance Marked!',
+                            style: AppTextStyles.headline.copyWith(
+                              color: AppColors.textPrimary,
+                            ),
                           ),
-                        ),
-                        const SizedBox(height: AppDimens.gapLg),
-                        Text(
-                          'Attendance Marked!',
-                          style: AppTextStyles.headline.copyWith(
-                            color: AppColors.textPrimary,
-                          ),
-                        ),
                         const SizedBox(height: AppDimens.gapXs),
                         Text(
                           'Your attendance for ${style.emoji} ${record.type.label} was recorded.',
@@ -390,7 +412,8 @@ class AttendanceScannerScreen extends GetView<AttendanceScannerController> {
                   ),
                 ),
               ),
-            );
+            ),
+          );
           }),
         ],
       ),

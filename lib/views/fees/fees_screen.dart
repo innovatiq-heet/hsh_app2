@@ -9,6 +9,7 @@ import '../../constants/app_text_styles.dart';
 import '../../network/responses/fees/fee_responses.dart';
 import '../../utils/currency_formatting.dart';
 import '../../utils/date_formatting.dart';
+import '../shared/widgets/animated_counter.dart';
 import '../shared/widgets/app_card.dart';
 import '../shared/widgets/app_refresh_indicator.dart';
 import '../shared/widgets/async_state_view.dart';
@@ -71,16 +72,37 @@ class FeesScreen extends GetView<FeesController> {
                             _TabSelector(controller: controller),
                             const SizedBox(height: AppDimens.gapLg),
                             Obx(() {
-                              switch (controller.selectedTab.value) {
-                                case 1:
-                                  return _DebitsTab(controller: controller);
-                                case 2:
-                                  return _DepositsTab(controller: controller);
-                                case 3:
-                                  return _TransactionsTab(controller: controller);
-                                default:
-                                  return _SummaryTab(controller: controller);
-                              }
+                              final currentTab = controller.selectedTab.value;
+                              final Widget tabView = switch (currentTab) {
+                                1 => KeyedSubtree(
+                                    key: const ValueKey('debits_tab'),
+                                    child: _DebitsTab(controller: controller),
+                                  ),
+                                2 => KeyedSubtree(
+                                    key: const ValueKey('deposits_tab'),
+                                    child: _DepositsTab(controller: controller),
+                                  ),
+                                3 => KeyedSubtree(
+                                    key: const ValueKey('tx_tab'),
+                                    child: _TransactionsTab(controller: controller),
+                                  ),
+                                _ => KeyedSubtree(
+                                    key: const ValueKey('summary_tab'),
+                                    child: _SummaryTab(controller: controller),
+                                  ),
+                              };
+                              return AnimatedSwitcher(
+                                duration: const Duration(milliseconds: 250),
+                                switchInCurve: Curves.easeOutCubic,
+                                switchOutCurve: Curves.easeInCubic,
+                                transitionBuilder: (child, animation) {
+                                  return FadeTransition(
+                                    opacity: animation,
+                                    child: child,
+                                  );
+                                },
+                                child: tabView,
+                              );
                             }),
                           ],
                         ),
@@ -136,17 +158,19 @@ class _TabSelector extends StatelessWidget {
             return Padding(
               padding: const EdgeInsets.only(right: AppDimens.gapSm),
               child: Material(
-                color: isSelected ? AppColors.primary : AppColors.surfaceMuted,
-                borderRadius: BorderRadius.circular(AppDimens.radiusPill),
+                color: Colors.transparent,
                 child: InkWell(
                   borderRadius: BorderRadius.circular(AppDimens.radiusPill),
                   onTap: () => controller.selectedTab.value = i,
-                  child: Container(
+                  child: AnimatedContainer(
+                    duration: const Duration(milliseconds: 200),
+                    curve: Curves.easeOutCubic,
                     padding: const EdgeInsets.symmetric(
                       horizontal: 16,
                       vertical: 10,
                     ),
                     decoration: BoxDecoration(
+                      color: isSelected ? AppColors.primary : AppColors.surfaceMuted,
                       borderRadius: BorderRadius.circular(AppDimens.radiusPill),
                       border: Border.all(
                         color: isSelected ? AppColors.primary : AppColors.border,
@@ -244,8 +268,9 @@ class _HeroNetDueCard extends StatelessWidget {
             Row(
               crossAxisAlignment: CrossAxisAlignment.end,
               children: [
-                Text(
-                  Money.format(summary.netDue),
+                AnimatedCounter(
+                  value: summary.netDue,
+                  prefix: '₹',
                   style: AppTextStyles.displayXl.copyWith(
                     color: Colors.white,
                     fontWeight: FontWeight.w800,

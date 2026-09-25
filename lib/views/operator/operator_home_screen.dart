@@ -10,6 +10,7 @@ import '../shared/widgets/app_card.dart';
 import '../shared/widgets/gradient_header.dart';
 import '../shared/widgets/icon_badge.dart';
 import '../shared/widgets/section_header.dart';
+import '../shared/widgets/staggered_slide_fade.dart';
 
 class _OperatorAction {
   final String title;
@@ -181,8 +182,11 @@ class OperatorHomeScreen extends StatelessWidget {
                     crossAxisSpacing: AppDimens.gapMd,
                     childAspectRatio: 1.25,
                     children: [
-                      for (final action in group.actions)
-                        _ActionTile(action: action),
+                      for (int i = 0; i < group.actions.length; i++)
+                        StaggeredSlideFade(
+                          index: i,
+                          child: _ActionTile(action: group.actions[i]),
+                        ),
                     ],
                   ),
                   const SizedBox(height: AppDimens.gapXl),

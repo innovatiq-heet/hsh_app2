@@ -64,20 +64,26 @@ class AppPages {
       page: () => const StudentScreenTimeScreen(),
       binding: StudentScreenTimeBinding(),
     ),
-GetPage(
+    GetPage(
       name: Routes.splash,
       page: () => const SplashScreen(),
       binding: SplashBinding(),
+      transition: Transition.fadeIn,
+      transitionDuration: const Duration(milliseconds: 380),
     ),
     GetPage(
       name: Routes.login,
       page: () => const LoginScreen(),
       binding: LoginBinding(),
+      transition: Transition.fadeIn,
+      transitionDuration: const Duration(milliseconds: 350),
     ),
     GetPage(
       name: Routes.register,
       page: () => const RegisterScreen(),
       binding: RegisterBinding(),
+      transition: Transition.rightToLeft,
+      transitionDuration: const Duration(milliseconds: 280),
     ),
 
     // Student
@@ -85,6 +91,8 @@ GetPage(
       name: Routes.studentHome,
       page: () => const HomeScreen(),
       binding: HomeBinding(),
+      transition: Transition.fadeIn,
+      transitionDuration: const Duration(milliseconds: 350),
     ),
     GetPage(
       name: Routes.studentProfileEdit,
@@ -110,6 +118,8 @@ GetPage(
       name: Routes.leaveAdd,
       page: () => const AddLeaveScreen(),
       binding: LeaveBinding(),
+      transition: Transition.downToUp,
+      transitionDuration: const Duration(milliseconds: 320),
     ),
     GetPage(
       name: Routes.fees,
@@ -120,6 +130,8 @@ GetPage(
       name: Routes.feesPayNow,
       page: () => const PayNowScreen(),
       binding: FeesBinding(),
+      transition: Transition.downToUp,
+      transitionDuration: const Duration(milliseconds: 320),
     ),
     GetPage(
       name: Routes.feeReceipt,
@@ -135,6 +147,8 @@ GetPage(
       name: Routes.complaintAdd,
       page: () => const AddComplaintScreen(),
       binding: AddComplaintBinding(),
+      transition: Transition.downToUp,
+      transitionDuration: const Duration(milliseconds: 320),
     ),
     GetPage(
       name: Routes.complaintDetail,
@@ -175,6 +189,8 @@ GetPage(
       name: Routes.operatorShell,
       page: () => const OperatorHomeScreen(),
       binding: OperatorBinding(),
+      transition: Transition.fadeIn,
+      transitionDuration: const Duration(milliseconds: 350),
     ),
     GetPage(
       name: Routes.operatorDirectory,

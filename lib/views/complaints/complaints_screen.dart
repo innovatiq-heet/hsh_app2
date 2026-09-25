@@ -15,6 +15,7 @@ import '../shared/widgets/empty_state.dart';
 import '../shared/widgets/gradient_header.dart';
 import '../shared/widgets/icon_badge.dart';
 import '../shared/widgets/section_header.dart';
+import '../shared/widgets/staggered_slide_fade.dart';
 import '../shared/widgets/status_badge.dart';
 import 'complaints_controller.dart';
 
@@ -61,12 +62,17 @@ class ComplaintsScreen extends GetView<ComplaintsController> {
                             crossAxisAlignment: CrossAxisAlignment.stretch,
                             children: [
                               const SectionHeader(title: 'Your complaints'),
-                              for (final c in controller.complaints)
-                                Padding(
-                                  padding: const EdgeInsets.only(
-                                    bottom: AppDimens.gapMd,
+                              for (int i = 0; i < controller.complaints.length; i++)
+                                StaggeredSlideFade(
+                                  index: i,
+                                  child: Padding(
+                                    padding: const EdgeInsets.only(
+                                      bottom: AppDimens.gapMd,
+                                    ),
+                                    child: _ComplaintCard(
+                                      complaint: controller.complaints[i],
+                                    ),
                                   ),
-                                  child: _ComplaintCard(complaint: c),
                                 ),
                             ],
                           ),

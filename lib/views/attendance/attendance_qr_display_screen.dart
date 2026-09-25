@@ -1,3 +1,4 @@
+import 'dart:math' as math;
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:get/get.dart';
@@ -215,27 +216,57 @@ class AttendanceQrDisplayScreen
                                 ),
                               )
                             else
-                              Container(
-                                width: qrSize,
-                                height: qrSize,
-                                decoration: BoxDecoration(
-                                  color: Colors.white,
-                                  borderRadius: BorderRadius.circular(
-                                    AppDimens.radiusMd,
+                              AnimatedSwitcher(
+                                duration: const Duration(milliseconds: 380),
+                                transitionBuilder: (child, animation) {
+                                  final rotate = Tween<double>(
+                                    begin: math.pi / 2,
+                                    end: 0.0,
+                                  ).animate(
+                                    CurvedAnimation(
+                                      parent: animation,
+                                      curve: Curves.easeOutCubic,
+                                    ),
+                                  );
+                                  return AnimatedBuilder(
+                                    animation: rotate,
+                                    child: child,
+                                    builder: (context, child) {
+                                      return Transform(
+                                        transform: Matrix4.identity()
+                                          ..setEntry(3, 2, 0.001)
+                                          ..rotateY(rotate.value),
+                                        alignment: Alignment.center,
+                                        child: child,
+                                      );
+                                    },
+                                  );
+                                },
+                                child: Container(
+                                  key: ValueKey<String>(
+                                    controller.currentToken.value,
                                   ),
-                                ),
-                                child: QrImageView(
-                                  data: controller.currentToken.value,
-                                  version: QrVersions.auto,
-                                  size: qrSize,
-                                  eyeStyle: const QrEyeStyle(
-                                    eyeShape: QrEyeShape.square,
-                                    color: AppColors.headerBlue,
+                                  width: qrSize,
+                                  height: qrSize,
+                                  decoration: BoxDecoration(
+                                    color: Colors.white,
+                                    borderRadius: BorderRadius.circular(
+                                      AppDimens.radiusMd,
+                                    ),
                                   ),
-                                  dataModuleStyle: const QrDataModuleStyle(
-                                    dataModuleShape:
-                                        QrDataModuleShape.square,
-                                    color: AppColors.headerBlue,
+                                  child: QrImageView(
+                                    data: controller.currentToken.value,
+                                    version: QrVersions.auto,
+                                    size: qrSize,
+                                    eyeStyle: const QrEyeStyle(
+                                      eyeShape: QrEyeShape.square,
+                                      color: AppColors.headerBlue,
+                                    ),
+                                    dataModuleStyle: const QrDataModuleStyle(
+                                      dataModuleShape:
+                                          QrDataModuleShape.square,
+                                      color: AppColors.headerBlue,
+                                    ),
                                   ),
                                 ),
                               ),

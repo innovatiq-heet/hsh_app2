@@ -20,9 +20,24 @@ class HomeScreen extends GetView<HomeController> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      body: Obx(
-        () => IndexedStack(index: controller.tabIndex.value, children: _tabs),
-      ),
+      body: Obx(() {
+        final currentIndex = controller.tabIndex.value;
+        return AnimatedSwitcher(
+          duration: const Duration(milliseconds: 240),
+          switchInCurve: Curves.easeOutCubic,
+          switchOutCurve: Curves.easeInCubic,
+          transitionBuilder: (child, animation) {
+            return FadeTransition(
+              opacity: animation,
+              child: child,
+            );
+          },
+          child: KeyedSubtree(
+            key: ValueKey<int>(currentIndex),
+            child: _tabs[currentIndex],
+          ),
+        );
+      }),
       bottomNavigationBar: DecoratedBox(
         decoration: BoxDecoration(
           boxShadow: [

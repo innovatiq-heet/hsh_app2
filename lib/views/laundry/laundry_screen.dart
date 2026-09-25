@@ -7,6 +7,7 @@ import '../../constants/app_routes.dart';
 import '../../constants/app_text_styles.dart';
 import '../../network/responses/laundry/laundry_responses.dart';
 import '../../utils/date_formatting.dart';
+import '../shared/widgets/animated_counter.dart';
 import '../shared/widgets/app_card.dart';
 import '../shared/widgets/app_refresh_indicator.dart';
 import '../shared/widgets/async_state_view.dart';
@@ -57,8 +58,9 @@ class LaundryScreen extends GetView<LaundryController> {
                                     ),
                                   ),
                                   const SizedBox(height: 2),
-                                  Text(
-                                    '₹${controller.balance.value.toStringAsFixed(0)}',
+                                  AnimatedCounter(
+                                    value: controller.balance.value,
+                                    prefix: '₹',
                                     style: AppTextStyles.displayXl.copyWith(
                                       color: Colors.white,
                                     ),

@@ -68,14 +68,9 @@ class AddComplaintController extends GetxController with AadharResolvingMixin {
     // `aadhar` — it's never derived server-side from the student record, so
     // it has to be sent explicitly. Reusing the already-loaded profile here
     // matches how services_screen/vehicle_redirect_screen read the room.
-    final room = Get.find<StudentProfileController>().profile.value?.room;
-    if (room == null || room.isEmpty) {
-      Get.snackbar(
-        'Profile still loading',
-        'Open your Profile tab once so it can load, then try again.',
-      );
-      return false;
-    }
+    final room = (Get.isRegistered<StudentProfileController>()
+            ? Get.find<StudentProfileController>().profile.value?.room
+            : null) ?? '';
 
     isSaving.value = true;
     try {

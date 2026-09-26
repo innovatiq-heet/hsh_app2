@@ -23,12 +23,15 @@ class LaundryBalanceModel {
     return LaundryBalanceModel(
       aadhar: json['aadhar']?.toString() ??
           json['studentAadhar']?.toString() ??
+          json['student_code']?.toString() ??
+          json['bank_code']?.toString() ??
+          json['bankCode']?.toString() ??
           '',
       totalRecharges: parseDouble(
-        json['totalRecharges'] ?? json['total_recharges'],
+        json['totalRecharges'] ?? json['total_recharges'] ?? json['total_recharged'],
       ),
-      totalSpend: parseDouble(json['totalSpend'] ?? json['total_spend']),
-      balance: parseDouble(json['balance']),
+      totalSpend: parseDouble(json['totalSpend'] ?? json['total_spend'] ?? json['total_spent']),
+      balance: parseDouble(json['balance'] ?? json['current_balance']),
     );
   }
 

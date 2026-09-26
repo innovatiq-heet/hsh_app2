@@ -128,7 +128,10 @@ class LaundryTicketModel {
     final aadhar = (json['aadhar'] ??
             json['studentAadhar'] ??
             json['student_aadhar'] ??
-            (json['student'] is Map ? json['student']['aadhar'] : null) ??
+            json['student_code'] ??
+            json['bank_code'] ??
+            json['bankCode'] ??
+            (json['student'] is Map ? json['student']['aadhar'] ?? json['student']['student_code'] : null) ??
             '')
         .toString();
     final studentName = (json['studentName'] ??
@@ -140,7 +143,8 @@ class LaundryTicketModel {
     final room = (json['room'] ??
             json['roomNo'] ??
             json['room_no'] ??
-            (json['student'] is Map ? json['student']['room'] : null) ??
+            json['room_number'] ??
+            (json['student'] is Map ? json['student']['room'] ?? json['student']['room_number'] : null) ??
             '')
         .toString();
 

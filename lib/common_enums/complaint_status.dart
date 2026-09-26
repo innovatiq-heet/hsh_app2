@@ -4,11 +4,16 @@ import '../constants/app_colors.dart';
 enum ComplaintStatus { pending, reviewed, resolved }
 
 extension ComplaintStatusX on ComplaintStatus {
-  static ComplaintStatus fromApi(String value) =>
-      ComplaintStatus.values.firstWhere(
-        (e) => e.name == value,
-        orElse: () => ComplaintStatus.pending,
-      );
+  static ComplaintStatus fromApi(String value) {
+    final v = value.toLowerCase().trim();
+    if (v == 'in_progress' || v == 'reviewed' || v == 'processing' || v == 'investigating') {
+      return ComplaintStatus.reviewed;
+    }
+    if (v == 'resolved' || v == 'solved' || v == 'closed' || v == 'auto_closed') {
+      return ComplaintStatus.resolved;
+    }
+    return ComplaintStatus.pending;
+  }
 
   String get apiValue => name;
 

@@ -112,10 +112,11 @@ class ComplaintsRepository {
     try {
       final response = await _dio.get('/complains/$id');
       final data = response.data;
-      if (data is Map && data['data'] is Map) {
-        final compJson = data['data']['complain'] ?? data['data'];
-        if (compJson is Map<String, dynamic>) {
-          return ComplaintResponse.fromJson(compJson);
+      if (data is Map) {
+        final d = data['data'] ?? data;
+        final compJson = (d is Map && d['complain'] != null) ? d['complain'] : d;
+        if (compJson is Map) {
+          return ComplaintResponse.fromJson(Map<String, dynamic>.from(compJson));
         }
       }
       throw ApiException('Unexpected server response format');
@@ -158,10 +159,12 @@ class ComplaintsRepository {
 
       final response = await _dio.post('/complains', data: formData);
       final data = response.data;
-      if (data is Map &&
-          data['data'] is Map &&
-          data['data']['complain'] is Map) {
-        return ComplaintResponse.fromJson(data['data']['complain']);
+      if (data is Map) {
+        final d = data['data'] ?? data;
+        final c = (d is Map && d['complain'] != null) ? d['complain'] : d;
+        if (c is Map) {
+          return ComplaintResponse.fromJson(Map<String, dynamic>.from(c));
+        }
       }
       throw ApiException('Unexpected server response format');
     } on DioException catch (e) {
@@ -190,10 +193,12 @@ class ComplaintsRepository {
         data: request.toJson(),
       );
       final data = response.data;
-      if (data is Map &&
-          data['data'] is Map &&
-          data['data']['complain'] is Map) {
-        return ComplaintResponse.fromJson(data['data']['complain']);
+      if (data is Map) {
+        final d = data['data'] ?? data;
+        final c = (d is Map && d['complain'] != null) ? d['complain'] : d;
+        if (c is Map) {
+          return ComplaintResponse.fromJson(Map<String, dynamic>.from(c));
+        }
       }
       throw ApiException('Unexpected server response format');
     } on DioException catch (e) {

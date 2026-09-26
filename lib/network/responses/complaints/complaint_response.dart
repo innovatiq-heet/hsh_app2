@@ -41,10 +41,10 @@ class ComplaintResponse {
 
   factory ComplaintResponse.fromJson(Map<String, dynamic> json) {
     final rawId = (json['id'] ?? '').toString();
-    final aadhar = (json['aadhar'] ?? json['studentAadhar'] ?? '').toString();
-    final name = (json['fullName'] ?? json['studentName'])?.toString() ??
+    final aadhar = (json['aadhar'] ?? json['studentAadhar'] ?? json['student_code'] ?? json['bank_code'] ?? json['student_id'] ?? '').toString();
+    final name = (json['fullName'] ?? json['studentName'] ?? json['student_name'] ?? json['name'])?.toString() ??
         (aadhar.isNotEmpty ? 'Student #$aadhar' : 'Unknown Student');
-    final room = (json['room'] ?? '').toString();
+    final room = (json['room'] ?? json['room_number'] ?? json['roomNo'] ?? '').toString();
     final category = (json['compType'] ?? json['category'] ?? 'Other').toString();
     final description = (json['compDesc'] ?? json['description'] ?? '').toString();
     
@@ -75,17 +75,17 @@ class ComplaintResponse {
     }
 
     DateTime? resolveTime;
-    if (json['resolveTime'] != null) {
-      resolveTime = DateTime.tryParse(json['resolveTime'].toString());
+    if (json['resolveTime'] != null || json['solvedTime'] != null) {
+      resolveTime = DateTime.tryParse((json['resolveTime'] ?? json['solvedTime']).toString());
     }
 
     final imagesCount = (json['images'] is num)
         ? (json['images'] as num).toInt()
         : (json['imagesCount'] is num ? (json['imagesCount'] as num).toInt() : 0);
 
-    final feedback = (json['response'] ?? json['feedback'])?.toString();
-    final review = json['review']?.toString();
-    final phone = json['phone']?.toString();
+    final feedback = (json['response'] ?? json['feedback'] ?? json['solver_response'])?.toString();
+    final review = (json['review'] ?? json['student_feedback'])?.toString();
+    final phone = (json['phone'] ?? json['phone_number'])?.toString();
 
     List<AttachmentModel> attachments = const [];
     if (json['attachments'] is List) {

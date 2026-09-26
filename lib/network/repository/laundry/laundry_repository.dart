@@ -27,12 +27,12 @@ class LaundryRepository {
       final response = await _dio.post('/laundry', data: request.toJson());
       final body = response.data;
       Map<String, dynamic> ticketData;
-      if (body is Map<String, dynamic>) {
-        final data = body['data'];
-        if (data is Map<String, dynamic>) {
-          ticketData = (data['laundry'] as Map<String, dynamic>?) ?? data;
+      if (body is Map) {
+        final data = body['data'] ?? body;
+        if (data is Map) {
+          ticketData = Map<String, dynamic>.from((data['laundry'] as Map?) ?? data);
         } else {
-          ticketData = (body['laundry'] as Map<String, dynamic>?) ?? body;
+          ticketData = Map<String, dynamic>.from(body);
         }
       } else {
         throw ApiException('Unexpected server response format');

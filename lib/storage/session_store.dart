@@ -66,19 +66,31 @@ class SessionStore {
     required UserRole role,
     required String email,
     required String name,
+    String? aadhar,
+    String? room,
   }) async {
     _cachedToken = token;
     _cachedRole = role;
     _cachedEmail = email;
     _cachedName = name;
+    _cachedAadhar = aadhar;
+    _cachedRoom = room;
 
-    await clearAadhar();
-    await Future.wait([
+    final writes = <Future>[
       _write(_kToken, token),
       _write(_kRole, role.apiValue),
       _write(_kEmail, email),
       _write(_kName, name),
-    ]);
+    ];
+    if (aadhar != null && aadhar.isNotEmpty) {
+      writes.add(_write(_kAadhar, aadhar));
+    } else {
+      writes.add(clearAadhar());
+    }
+    if (room != null && room.isNotEmpty) {
+      writes.add(_write(_kRoom, room));
+    }
+    await Future.wait(writes);
   }
 
   Future<void> clearAadhar() async {

@@ -66,11 +66,14 @@ class LoginController extends GetxController {
 
       isLoading.value = true;
       final session = await _authRepository.autoLogin(simNumbers);
+      final studentCode = session.studentCode ?? studentIdController.text.trim();
       await SessionStore.instance.saveSession(
         token: session.token,
         role: session.role,
         email: session.email,
         name: session.name,
+        aadhar: studentCode,
+        room: session.room,
       );
       _routeByRole(session.role);
     } catch (e) {

@@ -24,11 +24,14 @@ class StudentProfileController extends GetxController
 
   Future<void> loadProfile() => guard(() async {
     try {
-      final aadhar = await resolveAadhar(
-        fromFeeSummary: _feesRepository.resolveAadhar,
-        fromLaundryBalance: () async =>
-            (await _laundryRepository.balance()).studentAadhar,
-      );
+      String? aadhar;
+      try {
+        aadhar = await resolveAadhar(
+          fromFeeSummary: _feesRepository.resolveAadhar,
+          fromLaundryBalance: () async =>
+              (await _laundryRepository.balance()).studentAadhar,
+        );
+      } catch (_) {}
       profile.value = await _repository.fetchProfile(aadhar);
     } catch (_) {
       await SessionStore.instance.clearAadhar();

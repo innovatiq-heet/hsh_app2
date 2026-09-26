@@ -21,11 +21,14 @@ class ComplaintsController extends GetxController
   }
 
   Future<void> load() => guard(() async {
-    final aadhar = await resolveAadhar(
-      fromFeeSummary: _feesRepository.resolveAadhar,
-      fromLaundryBalance: () async =>
-          (await _laundryRepository.balance()).studentAadhar,
-    );
+    String? aadhar;
+    try {
+      aadhar = await resolveAadhar(
+        fromFeeSummary: _feesRepository.resolveAadhar,
+        fromLaundryBalance: () async =>
+            (await _laundryRepository.balance()).studentAadhar,
+      );
+    } catch (_) {}
     complaints.assignAll(await _repository.list(studentAadhar: aadhar));
   });
 }

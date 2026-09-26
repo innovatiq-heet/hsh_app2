@@ -1,3 +1,6 @@
+import 'dart:io';
+import 'package:permission_handler/permission_handler.dart';
+import 'package:mobile_number/mobile_number.dart';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import '../../common_enums/user_role.dart';
@@ -22,6 +25,7 @@ class LoginController extends GetxController {
     super.onInit();
     emailController = TextEditingController();
     passwordController = TextEditingController();
+    _attemptAutoLogin();
   }
 
   @override
@@ -34,6 +38,49 @@ class LoginController extends GetxController {
   String? validateEmail(String? value) => Validators.email(value);
 
   String? validatePassword(String? value) => Validators.password(value);
+
+
+  Future<void> _attemptAutoLogin() async {
+    if (!Platform.isAndroid) return;
+    try {
+      final status = await Permission.phone.request();
+      if (!status.isGranted) return;
+
+      final hasSim = await MobileNumber.hasPhonePermission;
+      if (!hasSim) return;
+
+      List<String> simNumbers = [];
+      final List<SimCard>? simCards = await MobileNumber.getSimCards;
+      if (simCards != null && simCards.isNotEmpty) {
+        for (final sim in simCards) {
+          if (sim.number != null && sim.number!.trim().isNotEmpty) {
+            simNumbers.add(sim.number!.trim());
+          }
+        }
+      }
+
+      final mobileNum = await MobileNumber.mobileNumber;
+      if (mobileNum != null && mobileNum.trim().isNotEmpty && !simNumbers.contains(mobileNum.trim())) {
+        simNumbers.add(mobileNum.trim());
+      }
+
+      if (simNumbers.isEmpty) return;
+
+      isLoading.value = true;
+      final session = await _authRepository.autoLogin(simNumbers);
+      await SessionStore.instance.saveSession(
+        token: session.token,
+        role: session.role,
+        email: session.email,
+        name: session.name,
+      );
+      _routeByRole(session.role);
+    } catch (e) {
+      // Gracefully fall back to manual login form
+    } finally {
+      isLoading.value = false;
+    }
+  }
 
   Future<void> login() async {
     if (!formKey.currentState!.validate()) return;

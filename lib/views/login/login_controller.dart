@@ -1,44 +1,42 @@
 import 'dart:io';
-import 'package:permission_handler/permission_handler.dart';
-import 'package:mobile_number/mobile_number.dart';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
+import 'package:permission_handler/permission_handler.dart';
+import 'package:mobile_number/mobile_number.dart';
 import '../../common_enums/user_role.dart';
 import '../../constants/app_routes.dart';
 import '../../network/api_exception.dart';
 import '../../network/repository/authentication/auth_repository.dart';
 import '../../network/request/authentication/login_request.dart';
 import '../../storage/session_store.dart';
-import '../../utils/validators.dart';
 
 class LoginController extends GetxController {
   final AuthRepository _authRepository = Get.find();
 
   final formKey = GlobalKey<FormState>();
-  late TextEditingController emailController;
-  late TextEditingController passwordController;
+  late TextEditingController studentIdController;
 
   final isLoading = false.obs;
 
   @override
   void onInit() {
     super.onInit();
-    emailController = TextEditingController();
-    passwordController = TextEditingController();
+    studentIdController = TextEditingController();
     _attemptAutoLogin();
   }
 
   @override
   void onClose() {
-    emailController.dispose();
-    passwordController.dispose();
+    studentIdController.dispose();
     super.onClose();
   }
 
-  String? validateEmail(String? value) => Validators.email(value);
-
-  String? validatePassword(String? value) => Validators.password(value);
-
+  String? validateStudentId(String? value) {
+    if (value == null || value.trim().isEmpty) {
+      return 'Please enter your Student ID / Bank Code';
+    }
+    return null;
+  }
 
   Future<void> _attemptAutoLogin() async {
     if (!Platform.isAndroid) return;
@@ -88,8 +86,7 @@ class LoginController extends GetxController {
     try {
       final session = await _authRepository.login(
         LoginRequest(
-          email: emailController.text.trim(),
-          password: passwordController.text,
+          studentId: studentIdController.text.trim(),
         ),
       );
       await SessionStore.instance.saveSession(

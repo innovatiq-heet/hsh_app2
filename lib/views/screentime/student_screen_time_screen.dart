@@ -89,26 +89,31 @@ class StudentScreenTimeScreen extends GetView<StudentScreenTimeController> {
   /// Directory view for Leader: list of all students with live status, screen time & filter chips
   Widget _buildStudentsDirectoryView() {
     return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
+      crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
         AppCard(
+          width: double.infinity,
           padding: const EdgeInsets.all(AppDimens.cardPadding),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
-                  Container(
-                    padding: const EdgeInsets.all(8),
-                    decoration: BoxDecoration(
-                      color: AppColors.primary.withValues(alpha: 0.1),
-                      borderRadius: BorderRadius.circular(8),
-                    ),
-                    child: const Icon(Icons.people_alt_outlined, color: AppColors.primary, size: 20),
+                  Row(
+                    children: [
+                      Container(
+                        padding: const EdgeInsets.all(8),
+                        decoration: BoxDecoration(
+                          color: AppColors.primary.withValues(alpha: 0.1),
+                          borderRadius: BorderRadius.circular(8),
+                        ),
+                        child: const Icon(Icons.people_alt_outlined, color: AppColors.primary, size: 20),
+                      ),
+                      const SizedBox(width: 10),
+                      Text('Student Directory', style: AppTextStyles.title),
+                    ],
                   ),
-                  const SizedBox(width: 10),
-                  Text('Student Directory', style: AppTextStyles.title),
-                  const Spacer(),
                   Obx(() => Container(
                         padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
                         decoration: BoxDecoration(
@@ -237,116 +242,126 @@ class StudentScreenTimeScreen extends GetView<StudentScreenTimeController> {
             );
           }
 
-          return ListView.separated(
-            shrinkWrap: true,
-            physics: const NeverScrollableScrollPhysics(),
-            itemCount: students.length,
-            separatorBuilder: (_, _) => const SizedBox(height: 10),
-            itemBuilder: (context, index) {
-              final student = students[index];
-              final totalMins = student['totalScreenTimeMinutes'] as int? ?? 0;
-              final nightMins = student['nightScreenTimeMinutes'] as int? ?? 0;
-              final isOnline = student['isOnline'] as bool? ?? false;
-              final isLocked = student['isLocked'] as bool? ?? false;
-              final limit = (student['dailyLimitMinutes'] as int? ?? 0) > 0
-                  ? (student['dailyLimitMinutes'] as int)
-                  : 180;
-              final isOverLimit = totalMins >= limit;
+          return Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              for (int i = 0; i < students.length; i++) ...[
+                if (i > 0) const SizedBox(height: 10),
+                Builder(
+                  builder: (context) {
+                    final student = students[i];
+                    final totalMins = (student['totalScreenTimeMinutes'] is num)
+                        ? (student['totalScreenTimeMinutes'] as num).toInt()
+                        : (int.tryParse('${student['totalScreenTimeMinutes']}') ?? 0);
+                    final nightMins = (student['nightScreenTimeMinutes'] is num)
+                        ? (student['nightScreenTimeMinutes'] as num).toInt()
+                        : (int.tryParse('${student['nightScreenTimeMinutes']}') ?? 0);
+                    final isOnline = student['isOnline'] == true || student['isOnline'] == 1 || student['isOnline'] == '1';
+                    final isLocked = student['isLocked'] == true || student['isLocked'] == 1 || student['isLocked'] == '1';
+                    final limit = (student['dailyLimitMinutes'] is num && (student['dailyLimitMinutes'] as num).toInt() > 0)
+                        ? (student['dailyLimitMinutes'] as num).toInt()
+                        : 180;
+                    final isOverLimit = totalMins >= limit;
 
-              final hours = totalMins ~/ 60;
-              final minutes = totalMins % 60;
+                    final hours = totalMins ~/ 60;
+                    final minutes = totalMins % 60;
 
-              return AppCard(
-                padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
-                child: InkWell(
-                  onTap: () => controller.selectStudent(student),
-                  child: Row(
-                    children: [
-                      Container(
-                        width: 12,
-                        height: 12,
-                        decoration: BoxDecoration(
-                          shape: BoxShape.circle,
-                          color: isOnline ? Colors.green : Colors.grey.shade400,
-                        ),
-                      ),
-                      const SizedBox(width: 12),
-                      Expanded(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Row(
-                              children: [
-                                Flexible(
-                                  child: Text(
-                                    student['name'] ?? 'Unknown',
-                                    style: AppTextStyles.bodyMd.copyWith(fontWeight: FontWeight.bold),
-                                    overflow: TextOverflow.ellipsis,
-                                  ),
-                                ),
-                                if (isLocked) ...[
-                                  const SizedBox(width: 6),
-                                  Container(
-                                    padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                                    decoration: BoxDecoration(
-                                      color: Colors.red.shade100,
-                                      borderRadius: BorderRadius.circular(4),
-                                    ),
-                                    child: Row(
-                                      mainAxisSize: MainAxisSize.min,
-                                      children: [
-                                        const Icon(Icons.lock_rounded, size: 10, color: Colors.red),
-                                        const SizedBox(width: 3),
-                                        Text(
-                                          'LOCKED',
-                                          style: TextStyle(
-                                            fontSize: 9,
-                                            fontWeight: FontWeight.bold,
-                                            color: Colors.red.shade900,
-                                          ),
-                                        ),
-                                      ],
-                                    ),
-                                  ),
-                                ],
-                              ],
-                            ),
-                            const SizedBox(height: 2),
-                            Text(
-                              'Room ${student['room'] ?? 'N/A'} • ID: ${student['aadhar'] ?? ''} • Device Managed',
-                              style: AppTextStyles.bodySm.copyWith(color: AppColors.textSecondary),
-                            ),
-                          ],
-                        ),
-                      ),
-                      Column(
-                        crossAxisAlignment: CrossAxisAlignment.end,
+                    return AppCard(
+                      width: double.infinity,
+                      onTap: () => controller.selectStudent(student),
+                      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+                      child: Row(
                         children: [
-                          Text(
-                            '${hours}h ${minutes}m',
-                            style: AppTextStyles.bodyMd.copyWith(
-                              fontWeight: FontWeight.bold,
-                              color: isOverLimit ? Colors.red : AppColors.primary,
+                          Container(
+                            width: 12,
+                            height: 12,
+                            decoration: BoxDecoration(
+                              shape: BoxShape.circle,
+                              color: isOnline ? Colors.green : Colors.grey.shade400,
                             ),
                           ),
-                          if (nightMins > 0)
-                            Text(
-                              '🌙 ${nightMins}m curfew alert',
-                              style: AppTextStyles.bodySm.copyWith(
-                                color: Colors.orange.shade800,
-                                fontSize: 11,
-                                fontWeight: FontWeight.w600,
-                              ),
+                          const SizedBox(width: 12),
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                Row(
+                                  children: [
+                                    Flexible(
+                                      child: Text(
+                                        student['name'] ?? 'Unknown',
+                                        style: AppTextStyles.bodyMd.copyWith(fontWeight: FontWeight.bold),
+                                        overflow: TextOverflow.ellipsis,
+                                      ),
+                                    ),
+                                    if (isLocked) ...[
+                                      const SizedBox(width: 6),
+                                      Container(
+                                        padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                                        decoration: BoxDecoration(
+                                          color: Colors.red.shade100,
+                                          borderRadius: BorderRadius.circular(4),
+                                        ),
+                                        child: Row(
+                                          mainAxisSize: MainAxisSize.min,
+                                          children: [
+                                            const Icon(Icons.lock_rounded, size: 10, color: Colors.red),
+                                            const SizedBox(width: 3),
+                                            Text(
+                                              'LOCKED',
+                                              style: TextStyle(
+                                                fontSize: 9,
+                                                fontWeight: FontWeight.bold,
+                                                color: Colors.red.shade900,
+                                              ),
+                                            ),
+                                          ],
+                                        ),
+                                      ),
+                                    ],
+                                  ],
+                                ),
+                                const SizedBox(height: 2),
+                                Text(
+                                  'Room ${student['room'] ?? 'N/A'} • ID: ${student['aadhar'] ?? ''} • Device Managed',
+                                  style: AppTextStyles.bodySm.copyWith(color: AppColors.textSecondary),
+                                ),
+                              ],
                             ),
+                          ),
+                          const SizedBox(width: 8),
+                          Column(
+                            crossAxisAlignment: CrossAxisAlignment.end,
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Text(
+                                '${hours}h ${minutes}m',
+                                style: AppTextStyles.bodyMd.copyWith(
+                                  fontWeight: FontWeight.bold,
+                                  color: isOverLimit ? Colors.red : AppColors.primary,
+                                ),
+                              ),
+                              if (nightMins > 0)
+                                Text(
+                                  '🌙 ${nightMins}m curfew alert',
+                                  style: AppTextStyles.bodySm.copyWith(
+                                    color: Colors.orange.shade800,
+                                    fontSize: 11,
+                                    fontWeight: FontWeight.w600,
+                                  ),
+                                ),
+                            ],
+                          ),
+                          const SizedBox(width: 8),
+                          const Icon(Icons.chevron_right_rounded, color: Colors.grey, size: 20),
                         ],
                       ),
-                      const SizedBox(width: 8),
-                      const Icon(Icons.chevron_right_rounded, color: Colors.grey, size: 20),
-                    ],
-                  ),
+                    );
+                  },
                 ),
-              );
-            },
+              ],
+            ],
           );
         }),
       ],
@@ -356,7 +371,7 @@ class StudentScreenTimeScreen extends GetView<StudentScreenTimeController> {
   /// Detailed view for a single student (Leader view) OR self digital wellbeing (Student view)
   Widget _buildDetailedScreenTimeView(bool isLeader, dynamic selectedStudent) {
     return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
+      crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
         if (isLeader && selectedStudent != null) ...[
           Container(
@@ -571,6 +586,7 @@ class StudentScreenTimeScreen extends GetView<StudentScreenTimeController> {
       }
 
       return AppCard(
+        width: double.infinity,
         padding: const EdgeInsets.all(AppDimens.cardPadding),
         child: Row(
           children: [
@@ -586,6 +602,7 @@ class StudentScreenTimeScreen extends GetView<StudentScreenTimeController> {
             Expanded(
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
+                mainAxisSize: MainAxisSize.min,
                 children: [
                   Text(
                     statusTitle,
@@ -678,14 +695,27 @@ class StudentScreenTimeScreen extends GetView<StudentScreenTimeController> {
             ),
             if (limit > 0) ...[
               const SizedBox(height: 8),
-              LinearProgressIndicator(
-                value: progress,
-                backgroundColor: Colors.white24,
-                valueColor: AlwaysStoppedAnimation<Color>(
-                  isOverLimit ? Colors.amberAccent : Colors.white,
-                ),
-                borderRadius: BorderRadius.circular(4),
-                minHeight: 6,
+              LayoutBuilder(
+                builder: (context, constraints) {
+                  final double barWidth = constraints.maxWidth * progress;
+                  return Container(
+                    height: 6,
+                    width: double.infinity,
+                    decoration: BoxDecoration(
+                      color: Colors.white24,
+                      borderRadius: BorderRadius.circular(4),
+                    ),
+                    alignment: Alignment.centerLeft,
+                    child: Container(
+                      height: 6,
+                      width: barWidth,
+                      decoration: BoxDecoration(
+                        color: isOverLimit ? Colors.amberAccent : Colors.white,
+                        borderRadius: BorderRadius.circular(4),
+                      ),
+                    ),
+                  );
+                },
               ),
             ],
             if (night > 0) ...[
@@ -738,6 +768,7 @@ class StudentScreenTimeScreen extends GetView<StudentScreenTimeController> {
       final end = controller.bedtimeEnd.value.isNotEmpty ? controller.bedtimeEnd.value : '05:00';
 
       return AppCard(
+        width: double.infinity,
         padding: const EdgeInsets.all(AppDimens.cardPadding),
         child: Row(
           children: [
@@ -753,6 +784,7 @@ class StudentScreenTimeScreen extends GetView<StudentScreenTimeController> {
             Expanded(
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
+                mainAxisSize: MainAxisSize.min,
                 children: [
                   const Text(
                     'Night Curfew / Bedtime Hours',
@@ -785,6 +817,7 @@ class StudentScreenTimeScreen extends GetView<StudentScreenTimeController> {
       final total = controller.totalMinutesToday.value > 0 ? controller.totalMinutesToday.value : 1;
 
       return AppCard(
+        width: double.infinity,
         padding: const EdgeInsets.all(AppDimens.cardPadding),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
@@ -792,7 +825,12 @@ class StudentScreenTimeScreen extends GetView<StudentScreenTimeController> {
             Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
-                const SectionHeader(title: 'App Activity & Parental Rules'),
+                Expanded(
+                  child: Text(
+                    'App Activity & Parental Rules',
+                    style: AppTextStyles.title,
+                  ),
+                ),
                 if (isLeader)
                   Text(
                     'Leader Controls Active',
@@ -882,20 +920,10 @@ class StudentScreenTimeScreen extends GetView<StudentScreenTimeController> {
                 ),
               ),
             ] else ...[
-              ListView.separated(
-                shrinkWrap: true,
-                physics: const NeverScrollableScrollPhysics(),
-                itemCount: apps.length,
-                separatorBuilder: (_, _) => const SizedBox(height: 12),
-                itemBuilder: (context, index) {
-                  final app = apps[index];
-                  final mins = (app['minutes'] as int?) ?? 0;
-                  final name = (app['appName'] ?? app['packageName'] ?? 'App').toString();
-                  final pkg = (app['packageName'] ?? '').toString();
-                  final isBlocked = app['isBlocked'] == true;
-                  final progress = (mins / total).clamp(0.0, 1.0);
-
-                  return Column(
+              for (final app in apps) ...[
+                Padding(
+                  padding: const EdgeInsets.only(bottom: 12),
+                  child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Row(
@@ -904,25 +932,26 @@ class StudentScreenTimeScreen extends GetView<StudentScreenTimeController> {
                           Expanded(
                             child: Row(
                               children: [
-                                Flexible(
+                                Expanded(
                                   child: Column(
                                     crossAxisAlignment: CrossAxisAlignment.start,
+                                    mainAxisSize: MainAxisSize.min,
                                     children: [
                                       Text(
-                                        name,
+                                        (app['appName'] ?? app['packageName'] ?? 'App').toString(),
                                         style: AppTextStyles.bodyMd.copyWith(fontWeight: FontWeight.w600),
                                         overflow: TextOverflow.ellipsis,
                                       ),
-                                      if (pkg.isNotEmpty)
+                                      if ((app['packageName'] ?? '').toString().isNotEmpty)
                                         Text(
-                                          pkg,
+                                          app['packageName'].toString(),
                                           style: TextStyle(fontSize: 10, color: Colors.grey.shade500),
                                           overflow: TextOverflow.ellipsis,
                                         ),
                                     ],
                                   ),
                                 ),
-                                if (isBlocked) ...[
+                                if (app['isBlocked'] == true) ...[
                                   const SizedBox(width: 8),
                                   Container(
                                     padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
@@ -943,41 +972,66 @@ class StudentScreenTimeScreen extends GetView<StudentScreenTimeController> {
                               ],
                             ),
                           ),
-                          if (mins > 0)
-                            Text('$mins mins', style: AppTextStyles.bodySm.copyWith(color: AppColors.textSecondary))
-                          else
-                            Text('Not opened today',
-                                style: AppTextStyles.bodySm.copyWith(color: Colors.grey.shade400, fontSize: 11)),
-                          if (isLeader && pkg.isNotEmpty) ...[
-                            const SizedBox(width: 10),
+                          const SizedBox(width: 8),
+                          Text(
+                            ((app['minutes'] as int?) ?? 0) > 0
+                                ? '${app['minutes']} mins'
+                                : 'Not opened today',
+                            style: AppTextStyles.bodySm.copyWith(
+                              color: ((app['minutes'] as int?) ?? 0) > 0
+                                  ? AppColors.textSecondary
+                                  : Colors.grey.shade400,
+                              fontSize: ((app['minutes'] as int?) ?? 0) > 0 ? 12 : 11,
+                            ),
+                          ),
+                          if (isLeader && (app['packageName'] ?? '').toString().isNotEmpty) ...[
+                            const SizedBox(width: 8),
                             Switch(
-                              value: !isBlocked,
+                              value: app['isBlocked'] != true,
                               activeTrackColor: Colors.green,
                               inactiveThumbColor: Colors.red,
                               inactiveTrackColor: Colors.red.shade100,
                               onChanged: (allowed) {
-                                controller.toggleAppBlock(pkg, name, !allowed);
+                                controller.toggleAppBlock(
+                                  app['packageName'].toString(),
+                                  (app['appName'] ?? app['packageName']).toString(),
+                                  !allowed,
+                                );
                               },
                             ),
                           ],
                         ],
                       ),
-                      if (mins > 0) ...[
+                      if (((app['minutes'] as int?) ?? 0) > 0) ...[
                         const SizedBox(height: 6),
-                        LinearProgressIndicator(
-                          value: progress,
-                          backgroundColor: Colors.grey.shade200,
-                          valueColor: AlwaysStoppedAnimation<Color>(
-                            isBlocked ? Colors.red : AppColors.primary,
-                          ),
-                          borderRadius: BorderRadius.circular(4),
-                          minHeight: 5,
+                        LayoutBuilder(
+                          builder: (context, constraints) {
+                            final double ratio = (((app['minutes'] as int?) ?? 0) / total).clamp(0.0, 1.0);
+                            final double barWidth = constraints.maxWidth * ratio;
+                            return Container(
+                              height: 5,
+                              width: double.infinity,
+                              decoration: BoxDecoration(
+                                color: Colors.grey.shade200,
+                                borderRadius: BorderRadius.circular(4),
+                              ),
+                              alignment: Alignment.centerLeft,
+                              child: Container(
+                                height: 5,
+                                width: barWidth,
+                                decoration: BoxDecoration(
+                                  color: app['isBlocked'] == true ? Colors.red : AppColors.primary,
+                                  borderRadius: BorderRadius.circular(4),
+                                ),
+                              ),
+                            );
+                          },
                         ),
                       ],
                     ],
-                  );
-                },
-              ),
+                  ),
+                ),
+              ],
             ],
           ],
         ),
@@ -990,6 +1044,7 @@ class StudentScreenTimeScreen extends GetView<StudentScreenTimeController> {
       final records = controller.historyRecords;
       if (records.isEmpty) {
         return AppCard(
+          width: double.infinity,
           padding: const EdgeInsets.all(AppDimens.cardPadding),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
@@ -1006,65 +1061,68 @@ class StudentScreenTimeScreen extends GetView<StudentScreenTimeController> {
       }
 
       return AppCard(
+        width: double.infinity,
         padding: const EdgeInsets.all(AppDimens.cardPadding),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             const SectionHeader(title: 'Recent Activity Logs'),
             const SizedBox(height: 12),
-            ListView.separated(
-              shrinkWrap: true,
-              physics: const NeverScrollableScrollPhysics(),
-              itemCount: records.length,
-              separatorBuilder: (_, _) => const Divider(height: 1),
-              itemBuilder: (context, index) {
-                final rec = records[index];
-                final total = (rec['total_screen_time_minutes'] ?? rec['totalScreenTimeMinutes'] as int?) ?? 0;
-                final night = (rec['night_screen_time_minutes'] ?? rec['nightScreenTimeMinutes'] as int?) ?? 0;
-                final hours = total ~/ 60;
-                final minutes = total % 60;
+            for (int i = 0; i < records.length; i++) ...[
+              if (i > 0) const Divider(height: 1),
+              Builder(
+                builder: (context) {
+                  final rec = records[i];
+                  final rawTotal = rec['total_screen_time_minutes'] ?? rec['totalScreenTimeMinutes'];
+                  final total = (rawTotal is num) ? rawTotal.toInt() : (int.tryParse('$rawTotal') ?? 0);
+                  final rawNight = rec['night_screen_time_minutes'] ?? rec['nightScreenTimeMinutes'];
+                  final night = (rawNight is num) ? rawNight.toInt() : (int.tryParse('$rawNight') ?? 0);
+                  final hours = total ~/ 60;
+                  final minutes = total % 60;
 
-                return Padding(
-                  padding: const EdgeInsets.symmetric(vertical: 10),
-                  child: Row(
-                    children: [
-                      Container(
-                        padding: const EdgeInsets.all(8),
-                        decoration: BoxDecoration(
-                          color: AppColors.primary.withValues(alpha: 0.08),
-                          borderRadius: BorderRadius.circular(8),
+                  return Padding(
+                    padding: const EdgeInsets.symmetric(vertical: 10),
+                    child: Row(
+                      children: [
+                        Container(
+                          padding: const EdgeInsets.all(8),
+                          decoration: BoxDecoration(
+                            color: AppColors.primary.withValues(alpha: 0.08),
+                            borderRadius: BorderRadius.circular(8),
+                          ),
+                          child: const Icon(Icons.calendar_today_rounded, size: 16, color: AppColors.primary),
                         ),
-                        child: const Icon(Icons.calendar_today_rounded, size: 16, color: AppColors.primary),
-                      ),
-                      const SizedBox(width: 12),
-                      Expanded(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text(
-                              (rec['date'] ?? '').toString().split('T').first,
-                              style: AppTextStyles.bodyMd.copyWith(fontWeight: FontWeight.w600),
-                            ),
-                            if (night > 0)
+                        const SizedBox(width: 12),
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
                               Text(
-                                '🌙 Curfew phone use: ${night}m',
-                                style: AppTextStyles.bodySm.copyWith(color: Colors.orange.shade800),
+                                (rec['date'] ?? '').toString().split('T').first,
+                                style: AppTextStyles.bodyMd.copyWith(fontWeight: FontWeight.w600),
                               ),
-                          ],
+                              if (night > 0)
+                                Text(
+                                  '🌙 Curfew phone use: ${night}m',
+                                  style: AppTextStyles.bodySm.copyWith(color: Colors.orange.shade800),
+                                ),
+                            ],
+                          ),
                         ),
-                      ),
-                      Text(
-                        '${hours}h ${minutes}m',
-                        style: AppTextStyles.bodyMd.copyWith(
-                          fontWeight: FontWeight.bold,
-                          color: total > 360 ? Colors.red : AppColors.textPrimary,
+                        Text(
+                          '${hours}h ${minutes}m',
+                          style: AppTextStyles.bodyMd.copyWith(
+                            fontWeight: FontWeight.bold,
+                            color: total > 360 ? Colors.red : AppColors.textPrimary,
+                          ),
                         ),
-                      ),
-                    ],
-                  ),
-                );
-              },
-            ),
+                      ],
+                    ),
+                  );
+                },
+              ),
+            ],
           ],
         ),
       );

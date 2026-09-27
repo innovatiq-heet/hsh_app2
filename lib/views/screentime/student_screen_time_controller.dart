@@ -301,13 +301,17 @@ class StudentScreenTimeController extends GetxController with WidgetsBindingObse
 
       if (!matchesQuery) return false;
 
-      final isOnline = student['isOnline'] == true;
-      final isLocked = student['isLocked'] == true;
-      final totalMins = (student['totalScreenTimeMinutes'] as int? ?? 0);
-      final limitMins = (student['dailyLimitMinutes'] as int? ?? 0) > 0
-          ? (student['dailyLimitMinutes'] as int)
+      final isOnline = student['isOnline'] == true || student['isOnline'] == 1 || student['isOnline'] == '1';
+      final isLocked = student['isLocked'] == true || student['isLocked'] == 1 || student['isLocked'] == '1';
+      final totalMins = (student['totalScreenTimeMinutes'] is num)
+          ? (student['totalScreenTimeMinutes'] as num).toInt()
+          : (int.tryParse('${student['totalScreenTimeMinutes']}') ?? 0);
+      final limitMins = (student['dailyLimitMinutes'] is num && (student['dailyLimitMinutes'] as num).toInt() > 0)
+          ? (student['dailyLimitMinutes'] as num).toInt()
           : 180;
-      final nightMins = (student['nightScreenTimeMinutes'] as int? ?? 0);
+      final nightMins = (student['nightScreenTimeMinutes'] is num)
+          ? (student['nightScreenTimeMinutes'] as num).toInt()
+          : (int.tryParse('${student['nightScreenTimeMinutes']}') ?? 0);
 
       if (filter.startsWith('Online Now')) {
         return isOnline;
@@ -325,14 +329,23 @@ class StudentScreenTimeController extends GetxController with WidgetsBindingObse
   }
 
   // Count getters for filter chips
-  int get countOnline => allStudents.where((s) => s['isOnline'] == true).length;
+  int get countOnline => allStudents.where((s) => s['isOnline'] == true || s['isOnline'] == 1 || s['isOnline'] == '1').length;
   int get countOverLimit => allStudents.where((s) {
-        final total = s['totalScreenTimeMinutes'] as int? ?? 0;
-        final limit = (s['dailyLimitMinutes'] as int? ?? 0) > 0 ? (s['dailyLimitMinutes'] as int) : 180;
+        final total = (s['totalScreenTimeMinutes'] is num)
+            ? (s['totalScreenTimeMinutes'] as num).toInt()
+            : (int.tryParse('${s['totalScreenTimeMinutes']}') ?? 0);
+        final limit = (s['dailyLimitMinutes'] is num && (s['dailyLimitMinutes'] as num).toInt() > 0)
+            ? (s['dailyLimitMinutes'] as num).toInt()
+            : 180;
         return total >= limit;
       }).length;
-  int get countCurfewAlerts => allStudents.where((s) => (s['nightScreenTimeMinutes'] as int? ?? 0) > 0).length;
-  int get countLocked => allStudents.where((s) => s['isLocked'] == true).length;
+  int get countCurfewAlerts => allStudents.where((s) {
+        final night = (s['nightScreenTimeMinutes'] is num)
+            ? (s['nightScreenTimeMinutes'] as num).toInt()
+            : (int.tryParse('${s['nightScreenTimeMinutes']}') ?? 0);
+        return night > 0;
+      }).length;
+  int get countLocked => allStudents.where((s) => s['isLocked'] == true || s['isLocked'] == 1 || s['isLocked'] == '1').length;
 
   /// Select a student to inspect
   void selectStudent(dynamic student) {
@@ -484,11 +497,15 @@ class StudentScreenTimeController extends GetxController with WidgetsBindingObse
       final data = response.data['data'] ?? response.data;
 
       if (data != null) {
-        isOnline.value = data['isOnline'] ?? false;
-        isScreenOn.value = data['isScreenOn'] ?? false;
-        currentApp.value = data['currentApp'] ?? 'Idle';
-        totalMinutesToday.value = data['totalScreenTimeMinutes'] ?? 0;
-        nightMinutesToday.value = data['nightScreenTimeMinutes'] ?? 0;
+        isOnline.value = data['isOnline'] == true || data['isOnline'] == 1 || data['isOnline'] == '1';
+        isScreenOn.value = data['isScreenOn'] == true || data['isScreenOn'] == 1 || data['isScreenOn'] == '1';
+        currentApp.value = data['currentApp']?.toString() ?? 'Idle';
+        totalMinutesToday.value = (data['totalScreenTimeMinutes'] is num)
+            ? (data['totalScreenTimeMinutes'] as num).toInt()
+            : (int.tryParse('${data['totalScreenTimeMinutes']}') ?? 0);
+        nightMinutesToday.value = (data['nightScreenTimeMinutes'] is num)
+            ? (data['nightScreenTimeMinutes'] as num).toInt()
+            : (int.tryParse('${data['nightScreenTimeMinutes']}') ?? 0);
         appBreakdown.assignAll(data['appUsageBreakdown'] ?? []);
 
         final List<dynamic> blocked = data['blockedPackages'] ?? [];

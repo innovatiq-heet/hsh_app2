@@ -11,6 +11,7 @@ import '../shared/widgets/app_card.dart';
 import '../shared/widgets/app_refresh_indicator.dart';
 import '../shared/widgets/async_state_view.dart';
 import '../shared/widgets/gradient_header.dart';
+import '../shared/widgets/namedrop_attendance_overlay.dart';
 import '../shared/widgets/radar_animation.dart';
 import 'attendance_controller.dart';
 import 'attendance_event_style.dart';
@@ -191,13 +192,14 @@ class _AttendanceScreenState extends State<AttendanceScreen> with SingleTickerPr
     try {
       final record = await controller.markWithBle(type);
       if (record != null) {
-        _showResultDialog(
-          title: 'Attendance Marked!',
-          message: 'Your attendance for ${type.label} has been recorded successfully. Have a great day!',
-          icon: Icons.check_circle_rounded,
-          color: AppColors.successGreen,
-          buttonLabel: 'Great',
-        );
+        if (mounted) {
+          NamedropAttendanceOverlay.show(
+            context,
+            title: 'Attendance Marked!',
+            sessionName: type.label,
+            subtitle: 'Your attendance for ${type.label} has been recorded successfully. Have a great day!',
+          );
+        }
       }
     } catch (e) {
       _showResultDialog(
@@ -290,55 +292,99 @@ class _AttendanceScreenState extends State<AttendanceScreen> with SingleTickerPr
   }
 
   Widget _buildSuccessBanner(String sessionName) {
-    return Container(
-      width: double.infinity,
-      padding: const EdgeInsets.all(24),
-      decoration: BoxDecoration(
-        gradient: LinearGradient(
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-          colors: [
-            AppColors.successGreen.withValues(alpha: 0.15),
-            AppColors.primary.withValues(alpha: 0.08),
-          ],
-        ),
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
         borderRadius: BorderRadius.circular(20),
-        border: Border.all(color: AppColors.successGreen.withValues(alpha: 0.3)),
-      ),
-      child: Column(
-        children: [
-          Container(
-            padding: const EdgeInsets.all(16),
-            decoration: BoxDecoration(
-              shape: BoxShape.circle,
-              color: AppColors.successGreen.withValues(alpha: 0.2),
+        onTap: () {
+          NamedropAttendanceOverlay.show(
+            context,
+            title: 'Attendance Marked!',
+            sessionName: sessionName,
+            subtitle: 'You have successfully marked attendance for $sessionName.',
+          );
+        },
+        child: Container(
+          width: double.infinity,
+          padding: const EdgeInsets.all(24),
+          decoration: BoxDecoration(
+            gradient: LinearGradient(
+              begin: Alignment.topLeft,
+              end: Alignment.bottomRight,
+              colors: [
+                AppColors.successGreen.withValues(alpha: 0.15),
+                AppColors.primary.withValues(alpha: 0.08),
+              ],
             ),
-            child: const Icon(
-              Icons.check_circle,
-              color: AppColors.successGreen,
-              size: 48,
-            ),
+            borderRadius: BorderRadius.circular(20),
+            border: Border.all(color: AppColors.successGreen.withValues(alpha: 0.3)),
           ),
-          const SizedBox(height: 16),
-          const Text(
-            'Attendance Marked!',
-            style: TextStyle(
-              fontSize: 20,
-              fontWeight: FontWeight.w800,
-              color: AppColors.successGreen,
-            ),
+          child: Column(
+            children: [
+              Container(
+                padding: const EdgeInsets.all(16),
+                decoration: BoxDecoration(
+                  shape: BoxShape.circle,
+                  color: AppColors.successGreen.withValues(alpha: 0.2),
+                ),
+                child: const Icon(
+                  Icons.check_circle,
+                  color: AppColors.successGreen,
+                  size: 48,
+                ),
+              ),
+              const SizedBox(height: 16),
+              const Text(
+                'Attendance Marked!',
+                style: TextStyle(
+                  fontSize: 20,
+                  fontWeight: FontWeight.w800,
+                  color: AppColors.successGreen,
+                ),
+              ),
+              const SizedBox(height: 8),
+              Text(
+                'You have successfully marked attendance for $sessionName.',
+                textAlign: TextAlign.center,
+                style: TextStyle(
+                  fontSize: 14,
+                  color: AppColors.successGreen.withValues(alpha: 0.8),
+                  height: 1.5,
+                ),
+              ),
+              const SizedBox(height: 14),
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
+                decoration: BoxDecoration(
+                  color: AppColors.successGreen.withValues(alpha: 0.15),
+                  borderRadius: BorderRadius.circular(20),
+                  border: Border.all(
+                    color: AppColors.successGreen.withValues(alpha: 0.35),
+                  ),
+                ),
+                child: const Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Icon(
+                      Icons.auto_awesome_rounded,
+                      size: 15,
+                      color: AppColors.successGreen,
+                    ),
+                    SizedBox(width: 6),
+                    Text(
+                      'Tap to view NameDrop card ✨',
+                      style: TextStyle(
+                        fontSize: 11,
+                        fontWeight: FontWeight.w700,
+                        color: AppColors.successGreen,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
           ),
-          const SizedBox(height: 8),
-          Text(
-            'You have successfully marked attendance for $sessionName.',
-            textAlign: TextAlign.center,
-            style: TextStyle(
-              fontSize: 14,
-              color: AppColors.successGreen.withValues(alpha: 0.8),
-              height: 1.5,
-            ),
-          ),
-        ],
+        ),
       ),
     );
   }
@@ -357,7 +403,7 @@ class _AttendanceScreenState extends State<AttendanceScreen> with SingleTickerPr
     final primaryColor = style.primaryColor;
     final iconData = _resolveIcon(iconName, style.icon);
 
-    return Container(
+    final tile = Container(
       margin: const EdgeInsets.only(bottom: 12),
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
       decoration: BoxDecoration(
@@ -525,6 +571,28 @@ class _AttendanceScreenState extends State<AttendanceScreen> with SingleTickerPr
         ],
       ),
     );
+
+    if (isMarked) {
+      return Material(
+        color: Colors.transparent,
+        child: InkWell(
+          borderRadius: BorderRadius.circular(16),
+          onTap: () {
+            NamedropAttendanceOverlay.show(
+              context,
+              title: 'Attendance Marked!',
+              sessionName: name,
+              subtitle: markedTime != null
+                  ? 'Attendance verified at ${DateFormat('hh:mm a').format(markedTime.toLocal())}'
+                  : 'Attendance verified for $name.',
+            );
+          },
+          child: tile,
+        ),
+      );
+    }
+
+    return tile;
   }
 
   @override

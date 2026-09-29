@@ -6,9 +6,7 @@ import '../../common_enums/attendance_type.dart';
 import '../../constants/app_colors.dart';
 import '../../constants/app_dimens.dart';
 import '../../constants/app_text_styles.dart';
-import '../../utils/date_formatting.dart';
-import '../shared/widgets/app_button.dart';
-import '../shared/widgets/status_badge.dart';
+import '../shared/widgets/namedrop_attendance_overlay.dart';
 import 'attendance_event_style.dart';
 import 'attendance_scanner_controller.dart';
 
@@ -279,141 +277,20 @@ class AttendanceScannerScreen extends GetView<AttendanceScannerController> {
             );
           }),
 
-          // 6. Celebratory Success Sheet Overlay
+          // 6. Celebratory Success NameDrop Overlay
           Obx(() {
             final record = controller.successRecord.value;
             if (record == null) return const SizedBox.shrink();
             final style = AttendanceEventStyle.of(record.type);
 
-            return Container(
-              color: Colors.black87,
-              child: Center(
-                child: Padding(
-                  padding: const EdgeInsets.all(AppDimens.screenPadding),
-                  child: TweenAnimationBuilder<double>(
-                    tween: Tween<double>(begin: 0.8, end: 1.0),
-                    duration: const Duration(milliseconds: 400),
-                    curve: Curves.easeOutBack,
-                    builder: (context, scale, child) {
-                      return Transform.scale(
-                        scale: scale,
-                        child: child,
-                      );
-                    },
-                    child: Container(
-                      padding: const EdgeInsets.all(AppDimens.gapXxl),
-                      decoration: BoxDecoration(
-                        color: AppColors.surface,
-                        borderRadius: BorderRadius.circular(AppDimens.radiusXl),
-                        boxShadow: AppColors.softShadow,
-                      ),
-                      child: Column(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          TweenAnimationBuilder<double>(
-                            tween: Tween<double>(begin: 0.0, end: 1.0),
-                            duration: const Duration(milliseconds: 500),
-                            curve: Curves.elasticOut,
-                            builder: (context, iconScale, child) {
-                              return Transform.scale(
-                                scale: iconScale,
-                                child: child,
-                              );
-                            },
-                            child: Container(
-                              width: AppDimens.bottomNavHeight,
-                              height: AppDimens.bottomNavHeight,
-                              decoration: BoxDecoration(
-                                color: AppColors.successGreen
-                                    .withValues(alpha: 0.12),
-                                shape: BoxShape.circle,
-                              ),
-                              child: const Icon(
-                                Icons.check_circle_rounded,
-                                color: AppColors.successGreen,
-                                size: 48,
-                              ),
-                            ),
-                          ),
-                          const SizedBox(height: AppDimens.gapLg),
-                          Text(
-                            'Attendance Marked!',
-                            style: AppTextStyles.headline.copyWith(
-                              color: AppColors.textPrimary,
-                            ),
-                          ),
-                        const SizedBox(height: AppDimens.gapXs),
-                        Text(
-                          'Your attendance for ${style.emoji} ${record.type.label} was recorded.',
-                          textAlign: TextAlign.center,
-                          style: AppTextStyles.bodyMd.copyWith(
-                            color: AppColors.textSecondary,
-                          ),
-                        ),
-                        const SizedBox(height: AppDimens.gapLg),
-                        Container(
-                          padding: const EdgeInsets.symmetric(
-                            horizontal: AppDimens.gapLg,
-                            vertical: AppDimens.gapMd,
-                          ),
-                          decoration: BoxDecoration(
-                            color: AppColors.surfaceMuted,
-                            borderRadius: BorderRadius.circular(AppDimens.radiusMd),
-                          ),
-                          child: Column(
-                            children: [
-                              Row(
-                                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                                children: [
-                                  Text('Session:', style: AppTextStyles.bodySm),
-                                  Text(
-                                    '${style.emoji} ${record.type.label}',
-                                    style: AppTextStyles.subtitle,
-                                  ),
-                                ],
-                              ),
-                              const SizedBox(height: AppDimens.gapXs),
-                              Row(
-                                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                                children: [
-                                  Text('Timestamp:', style: AppTextStyles.bodySm),
-                                  Text(
-                                    DateFormatting.dateTime(record.time),
-                                    style: AppTextStyles.bodySm.copyWith(
-                                      fontWeight: FontWeight.bold,
-                                    ),
-                                  ),
-                                ],
-                              ),
-                              const SizedBox(height: AppDimens.gapXs),
-                              Row(
-                                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                                children: [
-                                  Text('Verification:', style: AppTextStyles.bodySm),
-                                  StatusBadge(
-                                    label: 'Verified QR',
-                                    color: AppColors.successGreen,
-                                    icon: Icons.qr_code_2_rounded,
-                                  ),
-                                ],
-                              ),
-                            ],
-                          ),
-                        ),
-                        const SizedBox(height: AppDimens.gapXl),
-                        AppButton(
-                          label: 'Done',
-                          onPressed: () {
-                            Get.back();
-                          },
-                        ),
-                      ],
-                    ),
-                  ),
-                ),
-              ),
-            ),
-          );
+            return NamedropAttendanceOverlay(
+              title: 'Attendance Marked!',
+              sessionName: '${style.emoji} ${record.type.label}',
+              subtitle: 'Your attendance has been recorded successfully via QR code.',
+              onDismiss: () {
+                Get.back();
+              },
+            );
           }),
         ],
       ),

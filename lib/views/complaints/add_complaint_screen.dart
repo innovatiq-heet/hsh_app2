@@ -40,11 +40,6 @@ class AddComplaintScreen extends GetView<AddComplaintController> {
       'Washroom cleaning',
       'Dustbin replacement',
     ],
-    'Internet/Wifi': [
-      'No internet connection',
-      'Very slow Wifi speed',
-      'Cannot connect to router',
-    ],
     'Other': [
       'Door lock jammed',
       'Window glass damaged',

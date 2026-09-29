@@ -13,6 +13,7 @@ class AsyncStateView extends StatelessWidget {
   final VoidCallback onRetry;
   final WidgetBuilder builder;
   final int skeletonCount;
+  final Widget? loadingWidget;
 
   const AsyncStateView({
     super.key,
@@ -22,16 +23,18 @@ class AsyncStateView extends StatelessWidget {
     required this.onRetry,
     required this.builder,
     this.skeletonCount = 5,
+    this.loadingWidget,
   });
 
   @override
   Widget build(BuildContext context) {
     final Widget child;
     if (isLoading) {
-      child = SkeletonList(
-        key: const ValueKey<String>('async_loading'),
-        count: skeletonCount,
-      );
+      child = loadingWidget ??
+          SkeletonList(
+            key: const ValueKey<String>('async_loading'),
+            count: skeletonCount,
+          );
     } else if (hasError) {
       child = EmptyState(
         key: const ValueKey<String>('async_error'),

@@ -39,7 +39,23 @@ class AddComplaintController extends GetxController with AadharResolvingMixin {
   }
 
   Future<void> loadCategories() async {
-    categories.assignAll(await _repository.categories());
+    try {
+      final fetched = await _repository.categories();
+      final filtered = fetched
+          .where((c) =>
+              !c.toLowerCase().contains('internet') &&
+              !c.toLowerCase().contains('wifi'))
+          .toList();
+      categories.assignAll(filtered);
+    } catch (_) {
+      categories.assignAll(const [
+        'Electrical',
+        'Plumbing',
+        'Furniture',
+        'Housekeeping',
+        'Other',
+      ]);
+    }
     if (categories.isNotEmpty) selectedCategory.value = categories.first;
   }
 

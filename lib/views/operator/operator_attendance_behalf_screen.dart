@@ -6,6 +6,7 @@ import '../../constants/app_dimens.dart';
 import '../../constants/app_routes.dart';
 import '../../constants/app_strings.dart';
 import '../../constants/app_text_styles.dart';
+import '../../utils/app_snackbar.dart';
 import '../../utils/date_formatting.dart';
 import '../../utils/validators.dart';
 import '../attendance/attendance_event_style.dart';
@@ -120,12 +121,9 @@ class OperatorAttendanceBehalfScreen
                     onPressed: () async {
                       final ok = await controller.submit();
                       if (ok) {
-                        Get.snackbar(
+                        AppSnackbar.success(
                           'Attendance Logged',
                           'Attendance recorded successfully for student.',
-                          snackPosition: SnackPosition.BOTTOM,
-                          backgroundColor: AppColors.headerBlue,
-                          colorText: Colors.white,
                         );
                       }
                     },

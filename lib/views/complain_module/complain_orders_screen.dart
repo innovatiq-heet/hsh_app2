@@ -7,6 +7,7 @@ import '../../constants/app_routes.dart';
 import '../../constants/app_text_styles.dart';
 import '../../network/responses/complaints/complaint_response.dart';
 import '../../storage/session_store.dart';
+import '../../utils/app_snackbar.dart';
 import '../../utils/date_formatting.dart';
 import '../shared/utils/complaint_category_style.dart';
 import '../shared/widgets/app_button.dart';
@@ -998,7 +999,7 @@ class _StaffComplaintCard extends StatelessWidget {
               icon: Icons.done_all_rounded,
               onPressed: () {
                 if (noteController.text.trim().isEmpty) {
-                  Get.snackbar(
+                  AppSnackbar.warning(
                     'Input Required',
                     'Please describe the resolution before closing the complaint.',
                   );

@@ -3,6 +3,7 @@ import 'package:get/get.dart';
 import '../../constants/app_colors.dart';
 import '../../constants/app_dimens.dart';
 import '../../constants/app_text_styles.dart';
+import '../../utils/app_snackbar.dart';
 import '../../utils/date_formatting.dart';
 import '../../utils/validators.dart';
 import '../shared/widgets/app_button.dart';
@@ -118,12 +119,9 @@ class OperatorSabhaScreen extends GetView<OperatorSabhaController> {
                         onPressed: () async {
                           final ok = await controller.submit();
                           if (ok) {
-                            Get.snackbar(
+                            AppSnackbar.success(
                               'Scheduled',
                               'Sabha has been successfully scheduled.',
-                              snackPosition: SnackPosition.BOTTOM,
-                              backgroundColor: AppColors.headerBlue,
-                              colorText: Colors.white,
                             );
                           }
                         },

@@ -4,6 +4,7 @@ import '../../common_enums/complaint_status.dart';
 import '../../network/repository/complaints/complaints_repository.dart';
 import '../../network/request/complaints/update_complaint_request.dart';
 import '../../network/responses/complaints/complaint_response.dart';
+import '../../utils/app_snackbar.dart';
 
 class ComplainManagementController extends GetxController {
   final ComplaintsRepository _repository = Get.find();
@@ -50,7 +51,7 @@ class ComplainManagementController extends GetxController {
       selectedComplaint.value =
           searchedComplaints.isNotEmpty ? searchedComplaints.first : null;
     } catch (e) {
-      Get.snackbar('Load Failed', 'Could not load complaints: $e');
+      AppSnackbar.error('Load Failed', 'Could not load complaints: $e');
     } finally {
       isSearching.value = false;
     }
@@ -71,7 +72,7 @@ class ComplainManagementController extends GetxController {
       selectedComplaint.value =
           searchedComplaints.isNotEmpty ? searchedComplaints.first : null;
     } catch (e) {
-      Get.snackbar('Search Failed', 'Could not load room history: $e');
+      AppSnackbar.error('Search Failed', 'Could not load room history: $e');
     } finally {
       isSearching.value = false;
     }
@@ -90,7 +91,7 @@ class ComplainManagementController extends GetxController {
   Future<void> logOnSiteResolution(String complaintId) async {
     final note = quickResolveNoteController.text.trim();
     if (note.isEmpty) {
-      Get.snackbar('Input Required', 'Please enter a resolution note or inspection outcome.');
+      AppSnackbar.warning('Input Required', 'Please enter a resolution note or inspection outcome.');
       return;
     }
 
@@ -111,9 +112,9 @@ class ComplainManagementController extends GetxController {
       if (idx != -1) searchedComplaints[idx] = updated;
       selectedComplaint.value = updated;
       quickResolveNoteController.clear();
-      Get.snackbar('Logged', 'On-site resolution saved for Room ${updated.room}.');
+      AppSnackbar.success('Logged', 'On-site resolution saved for Room ${updated.room}.');
     } catch (e) {
-      Get.snackbar('Error', 'Failed to save resolution: $e');
+      AppSnackbar.error('Error', 'Failed to save resolution: $e');
     } finally {
       isSubmitting.value = false;
     }
@@ -133,9 +134,9 @@ class ComplainManagementController extends GetxController {
       final idx = searchedComplaints.indexWhere((c) => c.id == complaintId);
       if (idx != -1) searchedComplaints[idx] = updated;
       selectedComplaint.value = updated;
-      Get.snackbar('Updated', 'Inspection note logged.');
+      AppSnackbar.success('Updated', 'Inspection note logged.');
     } catch (e) {
-      Get.snackbar('Error', 'Failed to update note: $e');
+      AppSnackbar.error('Error', 'Failed to update note: $e');
     } finally {
       isSubmitting.value = false;
     }

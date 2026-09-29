@@ -4,6 +4,7 @@ import '../../common_models/student_profile/student_profile_model.dart';
 import '../../network/api_exception.dart';
 import '../../network/repository/student_profile/student_profile_repository.dart';
 import '../../network/request/student_profile/update_profile_request.dart';
+import '../../utils/app_snackbar.dart';
 
 class EditProfileController extends GetxController {
   final StudentProfileRepository _repository = Get.find();
@@ -112,7 +113,7 @@ class EditProfileController extends GetxController {
         ),
       );
       Get.back(result: true);
-      Get.snackbar('Success', 'Profile updated successfully');
+      AppSnackbar.success('Success', 'Profile updated successfully');
     } on ApiException catch (e) {
       _showError(e.message);
     } catch (_) {
@@ -123,12 +124,9 @@ class EditProfileController extends GetxController {
   }
 
   void _showError(String message) {
-    Get.snackbar(
+    AppSnackbar.error(
       'Update Failed',
       message,
-      snackPosition: SnackPosition.BOTTOM,
-      backgroundColor: Colors.redAccent,
-      colorText: Colors.white,
     );
   }
 }

@@ -4,6 +4,7 @@ import 'package:get/get.dart';
 import '../../network/api_exception.dart';
 import '../../network/repository/laundry/laundry_repository.dart';
 import '../../network/responses/laundry/laundry_responses.dart';
+import '../../utils/app_snackbar.dart';
 
 class LaundryManagementController extends GetxController {
   final LaundryRepository _repository = Get.find();
@@ -110,13 +111,9 @@ class LaundryManagementController extends GetxController {
       rechargeHistory.clear();
 
       if (isManual) {
-        Get.snackbar(
+        AppSnackbar.error(
           'Student Not Found',
           message,
-          snackPosition: SnackPosition.BOTTOM,
-          backgroundColor: Colors.red.shade700,
-          colorText: Colors.white,
-          duration: const Duration(seconds: 3),
         );
       }
     } finally {
@@ -135,15 +132,14 @@ class LaundryManagementController extends GetxController {
 
     try {
       await _repository.recharge(aadhar, amount);
-      Get.snackbar(
+      AppSnackbar.success(
         'Recharge Successful',
         'Added ₹${amount.toStringAsFixed(0)} to student account.',
-        snackPosition: SnackPosition.BOTTOM,
       );
       amountController.clear();
       await checkStudent(aadhar, isManual: true, force: true);
     } catch (e) {
-      Get.snackbar('Error', 'Recharge failed: $e');
+      AppSnackbar.error('Error', 'Recharge failed: $e');
     } finally {
       isSaving.value = false;
     }

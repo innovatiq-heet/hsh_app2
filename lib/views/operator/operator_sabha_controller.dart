@@ -5,6 +5,7 @@ import '../../network/api_exception.dart';
 import '../../network/repository/attendance/attendance_repository.dart';
 import '../../network/request/operator/operator_requests.dart';
 import '../../network/responses/attendance/attendance_models.dart';
+import '../../utils/app_snackbar.dart';
 
 class OperatorSabhaController extends GetxController with LoadStateMixin {
   final AttendanceRepository _repository = Get.find();
@@ -65,7 +66,7 @@ class OperatorSabhaController extends GetxController with LoadStateMixin {
     if (date.value == null ||
         startTime.value == null ||
         endTime.value == null) {
-      Get.snackbar(
+      AppSnackbar.warning(
         'Missing details',
         'Please select date, start time and end time.',
       );
@@ -107,10 +108,10 @@ class OperatorSabhaController extends GetxController with LoadStateMixin {
       await load();
       return true;
     } on ApiException catch (e) {
-      Get.snackbar('Error', e.message);
+      AppSnackbar.error('Error', e.message);
       return false;
     } catch (e) {
-      Get.snackbar('Error', 'Failed to schedule sabha.');
+      AppSnackbar.error('Error', 'Failed to schedule sabha.');
       return false;
     } finally {
       isSaving.value = false;
@@ -121,11 +122,11 @@ class OperatorSabhaController extends GetxController with LoadStateMixin {
     try {
       await _repository.deleteSabha(id);
       sabhas.removeWhere((s) => s.id == id);
-      Get.snackbar('Deleted', 'Sabha session removed.');
+      AppSnackbar.success('Deleted', 'Sabha session removed.');
     } on ApiException catch (e) {
-      Get.snackbar('Error', e.message);
+      AppSnackbar.error('Error', e.message);
     } catch (_) {
-      Get.snackbar('Error', 'Could not delete sabha.');
+      AppSnackbar.error('Error', 'Could not delete sabha.');
     }
   }
 }

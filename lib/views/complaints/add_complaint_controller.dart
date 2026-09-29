@@ -8,6 +8,7 @@ import '../../network/repository/complaints/complaints_repository.dart';
 import '../../network/repository/fees/fees_repository.dart';
 import '../../network/repository/laundry/laundry_repository.dart';
 import '../../network/request/complaints/submit_complaint_request.dart';
+import '../../utils/app_snackbar.dart';
 import '../student_profile/student_profile_controller.dart';
 
 class AddComplaintController extends GetxController with AadharResolvingMixin {
@@ -61,7 +62,7 @@ class AddComplaintController extends GetxController with AadharResolvingMixin {
   Future<bool> submit() async {
     if (!formKey.currentState!.validate()) return false;
     if (selectedCategory.value == null) {
-      Get.snackbar('Missing category', 'Please select a category');
+      AppSnackbar.warning('Missing category', 'Please select a category');
       return false;
     }
     // The backend's create-complaint validation requires `room` alongside
@@ -70,7 +71,7 @@ class AddComplaintController extends GetxController with AadharResolvingMixin {
     // matches how services_screen/vehicle_redirect_screen read the room.
     final room = Get.find<StudentProfileController>().profile.value?.room;
     if (room == null || room.isEmpty) {
-      Get.snackbar(
+      AppSnackbar.warning(
         'Profile still loading',
         'Open your Profile tab once so it can load, then try again.',
       );
@@ -96,19 +97,15 @@ class AddComplaintController extends GetxController with AadharResolvingMixin {
       );
       return true;
     } on ApiException catch (e) {
-      Get.snackbar(
+      AppSnackbar.error(
         'Submission Failed',
         e.message,
-        backgroundColor: Colors.redAccent,
-        colorText: Colors.white,
       );
       return false;
     } catch (_) {
-      Get.snackbar(
+      AppSnackbar.error(
         'Submission Failed',
         'Something went wrong. Please try again.',
-        backgroundColor: Colors.redAccent,
-        colorText: Colors.white,
       );
       return false;
     } finally {

@@ -10,6 +10,7 @@ import '../../network/api_exception.dart';
 import '../../network/repository/authentication/auth_repository.dart';
 import '../../network/request/authentication/login_request.dart';
 import '../../storage/session_store.dart';
+import '../../utils/app_snackbar.dart';
 
 class LoginController extends GetxController {
   final AuthRepository _authRepository = Get.find();
@@ -123,12 +124,9 @@ class LoginController extends GetxController {
   }
 
   void _showError(String message) {
-    Get.snackbar(
+    AppSnackbar.error(
       'Login Failed',
       message,
-      snackPosition: SnackPosition.BOTTOM,
-      backgroundColor: Colors.redAccent,
-      colorText: Colors.white,
     );
   }
 

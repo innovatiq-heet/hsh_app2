@@ -5,6 +5,7 @@ import '../../network/api_exception.dart';
 import '../../network/repository/attendance/attendance_repository.dart';
 import '../../network/repository/operator/operator_repository.dart';
 import '../../network/request/attendance/mark_attendance_request.dart';
+import '../../utils/app_snackbar.dart';
 
 class OperatorAttendanceBehalfController extends GetxController {
   final OperatorRepository _operatorRepository = Get.find();
@@ -58,11 +59,11 @@ class OperatorAttendanceBehalfController extends GetxController {
       return true;
     } on ApiException catch (e) {
       errorMessage.value = e.message;
-      Get.snackbar('Error', e.message, backgroundColor: Colors.red.shade100);
+      AppSnackbar.error('Error', e.message);
       return false;
     } catch (e) {
       errorMessage.value = 'Failed to log attendance. Please retry.';
-      Get.snackbar('Error', 'Failed to log attendance.', backgroundColor: Colors.red.shade100);
+      AppSnackbar.error('Error', 'Failed to log attendance.');
       return false;
     } finally {
       isSaving.value = false;

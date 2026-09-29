@@ -5,6 +5,7 @@ import '../../network/repository/laundry/laundry_repository.dart';
 import '../../network/request/laundry/submit_laundry_request.dart';
 import '../../network/responses/laundry/laundry_responses.dart';
 import '../../storage/session_store.dart';
+import '../../utils/app_snackbar.dart';
 
 class LaundryTicketDetailController extends GetxController {
   final LaundryRepository _repository = Get.find();
@@ -32,7 +33,7 @@ class LaundryTicketDetailController extends GetxController {
     try {
       ticket.value = await _repository.ticketDetail(ticketId);
     } catch (e) {
-      Get.snackbar('Error', 'Could not load ticket details: $e');
+      AppSnackbar.error('Error', 'Could not load ticket details: $e');
     } finally {
       isLoading.value = false;
     }
@@ -46,9 +47,9 @@ class LaundryTicketDetailController extends GetxController {
         const UpdateLaundryTicketRequest(status: LaundryStatus.accepted),
       );
       ticket.value = updated;
-      Get.snackbar('Success', 'Ticket #$ticketId marked as accepted.');
+      AppSnackbar.success('Success', 'Ticket #$ticketId marked as accepted.');
     } catch (e) {
-      Get.snackbar('Error', 'Failed to accept ticket: $e');
+      AppSnackbar.error('Error', 'Failed to accept ticket: $e');
     } finally {
       isUpdating.value = false;
     }
@@ -75,12 +76,12 @@ class LaundryTicketDetailController extends GetxController {
         ),
       );
       ticket.value = updated;
-      Get.snackbar(
+      AppSnackbar.success(
         'Success',
         'Ticket #$ticketId marked as washed with pricing.',
       );
     } catch (e) {
-      Get.snackbar('Error', 'Failed to update ticket: $e');
+      AppSnackbar.error('Error', 'Failed to update ticket: $e');
     } finally {
       isUpdating.value = false;
     }
@@ -94,9 +95,9 @@ class LaundryTicketDetailController extends GetxController {
         const UpdateLaundryTicketRequest(status: LaundryStatus.received),
       );
       ticket.value = updated;
-      Get.snackbar('Success', 'Ticket #$ticketId marked as delivered & received.');
+      AppSnackbar.success('Success', 'Ticket #$ticketId marked as delivered & received.');
     } catch (e) {
-      Get.snackbar('Error', 'Failed to complete ticket: $e');
+      AppSnackbar.error('Error', 'Failed to complete ticket: $e');
     } finally {
       isUpdating.value = false;
     }

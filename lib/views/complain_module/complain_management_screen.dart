@@ -6,6 +6,7 @@ import '../../constants/app_dimens.dart';
 import '../../constants/app_routes.dart';
 import '../../constants/app_text_styles.dart';
 import '../../storage/session_store.dart';
+import '../../utils/app_snackbar.dart';
 import '../../utils/date_formatting.dart';
 import '../shared/utils/complaint_category_style.dart';
 import '../shared/widgets/app_button.dart';
@@ -257,10 +258,9 @@ class ComplainManagementScreen extends GetView<ComplainManagementController> {
                                     color: AppColors.primary,
                                   ),
                                   onPressed: () {
-                                    Get.snackbar(
+                                    AppSnackbar.info(
                                       'Contact Student',
                                       'Phone: ${first.phone}',
-                                      snackPosition: SnackPosition.BOTTOM,
                                     );
                                   },
                                 ),

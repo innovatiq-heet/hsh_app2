@@ -5,6 +5,7 @@ import '../../constants/app_dimens.dart';
 import '../../constants/app_text_styles.dart';
 import '../../network/repository/laundry/laundry_repository.dart';
 import '../../network/request/laundry/submit_laundry_request.dart';
+import '../../utils/app_snackbar.dart';
 import '../shared/widgets/app_button.dart';
 
 class SubmitLaundryTicketSheet extends StatefulWidget {
@@ -59,10 +60,9 @@ class _SubmitLaundryTicketSheetState extends State<SubmitLaundryTicketSheet>
 
   Future<void> _submit() async {
     if (_totalAll <= 0) {
-      Get.snackbar(
+      AppSnackbar.warning(
         'No items selected',
         'Please add at least 1 garment to submit a ticket.',
-        snackPosition: SnackPosition.BOTTOM,
       );
       return;
     }
@@ -89,12 +89,9 @@ class _SubmitLaundryTicketSheetState extends State<SubmitLaundryTicketSheet>
       if (mounted) {
         Navigator.of(context).pop();
         widget.onSuccess?.call();
-        Get.snackbar(
+        AppSnackbar.success(
           'Ticket Created',
           'Your laundry ticket with $_totalAll items was submitted successfully.',
-          snackPosition: SnackPosition.BOTTOM,
-          backgroundColor: AppColors.successGreen.withValues(alpha: 0.15),
-          colorText: AppColors.textPrimary,
         );
       }
     } finally {

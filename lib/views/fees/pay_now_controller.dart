@@ -3,11 +3,10 @@ import 'package:flutter/services.dart';
 import 'package:get/get.dart';
 import 'package:image_picker/image_picker.dart';
 import '../../common_enums/payment_type.dart';
-import '../../constants/app_colors.dart';
-import '../../constants/app_dimens.dart';
 import '../../network/repository/fees/fees_repository.dart';
 import '../../network/request/fees/submit_payment_request.dart';
 import '../../network/responses/fees/fee_responses.dart';
+import '../../utils/app_snackbar.dart';
 import 'fees_controller.dart';
 
 class PayNowController extends GetxController {
@@ -67,14 +66,9 @@ class PayNowController extends GetxController {
 
   void copyToClipboard(String text, String label) {
     Clipboard.setData(ClipboardData(text: text));
-    Get.snackbar(
+    AppSnackbar.success(
       'Copied',
       '$label copied to clipboard',
-      backgroundColor: AppColors.headerBlue,
-      colorText: Colors.white,
-      icon: const Icon(Icons.copy_rounded, color: Colors.white),
-      snackPosition: SnackPosition.BOTTOM,
-      margin: const EdgeInsets.all(AppDimens.gapMd),
       duration: const Duration(seconds: 2),
     );
   }
@@ -89,7 +83,7 @@ class PayNowController extends GetxController {
         attachedProofPath.value = file.path;
       }
     } catch (e) {
-      Get.snackbar('Image Picker', 'Could not select image: $e');
+      AppSnackbar.error('Image Picker', 'Could not select image: $e');
     }
   }
 
@@ -115,21 +109,17 @@ class PayNowController extends GetxController {
     if (type == PaymentType.cheque) {
       if (chequeNumberController.text.trim().isEmpty ||
           chequeDate.value == null) {
-        Get.snackbar(
+        AppSnackbar.warning(
           'Missing details',
           'Cheque number and date are required.',
-          backgroundColor: AppColors.cancelledRed,
-          colorText: Colors.white,
         );
         return null;
       }
     } else if (type == PaymentType.online) {
       if (transactionRefController.text.trim().isEmpty) {
-        Get.snackbar(
+        AppSnackbar.warning(
           'Missing Reference',
           'Please enter the UPI Reference ID or UTR number.',
-          backgroundColor: AppColors.warningOrange,
-          colorText: Colors.white,
         );
         return null;
       }
@@ -169,13 +159,9 @@ class PayNowController extends GetxController {
 
       return txn;
     } catch (e) {
-      Get.snackbar(
+      AppSnackbar.error(
         'Submission Failed',
         e.toString().replaceAll('ApiException: ', '').replaceAll('Exception: ', ''),
-        backgroundColor: AppColors.cancelledRed,
-        colorText: Colors.white,
-        snackPosition: SnackPosition.BOTTOM,
-        margin: const EdgeInsets.all(AppDimens.gapMd),
       );
       return null;
     } finally {

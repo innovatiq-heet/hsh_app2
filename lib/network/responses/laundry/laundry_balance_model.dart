@@ -14,6 +14,23 @@ class LaundryBalanceModel {
   String get studentAadhar => aadhar;
 
   factory LaundryBalanceModel.fromJson(Map<String, dynamic> json) {
+    if (json['balance'] is Map) {
+      final nested = json['balance'];
+      return LaundryBalanceModel.fromJson(
+        nested is Map<String, dynamic>
+            ? nested
+            : Map<String, dynamic>.from(nested as Map),
+      );
+    }
+    if (json['data'] is Map) {
+      final nested = json['data'];
+      return LaundryBalanceModel.fromJson(
+        nested is Map<String, dynamic>
+            ? nested
+            : Map<String, dynamic>.from(nested as Map),
+      );
+    }
+
     double parseDouble(dynamic val, [double def = 0.0]) {
       if (val == null) return def;
       if (val is num) return val.toDouble();

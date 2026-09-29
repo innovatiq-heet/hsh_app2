@@ -21,22 +21,40 @@ class LaundryRepository {
         'Server communication error. Please check your network connection.';
   }
 
+  Map<String, dynamic> _extractMap(dynamic body, String key) {
+    if (body is! Map) {
+      throw ApiException('Unexpected server response format');
+    }
+    final bodyMap = body is Map<String, dynamic>
+        ? body
+        : Map<String, dynamic>.from(body);
+    final data = bodyMap['data'];
+    if (data is Map) {
+      final dataMap = data is Map<String, dynamic>
+          ? data
+          : Map<String, dynamic>.from(data);
+      if (dataMap[key] is Map) {
+        final nested = dataMap[key];
+        return nested is Map<String, dynamic>
+            ? nested
+            : Map<String, dynamic>.from(nested as Map);
+      }
+      return dataMap;
+    }
+    if (bodyMap[key] is Map) {
+      final nested = bodyMap[key];
+      return nested is Map<String, dynamic>
+          ? nested
+          : Map<String, dynamic>.from(nested as Map);
+    }
+    return bodyMap;
+  }
+
   // --- 4.1 Submit Laundry Ticket (POST /laundry) ---
   Future<LaundryTicketModel> submit(SubmitLaundryTicketRequest request) async {
     try {
       final response = await _dio.post('/laundry', data: request.toJson());
-      final body = response.data;
-      Map<String, dynamic> ticketData;
-      if (body is Map<String, dynamic>) {
-        final data = body['data'];
-        if (data is Map<String, dynamic>) {
-          ticketData = (data['laundry'] as Map<String, dynamic>?) ?? data;
-        } else {
-          ticketData = (body['laundry'] as Map<String, dynamic>?) ?? body;
-        }
-      } else {
-        throw ApiException('Unexpected server response format');
-      }
+      final ticketData = _extractMap(response.data, 'laundry');
       return LaundryTicketModel.fromJson(ticketData);
     } on DioException catch (e) {
       developer.log(
@@ -79,18 +97,7 @@ class LaundryRepository {
   Future<LaundryTicketModel> ticketDetail(dynamic id) async {
     try {
       final response = await _dio.get('/laundry/$id');
-      final body = response.data;
-      Map<String, dynamic> ticketData;
-      if (body is Map<String, dynamic>) {
-        final data = body['data'];
-        if (data is Map<String, dynamic>) {
-          ticketData = (data['laundry'] as Map<String, dynamic>?) ?? data;
-        } else {
-          ticketData = (body['laundry'] as Map<String, dynamic>?) ?? body;
-        }
-      } else {
-        throw ApiException('Unexpected server response format');
-      }
+      final ticketData = _extractMap(response.data, 'laundry');
       return LaundryTicketModel.fromJson(ticketData);
     } on DioException catch (e) {
       developer.log(
@@ -117,18 +124,46 @@ class LaundryRepository {
         queryParameters: query,
       );
       final body = response.data;
-      Map<String, dynamic> balData;
-      if (body is Map<String, dynamic>) {
-        final data = body['data'];
-        if (data is Map<String, dynamic>) {
-          balData = (data['balance'] as Map<String, dynamic>?) ?? data;
-        } else {
-          balData = (body['balance'] as Map<String, dynamic>?) ?? body;
-        }
-      } else {
-        throw ApiException('Unexpected server response format');
+      if (body is num) {
+        return LaundryBalanceModel(
+          balance: body.toDouble(),
+          aadhar: aadhar ?? '',
+        );
       }
-      return LaundryBalanceModel.fromJson(balData);
+      if (body is Map) {
+        final bodyMap = body is Map<String, dynamic>
+            ? body
+            : Map<String, dynamic>.from(body);
+        final data = bodyMap['data'];
+        if (data is num) {
+          return LaundryBalanceModel(
+            balance: data.toDouble(),
+            aadhar: aadhar ?? '',
+          );
+        }
+        if (data is Map) {
+          final dataMap = data is Map<String, dynamic>
+              ? data
+              : Map<String, dynamic>.from(data);
+          if (dataMap['balance'] is Map) {
+            final nested = dataMap['balance'];
+            final nestedMap = nested is Map<String, dynamic>
+                ? nested
+                : Map<String, dynamic>.from(nested as Map);
+            return LaundryBalanceModel.fromJson(nestedMap);
+          }
+          return LaundryBalanceModel.fromJson(dataMap);
+        }
+        if (bodyMap['balance'] is Map) {
+          final nested = bodyMap['balance'];
+          final nestedMap = nested is Map<String, dynamic>
+              ? nested
+              : Map<String, dynamic>.from(nested as Map);
+          return LaundryBalanceModel.fromJson(nestedMap);
+        }
+        return LaundryBalanceModel.fromJson(bodyMap);
+      }
+      throw ApiException('Unexpected server response format');
     } on DioException catch (e) {
       developer.log(
         'GET /laundry/balance error: ${e.message}',
@@ -182,18 +217,7 @@ class LaundryRepository {
         '/laundry/admin/$id',
         data: request.toJson(),
       );
-      final body = response.data;
-      Map<String, dynamic> ticketData;
-      if (body is Map<String, dynamic>) {
-        final data = body['data'];
-        if (data is Map<String, dynamic>) {
-          ticketData = (data['laundry'] as Map<String, dynamic>?) ?? data;
-        } else {
-          ticketData = (body['laundry'] as Map<String, dynamic>?) ?? body;
-        }
-      } else {
-        throw ApiException('Unexpected server response format');
-      }
+      final ticketData = _extractMap(response.data, 'laundry');
       return LaundryTicketModel.fromJson(ticketData);
     } on DioException catch (e) {
       developer.log(
@@ -230,18 +254,7 @@ class LaundryRepository {
         '/laundry/admin/recharge',
         data: {'aadhar': aadhar, 'amount': amount},
       );
-      final body = response.data;
-      Map<String, dynamic> rechargeData;
-      if (body is Map<String, dynamic>) {
-        final data = body['data'];
-        if (data is Map<String, dynamic>) {
-          rechargeData = (data['recharge'] as Map<String, dynamic>?) ?? data;
-        } else {
-          rechargeData = (body['recharge'] as Map<String, dynamic>?) ?? body;
-        }
-      } else {
-        throw ApiException('Unexpected server response format');
-      }
+      final rechargeData = _extractMap(response.data, 'recharge');
       return LaundryRechargeModel.fromJson(rechargeData);
     } on DioException catch (e) {
       developer.log(
@@ -282,8 +295,13 @@ class LaundryRepository {
       }
       if (rawList is List) {
         return rawList
+            .whereType<Map>()
             .map(
-              (e) => LaundryRechargeModel.fromJson(e as Map<String, dynamic>),
+              (e) => LaundryRechargeModel.fromJson(
+                e is Map<String, dynamic>
+                    ? e
+                    : Map<String, dynamic>.from(e),
+              ),
             )
             .toList();
       }
@@ -337,7 +355,14 @@ class LaundryRepository {
     }
     if (rawList is List) {
       return rawList
-          .map((e) => LaundryTicketModel.fromJson(e as Map<String, dynamic>))
+          .whereType<Map>()
+          .map(
+            (e) => LaundryTicketModel.fromJson(
+              e is Map<String, dynamic>
+                  ? e
+                  : Map<String, dynamic>.from(e),
+            ),
+          )
           .toList();
     }
     return [];

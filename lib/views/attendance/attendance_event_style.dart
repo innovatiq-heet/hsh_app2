@@ -115,4 +115,95 @@ class AttendanceEventStyle {
     // 21:00 to 05:00 -> Night
     return AttendanceType.night;
   }
+
+  /// Harmonic color gradient for iOS NameDrop wave propagation,
+  /// strictly matching APP_THEME_AND_COLORS.md palette.
+  List<Color> get waveColors {
+    switch (type) {
+      case AttendanceType.aarti:
+        return const [
+          Color(0xFFFFE0B2),
+          AppColors.warningOrange,
+          AppColors.primaryLight,
+          AppColors.primary,
+        ];
+      case AttendanceType.morning:
+        return const [
+          Color(0xFFFFD180),
+          AppColors.warningOrange,
+          AppColors.secondaryLight,
+          AppColors.primary,
+        ];
+      case AttendanceType.lunch:
+        return const [
+          Color(0xFFFFE8DC),
+          AppColors.secondaryLight,
+          AppColors.secondary,
+          AppColors.primary,
+        ];
+      case AttendanceType.dinner:
+        return const [
+          Color(0xFFFFCCBC),
+          AppColors.primaryLight,
+          AppColors.primary,
+          AppColors.primaryDark,
+        ];
+      case AttendanceType.night:
+        return const [
+          Color(0xFFE2E8F0),
+          AppColors.primaryLight,
+          AppColors.headerBlue,
+          Color(0xFF1E293B),
+        ];
+      case AttendanceType.sabha:
+        return const [
+          Color(0xFFFFCDD2),
+          AppColors.cancelledRed,
+          AppColors.primary,
+          AppColors.primaryDark,
+        ];
+    }
+  }
+
+  /// Ambient glow highlight color for the overlay
+  Color get glowColor => primaryColor;
+
+  /// Default brand wave colors when no event type is specified
+  static const List<Color> defaultBrandWaveColors = [
+    Color(0xFFFFE8DC),
+    AppColors.primaryLight,
+    AppColors.primary,
+    AppColors.secondary,
+  ];
+
+  /// Intelligently resolves an AttendanceEventStyle from session text or type name.
+  static AttendanceEventStyle? tryResolve(String? name) {
+    if (name == null || name.trim().isEmpty) return null;
+    final clean = name.toLowerCase().trim();
+
+    for (final t in AttendanceType.values) {
+      if (clean.contains(t.name.toLowerCase()) ||
+          clean.contains(t.label.toLowerCase())) {
+        return AttendanceEventStyle.of(t);
+      }
+    }
+
+    if (clean.contains('morning')) return AttendanceEventStyle.of(AttendanceType.morning);
+    if (clean.contains('aarti')) return AttendanceEventStyle.of(AttendanceType.aarti);
+    if (clean.contains('lunch') || clean.contains('midday')) {
+      return AttendanceEventStyle.of(AttendanceType.lunch);
+    }
+    if (clean.contains('dinner') || clean.contains('evening')) {
+      return AttendanceEventStyle.of(AttendanceType.dinner);
+    }
+    if (clean.contains('night') || clean.contains('bedtime')) {
+      return AttendanceEventStyle.of(AttendanceType.night);
+    }
+    if (clean.contains('sabha') || clean.contains('assembly')) {
+      return AttendanceEventStyle.of(AttendanceType.sabha);
+    }
+
+    return null;
+  }
 }
+

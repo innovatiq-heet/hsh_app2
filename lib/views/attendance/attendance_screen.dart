@@ -197,6 +197,7 @@ class _AttendanceScreenState extends State<AttendanceScreen> with SingleTickerPr
             context,
             title: 'Attendance Marked!',
             sessionName: type.label,
+            eventType: type,
             subtitle: 'Your attendance for ${type.label} has been recorded successfully. Have a great day!',
           );
         }

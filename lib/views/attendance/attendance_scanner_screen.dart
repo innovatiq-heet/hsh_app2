@@ -285,7 +285,9 @@ class AttendanceScannerScreen extends GetView<AttendanceScannerController> {
 
             return NamedropAttendanceOverlay(
               title: 'Attendance Marked!',
-              sessionName: '${style.emoji} ${record.type.label}',
+              sessionName: record.type.label,
+              eventType: record.type,
+              eventStyle: style,
               subtitle: 'Your attendance has been recorded successfully via QR code.',
               onDismiss: () {
                 Get.back();

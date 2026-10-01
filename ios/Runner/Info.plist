@@ -72,5 +72,9 @@
 	<string>Photo library access is required to select and upload fee payment receipts and complaint attachments.</string>
 	<key>NSMicrophoneUsageDescription</key>
 	<string>Microphone access is required for media recording if needed.</string>
+	<key>NSBluetoothAlwaysUsageDescription</key>
+	<string>Bluetooth is required to detect nearby hostel attendance beacons and verify your presence.</string>
+	<key>NSBluetoothPeripheralUsageDescription</key>
+	<string>Bluetooth is required to verify attendance with the floor beacon device.</string>
 </dict>
 </plist>

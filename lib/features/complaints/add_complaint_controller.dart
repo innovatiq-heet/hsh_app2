@@ -6,7 +6,7 @@ import '../../../core/network/api_exception.dart';
 import '../../../core/network/repository/complaints/complaints_repository.dart';
 import '../../../core/network/request/complaints/submit_complaint_request.dart';
 import '../../../core/utils/app_snackbar.dart';
-import '../../../services/aadhar_service.dart';
+import '../../../core/services/aadhar_service.dart';
 import '../student_profile/student_profile_controller.dart';
 
 class AddComplaintController extends GetxController {

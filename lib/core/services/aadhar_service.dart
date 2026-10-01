@@ -1,8 +1,8 @@
-﻿import 'package:get/get.dart';
-import '../core/network/api_exception.dart';
-import '../core/network/repository/fees/fees_repository.dart';
-import '../core/network/repository/laundry/laundry_repository.dart';
-import '../../core/storage/session_store.dart';
+import 'package:get/get.dart';
+import '../network/api_exception.dart';
+import '../network/repository/fees/fees_repository.dart';
+import '../network/repository/laundry/laundry_repository.dart';
+import '../storage/session_store.dart';
 
 /// Resolves a student's Aadhar number using a cascading fallback strategy,
 /// then caches the result in [SessionStore].

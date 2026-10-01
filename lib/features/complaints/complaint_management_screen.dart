@@ -17,7 +17,7 @@ import '../shared/widgets/gradient_header.dart';
 import '../shared/widgets/icon_badge.dart';
 import '../shared/widgets/section_header.dart';
 import '../shared/widgets/status_badge.dart';
-import 'complain_management_controller.dart';
+import 'complaint_management_controller.dart';
 import '../../../core/utils/app_snackbar.dart';
 
 class ComplainManagementScreen extends GetView<ComplainManagementController> {
@@ -443,7 +443,7 @@ class ComplainManagementScreen extends GetView<ComplainManagementController> {
                                           ),
                                           const SizedBox(height: 2),
                                           Text(
-                                            '#${c.id.toUpperCase()} Â· ${c.category} Â· ${DateFormatting.dateOnly(c.submittedAt)}',
+                                            '#${c.id.toUpperCase()} Ã‚Â· ${c.category} Ã‚Â· ${DateFormatting.dateOnly(c.submittedAt)}',
                                             style:
                                                 AppTextStyles.caption.copyWith(
                                               color: AppColors.textSecondary,

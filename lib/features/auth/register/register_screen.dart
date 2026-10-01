@@ -1,13 +1,13 @@
-﻿import 'package:flutter/material.dart';
+import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:get/get.dart';
 import '../../../core/constants/app_colors.dart';
 import '../../../core/constants/app_dimens.dart';
 import '../../../core/constants/app_strings.dart';
 import '../../../core/constants/app_text_styles.dart';
-import '../shared/widgets/app_button.dart';
-import '../shared/widgets/app_text_field.dart';
-import '../shared/widgets/brand.dart';
+import '../../shared/widgets/app_button.dart';
+import '../../shared/widgets/app_text_field.dart';
+import '../../shared/widgets/brand.dart';
 import 'register_controller.dart';
 
 class RegisterScreen extends GetView<RegisterController> {

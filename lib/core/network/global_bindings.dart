@@ -1,4 +1,4 @@
-﻿import 'package:get/get.dart';
+import 'package:get/get.dart';
 import './api_client.dart';
 import './network_controller.dart';
 import './repository/attendance/attendance_repository.dart';
@@ -10,7 +10,7 @@ import './repository/leave/leave_repository.dart';
 import './repository/operator/operator_repository.dart';
 import './repository/student_profile/student_profile_repository.dart';
 import '../storage/session_store.dart';
-import '../../services/aadhar_service.dart';
+import '../services/aadhar_service.dart';
 
 /// App-wide dependency registrations.
 ///

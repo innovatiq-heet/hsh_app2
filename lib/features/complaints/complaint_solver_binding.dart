@@ -1,7 +1,7 @@
 import 'package:get/get.dart';
-import '../complain_module/complain_module_binding.dart';
-import 'complain_admin_detail_controller.dart';
-import 'complain_solver_controller.dart';
+import 'complaint_module_binding.dart';
+import 'complaint_admin_detail_controller.dart';
+import 'complaint_solver_controller.dart';
 
 class ComplainSolverBinding extends Bindings {
   @override

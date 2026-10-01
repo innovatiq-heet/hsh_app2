@@ -1,4 +1,4 @@
-﻿import 'package:flutter/material.dart';
+import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import '../../../core/enums/complaint_status.dart';
 import '../../../core/constants/app_colors.dart';
@@ -18,7 +18,7 @@ import '../shared/widgets/section_header.dart';
 import '../shared/widgets/skeleton_loader.dart';
 import '../shared/widgets/status_badge.dart';
 import '../shared/widgets/stepper_timeline.dart';
-import 'complain_admin_detail_controller.dart';
+import 'complaint_admin_detail_controller.dart';
 
 class ComplainAdminDetailScreen
     extends GetView<ComplainAdminDetailController> {

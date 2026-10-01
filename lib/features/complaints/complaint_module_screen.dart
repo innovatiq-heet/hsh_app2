@@ -1,10 +1,10 @@
-﻿import 'package:flutter/material.dart';
+import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import '../../../core/constants/app_colors.dart';
-import 'complain_home_screen.dart';
-import 'complain_management_screen.dart';
-import 'complain_module_controller.dart';
-import 'complain_orders_screen.dart';
+import 'complaint_home_screen.dart';
+import 'complaint_management_screen.dart';
+import 'complaint_module_controller.dart';
+import 'complaint_orders_screen.dart';
 
 class ComplainModuleScreen extends GetView<ComplainModuleController> {
   const ComplainModuleScreen({super.key});

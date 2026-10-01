@@ -9,7 +9,7 @@ import '../../../core/enums/attendance_type.dart';
 import '../../../core/constants/app_colors.dart';
 import '../../../core/constants/app_dimens.dart';
 import '../../../core/constants/app_text_styles.dart';
-import '../../attendance/attendance_event_style.dart';
+import '../../attendance/views/attendance_event_style.dart';
 
 /// An iOS 17 NameDrop & Proximity Sharing celebratory overlay.
 ///

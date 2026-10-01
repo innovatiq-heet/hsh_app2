@@ -1,6 +1,5 @@
-﻿import 'package:flutter/material.dart';
+import 'package:flutter/material.dart';
 import 'package:get/get.dart';
-import '../../../core/enums/admission_status.dart';
 import '../../../core/models/student_profile/student_profile_model.dart';
 import '../../../core/constants/app_colors.dart';
 import '../../../core/constants/app_dimens.dart';
@@ -111,9 +110,6 @@ class StudentProfileScreen extends GetView<StudentProfileController> {
                               ],
                             ),
                           ],
-                          const SizedBox(height: AppDimens.gapXl),
-                          // const SectionHeader(title: 'Sports & fitness'),
-                          // _LifestyleChips(profile: profile),
                         ],
                       ),
                     ),
@@ -298,54 +294,6 @@ class _DetailsCard extends StatelessWidget {
           ],
         ],
       ),
-    );
-  }
-}
-
-class _LifestyleChips extends StatelessWidget {
-  final StudentProfileModel profile;
-
-  const _LifestyleChips({required this.profile});
-
-  @override
-  Widget build(BuildContext context) {
-    final items = [
-      ('Cricket', Icons.sports_cricket_outlined, profile.playsCricket),
-      ('Badminton', Icons.sports_tennis_outlined, profile.playsBadminton),
-      ('Gym', Icons.fitness_center_outlined, profile.goesToGym),
-    ];
-    return Row(
-      children: [
-        for (int i = 0; i < items.length; i++) ...[
-          if (i > 0) const SizedBox(width: AppDimens.gapMd),
-          Expanded(
-            child: AppCard(
-              padding: const EdgeInsets.symmetric(vertical: AppDimens.gapLg),
-              color: items[i].$3 ? AppColors.primarySoft : AppColors.surface,
-              elevated: !items[i].$3,
-              child: Column(
-                children: [
-                  Icon(
-                    items[i].$2,
-                    color: items[i].$3
-                        ? AppColors.primary
-                        : AppColors.textMuted,
-                  ),
-                  const SizedBox(height: 6),
-                  Text(
-                    items[i].$1,
-                    style: AppTextStyles.label.copyWith(
-                      color: items[i].$3
-                          ? AppColors.primary
-                          : AppColors.textMuted,
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          ),
-        ],
-      ],
     );
   }
 }

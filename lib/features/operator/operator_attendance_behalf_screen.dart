@@ -17,9 +17,10 @@ import '../shared/widgets/dropdown_field.dart';
 import '../shared/widgets/gradient_header.dart';
 import '../shared/widgets/section_header.dart';
 import 'operator_attendance_behalf_controller.dart';
+import '../../../core/utils/app_snackbar.dart';
 
-/// For manual corrections — e.g. a student who couldn't scan/mark
-/// themselves (spec §5.16).
+/// For manual corrections â€” e.g. a student who couldn't scan/mark
+/// themselves (spec Â§5.16).
 class OperatorAttendanceBehalfScreen
     extends GetView<OperatorAttendanceBehalfController> {
   const OperatorAttendanceBehalfScreen({super.key});

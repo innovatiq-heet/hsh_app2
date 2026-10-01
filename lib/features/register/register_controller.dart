@@ -6,6 +6,7 @@ import '../../../core/network/repository/authentication/auth_repository.dart';
 import '../../../core/network/request/authentication/login_request.dart';
 import '../../../core/storage/session_store.dart';
 import '../../../core/utils/validators.dart';
+import '../../../core/utils/app_snackbar.dart';
 
 class RegisterController extends GetxController {
   final AuthRepository _authRepository = Get.find();

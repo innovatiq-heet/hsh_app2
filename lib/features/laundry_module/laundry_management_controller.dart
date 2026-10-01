@@ -4,6 +4,7 @@ import 'package:get/get.dart';
 import '../../../core/network/api_exception.dart';
 import '../../../core/network/repository/laundry/laundry_repository.dart';
 import '../../../core/network/responses/laundry/laundry_responses.dart';
+import '../../../core/utils/app_snackbar.dart';
 
 class LaundryManagementController extends GetxController {
   final LaundryRepository _repository = Get.find();
@@ -133,7 +134,7 @@ class LaundryManagementController extends GetxController {
       await _repository.recharge(aadhar, amount);
       AppSnackbar.success(
         'Recharge Successful',
-        'Added ₹${amount.toStringAsFixed(0)} to student account.',
+        'Added â‚¹${amount.toStringAsFixed(0)} to student account.',
       );
       amountController.clear();
       await checkStudent(aadhar, isManual: true, force: true);

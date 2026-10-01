@@ -3,12 +3,11 @@ import 'package:flutter/services.dart';
 import 'package:get/get.dart';
 import 'package:image_picker/image_picker.dart';
 import '../../../core/enums/payment_type.dart';
-import '../../../core/constants/app_colors.dart';
-import '../../../core/constants/app_dimens.dart';
 import '../../../core/network/repository/fees/fees_repository.dart';
 import '../../../core/network/request/fees/submit_payment_request.dart';
 import '../../../core/network/responses/fees/fee_responses.dart';
 import 'fees_controller.dart';
+import '../../../core/utils/app_snackbar.dart';
 
 class PayNowController extends GetxController {
   final FeesRepository _repository = Get.find();

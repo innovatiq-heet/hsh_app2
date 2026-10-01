@@ -6,6 +6,7 @@ import '../../../core/network/repository/laundry/laundry_repository.dart';
 import '../../../core/network/request/laundry/submit_laundry_request.dart';
 import '../../../core/network/responses/laundry/laundry_responses.dart';
 import '../../../core/storage/session_store.dart';
+import '../../../core/utils/app_snackbar.dart';
 
 class LaundryOrdersController extends GetxController with LoadStateMixin {
   final LaundryRepository _repository = Get.find();

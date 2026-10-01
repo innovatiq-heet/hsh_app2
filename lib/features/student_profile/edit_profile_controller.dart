@@ -4,6 +4,7 @@ import '../../../core/models/student_profile/student_profile_model.dart';
 import '../../../core/network/api_exception.dart';
 import '../../../core/network/repository/student_profile/student_profile_repository.dart';
 import '../../../core/network/request/student_profile/update_profile_request.dart';
+import '../../../core/utils/app_snackbar.dart';
 
 class EditProfileController extends GetxController {
   final StudentProfileRepository _repository = Get.find();
@@ -11,7 +12,7 @@ class EditProfileController extends GetxController {
   late final StudentProfileModel initialProfile =
       Get.arguments as StudentProfileModel;
 
-  // Name fields are display-only — the backend's update allow-list doesn't
+  // Name fields are display-only â€” the backend's update allow-list doesn't
   // include them (see StudentProfileModel.studentBlockedFields), so these
   // controllers exist only to show the current value, never to send it.
   late final firstNameController = TextEditingController(

@@ -5,10 +5,10 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:intl/intl.dart';
 
-import '../../../common_enums/attendance_type.dart';
-import '../../../constants/app_colors.dart';
-import '../../../constants/app_dimens.dart';
-import '../../../constants/app_text_styles.dart';
+import '../../../core/enums/attendance_type.dart';
+import '../../../core/constants/app_colors.dart';
+import '../../../core/constants/app_dimens.dart';
+import '../../../core/constants/app_text_styles.dart';
 import '../../attendance/attendance_event_style.dart';
 
 /// An iOS 17 NameDrop & Proximity Sharing celebratory overlay.

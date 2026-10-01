@@ -14,6 +14,7 @@ import '../shared/widgets/gradient_header.dart';
 import '../shared/widgets/section_header.dart';
 import '../shared/widgets/status_badge.dart';
 import 'operator_sabha_controller.dart';
+import '../../../core/utils/app_snackbar.dart';
 
 class OperatorSabhaScreen extends GetView<OperatorSabhaController> {
   const OperatorSabhaScreen({super.key});
@@ -197,7 +198,7 @@ class OperatorSabhaScreen extends GetView<OperatorSabhaController> {
                                 ),
                                 const SizedBox(height: AppDimens.gapXs),
                                 Text(
-                                  '${DateFormatting.dateOnly(sabha.date)} • ${DateFormatting.time(sabha.startTime)} – ${DateFormatting.time(sabha.endTime)}',
+                                  '${DateFormatting.dateOnly(sabha.date)} â€¢ ${DateFormatting.time(sabha.startTime)} â€“ ${DateFormatting.time(sabha.endTime)}',
                                   style: AppTextStyles.bodySm.copyWith(
                                     color: AppColors.textSecondary,
                                   ),

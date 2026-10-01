@@ -6,6 +6,7 @@ import '../../../core/utils/validators.dart';
 import '../shared/widgets/app_button.dart';
 import '../shared/widgets/app_text_field.dart';
 import 'operator_deposit_debit_controller.dart';
+import '../../../core/utils/app_snackbar.dart';
 
 class OperatorDepositDebitScreen
     extends GetView<OperatorDepositDebitController> {

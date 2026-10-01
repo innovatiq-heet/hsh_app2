@@ -21,6 +21,7 @@ import '../shared/widgets/section_header.dart';
 import '../shared/widgets/skeleton_loader.dart';
 import '../shared/widgets/status_badge.dart';
 import 'complain_orders_controller.dart';
+import '../../../core/utils/app_snackbar.dart';
 
 class ComplainOrdersScreen extends GetView<ComplainOrdersController> {
   const ComplainOrdersScreen({super.key});
@@ -565,7 +566,7 @@ class _StaffComplaintCard extends StatelessWidget {
                         ),
                         if (complaint.studentAadhar.isNotEmpty) ...[
                           const Text(
-                            ' · ',
+                            ' Â· ',
                             style: TextStyle(color: AppColors.textMuted),
                           ),
                           Text(

@@ -11,6 +11,7 @@ import '../../../core/utils/currency_formatting.dart';
 import '../../../core/utils/date_formatting.dart';
 import '../shared/widgets/app_button.dart';
 import '../shared/widgets/app_card.dart';
+import '../../../core/utils/app_snackbar.dart';
 
 class PaymentReceiptScreen extends StatelessWidget {
   const PaymentReceiptScreen({super.key});
@@ -262,7 +263,7 @@ class PaymentReceiptScreen extends StatelessWidget {
                                 ),
                               ),
                               Text(
-                                'No signature required · Hari Saurabh Hostel ERP',
+                                'No signature required Â· Hari Saurabh Hostel ERP',
                                 style: AppTextStyles.caption.copyWith(
                                   color: AppColors.textMuted,
                                   fontSize: 10,

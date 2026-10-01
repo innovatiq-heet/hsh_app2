@@ -4,6 +4,7 @@ import '../../../core/enums/complaint_status.dart';
 import '../../../core/network/repository/complaints/complaints_repository.dart';
 import '../../../core/network/request/complaints/update_complaint_request.dart';
 import '../../../core/network/responses/complaints/complaint_response.dart';
+import '../../../core/utils/app_snackbar.dart';
 
 class ComplainAdminDetailController extends GetxController {
   final ComplaintsRepository _repository = Get.find();

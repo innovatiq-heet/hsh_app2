@@ -1,0 +1,54 @@
+﻿import 'package:get/get.dart';
+import '../../../core/abstracts/mixins/load_state_mixin.dart';
+import '../../../core/enums/laundry_status.dart';
+import '../../../core/network/repository/laundry/laundry_repository.dart';
+import '../../../core/network/responses/laundry/laundry_responses.dart';
+
+class LaundryController extends GetxController with LoadStateMixin {
+  final LaundryRepository _repository = Get.find();
+
+  final balanceModel = Rxn<LaundryBalanceModel>();
+  final balance = 0.0.obs;
+  final totalRecharges = 0.0.obs;
+  final totalSpend = 0.0.obs;
+
+  final tickets = <LaundryTicketModel>[].obs;
+  final selectedStatusFilter = Rxn<LaundryStatus>();
+
+  int get activeCount =>
+      tickets.where((t) => t.status != LaundryStatus.received).length;
+
+  int countForStatus(LaundryStatus? status) {
+    if (status == null) return tickets.length;
+    return tickets.where((t) => t.status == status).length;
+  }
+
+  List<LaundryTicketModel> get filteredTickets {
+    if (selectedStatusFilter.value == null) return tickets;
+    return tickets.where((t) => t.status == selectedStatusFilter.value).toList();
+  }
+
+  @override
+  void onInit() {
+    super.onInit();
+    load();
+  }
+
+  Future<void> load() => guard(() async {
+    final results = await Future.wait([
+      _repository.balance(),
+      _repository.tickets(),
+    ]);
+    final b = results[0] as LaundryBalanceModel;
+    balanceModel.value = b;
+    balance.value = b.balance;
+    totalRecharges.value = b.totalRecharges;
+    totalSpend.value = b.totalSpend;
+
+    tickets.assignAll(results[1] as List<LaundryTicketModel>);
+  });
+
+  void setFilter(LaundryStatus? status) {
+    selectedStatusFilter.value = status;
+  }
+}

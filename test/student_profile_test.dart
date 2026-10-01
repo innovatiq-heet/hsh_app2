@@ -1,9 +1,9 @@
-import 'package:flutter_test/flutter_test.dart';
+﻿import 'package:flutter_test/flutter_test.dart';
 import 'package:get/get.dart';
-import 'package:hsh_app2/common_enums/admission_status.dart';
-import 'package:hsh_app2/common_models/student_profile/student_profile_model.dart';
-import 'package:hsh_app2/network/api_client.dart';
-import 'package:hsh_app2/network/repository/student_profile/student_profile_repository.dart';
+import 'package:hsh_app2/core/enums/admission_status.dart';
+import 'package:hsh_app2/core/models/student_profile/student_profile_model.dart';
+import 'package:hsh_app2/core/network/api_client.dart';
+import 'package:hsh_app2/core/network/repository/student_profile/student_profile_repository.dart';
 
 void main() {
   setUp(() {

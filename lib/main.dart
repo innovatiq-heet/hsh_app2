@@ -1,12 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
-import 'constants/app_pages.dart';
-import 'constants/app_routes.dart';
-import 'constants/app_strings.dart';
-import 'constants/app_theme.dart';
-import 'network/global_bindings.dart';
-
-import 'views/shared/widgets/network_wrapper.dart';
+import 'core/constants/app_pages.dart';
+import 'core/constants/app_routes.dart';
+import 'core/constants/app_strings.dart';
+import 'core/constants/app_theme.dart';
+import 'core/network/global_bindings.dart';
+import 'features/shared/widgets/network_wrapper.dart';
 
 void main() {
   runApp(const HshApp());

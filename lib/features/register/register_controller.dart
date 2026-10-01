@@ -1,4 +1,4 @@
-﻿import 'package:flutter/material.dart';
+import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import '../../../core/constants/app_routes.dart';
 import '../../../core/network/api_exception.dart';
@@ -63,12 +63,9 @@ class RegisterController extends GetxController {
   }
 
   void _showError(String message) {
-    Get.snackbar(
+    AppSnackbar.error(
       'Registration Failed',
       message,
-      snackPosition: SnackPosition.BOTTOM,
-      backgroundColor: Colors.redAccent,
-      colorText: Colors.white,
     );
   }
 }

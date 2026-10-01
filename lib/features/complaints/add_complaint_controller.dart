@@ -5,6 +5,7 @@ import 'package:image_picker/image_picker.dart';
 import '../../../core/network/api_exception.dart';
 import '../../../core/network/repository/complaints/complaints_repository.dart';
 import '../../../core/network/request/complaints/submit_complaint_request.dart';
+import '../../../core/utils/app_snackbar.dart';
 import '../../../services/aadhar_service.dart';
 import '../student_profile/student_profile_controller.dart';
 
@@ -35,7 +36,23 @@ class AddComplaintController extends GetxController {
   }
 
   Future<void> _loadCategories() async {
-    categories.assignAll(await _repository.categories());
+    try {
+      final fetched = await _repository.categories();
+      final filtered = fetched
+          .where((c) =>
+              !c.toLowerCase().contains('internet') &&
+              !c.toLowerCase().contains('wifi'))
+          .toList();
+      categories.assignAll(filtered);
+    } catch (_) {
+      categories.assignAll(const [
+        'Electrical',
+        'Plumbing',
+        'Furniture',
+        'Housekeeping',
+        'Other',
+      ]);
+    }
     if (categories.isNotEmpty) selectedCategory.value = categories.first;
   }
 
@@ -58,7 +75,7 @@ class AddComplaintController extends GetxController {
   Future<bool> submit() async {
     if (!formKey.currentState!.validate()) return false;
     if (selectedCategory.value == null) {
-      Get.snackbar('Missing category', 'Please select a category');
+      AppSnackbar.warning('Missing category', 'Please select a category');
       return false;
     }
 
@@ -69,7 +86,7 @@ class AddComplaintController extends GetxController {
         : null;
     final room = profileCtrl?.profile.value?.room;
     if (room == null || room.isEmpty) {
-      Get.snackbar(
+      AppSnackbar.warning(
         'Profile still loading',
         'Open your Profile tab once so it can load, then try again.',
       );
@@ -91,19 +108,15 @@ class AddComplaintController extends GetxController {
       );
       return true;
     } on ApiException catch (e) {
-      Get.snackbar(
+      AppSnackbar.error(
         'Submission Failed',
         e.message,
-        backgroundColor: Colors.redAccent,
-        colorText: Colors.white,
       );
       return false;
     } catch (_) {
-      Get.snackbar(
+      AppSnackbar.error(
         'Submission Failed',
         'Something went wrong. Please try again.',
-        backgroundColor: Colors.redAccent,
-        colorText: Colors.white,
       );
       return false;
     } finally {

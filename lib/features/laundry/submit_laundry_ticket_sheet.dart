@@ -1,4 +1,4 @@
-﻿import 'package:flutter/material.dart';
+import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import '../../../core/constants/app_colors.dart';
 import '../../../core/constants/app_dimens.dart';
@@ -59,10 +59,9 @@ class _SubmitLaundryTicketSheetState extends State<SubmitLaundryTicketSheet>
 
   Future<void> _submit() async {
     if (_totalAll <= 0) {
-      Get.snackbar(
+      AppSnackbar.warning(
         'No items selected',
         'Please add at least 1 garment to submit a ticket.',
-        snackPosition: SnackPosition.BOTTOM,
       );
       return;
     }
@@ -89,12 +88,9 @@ class _SubmitLaundryTicketSheetState extends State<SubmitLaundryTicketSheet>
       if (mounted) {
         Navigator.of(context).pop();
         widget.onSuccess?.call();
-        Get.snackbar(
+        AppSnackbar.success(
           'Ticket Created',
           'Your laundry ticket with $_totalAll items was submitted successfully.',
-          snackPosition: SnackPosition.BOTTOM,
-          backgroundColor: AppColors.successGreen.withValues(alpha: 0.15),
-          colorText: AppColors.textPrimary,
         );
       }
     } finally {

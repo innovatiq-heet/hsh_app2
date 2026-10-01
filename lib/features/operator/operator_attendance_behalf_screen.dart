@@ -1,4 +1,4 @@
-﻿import 'package:flutter/material.dart';
+import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import '../../../core/enums/attendance_type.dart';
 import '../../../core/constants/app_colors.dart';
@@ -120,12 +120,9 @@ class OperatorAttendanceBehalfScreen
                     onPressed: () async {
                       final ok = await controller.submit();
                       if (ok) {
-                        Get.snackbar(
+                        AppSnackbar.success(
                           'Attendance Logged',
                           'Attendance recorded successfully for student.',
-                          snackPosition: SnackPosition.BOTTOM,
-                          backgroundColor: AppColors.headerBlue,
-                          colorText: Colors.white,
                         );
                       }
                     },

@@ -112,8 +112,8 @@ class StudentProfileScreen extends GetView<StudentProfileController> {
                             ),
                           ],
                           const SizedBox(height: AppDimens.gapXl),
-                          const SectionHeader(title: 'Sports & fitness'),
-                          _LifestyleChips(profile: profile),
+                          // const SectionHeader(title: 'Sports & fitness'),
+                          // _LifestyleChips(profile: profile),
                         ],
                       ),
                     ),
@@ -135,9 +135,10 @@ class _ProfileHero extends StatelessWidget {
 
   String get _greeting {
     final hour = DateTime.now().hour;
-    if (hour < 12) return 'Good morning';
-    if (hour < 17) return 'Good afternoon';
-    return 'Good evening';
+    if (hour >= 5 && hour < 12) return 'Good morning';
+    if (hour >= 12 && hour < 17) return 'Good afternoon';
+    if (hour >= 17 && hour < 21) return 'Good evening';
+    return 'Good night';
   }
 
   @override
@@ -149,7 +150,7 @@ class _ProfileHero extends StatelessWidget {
     return SliverGradientHeader(
       overline: _greeting,
       title: profile.fullName,
-      subtitle: profile.email,
+      // subtitle: profile.email,
       heroLeading: Container(
         width: 60,
         height: 60,
@@ -187,10 +188,10 @@ class _ProfileHero extends StatelessWidget {
                   ? profile.room
                   : 'Room ${profile.room}',
             ),
-          HeaderPill(
-            icon: Icons.verified_outlined,
-            label: profile.status.label,
-          ),
+          // HeaderPill(
+          //   icon: Icons.verified_outlined,
+          //   label: profile.status.label,
+          // ),
           if (profile.groupName.isNotEmpty)
             HeaderPill(icon: Icons.groups_outlined, label: profile.groupName),
           if (profile.bankCode.isNotEmpty)

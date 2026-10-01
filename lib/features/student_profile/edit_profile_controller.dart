@@ -1,4 +1,4 @@
-﻿import 'package:flutter/material.dart';
+import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import '../../../core/models/student_profile/student_profile_model.dart';
 import '../../../core/network/api_exception.dart';
@@ -112,7 +112,7 @@ class EditProfileController extends GetxController {
         ),
       );
       Get.back(result: true);
-      Get.snackbar('Success', 'Profile updated successfully');
+      AppSnackbar.success('Success', 'Profile updated successfully');
     } on ApiException catch (e) {
       _showError(e.message);
     } catch (_) {
@@ -123,12 +123,9 @@ class EditProfileController extends GetxController {
   }
 
   void _showError(String message) {
-    Get.snackbar(
+    AppSnackbar.error(
       'Update Failed',
       message,
-      snackPosition: SnackPosition.BOTTOM,
-      backgroundColor: Colors.redAccent,
-      colorText: Colors.white,
     );
   }
 }

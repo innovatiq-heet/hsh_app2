@@ -123,12 +123,9 @@ class LoginController extends GetxController {
   }
 
   void _showError(String message) {
-    Get.snackbar(
+    AppSnackbar.error(
       'Login Failed',
       message,
-      snackPosition: SnackPosition.BOTTOM,
-      backgroundColor: Colors.redAccent,
-      colorText: Colors.white,
     );
   }
 

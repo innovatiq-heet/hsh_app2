@@ -1,4 +1,4 @@
-﻿import 'package:flutter/material.dart';
+import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import '../../../core/enums/complaint_status.dart';
 import '../../../core/network/repository/complaints/complaints_repository.dart';
@@ -47,7 +47,7 @@ class ComplainAdminDetailController extends GetxController {
         complaintId,
         UpdateComplaintRequest(status: status),
       );
-      Get.snackbar('Status Updated', 'Moved to ${status.label}.');
+      AppSnackbar.success('Status Updated', 'Moved to ${status.label}.');
     } finally {
       isSaving.value = false;
     }
@@ -64,7 +64,7 @@ class ComplainAdminDetailController extends GetxController {
           review: reviewController.text.trim(),
         ),
       );
-      Get.snackbar('Saved', 'Staff review note logged.');
+      AppSnackbar.success('Saved', 'Staff review note logged.');
     } finally {
       isSaving.value = false;
     }
@@ -81,7 +81,7 @@ class ComplainAdminDetailController extends GetxController {
           response: feedbackController.text.trim(),
         ),
       );
-      Get.snackbar('Resolved', 'Resolution note saved & closed.');
+      AppSnackbar.success('Resolved', 'Resolution note saved & closed.');
     } finally {
       isSaving.value = false;
     }

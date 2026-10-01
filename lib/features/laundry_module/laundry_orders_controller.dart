@@ -1,4 +1,4 @@
-﻿import 'package:get/get.dart';
+import 'package:get/get.dart';
 import '../../../core/abstracts/mixins/load_state_mixin.dart';
 import '../../../core/enums/laundry_status.dart';
 import '../../../core/enums/user_role.dart';
@@ -72,9 +72,9 @@ class LaundryOrdersController extends GetxController with LoadStateMixin {
       );
       final idx = tickets.indexWhere((t) => t.id == ticketId);
       if (idx != -1) tickets[idx] = updated;
-      Get.snackbar('Success', 'Ticket #$ticketId marked as accepted.');
+      AppSnackbar.success('Success', 'Ticket #$ticketId marked as accepted.');
     } catch (e) {
-      Get.snackbar('Error', 'Failed to accept ticket: $e');
+      AppSnackbar.error('Error', 'Failed to accept ticket: $e');
     } finally {
       advancingTicketId.value = null;
     }
@@ -103,12 +103,12 @@ class LaundryOrdersController extends GetxController with LoadStateMixin {
       );
       final idx = tickets.indexWhere((t) => t.id == ticketId);
       if (idx != -1) tickets[idx] = updated;
-      Get.snackbar(
+      AppSnackbar.success(
         'Success',
         'Ticket #$ticketId marked as washed with updated pricing.',
       );
     } catch (e) {
-      Get.snackbar('Error', 'Failed to mark ticket as washed: $e');
+      AppSnackbar.error('Error', 'Failed to mark ticket as washed: $e');
     } finally {
       advancingTicketId.value = null;
     }
@@ -123,9 +123,9 @@ class LaundryOrdersController extends GetxController with LoadStateMixin {
       );
       final idx = tickets.indexWhere((t) => t.id == ticketId);
       if (idx != -1) tickets[idx] = updated;
-      Get.snackbar('Success', 'Ticket #$ticketId marked as received.');
+      AppSnackbar.success('Success', 'Ticket #$ticketId marked as received.');
     } catch (e) {
-      Get.snackbar('Error', 'Failed to complete ticket: $e');
+      AppSnackbar.error('Error', 'Failed to complete ticket: $e');
     } finally {
       advancingTicketId.value = null;
     }
@@ -136,9 +136,9 @@ class LaundryOrdersController extends GetxController with LoadStateMixin {
     try {
       await _repository.deleteTicket(ticketId);
       tickets.removeWhere((t) => t.id == ticketId);
-      Get.snackbar('Deleted', 'Ticket #$ticketId has been deleted.');
+      AppSnackbar.success('Deleted', 'Ticket #$ticketId has been deleted.');
     } catch (e) {
-      Get.snackbar('Error', 'Failed to delete ticket: $e');
+      AppSnackbar.error('Error', 'Failed to delete ticket: $e');
     } finally {
       advancingTicketId.value = null;
     }

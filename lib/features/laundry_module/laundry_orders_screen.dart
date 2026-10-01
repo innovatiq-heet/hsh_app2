@@ -47,7 +47,14 @@ class LaundryOrdersScreen extends GetView<LaundryOrdersController> {
                   overline: 'Staff Operations',
                   title: 'Laundry Desk',
                   subtitle: 'Manage garment intake, pricing & deliveries',
-                  expandedHeight: 250.0,
+                  expandedHeight: 270.0,
+                  leading: Navigator.canPop(context)
+                      ? HeaderIconButton(
+                          icon: Icons.arrow_back_rounded,
+                          tooltip: 'Back',
+                          onPressed: () => Get.back(),
+                        )
+                      : null,
                   actions: [
                     HeaderIconButton(
                       icon: Icons.refresh_rounded,

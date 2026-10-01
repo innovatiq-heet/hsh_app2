@@ -1,4 +1,4 @@
-﻿import 'package:flutter/material.dart';
+import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import '../../../core/constants/app_dimens.dart';
 import '../../../core/constants/app_strings.dart';
@@ -74,7 +74,7 @@ class OperatorDepositDebitScreen
                         onPressed: () async {
                           final ok = await controller.submitDeposit();
                           if (ok) {
-                            Get.snackbar('Saved', 'Deposit entry recorded.');
+                            AppSnackbar.success('Saved', 'Deposit entry recorded.');
                           }
                         },
                       ),
@@ -122,7 +122,7 @@ class OperatorDepositDebitScreen
                         isLoading: controller.isSavingDebit.value,
                         onPressed: () async {
                           final ok = await controller.submitDebit();
-                          if (ok) Get.snackbar('Saved', 'Fee debit posted.');
+                          if (ok) AppSnackbar.success('Saved', 'Fee debit posted.');
                         },
                       ),
                     ),

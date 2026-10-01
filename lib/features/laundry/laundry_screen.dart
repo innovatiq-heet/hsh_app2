@@ -40,7 +40,21 @@ class LaundryScreen extends GetView<LaundryController> {
                   SliverGradientHeader(
                     overline: 'Laundry Service',
                     title: 'Wash & Wear',
-                    expandedHeight: 280.0,
+                    expandedHeight: 315.0,
+                    leading: Navigator.canPop(context)
+                        ? HeaderIconButton(
+                            icon: Icons.arrow_back_rounded,
+                            tooltip: 'Back',
+                            onPressed: () => Get.back(),
+                          )
+                        : null,
+                    actions: [
+                      HeaderIconButton(
+                        icon: Icons.refresh_rounded,
+                        tooltip: 'Refresh',
+                        onPressed: controller.load,
+                      ),
+                    ],
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [

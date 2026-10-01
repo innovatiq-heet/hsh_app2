@@ -1,4 +1,4 @@
-﻿import 'package:flutter/material.dart';
+import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:get/get.dart';
 import '../../../core/enums/payment_type.dart';
@@ -323,27 +323,17 @@ class PaymentReceiptScreen extends StatelessWidget {
   }
 
   void _showDownloadSuccess(BuildContext context, String receiptNo) {
-    Get.snackbar(
+    AppSnackbar.success(
       'Receipt Downloaded',
       'Saved $receiptNo.pdf to device storage',
-      backgroundColor: AppColors.headerBlue,
-      colorText: Colors.white,
-      icon: const Icon(Icons.check_circle_outline, color: AppColors.successGreen),
-      snackPosition: SnackPosition.BOTTOM,
-      margin: const EdgeInsets.all(AppDimens.gapMd),
     );
   }
 
   void _showShareSuccess(BuildContext context, String receiptNo) {
     Clipboard.setData(ClipboardData(text: receiptNo));
-    Get.snackbar(
+    AppSnackbar.success(
       'Receipt Copied',
       'Receipt details and ID copied to clipboard',
-      backgroundColor: AppColors.headerBlue,
-      colorText: Colors.white,
-      icon: const Icon(Icons.copy_rounded, color: Colors.white),
-      snackPosition: SnackPosition.BOTTOM,
-      margin: const EdgeInsets.all(AppDimens.gapMd),
     );
   }
 }
@@ -459,12 +449,10 @@ class _ReceiptRow extends StatelessWidget {
                 InkWell(
                   onTap: () {
                     Clipboard.setData(ClipboardData(text: value));
-                    Get.snackbar(
+                    AppSnackbar.success(
                       'Copied',
                       '$label copied to clipboard',
                       duration: const Duration(seconds: 2),
-                      snackPosition: SnackPosition.BOTTOM,
-                      margin: const EdgeInsets.all(AppDimens.gapMd),
                     );
                   },
                   child: const Icon(

@@ -1,4 +1,4 @@
-﻿import 'package:flutter/material.dart';
+import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import '../../../core/enums/complaint_status.dart';
 import '../../../core/constants/app_colors.dart';
@@ -18,6 +18,7 @@ import '../shared/widgets/empty_state.dart';
 import '../shared/widgets/gradient_header.dart';
 import '../shared/widgets/icon_badge.dart';
 import '../shared/widgets/section_header.dart';
+import '../shared/widgets/skeleton_loader.dart';
 import '../shared/widgets/status_badge.dart';
 import 'complain_orders_controller.dart';
 
@@ -38,6 +39,7 @@ class ComplainOrdersScreen extends GetView<ComplainOrdersController> {
           hasError: controller.hasError.value,
           errorMessage: controller.errorMessage.value,
           onRetry: controller.load,
+          loadingWidget: const _ComplainOrdersShimmer(),
           builder: (context) => Obx(() {
             final list = controller.filtered;
             return AppRefreshIndicator(
@@ -50,7 +52,14 @@ class ComplainOrdersScreen extends GetView<ComplainOrdersController> {
                     overline: 'Staff Operations',
                     title: 'Complaints Desk',
                     subtitle: 'Review reports, assign maintenance & resolve issues',
-                    expandedHeight: 250.0,
+                    expandedHeight: 270.0,
+                    leading: Navigator.canPop(context)
+                        ? HeaderIconButton(
+                            icon: Icons.arrow_back_rounded,
+                            tooltip: 'Back',
+                            onPressed: () => Get.back(),
+                          )
+                        : null,
                     actions: [
                       HeaderIconButton(
                         icon: Icons.refresh_rounded,
@@ -998,7 +1007,7 @@ class _StaffComplaintCard extends StatelessWidget {
               icon: Icons.done_all_rounded,
               onPressed: () {
                 if (noteController.text.trim().isEmpty) {
-                  Get.snackbar(
+                  AppSnackbar.warning(
                     'Input Required',
                     'Please describe the resolution before closing the complaint.',
                   );
@@ -1013,6 +1022,187 @@ class _StaffComplaintCard extends StatelessWidget {
             ),
           ],
         ),
+      ),
+    );
+  }
+}
+
+class _ComplainOrdersShimmer extends StatelessWidget {
+  const _ComplainOrdersShimmer();
+
+  @override
+  Widget build(BuildContext context) {
+    return CustomScrollView(
+      physics: const NeverScrollableScrollPhysics(),
+      slivers: [
+        SliverGradientHeader(
+          overline: 'Staff Operations',
+          title: 'Complaints Desk',
+          subtitle: 'Review reports, assign maintenance & resolve issues',
+          expandedHeight: 270.0,
+          leading: Navigator.canPop(context)
+              ? HeaderIconButton(
+                  icon: Icons.arrow_back_rounded,
+                  tooltip: 'Back',
+                  onPressed: () => Get.back(),
+                )
+              : null,
+          actions: [
+            HeaderIconButton(
+              icon: Icons.refresh_rounded,
+              tooltip: 'Refresh',
+              onPressed: () {},
+            ),
+            HeaderIconButton(
+              icon: Icons.logout_rounded,
+              tooltip: 'Log out',
+              onPressed: () {},
+            ),
+          ],
+          child: Row(
+            children: [
+              for (int i = 0; i < 3; i++) ...[
+                if (i > 0) const SizedBox(width: AppDimens.gapSm),
+                SkeletonLoader(
+                  height: 34,
+                  width: 104,
+                  borderRadius: BorderRadius.circular(AppDimens.radiusPill),
+                  baseColor: Colors.white.withValues(alpha: 0.14),
+                  highlightColor: Colors.white.withValues(alpha: 0.32),
+                ),
+              ],
+            ],
+          ),
+        ),
+        SliverToBoxAdapter(
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(
+              AppDimens.screenPadding,
+              AppDimens.gapLg,
+              AppDimens.screenPadding,
+              100,
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                AppCard(
+                  padding: const EdgeInsets.all(AppDimens.gapMd),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      SkeletonLoader(
+                        height: 48,
+                        borderRadius: BorderRadius.circular(AppDimens.radiusMd),
+                      ),
+                      const SizedBox(height: AppDimens.gapMd),
+                      Row(
+                        children: [
+                          SkeletonLoader(
+                            height: 12,
+                            width: 80,
+                            borderRadius: BorderRadius.circular(3),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: AppDimens.gapSm),
+                      Row(
+                        children: [
+                          for (int i = 0; i < 4; i++) ...[
+                            if (i > 0) const SizedBox(width: AppDimens.gapSm),
+                            SkeletonLoader(
+                              height: 32,
+                              width: 72,
+                              borderRadius: BorderRadius.circular(
+                                AppDimens.radiusPill,
+                              ),
+                            ),
+                          ],
+                        ],
+                      ),
+                    ],
+                  ),
+                ),
+                const SizedBox(height: AppDimens.gapLg),
+                Row(
+                  children: [
+                    SkeletonLoader(
+                      height: 16,
+                      width: 160,
+                      borderRadius: BorderRadius.circular(4),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: AppDimens.gapSm),
+                for (int i = 0; i < 3; i++)
+                  const Padding(
+                    padding: EdgeInsets.only(bottom: AppDimens.gapMd),
+                    child: _StaffComplaintCardShimmer(),
+                  ),
+              ],
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+class _StaffComplaintCardShimmer extends StatelessWidget {
+  const _StaffComplaintCardShimmer();
+
+  @override
+  Widget build(BuildContext context) {
+    return AppCard(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              SkeletonLoader(
+                height: 44,
+                width: 44,
+                borderRadius: BorderRadius.circular(14),
+              ),
+              const SizedBox(width: AppDimens.gapMd),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    SkeletonLoader(
+                      height: 16,
+                      width: 150,
+                      borderRadius: BorderRadius.circular(4),
+                    ),
+                    const SizedBox(height: 6),
+                    SkeletonLoader(
+                      height: 12,
+                      width: 100,
+                      borderRadius: BorderRadius.circular(3),
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(width: AppDimens.gapSm),
+              SkeletonLoader(
+                height: 24,
+                width: 70,
+                borderRadius: BorderRadius.circular(AppDimens.radiusPill),
+              ),
+            ],
+          ),
+          const SizedBox(height: AppDimens.gapMd),
+          SkeletonLoader(
+            height: 13,
+            width: double.infinity,
+            borderRadius: BorderRadius.circular(3),
+          ),
+          const SizedBox(height: 6),
+          const SkeletonLoader(
+            height: 13,
+            width: 220,
+            borderRadius: BorderRadius.all(Radius.circular(3)),
+          ),
+        ],
       ),
     );
   }

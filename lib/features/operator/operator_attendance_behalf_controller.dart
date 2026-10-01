@@ -1,4 +1,4 @@
-﻿import 'package:flutter/material.dart';
+import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import '../../../core/enums/attendance_type.dart';
 import '../../../core/network/api_exception.dart';
@@ -58,11 +58,11 @@ class OperatorAttendanceBehalfController extends GetxController {
       return true;
     } on ApiException catch (e) {
       errorMessage.value = e.message;
-      Get.snackbar('Error', e.message, backgroundColor: Colors.red.shade100);
+      AppSnackbar.error('Error', e.message);
       return false;
     } catch (e) {
       errorMessage.value = 'Failed to log attendance. Please retry.';
-      Get.snackbar('Error', 'Failed to log attendance.', backgroundColor: Colors.red.shade100);
+      AppSnackbar.error('Error', 'Failed to log attendance.');
       return false;
     } finally {
       isSaving.value = false;

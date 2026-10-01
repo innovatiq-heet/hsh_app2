@@ -1,4 +1,4 @@
-﻿import 'package:flutter/material.dart';
+import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import '../../../core/network/repository/leave/leave_repository.dart';
 import '../../../core/network/request/leave/apply_leave_request.dart';
@@ -88,7 +88,7 @@ class AddLeaveController extends GetxController {
     if (!formKey.currentState!.validate()) return false;
     final error = validationError;
     if (error != null) {
-      Get.snackbar('Invalid dates', error);
+      AppSnackbar.error('Invalid dates', error);
       return false;
     }
     isSaving.value = true;

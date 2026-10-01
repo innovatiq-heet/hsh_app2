@@ -49,7 +49,6 @@ class ComplaintsRepository {
       'Plumbing',
       'Furniture',
       'Housekeeping',
-      'Internet/Wifi',
       'Other',
     ];
   }

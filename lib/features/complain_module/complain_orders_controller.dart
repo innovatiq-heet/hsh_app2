@@ -1,4 +1,4 @@
-﻿import 'package:get/get.dart';
+import 'package:get/get.dart';
 import '../../../core/abstracts/mixins/load_state_mixin.dart';
 import '../../../core/enums/complaint_status.dart';
 import '../../../core/enums/user_role.dart';
@@ -87,9 +87,9 @@ class ComplainOrdersController extends GetxController with LoadStateMixin {
       );
       final idx = complaints.indexWhere((c) => c.id == complaintId);
       if (idx != -1) complaints[idx] = updated;
-      Get.snackbar('Success', 'Complaint #$complaintId moved to Under Review.');
+      AppSnackbar.success('Success', 'Complaint #$complaintId moved to Under Review.');
     } catch (e) {
-      Get.snackbar('Error', 'Failed to update complaint: $e');
+      AppSnackbar.error('Error', 'Failed to update complaint: $e');
     } finally {
       advancingComplaintId.value = null;
     }
@@ -107,9 +107,9 @@ class ComplainOrdersController extends GetxController with LoadStateMixin {
       );
       final idx = complaints.indexWhere((c) => c.id == complaintId);
       if (idx != -1) complaints[idx] = updated;
-      Get.snackbar('Resolved', 'Complaint #$complaintId has been marked as resolved.');
+      AppSnackbar.success('Resolved', 'Complaint #$complaintId has been marked as resolved.');
     } catch (e) {
-      Get.snackbar('Error', 'Failed to resolve complaint: $e');
+      AppSnackbar.error('Error', 'Failed to resolve complaint: $e');
     } finally {
       advancingComplaintId.value = null;
     }
@@ -120,9 +120,9 @@ class ComplainOrdersController extends GetxController with LoadStateMixin {
     try {
       await _repository.deleteComplaint(complaintId);
       complaints.removeWhere((c) => c.id == complaintId);
-      Get.snackbar('Deleted', 'Complaint #$complaintId has been removed.');
+      AppSnackbar.success('Deleted', 'Complaint #$complaintId has been removed.');
     } catch (e) {
-      Get.snackbar('Error', 'Failed to delete complaint: $e');
+      AppSnackbar.error('Error', 'Failed to delete complaint: $e');
     } finally {
       advancingComplaintId.value = null;
     }

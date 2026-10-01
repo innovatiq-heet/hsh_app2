@@ -6,12 +6,16 @@ class SkeletonLoader extends StatefulWidget {
   final double height;
   final double? width;
   final BorderRadiusGeometry? borderRadius;
+  final Color? baseColor;
+  final Color? highlightColor;
 
   const SkeletonLoader({
     super.key,
     this.height = 16,
     this.width,
     this.borderRadius,
+    this.baseColor,
+    this.highlightColor,
   });
 
   @override
@@ -33,6 +37,9 @@ class _SkeletonLoaderState extends State<SkeletonLoader>
 
   @override
   Widget build(BuildContext context) {
+    final base = widget.baseColor ?? AppColors.border;
+    final highlight = widget.highlightColor ?? const Color(0xFFF1F5F9);
+
     return AnimatedBuilder(
       animation: _controller,
       builder: (context, _) {
@@ -47,10 +54,10 @@ class _SkeletonLoaderState extends State<SkeletonLoader>
             gradient: LinearGradient(
               begin: Alignment(-1 + 2 * t, 0),
               end: Alignment(1 + 2 * t, 0),
-              colors: const [
-                AppColors.border,
-                Color(0xFFF1F5F9),
-                AppColors.border,
+              colors: [
+                base,
+                highlight,
+                base,
               ],
             ),
           ),

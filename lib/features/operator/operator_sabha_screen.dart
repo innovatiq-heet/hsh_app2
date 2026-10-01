@@ -1,4 +1,4 @@
-﻿import 'package:flutter/material.dart';
+import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import '../../../core/constants/app_colors.dart';
 import '../../../core/constants/app_dimens.dart';
@@ -118,12 +118,9 @@ class OperatorSabhaScreen extends GetView<OperatorSabhaController> {
                         onPressed: () async {
                           final ok = await controller.submit();
                           if (ok) {
-                            Get.snackbar(
+                            AppSnackbar.success(
                               'Scheduled',
                               'Sabha has been successfully scheduled.',
-                              snackPosition: SnackPosition.BOTTOM,
-                              backgroundColor: AppColors.headerBlue,
-                              colorText: Colors.white,
                             );
                           }
                         },

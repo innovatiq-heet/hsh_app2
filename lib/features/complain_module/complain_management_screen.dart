@@ -1,4 +1,4 @@
-﻿import 'package:flutter/material.dart';
+import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import '../../../core/enums/complaint_status.dart';
 import '../../../core/constants/app_colors.dart';
@@ -257,10 +257,9 @@ class ComplainManagementScreen extends GetView<ComplainManagementController> {
                                     color: AppColors.primary,
                                   ),
                                   onPressed: () {
-                                    Get.snackbar(
+                                    AppSnackbar.info(
                                       'Contact Student',
                                       'Phone: ${first.phone}',
-                                      snackPosition: SnackPosition.BOTTOM,
                                     );
                                   },
                                 ),

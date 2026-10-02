@@ -3,6 +3,7 @@ import 'package:get/get.dart';
 import '../../../core/enums/admission_status.dart';
 import '../../../core/constants/app_colors.dart';
 import '../../../core/constants/app_dimens.dart';
+import '../../../core/constants/app_routes.dart';
 import '../../../core/constants/app_text_styles.dart';
 import '../../shared/widgets/app_card.dart';
 import '../../shared/widgets/app_text_field.dart';
@@ -84,6 +85,14 @@ class _DirectoryList extends StatelessWidget {
             }
             final s = controller.items[i];
             return AppCard(
+              onTap: () => Get.toNamed(
+                Routes.studentScreenTime,
+                arguments: {
+                  'aadhar': s.aadhar,
+                  'name': s.fullName,
+                  'room': s.room,
+                },
+              ),
               child: Row(
                 children: [
                   CircleAvatar(
@@ -109,6 +118,12 @@ class _DirectoryList extends StatelessWidget {
                     ),
                   ),
                   StatusBadge(label: s.status.label, color: s.status.color),
+                  const SizedBox(width: 8),
+                  const Icon(
+                    Icons.phone_android_rounded,
+                    size: 18,
+                    color: AppColors.textSecondary,
+                  ),
                 ],
               ),
             );

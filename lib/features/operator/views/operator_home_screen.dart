@@ -51,6 +51,13 @@ class OperatorHomeScreen extends StatelessWidget {
         Routes.operatorDirectory,
       ),
       _OperatorAction(
+        'Screen Time',
+        'Student individual screen time & live telemetry',
+        Icons.phone_android_rounded,
+        AppColors.primaryLight,
+        Routes.studentScreenTime,
+      ),
+      _OperatorAction(
         'Admissions',
         'Approve new students',
         Icons.how_to_reg_outlined,

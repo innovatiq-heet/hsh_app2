@@ -3,6 +3,7 @@ import 'package:get/get.dart';
 import 'package:intl/intl.dart';
 import '../../../core/constants/app_colors.dart';
 import '../../../core/constants/app_dimens.dart';
+import '../../../core/constants/app_routes.dart';
 import '../../../core/constants/app_text_styles.dart';
 import '../../shared/widgets/app_card.dart';
 import '../../shared/widgets/empty_state.dart';
@@ -284,6 +285,35 @@ class PhonebookScreen extends GetView<PhonebookController> {
                     ),
                   ),
                 ],
+                const SizedBox(height: 16),
+                SizedBox(
+                  width: double.infinity,
+                  child: ElevatedButton.icon(
+                    onPressed: () {
+                      Navigator.pop(ctx);
+                      Get.toNamed(
+                        Routes.studentScreenTime,
+                        arguments: {
+                          'studentId': student.studentId,
+                          'aadhar': student.studentId.replaceFirst('HSH-', ''),
+                          'name': student.name,
+                          'room': student.room ?? '',
+                        },
+                      );
+                    },
+                    icon: const Icon(Icons.phone_android_rounded, size: 18),
+                    label: const Text('View Individual Screen Time'),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: AppColors.primary,
+                      foregroundColor: Colors.white,
+                      padding: const EdgeInsets.symmetric(vertical: 12),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(AppDimens.radiusMd),
+                      ),
+                      elevation: 0,
+                    ),
+                  ),
+                ),
               ],
             ),
           ),

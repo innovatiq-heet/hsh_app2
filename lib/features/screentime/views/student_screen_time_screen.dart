@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
+import 'package:intl/intl.dart';
 import '../../../core/enums/user_role.dart';
 import '../../../core/constants/app_colors.dart';
 import '../../../core/constants/app_dimens.dart';
@@ -20,41 +21,54 @@ class StudentScreenTimeScreen extends GetView<StudentScreenTimeController> {
         final isLeader = controller.currentRole.value.canViewScreenTime;
         final selected = controller.selectedStudent.value;
 
-        return CustomScrollView(
-          slivers: [
-            SliverGradientHeader(
-              title: selected != null
-                  ? (selected['name'] ?? 'Student Screen Time')
-                  : (isLeader ? 'Students Screen Time' : 'Screen Time Monitor'),
-              subtitle: selected != null
-                  ? 'Room ${selected['room'] ?? 'N/A'} • Aadhar ${selected['aadhar'] ?? ''}'
-                  : (isLeader
-                      ? 'Live device activity directory'
-                      : 'Live device activity'),
-              leading: HeaderIconButton(
-                icon: Icons.arrow_back_rounded,
-                tooltip: selected != null ? 'Back to directory' : 'Back',
-                onPressed: selected != null
-                    ? controller.clearSelectedStudent
-                    : () => Get.back(),
-              ),
-              actions: [
-                HeaderIconButton(
-                  icon: Icons.refresh_rounded,
-                  tooltip: 'Refresh',
-                  onPressed: controller.refreshAll,
+        return RefreshIndicator(
+          onRefresh: controller.refreshAll,
+          color: AppColors.primary,
+          child: CustomScrollView(
+            physics: const AlwaysScrollableScrollPhysics(),
+            slivers: [
+              SliverGradientHeader(
+                title: selected != null
+                    ? (selected['name'] ?? 'Student Screen Time')
+                    : (isLeader ? 'Students Screen Time' : 'Screen Time Monitor'),
+                subtitle: selected != null
+                    ? 'Room ${selected['room'] ?? 'N/A'} • Aadhar ${selected['aadhar'] ?? ''}'
+                    : (isLeader
+                        ? 'Live device activity directory'
+                        : 'Live device activity'),
+                leading: HeaderIconButton(
+                  icon: Icons.arrow_back_rounded,
+                  tooltip: selected != null
+                      ? (controller.openedWithDirectTarget.value ? 'Back' : 'Back to directory')
+                      : 'Back',
+                  onPressed: () {
+                    if (selected != null && controller.openedWithDirectTarget.value) {
+                      Get.back();
+                    } else if (selected != null) {
+                      controller.clearSelectedStudent();
+                    } else {
+                      Get.back();
+                    }
+                  },
                 ),
-              ],
-            ),
-            SliverToBoxAdapter(
-              child: Padding(
-                padding: const EdgeInsets.all(AppDimens.screenPadding),
-                child: isLeader && selected == null
-                    ? _buildStudentsDirectoryView()
-                    : _buildDetailedScreenTimeView(isLeader, selected),
+                actions: [
+                  HeaderIconButton(
+                    icon: Icons.refresh_rounded,
+                    tooltip: 'Refresh',
+                    onPressed: controller.refreshAll,
+                  ),
+                ],
               ),
-            ),
-          ],
+              SliverToBoxAdapter(
+                child: Padding(
+                  padding: const EdgeInsets.all(AppDimens.screenPadding),
+                  child: isLeader && selected == null
+                      ? _buildStudentsDirectoryView()
+                      : _buildDetailedScreenTimeView(isLeader, selected),
+                ),
+              ),
+            ],
+          ),
         );
       }),
     );
@@ -351,7 +365,14 @@ class StudentScreenTimeScreen extends GetView<StudentScreenTimeController> {
               children: [
                 IconButton(
                   icon: const Icon(Icons.arrow_back_rounded, color: AppColors.primary),
-                  onPressed: controller.clearSelectedStudent,
+                  tooltip: controller.openedWithDirectTarget.value ? 'Back' : 'Back to directory',
+                  onPressed: () {
+                    if (controller.openedWithDirectTarget.value) {
+                      Get.back();
+                    } else {
+                      controller.clearSelectedStudent();
+                    }
+                  },
                 ),
                 const SizedBox(width: 6),
                 Expanded(
@@ -370,8 +391,11 @@ class StudentScreenTimeScreen extends GetView<StudentScreenTimeController> {
                   ),
                 ),
                 TextButton.icon(
-                  onPressed: controller.clearSelectedStudent,
-                  icon: const Icon(Icons.list_alt_rounded, size: 16),
+                  onPressed: () {
+                    controller.openedWithDirectTarget.value = false;
+                    controller.clearSelectedStudent();
+                  },
+                  icon: const Icon(Icons.people_alt_outlined, size: 16),
                   label: const Text('All Students'),
                   style: TextButton.styleFrom(
                     foregroundColor: AppColors.primary,
@@ -385,20 +409,34 @@ class StudentScreenTimeScreen extends GetView<StudentScreenTimeController> {
         // Own device without Usage access: nothing can be reported
         if (!isLeader) _buildPermissionBanner(),
 
-        // Live Status Card
-        _buildLiveCard(),
-        const SizedBox(height: AppDimens.gapMd),
+        // Loading state feedback while fetching telemetry
+        if (controller.isLoading.value && controller.totalMinutesToday.value == 0) ...[
+          const SizedBox(height: 36),
+          const Center(child: CircularProgressIndicator()),
+          const SizedBox(height: 16),
+          Center(
+            child: Text(
+              'Fetching real-time device screen telemetry...',
+              style: AppTextStyles.bodySm.copyWith(color: AppColors.textSecondary),
+            ),
+          ),
+          const SizedBox(height: 36),
+        ] else ...[
+          // Live Status Card
+          _buildLiveCard(),
+          const SizedBox(height: AppDimens.gapMd),
 
-        // Daily Screen Time Hero Card
-        _buildTodayUsageCard(),
-        const SizedBox(height: AppDimens.gapMd),
+          // Daily Screen Time Hero Card
+          _buildTodayUsageCard(),
+          const SizedBox(height: AppDimens.gapMd),
 
-        // Top Apps Breakdown from API
-        _buildAppBreakdownCard(),
-        const SizedBox(height: AppDimens.gapMd),
+          // Top Apps Breakdown from API
+          _buildAppBreakdownCard(),
+          const SizedBox(height: AppDimens.gapMd),
 
-        // Historical Daily Logs from API
-        _buildHistoryCard(),
+          // Historical Daily Logs from API
+          _buildHistoryCard(),
+        ],
       ],
     );
   }
@@ -570,19 +608,72 @@ class StudentScreenTimeScreen extends GetView<StudentScreenTimeController> {
         );
       }
 
-      final total = controller.totalMinutesToday.value > 0 ? controller.totalMinutesToday.value : 1;
+      final appSum = list.fold<int>(
+        0,
+        (sum, it) =>
+            sum +
+            StudentScreenTimeController.toInt(
+              it['minutes'] ??
+                  it['total_minutes'] ??
+                  it['totalMinutes'] ??
+                  it['duration'] ??
+                  it['time'] ??
+                  it['timeInMinutes'] ??
+                  it['usage_minutes'],
+            ),
+      );
+      final total = controller.totalMinutesToday.value > 0
+          ? controller.totalMinutesToday.value
+          : (appSum > 0 ? appSum : 1);
 
       return AppCard(
         padding: const EdgeInsets.all(AppDimens.cardPadding),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            const SectionHeader(title: 'App Usage Breakdown'),
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                const SectionHeader(title: 'App Usage Breakdown'),
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                  decoration: BoxDecoration(
+                    color: AppColors.primary.withValues(alpha: 0.1),
+                    borderRadius: BorderRadius.circular(10),
+                  ),
+                  child: Text(
+                    '${list.length} Apps',
+                    style: const TextStyle(
+                      fontSize: 11,
+                      fontWeight: FontWeight.bold,
+                      color: AppColors.primary,
+                    ),
+                  ),
+                ),
+              ],
+            ),
             const SizedBox(height: 12),
             ...list.map((item) {
-              final mins = StudentScreenTimeController.toInt(item['minutes']);
-              final name = item['appName'] ?? item['packageName'] ?? 'App';
+              final mins = StudentScreenTimeController.toInt(
+                item['minutes'] ??
+                    item['total_minutes'] ??
+                    item['totalMinutes'] ??
+                    item['duration'] ??
+                    item['time'] ??
+                    item['timeInMinutes'] ??
+                    item['usage_minutes'],
+              );
+              final name = (item['appName'] ??
+                      item['app_name'] ??
+                      item['name'] ??
+                      item['title'] ??
+                      item['label'] ??
+                      item['packageName'] ??
+                      item['package_name'] ??
+                      'App')
+                  .toString();
               final progress = (mins / total).clamp(0.0, 1.0);
+              final pct = (progress * 100).round();
 
               return Padding(
                 padding: const EdgeInsets.only(bottom: 12),
@@ -592,8 +683,21 @@ class StudentScreenTimeScreen extends GetView<StudentScreenTimeController> {
                     Row(
                       mainAxisAlignment: MainAxisAlignment.spaceBetween,
                       children: [
-                        Text(name, style: AppTextStyles.bodyMd.copyWith(fontWeight: FontWeight.w600)),
-                        Text('$mins mins', style: AppTextStyles.bodySm.copyWith(color: AppColors.textSecondary)),
+                        Expanded(
+                          child: Text(
+                            name,
+                            style: AppTextStyles.bodyMd.copyWith(fontWeight: FontWeight.w600),
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                        ),
+                        Text(
+                          '$mins mins ($pct%)',
+                          style: AppTextStyles.bodySm.copyWith(
+                            color: AppColors.textSecondary,
+                            fontWeight: FontWeight.w500,
+                          ),
+                        ),
                       ],
                     ),
                     const SizedBox(height: 6),
@@ -634,6 +738,8 @@ class StudentScreenTimeScreen extends GetView<StudentScreenTimeController> {
         );
       }
 
+      final dateFmt = DateFormat('EEE, d MMM yyyy');
+
       return AppCard(
         padding: const EdgeInsets.all(AppDimens.cardPadding),
         child: Column(
@@ -648,9 +754,25 @@ class StudentScreenTimeScreen extends GetView<StudentScreenTimeController> {
               separatorBuilder: (_, index) => const Divider(height: 16),
               itemBuilder: (context, index) {
                 final rec = records[index];
-                final date = (rec['date'] ?? '').toString().split('T').first;
-                final mins = StudentScreenTimeController.toInt(rec['totalScreenTimeMinutes']);
-                final night = StudentScreenTimeController.toInt(rec['nightScreenTimeMinutes']);
+                final rawDate = (rec['date'] ?? '').toString();
+                String formattedDate = rawDate.split('T').first;
+                try {
+                  final parsed = DateTime.parse(formattedDate);
+                  formattedDate = dateFmt.format(parsed);
+                } catch (_) {}
+
+                final mins = StudentScreenTimeController.toInt(
+                  rec['total_screen_time_minutes'] ??
+                      rec['totalScreenTimeMinutes'] ??
+                      rec['totalMinutes'] ??
+                      rec['minutes'],
+                );
+                final night = StudentScreenTimeController.toInt(
+                  rec['night_screen_time_minutes'] ??
+                      rec['nightScreenTimeMinutes'] ??
+                      rec['nightMinutes'] ??
+                      rec['night'],
+                );
                 final h = mins ~/ 60;
                 final m = mins % 60;
 
@@ -660,11 +782,14 @@ class StudentScreenTimeScreen extends GetView<StudentScreenTimeController> {
                     Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        Text(date, style: AppTextStyles.bodyMd.copyWith(fontWeight: FontWeight.w600)),
+                        Text(formattedDate, style: AppTextStyles.bodyMd.copyWith(fontWeight: FontWeight.w600)),
                         if (night > 0)
-                          Text(
-                            '🌙 ${night}m night curfew',
-                            style: const TextStyle(fontSize: 11, color: Colors.redAccent),
+                          Padding(
+                            padding: const EdgeInsets.only(top: 2),
+                            child: Text(
+                              '🌙 ${night}m night curfew',
+                              style: const TextStyle(fontSize: 11, color: Colors.redAccent, fontWeight: FontWeight.w500),
+                            ),
                           ),
                       ],
                     ),

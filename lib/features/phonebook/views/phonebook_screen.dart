@@ -393,15 +393,12 @@ class PhonebookScreen extends GetView<PhonebookController> {
                           color: AppColors.primary,
                         ),
                         suffixIcon: Obx(() {
-                          final hasText =
-                              controller.searchController.text.isNotEmpty;
-                          if (!hasText) return const SizedBox.shrink();
+                          if (controller.searchText.value.isEmpty) {
+                            return const SizedBox.shrink();
+                          }
                           return IconButton(
                             icon: const Icon(Icons.clear_rounded, size: 18),
-                            onPressed: () {
-                              controller.searchController.clear();
-                              controller.search();
-                            },
+                            onPressed: controller.clearSearch,
                           );
                         }),
                         border: InputBorder.none,
@@ -480,7 +477,7 @@ class PhonebookScreen extends GetView<PhonebookController> {
                 child: EmptyState(
                   icon: Icons.person_search_outlined,
                   title: 'No student contacts found',
-                  message: controller.searchController.text.isNotEmpty ||
+                  message: controller.searchText.value.isNotEmpty ||
                           controller.selectedGroup.value != 'All'
                       ? 'Try clearing filters or search query.'
                       : 'Tap Sync to download contacts from the live campus directory.',

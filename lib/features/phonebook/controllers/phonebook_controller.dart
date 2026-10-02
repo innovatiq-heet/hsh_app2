@@ -13,6 +13,9 @@ import '../services/phonebook_sync_service.dart';
 class PhonebookController extends GetxController {
   final searchController = TextEditingController();
 
+  /// Mirrors [searchController] text so `Obx` widgets can react to it.
+  final searchText = ''.obs;
+
   final students = <PhonebookStudent>[].obs;
   final isLoading = true.obs;
   final isSyncing = false.obs;
@@ -70,6 +73,7 @@ class PhonebookController extends GetxController {
   }
 
   void onSearchChanged(String val) {
+    searchText.value = val;
     _debounceTimer?.cancel();
     _debounceTimer = Timer(const Duration(milliseconds: 300), () {
       search();
@@ -83,7 +87,13 @@ class PhonebookController extends GetxController {
 
   void resetFilter() {
     selectedGroup.value = 'All';
+    clearSearch();
+  }
+
+  void clearSearch() {
+    _debounceTimer?.cancel();
     searchController.clear();
+    searchText.value = '';
     search();
   }
 

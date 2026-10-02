@@ -61,6 +61,8 @@ class HomeController extends GetxController with WidgetsBindingObserver {
             AppButton(
               label: 'Open Settings',
               icon: Icons.settings_rounded,
+              // Dialog actions have unbounded width; a full-width button can't lay out there.
+              expand: false,
               onPressed: ScreenTimeService.openUsageSettings,
             ),
           ],

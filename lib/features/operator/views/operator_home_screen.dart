@@ -94,6 +94,13 @@ class OperatorHomeScreen extends StatelessWidget {
         AppColors.secondary,
         Routes.complainSolverModule,
       ),
+      _OperatorAction(
+        'Laundry desk',
+        'Manage orders & balance',
+        Icons.local_laundry_service_outlined,
+        AppColors.primary,
+        Routes.laundryModule,
+      ),
     ]),
     _OperatorGroup('Finance & events', [
       _OperatorAction(

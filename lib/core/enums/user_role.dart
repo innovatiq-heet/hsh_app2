@@ -25,9 +25,14 @@ extension UserRoleX on UserRole {
         return UserRole.staff;
       case 'complainsolver':
       case 'complain_solver':
+      case 'complain-solver':
+      case 'solver':
         return UserRole.complainsolver;
       case 'laundry':
       case 'laundary':
+      case 'laundry-man':
+      case 'laundry_man':
+      case 'laundryman':
         return UserRole.laundry;
       case 'attendance':
         return UserRole.attendance;

@@ -99,12 +99,9 @@ class ComplainOrdersController extends GetxController with LoadStateMixin {
   Future<void> markResolved(String complaintId, {required String feedback}) async {
     advancingComplaintId.value = complaintId;
     try {
-      final updated = await _repository.updateComplaint(
+      final updated = await _repository.solveComplaint(
         complaintId,
-        UpdateComplaintRequest(
-          status: ComplaintStatus.resolved,
-          response: feedback,
-        ),
+        feedback,
       );
       final idx = complaints.indexWhere((c) => c.id == complaintId);
       if (idx != -1) complaints[idx] = updated;

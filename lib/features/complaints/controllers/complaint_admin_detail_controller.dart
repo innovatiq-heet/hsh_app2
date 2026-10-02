@@ -75,12 +75,9 @@ class ComplainAdminDetailController extends GetxController {
     if (feedbackController.text.trim().isEmpty) return;
     isSaving.value = true;
     try {
-      complaint.value = await _repository.updateComplaint(
+      complaint.value = await _repository.solveComplaint(
         complaintId,
-        UpdateComplaintRequest(
-          status: ComplaintStatus.resolved,
-          response: feedbackController.text.trim(),
-        ),
+        feedbackController.text.trim(),
       );
       AppSnackbar.success('Resolved', 'Resolution note saved & closed.');
     } finally {

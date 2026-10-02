@@ -1,4 +1,4 @@
-﻿import 'dart:developer' as developer;
+import 'dart:developer' as developer;
 import 'package:dio/dio.dart';
 import 'package:get/get.dart' hide FormData, MultipartFile;
 import '../../../enums/complaint_status.dart';
@@ -113,8 +113,8 @@ class ComplaintsRepository {
       final data = response.data;
       if (data is Map && data['data'] is Map) {
         final compJson = data['data']['complain'] ?? data['data'];
-        if (compJson is Map<String, dynamic>) {
-          return ComplaintResponse.fromJson(compJson);
+        if (compJson is Map) {
+          return ComplaintResponse.fromJson(Map<String, dynamic>.from(compJson));
         }
       }
       throw ApiException('Unexpected server response format');
@@ -157,10 +157,11 @@ class ComplaintsRepository {
 
       final response = await _dio.post('/complains', data: formData);
       final data = response.data;
-      if (data is Map &&
-          data['data'] is Map &&
-          data['data']['complain'] is Map) {
-        return ComplaintResponse.fromJson(data['data']['complain']);
+      if (data is Map && data['data'] is Map) {
+        final compJson = data['data']['complain'] ?? data['data'];
+        if (compJson is Map) {
+          return ComplaintResponse.fromJson(Map<String, dynamic>.from(compJson));
+        }
       }
       throw ApiException('Unexpected server response format');
     } on DioException catch (e) {
@@ -189,10 +190,11 @@ class ComplaintsRepository {
         data: request.toJson(),
       );
       final data = response.data;
-      if (data is Map &&
-          data['data'] is Map &&
-          data['data']['complain'] is Map) {
-        return ComplaintResponse.fromJson(data['data']['complain']);
+      if (data is Map && data['data'] is Map) {
+        final compJson = data['data']['complain'] ?? data['data'];
+        if (compJson is Map) {
+          return ComplaintResponse.fromJson(Map<String, dynamic>.from(compJson));
+        }
       }
       throw ApiException('Unexpected server response format');
     } on DioException catch (e) {
@@ -207,6 +209,66 @@ class ComplaintsRepository {
         name: 'ComplaintsRepository',
       );
       throw ApiException('Failed to update complaint: $e');
+    }
+  }
+
+  // --- Solve Complaint (PATCH /complains/:id/solve) ---
+  Future<ComplaintResponse> solveComplaint(String id, String responseText) async {
+    try {
+      final response = await _dio.patch(
+        '/complains/$id/solve',
+        data: {'response': responseText},
+      );
+      final data = response.data;
+      if (data is Map && data['data'] is Map) {
+        final compJson = data['data']['complain'] ?? data['data'];
+        if (compJson is Map) {
+          return ComplaintResponse.fromJson(Map<String, dynamic>.from(compJson));
+        }
+      }
+      return detail(id);
+    } on DioException catch (e) {
+      developer.log(
+        'PATCH /complains/$id/solve error: ${e.message}',
+        name: 'ComplaintsRepository',
+      );
+      return updateComplaint(
+        id,
+        UpdateComplaintRequest(
+          status: ComplaintStatus.resolved,
+          response: responseText,
+        ),
+      );
+    }
+  }
+
+  // --- Student Confirmation / Feedback (POST /complains/:id/feedback) ---
+  Future<void> submitStudentFeedback(
+    String id, {
+    required bool isResolved,
+    String? feedback,
+    int? rating,
+  }) async {
+    try {
+      final payload = <String, dynamic>{
+        'is_resolved': isResolved,
+      };
+      if (feedback != null && feedback.isNotEmpty) {
+        payload['feedback'] = feedback;
+      }
+      if (rating != null) {
+        payload['rating'] = rating;
+      }
+      await _dio.post(
+        '/complains/$id/feedback',
+        data: payload,
+      );
+    } on DioException catch (e) {
+      developer.log(
+        'POST /complains/$id/feedback error: ${e.message}',
+        name: 'ComplaintsRepository',
+      );
+      throw ApiException(_message(e), statusCode: e.response?.statusCode);
     }
   }
 
@@ -229,13 +291,7 @@ class ComplaintsRepository {
   }
 
   Future<ComplaintResponse> addFeedback(String id, String feedback) {
-    return updateComplaint(
-      id,
-      UpdateComplaintRequest(
-        status: ComplaintStatus.resolved,
-        response: feedback,
-      ),
-    );
+    return solveComplaint(id, feedback);
   }
 
   List<ComplaintResponse> _extractComplaintList(dynamic body) {
@@ -252,8 +308,8 @@ class ComplaintsRepository {
     if (rawList == null) return const [];
 
     return rawList
-        .whereType<Map<String, dynamic>>()
-        .map((j) => ComplaintResponse.fromJson(j))
+        .whereType<Map>()
+        .map((j) => ComplaintResponse.fromJson(Map<String, dynamic>.from(j)))
         .toList();
   }
 }

@@ -100,24 +100,24 @@ class LaundryManagementScreen extends GetView<LaundryManagementController> {
                       ),
                       const SizedBox(height: 4),
                       Text(
-                        'Enter student Aadhar number to view current balance and top-up funds.',
+                        'Enter student ID or bank code to view current balance and top-up funds.',
                         style: AppTextStyles.bodySm.copyWith(
                           color: AppColors.textSecondary,
                         ),
                       ),
                       const SizedBox(height: AppDimens.gapLg),
 
-                      // Aadhar search field
+                      // Student ID search field
                       Row(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
                           Expanded(
                             child: AppTextField(
                               controller: controller.aadharController,
-                              label: 'Student Aadhar Number',
-                              hint: 'Enter 12-digit Aadhar number',
+                              label: 'Student ID / Bank Code',
+                              hint: 'Enter student code (e.g. 0876)',
                               prefixIcon: Icons.badge_outlined,
-                              keyboardType: TextInputType.number,
+                              keyboardType: TextInputType.text,
                               validator: Validators.required,
                               onChanged: controller.onAadharChanged,
                             ),

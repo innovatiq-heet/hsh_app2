@@ -56,20 +56,24 @@ class StudentScreenTimeController extends GetxController with WidgetsBindingObse
     final yestStr = '${yest.year.toString().padLeft(4, '0')}-${yest.month.toString().padLeft(2, '0')}-${yest.day.toString().padLeft(2, '0')}';
 
     list.add({'date': today, 'label': 'Today'});
-    list.add({'date': yestStr, 'label': 'Yesterday'});
 
-    final seenDates = {today, yestStr};
+    final seenDates = {today};
     for (final r in historyRecords) {
       if (r is Map) {
-        final d = (r['date'] ?? '').toString().split('T').first;
+        final raw = (r['date'] ?? r['day'] ?? r['createdAt'] ?? '').toString();
+        final d = raw.split('T').first.trim();
         if (d.isNotEmpty && !seenDates.contains(d)) {
           seenDates.add(d);
-          try {
-            final parsed = DateTime.parse(d);
-            final label = DateFormat('EEE, d MMM').format(parsed);
-            list.add({'date': d, 'label': label});
-          } catch (_) {
-            list.add({'date': d, 'label': d});
+          if (d == yestStr) {
+            list.add({'date': d, 'label': 'Yesterday'});
+          } else {
+            try {
+              final parsed = DateTime.parse(d);
+              final label = DateFormat('EEE, d MMM').format(parsed);
+              list.add({'date': d, 'label': label});
+            } catch (_) {
+              list.add({'date': d, 'label': d});
+            }
           }
         }
       }
@@ -78,16 +82,41 @@ class StudentScreenTimeController extends GetxController with WidgetsBindingObse
   }
 
   int get selectedDayTotalMinutes {
+    // 1. If we have the app list for the selected day, sum the actual tracked apps (excluding hsh_app2)
+    final apps = currentDayRawApps;
+    if (apps.isNotEmpty) {
+      final sum = apps.fold<int>(0, (acc, item) {
+        if (item is Map) {
+          final pkg = (item['packageName'] ?? item['package_name'] ?? '').toString();
+          if (pkg == 'com.example.hsh_app2') return acc;
+          return acc +
+              toInt(
+                item['minutes'] ??
+                    item['total_minutes'] ??
+                    item['totalMinutes'] ??
+                    item['duration'] ??
+                    item['time'] ??
+                    item['usage_minutes'],
+              );
+        }
+        return acc;
+      });
+      if (sum > 0) return sum;
+    }
+
     if (isTodaySelected) {
       return totalMinutesToday.value;
     }
+
     final rec = _findHistoryRecord(selectedDate.value);
     if (rec != null) {
       return toInt(
         rec['total_screen_time_minutes'] ??
             rec['totalScreenTimeMinutes'] ??
             rec['totalMinutes'] ??
-            rec['minutes'],
+            rec['total_minutes'] ??
+            rec['minutes'] ??
+            rec['usage_minutes'],
       );
     }
     return 0;
@@ -103,6 +132,7 @@ class StudentScreenTimeController extends GetxController with WidgetsBindingObse
         rec['night_screen_time_minutes'] ??
             rec['nightScreenTimeMinutes'] ??
             rec['nightMinutes'] ??
+            rec['night_minutes'] ??
             rec['night'],
       );
     }
@@ -112,8 +142,11 @@ class StudentScreenTimeController extends GetxController with WidgetsBindingObse
   Map<String, dynamic>? _findHistoryRecord(String dateStr) {
     for (final r in historyRecords) {
       if (r is Map) {
-        final d = (r['date'] ?? '').toString().split('T').first;
-        if (d == dateStr) return Map<String, dynamic>.from(r);
+        final raw = (r['date'] ?? r['day'] ?? r['createdAt'] ?? '').toString();
+        final d = raw.split('T').first.trim();
+        if (d == dateStr || d.startsWith(dateStr) || dateStr.startsWith(d)) {
+          return Map<String, dynamic>.from(r);
+        }
       }
     }
     return null;
@@ -135,6 +168,196 @@ class StudentScreenTimeController extends GetxController with WidgetsBindingObse
     }
     return [];
   }
+
+  // -------------------------------------------------------------
+  // Analytics & Graph Data
+  // -------------------------------------------------------------
+
+  /// 7-day chronological usage points for trend graphs
+  List<Map<String, dynamic>> get trendGraphPoints {
+    final list = <Map<String, dynamic>>[];
+    final now = DateTime.now();
+
+    // Map existing history records by yyyy-MM-dd
+    final mapByDate = <String, Map<String, dynamic>>{};
+    for (final r in historyRecords) {
+      if (r is Map) {
+        final raw = (r['date'] ?? r['day'] ?? r['createdAt'] ?? '').toString();
+        final d = raw.split('T').first.trim();
+        if (d.isNotEmpty) {
+          mapByDate[d] = Map<String, dynamic>.from(r);
+        }
+      }
+    }
+
+    final today = todayDateStr;
+    mapByDate[today] = {
+      'date': today,
+      'totalMinutes': totalMinutesToday.value,
+      'nightMinutes': nightMinutesToday.value,
+    };
+
+    // Build the last 7 calendar days in chronological order (Oldest -> Today)
+    for (int i = 6; i >= 0; i--) {
+      final dt = now.subtract(Duration(days: i));
+      final dStr = '${dt.year.toString().padLeft(4, '0')}-${dt.month.toString().padLeft(2, '0')}-${dt.day.toString().padLeft(2, '0')}';
+      final rec = mapByDate[dStr];
+
+      int total = 0;
+      int night = 0;
+
+      if (dStr == today) {
+        total = totalMinutesToday.value;
+        night = nightMinutesToday.value;
+      } else if (rec != null) {
+        final apps = _extractAppsList(rec);
+        if (apps.isNotEmpty) {
+          total = apps.fold<int>(0, (sum, a) {
+            final pkg = (a is Map ? (a['packageName'] ?? a['package_name'] ?? '') : '').toString();
+            if (pkg == 'com.example.hsh_app2') return sum;
+            return sum + toInt(a['minutes'] ?? a['total_minutes'] ?? a['totalMinutes'] ?? a['duration'] ?? a['time']);
+          });
+        }
+        if (total == 0) {
+          total = toInt(rec['total_screen_time_minutes'] ?? rec['totalScreenTimeMinutes'] ?? rec['totalMinutes'] ?? rec['minutes']);
+        }
+        night = toInt(rec['night_screen_time_minutes'] ?? rec['nightScreenTimeMinutes'] ?? rec['nightMinutes'] ?? rec['night']);
+      }
+
+      final dayLabel = DateFormat('E').format(dt); // e.g. Mon, Tue
+      final shortDate = DateFormat('d MMM').format(dt); // e.g. 29 Sep
+
+      final double hVal = total / 60.0;
+      final double nVal = night / 60.0;
+      final bool isSel = dStr == effectiveSelectedDate;
+
+      list.add({
+        'date': dStr,
+        'dayLabel': dayLabel,
+        'shortDate': shortDate,
+        'dateLabel': shortDate,
+        'totalMinutes': total,
+        'nightMinutes': night,
+        'isToday': dStr == today,
+        'isSelected': isSel,
+        'hours': hVal,
+        'nightHours': nVal,
+        'hoursFormatted': hVal.toStringAsFixed(1),
+      });
+    }
+
+    return list;
+  }
+
+  /// Average daily screen time minutes across the tracked trend period
+  int get averageDailyMinutes {
+    final pts = trendGraphPoints;
+    final nonZero = pts.where((p) => (p['totalMinutes'] as int) > 0).toList();
+    if (nonZero.isEmpty) return selectedDayTotalMinutes;
+    final sum = nonZero.fold<int>(0, (acc, p) => acc + (p['totalMinutes'] as int));
+    return sum ~/ nonZero.length;
+  }
+
+  /// Categorizes applications into student focus groups
+  static String categorizeApp(String pkg, String name) {
+    final p = pkg.toLowerCase();
+    final n = name.toLowerCase();
+    if (p.contains('instagram') ||
+        p.contains('snapchat') ||
+        p.contains('facebook') ||
+        p.contains('whatsapp') ||
+        p.contains('telegram') ||
+        p.contains('discord') ||
+        p.contains('reddit') ||
+        p.contains('twitter') ||
+        p.contains('musically') ||
+        p.contains('tiktok') ||
+        n.contains('insta') ||
+        n.contains('chat') ||
+        n.contains('social')) {
+      return 'Social Media';
+    }
+    if (p.contains('youtube') ||
+        p.contains('netflix') ||
+        p.contains('videolan') ||
+        p.contains('vlc') ||
+        p.contains('spotify') ||
+        p.contains('hotstar') ||
+        p.contains('primevideo') ||
+        n.contains('video') ||
+        n.contains('movie') ||
+        n.contains('music')) {
+      return 'Entertainment';
+    }
+    if (p.contains('pubg') ||
+        p.contains('freefire') ||
+        p.contains('dts') ||
+        p.contains('game') ||
+        p.contains('supercell') ||
+        p.contains('roblox') ||
+        p.contains('candycrush') ||
+        n.contains('game') ||
+        n.contains('battle') ||
+        n.contains('fire')) {
+      return 'Gaming';
+    }
+    if (p.contains('chrome') ||
+        p.contains('classroom') ||
+        p.contains('docs') ||
+        p.contains('drive') ||
+        p.contains('pdf') ||
+        p.contains('calculator') ||
+        p.contains('notes') ||
+        p.contains('wiki') ||
+        n.contains('study') ||
+        n.contains('class') ||
+        n.contains('learn')) {
+      return 'Study & Tools';
+    }
+    return 'Other';
+  }
+
+  /// Breakdown of minutes grouped by application category for the selected day
+  Map<String, int> get categoryMinutes {
+    final result = <String, int>{
+      'Social Media': 0,
+      'Entertainment': 0,
+      'Gaming': 0,
+      'Study & Tools': 0,
+      'Other': 0,
+    };
+    for (final it in displayAppsList) {
+      final pkg = (it['packageName'] ?? '').toString();
+      final name = (it['appName'] ?? '').toString();
+      final mins = (it['minutes'] as int?) ?? 0;
+      if (mins > 0) {
+        final cat = categorizeApp(pkg, name);
+        result[cat] = (result[cat] ?? 0) + mins;
+      }
+    }
+    return result;
+  }
+
+  /// Hostel Digital Focus & Health score (0% to 100%)
+  int get complianceScore {
+    final total = selectedDayTotalMinutes;
+    final night = selectedDayNightMinutes;
+    final limit = dailyLimitMinutes.value;
+
+    int score = 95;
+    if (night > 0) score -= (night * 0.8).round().clamp(10, 30);
+    if (limit > 0 && total > limit) {
+      final over = total - limit;
+      score -= (over * 0.5).round().clamp(10, 35);
+    }
+    final cat = categoryMinutes;
+    final distracting = (cat['Social Media'] ?? 0) + (cat['Gaming'] ?? 0);
+    if (total > 0 && (distracting / total) > 0.6) {
+      score -= 15;
+    }
+    return score.clamp(30, 100);
+  }
+
 
 
   // Parental Control & App Blocking state
@@ -536,9 +759,6 @@ class StudentScreenTimeController extends GetxController with WidgetsBindingObse
           data['live']?['totalScreenTimeMinutes'] ??
           data['live']?['total_screen_time_minutes'],
     );
-    if (liveTotal > 0 || totalMinutesToday.value == 0) {
-      totalMinutesToday.value = liveTotal;
-    }
 
     final liveNight = toInt(
       data['nightScreenTimeMinutes'] ??
@@ -565,24 +785,22 @@ class StudentScreenTimeController extends GetxController with WidgetsBindingObse
       appBreakdown.assignAll(_sortedByMinutes(newApps));
       debugPrint('[ScreenTime] updated appBreakdown with ${appBreakdown.length} apps. First app: ${appBreakdown.first}');
 
-      if (totalMinutesToday.value == 0) {
-        final appsSum = newApps.fold<int>(
-          0,
-          (sum, item) =>
-              sum +
-              toInt(
-                item['minutes'] ??
-                    item['total_minutes'] ??
-                    item['totalMinutes'] ??
-                    item['duration'] ??
-                    item['time'] ??
-                    item['usage_minutes'],
-              ),
-        );
-        if (appsSum > 0) {
-          totalMinutesToday.value = appsSum;
-        }
-      }
+      final appsSum = newApps.fold<int>(
+        0,
+        (sum, item) =>
+            sum +
+            toInt(
+              item['minutes'] ??
+                  item['total_minutes'] ??
+                  item['totalMinutes'] ??
+                  item['duration'] ??
+                  item['time'] ??
+                  item['usage_minutes'],
+            ),
+      );
+      totalMinutesToday.value = appsSum > 0 ? appsSum : liveTotal;
+    } else if (liveTotal > 0 || totalMinutesToday.value == 0) {
+      totalMinutesToday.value = liveTotal;
     }
 
     final blocked = data['blockedPackages'] ?? data['blocked_packages'];

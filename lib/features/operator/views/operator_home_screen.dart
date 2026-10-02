@@ -42,111 +42,24 @@ class OperatorHomeScreen extends StatelessWidget {
   const OperatorHomeScreen({super.key});
 
   static const _groups = [
-    _OperatorGroup('Students', [
+    _OperatorGroup('Student Management', [
       _OperatorAction(
         'Student Phonebook',
         'Campus contacts & caller directory',
-        Icons.contact_phone_outlined,
+        Icons.contact_phone_rounded,
         AppColors.primary,
         Routes.operatorDirectory,
       ),
       _OperatorAction(
         'Screen Time',
-        'Student individual screen time & live telemetry',
+        'Telemetry, app restrictions & usage analytics',
         Icons.phone_android_rounded,
-        AppColors.primaryLight,
+        Color(0xFF8B4513),
         Routes.studentScreenTime,
-      ),
-      _OperatorAction(
-        'Admissions',
-        'Approve new students',
-        Icons.how_to_reg_outlined,
-        AppColors.successGreen,
-        Routes.operatorAdmissions,
-      ),
-      _OperatorAction(
-        'Room swap',
-        'Swap two rooms',
-        Icons.swap_horiz_rounded,
-        AppColors.secondary,
-        Routes.operatorRoomSwap,
-      ),
-      _OperatorAction(
-        'Mark left',
-        'Archive a student',
-        Icons.person_remove_outlined,
-        AppColors.cancelledRed,
-        Routes.operatorMarkLeft,
-      ),
-    ]),
-    _OperatorGroup('Approvals', [
-      _OperatorAction(
-        'Leave requests',
-        'Approve or reject',
-        Icons.event_available_outlined,
-        AppColors.warningOrange,
-        Routes.operatorLeaveApprovals,
-      ),
-      _OperatorAction(
-        'Fee slips',
-        'Verify payments',
-        Icons.fact_check_outlined,
-        AppColors.primaryLight,
-        Routes.operatorFeeApprovals,
-      ),
-      _OperatorAction(
-        'Complaints desk',
-        'Inspect and resolve',
-        Icons.handyman_outlined,
-        AppColors.secondary,
-        Routes.complainSolverModule,
-      ),
-      _OperatorAction(
-        'Laundry desk',
-        'Manage orders & balance',
-        Icons.local_laundry_service_outlined,
-        AppColors.primary,
-        Routes.laundryModule,
-      ),
-    ]),
-    _OperatorGroup('Finance & events', [
-      _OperatorAction(
-        'Deposits & debits',
-        'Post ledger entries',
-        Icons.account_balance_wallet_outlined,
-        AppColors.successGreen,
-        Routes.operatorDepositDebit,
-      ),
-      _OperatorAction(
-        'Sabha',
-        'Schedule sessions',
-        Icons.event_outlined,
-        AppColors.primaryLight,
-        Routes.operatorSabha,
-      ),
-      _OperatorAction(
-        'Attendance',
-        'Log on behalf',
-        Icons.edit_calendar_outlined,
-        AppColors.secondary,
-        Routes.operatorAttendanceOnBehalf,
-      ),
-      _OperatorAction(
-        'Dynamic QR',
-        'Display rotating code',
-        Icons.qr_code_2_rounded,
-        AppColors.primary,
-        Routes.operatorAttendanceQrDisplay,
-      ),
-      _OperatorAction(
-        'Attendance history',
-        'View logs & records',
-        Icons.history_rounded,
-        AppColors.primaryLight,
-        Routes.attendanceHistory,
       ),
     ]),
   ];
+
 
   Future<void> _logout() async {
     await Get.find<SessionStore>().clear();

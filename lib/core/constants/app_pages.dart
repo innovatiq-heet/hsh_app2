@@ -1,55 +1,56 @@
 import 'package:get/get.dart';
-import '../../features/screentime/student_screen_time_binding.dart';
-import '../../features/screentime/student_screen_time_screen.dart';
-import '../../features/attendance/attendance_binding.dart';
-import '../../features/attendance/attendance_history_screen.dart';
-import '../../features/attendance/attendance_qr_display_screen.dart';
-import '../../features/attendance/attendance_scanner_screen.dart';
-import '../../features/chat/chat_screen.dart';
-import '../../features/complaints/complaint_module_binding.dart';
-import '../../features/complaints/complaint_module_screen.dart';
-import '../../features/complaints/complaint_admin_detail_screen.dart';
-import '../../features/complaints/complaint_solver_binding.dart';
-import '../../features/complaints/add_complaint_screen.dart';
-import '../../features/complaints/complaint_detail_screen.dart';
-import '../../features/complaints/complaints_binding.dart';
-import '../../features/fees/fees_binding.dart';
-import '../../features/fees/fees_screen.dart';
-import '../../features/fees/pay_now_screen.dart';
-import '../../features/fees/payment_receipt_screen.dart';
-import '../../features/home/home_binding.dart';
-import '../../features/home/home_screen.dart';
-import '../../features/laundry/laundry_ticket_detail_binding.dart';
-import '../../features/laundry/laundry_ticket_detail_screen.dart';
-import '../../features/laundry/laundry_module_binding.dart';
-import '../../features/laundry/laundry_module_screen.dart';
-import '../../features/leave/add_leave_screen.dart';
-import '../../features/leave/leave_binding.dart';
-import '../../features/leave/leave_screen.dart';
-import '../../features/auth/login/login_binding.dart';
-import '../../features/auth/login/login_screen.dart';
-import '../../features/notes/notes_binding.dart';
-import '../../features/notes/notes_screen.dart';
-import '../../features/operator/operator_admissions_screen.dart';
-import '../../features/operator/operator_attendance_behalf_screen.dart';
-import '../../features/operator/operator_binding.dart';
-import '../../features/operator/operator_deposit_debit_screen.dart';
-import '../../features/operator/operator_directory_screen.dart';
-import '../../features/operator/operator_fee_approvals_screen.dart';
-import '../../features/operator/operator_home_screen.dart';
-import '../../features/operator/operator_leave_approvals_screen.dart';
-import '../../features/operator/operator_mark_left_screen.dart';
-import '../../features/operator/operator_room_swap_screen.dart';
-import '../../features/operator/operator_sabha_screen.dart';
-import '../../features/auth/register/register_binding.dart';
-import '../../features/auth/register/register_screen.dart';
-import '../../features/services/services_screen.dart';
-import '../../features/settings/settings_screen.dart';
-import '../../features/splash/splash_binding.dart';
-import '../../features/splash/splash_screen.dart';
-import '../../features/student_profile/edit_profile_binding.dart';
-import '../../features/student_profile/edit_profile_screen.dart';
-import '../../features/vehicle/vehicle_redirect_screen.dart';
+import '../../features/screentime/bindings/student_screen_time_binding.dart';
+import '../../features/screentime/views/student_screen_time_screen.dart';
+import '../../features/attendance/bindings/attendance_binding.dart';
+import '../../features/attendance/views/attendance_history_screen.dart';
+import '../../features/attendance/views/attendance_qr_display_screen.dart';
+import '../../features/attendance/views/attendance_scanner_screen.dart';
+import '../../features/chat/views/chat_screen.dart';
+import '../../features/complaints/bindings/complaint_module_binding.dart';
+import '../../features/complaints/views/complaint_module_screen.dart';
+import '../../features/complaints/views/complaint_admin_detail_screen.dart';
+import '../../features/complaints/bindings/complaint_solver_binding.dart';
+import '../../features/complaints/views/add_complaint_screen.dart';
+import '../../features/complaints/views/complaint_detail_screen.dart';
+import '../../features/complaints/bindings/complaints_binding.dart';
+import '../../features/fees/bindings/fees_binding.dart';
+import '../../features/fees/views/fees_screen.dart';
+import '../../features/fees/views/pay_now_screen.dart';
+import '../../features/fees/views/payment_receipt_screen.dart';
+import '../../features/home/bindings/home_binding.dart';
+import '../../features/home/views/home_screen.dart';
+import '../../features/laundry/bindings/laundry_ticket_detail_binding.dart';
+import '../../features/laundry/views/laundry_ticket_detail_screen.dart';
+import '../../features/laundry/bindings/laundry_module_binding.dart';
+import '../../features/laundry/views/laundry_module_screen.dart';
+import '../../features/leave/views/add_leave_screen.dart';
+import '../../features/leave/bindings/leave_binding.dart';
+import '../../features/leave/views/leave_screen.dart';
+import '../../features/auth/bindings/login_binding.dart';
+import '../../features/auth/views/login_screen.dart';
+import '../../features/notes/bindings/notes_binding.dart';
+import '../../features/notes/views/notes_screen.dart';
+import '../../features/operator/views/operator_admissions_screen.dart';
+import '../../features/operator/views/operator_attendance_behalf_screen.dart';
+import '../../features/operator/bindings/operator_binding.dart';
+import '../../features/operator/views/operator_deposit_debit_screen.dart';
+import '../../features/operator/views/operator_fee_approvals_screen.dart';
+import '../../features/operator/views/operator_home_screen.dart';
+import '../../features/operator/views/operator_leave_approvals_screen.dart';
+import '../../features/operator/views/operator_mark_left_screen.dart';
+import '../../features/operator/views/operator_room_swap_screen.dart';
+import '../../features/operator/views/operator_sabha_screen.dart';
+import '../../features/phonebook/bindings/phonebook_binding.dart';
+import '../../features/phonebook/views/phonebook_screen.dart';
+import '../../features/auth/bindings/register_binding.dart';
+import '../../features/auth/views/register_screen.dart';
+import '../../features/services/views/services_screen.dart';
+import '../../features/settings/views/settings_screen.dart';
+import '../../features/splash/bindings/splash_binding.dart';
+import '../../features/splash/views/splash_screen.dart';
+import '../../features/student_profile/bindings/edit_profile_binding.dart';
+import '../../features/student_profile/views/edit_profile_screen.dart';
+import '../../features/vehicle/views/vehicle_redirect_screen.dart';
 import '../../features/shared/screens/no_internet_screen.dart';
 import 'app_routes.dart';
 
@@ -61,7 +62,7 @@ class AppPages {
   AppPages._();
 
   static final List<GetPage> pages = [
-    // ── Auth ─────────────────────────────────────────────────────────────────
+    // â”€â”€ Auth â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
     GetPage(
       name: Routes.splash,
       page: () => const SplashScreen(),
@@ -84,7 +85,7 @@ class AppPages {
       transitionDuration: const Duration(milliseconds: 280),
     ),
 
-    // ── Student ───────────────────────────────────────────────────────────────
+    // â”€â”€ Student â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
     GetPage(
       name: Routes.studentHome,
       page: () => const HomeScreen(),
@@ -168,14 +169,14 @@ class AppPages {
       binding: StudentScreenTimeBinding(),
     ),
 
-    // ── Laundry module (staff / warden / admin) ───────────────────────────────
+    // â”€â”€ Laundry module (staff / warden / admin) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
     GetPage(
       name: Routes.laundryModule,
       page: () => const LaundryModuleScreen(),
       binding: LaundryModuleBinding(),
     ),
 
-    // ── Complaint solver module (complainsolver / admin / warden) ─────────────
+    // â”€â”€ Complaint solver module (complainsolver / admin / warden) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
     GetPage(
       name: Routes.complainSolverModule,
       page: () => const ComplainModuleScreen(),
@@ -187,7 +188,7 @@ class AppPages {
       binding: ComplainAdminDetailBinding(),
     ),
 
-    // ── Operator shell (admin / warden) ───────────────────────────────────────
+    // â”€â”€ Operator shell (admin / warden) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
     GetPage(
       name: Routes.operatorShell,
       page: () => const OperatorHomeScreen(),
@@ -197,8 +198,8 @@ class AppPages {
     ),
     GetPage(
       name: Routes.operatorDirectory,
-      page: () => const OperatorDirectoryScreen(),
-      binding: OperatorBinding(),
+      page: () => const PhonebookScreen(),
+      binding: PhonebookBinding(),
     ),
     GetPage(
       name: Routes.operatorAdmissions,
@@ -246,7 +247,7 @@ class AppPages {
       binding: AttendanceQrDisplayBinding(),
     ),
 
-    // ── Utility ───────────────────────────────────────────────────────────────
+    // â”€â”€ Utility â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
     GetPage(
       name: Routes.noInternet,
       page: () => const NoInternetScreen(showBackButton: true),

@@ -45,6 +45,9 @@ dependencies:
   permission_handler: ^11.3.1
   mobile_number: ^3.0.0
   flutter_blue_plus: ^2.3.13
+  sqflite: ^2.4.2+1
+  path: ^1.9.1
+  url_launcher: ^6.3.2
 
 dev_dependencies:
   flutter_test:

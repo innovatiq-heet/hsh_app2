@@ -42,3 +42,8 @@ android {
 flutter {
     source = "../.."
 }
+
+dependencies {
+    // Background screen-time sync (survives app close + reboot)
+    implementation("androidx.work:work-runtime:2.10.2")
+}

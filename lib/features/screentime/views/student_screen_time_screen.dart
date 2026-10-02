@@ -30,7 +30,7 @@ class StudentScreenTimeScreen extends GetView<StudentScreenTimeController> {
                   ? 'Room ${selected['room'] ?? 'N/A'} • Aadhar ${selected['aadhar'] ?? ''}'
                   : (isLeader
                       ? 'Live device activity directory'
-                      : '10-minute live device activity'),
+                      : 'Live device activity'),
               leading: HeaderIconButton(
                 icon: Icons.arrow_back_rounded,
                 tooltip: selected != null ? 'Back to directory' : 'Back',
@@ -42,14 +42,7 @@ class StudentScreenTimeScreen extends GetView<StudentScreenTimeController> {
                 HeaderIconButton(
                   icon: Icons.refresh_rounded,
                   tooltip: 'Refresh',
-                  onPressed: () {
-                    if (isLeader && selected == null) {
-                      controller.fetchStudentsList();
-                    } else {
-                      controller.fetchLiveStatus();
-                      controller.fetchHistory();
-                    }
-                  },
+                  onPressed: controller.refreshAll,
                 ),
               ],
             ),
@@ -108,14 +101,14 @@ class StudentScreenTimeScreen extends GetView<StudentScreenTimeController> {
                 ],
               ),
               const SizedBox(height: 12),
-              TextField(
+              Obx(() => TextField(
                 controller: controller.searchFilterController,
                 onChanged: controller.filterStudents,
                 decoration: InputDecoration(
                   hintText: 'Search by name, room (e.g. A-204), or Aadhar...',
                   isDense: true,
                   prefixIcon: const Icon(Icons.search_rounded, size: 20),
-                  suffixIcon: controller.searchFilterController.text.isNotEmpty
+                  suffixIcon: controller.searchText.value.isNotEmpty
                       ? IconButton(
                           icon: const Icon(Icons.clear_rounded, size: 18),
                           onPressed: () {
@@ -128,7 +121,7 @@ class StudentScreenTimeScreen extends GetView<StudentScreenTimeController> {
                     borderRadius: BorderRadius.circular(12),
                   ),
                 ),
-              ),
+              )),
             ],
           ),
         ),
@@ -188,8 +181,8 @@ class StudentScreenTimeScreen extends GetView<StudentScreenTimeController> {
     final aadhar = (student['aadhar'] ?? '').toString();
     final isOnline = student['isOnline'] == true;
     final isScreenOn = student['isScreenOn'] == true;
-    final totalMins = (student['totalScreenTimeMinutes'] as int?) ?? 0;
-    final nightMins = (student['nightScreenTimeMinutes'] as int?) ?? 0;
+    final totalMins = StudentScreenTimeController.toInt(student['totalScreenTimeMinutes']);
+    final nightMins = StudentScreenTimeController.toInt(student['nightScreenTimeMinutes']);
     final hours = totalMins ~/ 60;
     final mins = totalMins % 60;
 
@@ -389,6 +382,9 @@ class StudentScreenTimeScreen extends GetView<StudentScreenTimeController> {
           ),
         ],
 
+        // Own device without Usage access: nothing can be reported
+        if (!isLeader) _buildPermissionBanner(),
+
         // Live Status Card
         _buildLiveCard(),
         const SizedBox(height: AppDimens.gapMd),
@@ -405,6 +401,34 @@ class StudentScreenTimeScreen extends GetView<StudentScreenTimeController> {
         _buildHistoryCard(),
       ],
     );
+  }
+
+  Widget _buildPermissionBanner() {
+    return Obx(() {
+      if (controller.hasUsagePermission.value) return const SizedBox.shrink();
+      return Padding(
+        padding: const EdgeInsets.only(bottom: AppDimens.gapMd),
+        child: AppCard(
+          padding: const EdgeInsets.all(AppDimens.cardPadding),
+          child: Row(
+            children: [
+              const Icon(Icons.warning_amber_rounded, color: Colors.orange),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Text(
+                  'Usage access is off, so your screen time is not being recorded.',
+                  style: AppTextStyles.bodySm,
+                ),
+              ),
+              TextButton(
+                onPressed: controller.openUsageSettings,
+                child: const Text('Enable'),
+              ),
+            ],
+          ),
+        ),
+      );
+    });
   }
 
   Widget _buildLiveCard() {
@@ -450,7 +474,7 @@ class StudentScreenTimeScreen extends GetView<StudentScreenTimeController> {
                 color: AppColors.mainBackground,
                 borderRadius: BorderRadius.circular(10),
               ),
-              child: const Text('10m ping', style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold)),
+              child: const Text('Live', style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold)),
             ),
           ],
         ),
@@ -556,7 +580,7 @@ class StudentScreenTimeScreen extends GetView<StudentScreenTimeController> {
             const SectionHeader(title: 'App Usage Breakdown'),
             const SizedBox(height: 12),
             ...list.map((item) {
-              final mins = item['minutes'] as int? ?? 0;
+              final mins = StudentScreenTimeController.toInt(item['minutes']);
               final name = item['appName'] ?? item['packageName'] ?? 'App';
               final progress = (mins / total).clamp(0.0, 1.0);
 
@@ -625,8 +649,8 @@ class StudentScreenTimeScreen extends GetView<StudentScreenTimeController> {
               itemBuilder: (context, index) {
                 final rec = records[index];
                 final date = (rec['date'] ?? '').toString().split('T').first;
-                final mins = (rec['totalScreenTimeMinutes'] as int?) ?? 0;
-                final night = (rec['nightScreenTimeMinutes'] as int?) ?? 0;
+                final mins = StudentScreenTimeController.toInt(rec['totalScreenTimeMinutes']);
+                final night = StudentScreenTimeController.toInt(rec['nightScreenTimeMinutes']);
                 final h = mins ~/ 60;
                 final m = mins % 60;
 

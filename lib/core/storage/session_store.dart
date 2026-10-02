@@ -2,6 +2,7 @@ import 'dart:developer' as developer;
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:get/get.dart';
 import '../enums/user_role.dart';
+import '../services/screen_time_service.dart';
 
 /// Secure, cached session store.
 ///
@@ -108,6 +109,13 @@ class SessionStore extends GetxService {
     if (aadhar != null && aadhar.isNotEmpty) writes.add(_write(_kAadhar, aadhar));
     if (room != null && room.isNotEmpty) writes.add(_write(_kRoom, room));
     await Future.wait(writes);
+
+    // Students (incl. leaders) are screen-time monitored; staff are not.
+    if (role.isStudentOrLeader && token.isNotEmpty) {
+      await ScreenTimeService.startMonitoring(token);
+    } else {
+      await ScreenTimeService.stopMonitoring();
+    }
   }
 
   Future<void> clear() async {
@@ -122,6 +130,8 @@ class SessionStore extends GetxService {
     _cachedBloodGroup = null;
     _cachedVehicle = null;
     _cachedLastAttendanceDate = null;
+
+    await ScreenTimeService.stopMonitoring();
 
     try {
       await _storage.deleteAll().timeout(_timeout);

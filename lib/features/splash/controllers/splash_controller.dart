@@ -3,6 +3,7 @@ import '../../../core/enums/user_role.dart';
 import '../../../core/constants/app_routes.dart';
 import '../../../core/network/api_client.dart';
 import '../../../core/network/repository/authentication/auth_repository.dart';
+import '../../../core/services/screen_time_service.dart';
 import '../../../core/storage/session_store.dart';
 
 class SplashController extends GetxController {
@@ -37,6 +38,12 @@ class SplashController extends GetxController {
         Get.offAllNamed(Routes.login);
       }
       return;
+    }
+
+    // Re-arm background screen-time sync on every launch (fresh token, and
+    // revives the job if the OS / user force-stop killed it).
+    if (session.role.isStudentOrLeader) {
+      await ScreenTimeService.startMonitoring(token);
     }
 
     _routeByRole(session.role);

@@ -1,14 +1,20 @@
-﻿import 'dart:async';
+import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
-import 'package:intl/intl.dart';
 import '../../../core/enums/user_role.dart';
-import '../../../core/constants/app_strings.dart';
 import '../../../core/network/api_client.dart';
+import '../../../core/services/screen_time_service.dart';
 import '../../../core/storage/session_store.dart';
 
+/// Screen-time UI state.
+///
+/// Usage is *collected* natively (see [ScreenTimeService]) — this controller
+/// only triggers an immediate sync for the student's own device and reads the
+/// results back from the API.
 class StudentScreenTimeController extends GetxController with WidgetsBindingObserver {
   final ApiClient _apiClient = Get.find<ApiClient>();
+
+  static const _refreshInterval = Duration(minutes: 1);
 
   final RxBool isLoading = false.obs;
   final RxBool isLoadingStudents = false.obs;
@@ -20,56 +26,43 @@ class StudentScreenTimeController extends GetxController with WidgetsBindingObse
   final RxList<dynamic> appBreakdown = <dynamic>[].obs;
   final RxList<dynamic> historyRecords = <dynamic>[].obs;
 
+  /// False when this (student's) device hasn't granted Usage access.
+  final RxBool hasUsagePermission = true.obs;
+
   // Student directory state for Leaders & Operators
   final RxList<dynamic> allStudents = <dynamic>[].obs;
   final RxList<dynamic> filteredStudents = <dynamic>[].obs;
   final Rx<dynamic> selectedStudent = Rx<dynamic>(null);
 
   final searchFilterController = TextEditingController();
+  final RxString searchText = ''.obs;
   final RxString targetedAadhar = ''.obs;
   final Rx<UserRole> currentRole = UserRole.student.obs;
 
-  Timer? _heartbeatTimer;
-  DateTime? _lastResumeTime;
-  /// Track active time in seconds to avoid minute-level truncation loss.
-  int _sessionSeconds = 0;
+  Timer? _refreshTimer;
+
+  bool get _isViewingOwnDevice =>
+      !currentRole.value.canViewScreenTime && targetedAadhar.isEmpty;
 
   @override
   void onInit() {
     super.onInit();
     WidgetsBinding.instance.addObserver(this);
-    _lastResumeTime = DateTime.now();
     _loadRole();
-    startHeartbeatTimer();
+    _refreshTimer = Timer.periodic(_refreshInterval, (_) => _autoRefresh());
   }
 
   @override
   void onClose() {
     WidgetsBinding.instance.removeObserver(this);
-    _heartbeatTimer?.cancel();
+    _refreshTimer?.cancel();
     searchFilterController.dispose();
     super.onClose();
   }
 
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
-    if (state == AppLifecycleState.resumed) {
-      _lastResumeTime = DateTime.now();
-    } else if (state == AppLifecycleState.paused || state == AppLifecycleState.inactive) {
-      _flushActiveTime();
-      // Fire a final ping before the app goes to background
-      pingHeartbeat();
-    }
-  }
-
-  void _flushActiveTime() {
-    if (_lastResumeTime != null) {
-      final elapsed = DateTime.now().difference(_lastResumeTime!).inSeconds;
-      if (elapsed > 0) {
-        _sessionSeconds += elapsed;
-      }
-      _lastResumeTime = DateTime.now();
-    }
+    if (state == AppLifecycleState.resumed) _autoRefresh();
   }
 
   Future<void> _loadRole() async {
@@ -79,71 +72,44 @@ class StudentScreenTimeController extends GetxController with WidgetsBindingObse
     if (role.canViewScreenTime) {
       await fetchStudentsList();
     } else {
-      await fetchLiveStatus();
-      await fetchHistory();
+      await refreshOwn();
     }
   }
 
-  /// Start periodic 5-minute ping from device
-  void startHeartbeatTimer() {
-    pingHeartbeat();
-    _heartbeatTimer?.cancel();
-    _heartbeatTimer = Timer.periodic(const Duration(minutes: 5), (_) {
-      pingHeartbeat();
-    });
+  Future<void> _autoRefresh() async {
+    if (_isViewingOwnDevice) {
+      await refreshOwn();
+    } else if (targetedAadhar.isNotEmpty) {
+      await Future.wait([fetchLiveStatus(), fetchHistory()]);
+    } else {
+      await fetchStudentsList(silent: true);
+    }
   }
 
-  /// 5-minute real device heartbeat ping to backend (sends delta, not cumulative)
-  Future<void> pingHeartbeat() async {
-    try {
-      _flushActiveTime();
+  /// Student viewing their own device: push fresh usage first, then read it back.
+  Future<void> refreshOwn() async {
+    hasUsagePermission.value = !ScreenTimeService.isSupported ||
+        await ScreenTimeService.hasUsagePermission();
+    await ScreenTimeService.syncNow();
+    await Future.wait([fetchLiveStatus(), fetchHistory()]);
+  }
 
-      final deltaMinutes = _sessionSeconds ~/ 60;
-      final remainderSeconds = _sessionSeconds % 60;
+  Future<void> openUsageSettings() => ScreenTimeService.openUsageSettings();
 
-      final now = DateTime.now();
-      final dateStr = DateFormat('yyyy-MM-dd').format(now);
-      final isResumed = WidgetsBinding.instance.lifecycleState == AppLifecycleState.resumed;
-
-      final currentPackage = 'com.hsh.hostelapp';
-      final currentAppName = AppStrings.appName;
-
-      final breakdown = <Map<String, dynamic>>[];
-      if (deltaMinutes > 0) {
-        breakdown.add({
-          'packageName': currentPackage,
-          'appName': currentAppName,
-          'minutes': deltaMinutes,
-        });
-      }
-
-      await _apiClient.dio.post(
-        '/screen-time/ping',
-        data: {
-          'date': dateStr,
-          'totalScreenTimeMinutes': deltaMinutes,
-          'isScreenOn': isResumed,
-          'currentApp': currentPackage,
-          if (breakdown.isNotEmpty) 'appUsageBreakdown': breakdown,
-        },
-      );
-
-      // Reset, keeping leftover seconds that didn't make a full minute
-      _sessionSeconds = remainderSeconds;
-
-      // Refresh UI for own screen time (skip if leader is viewing another student)
-      if (!currentRole.value.canViewScreenTime || targetedAadhar.isEmpty) {
-        await fetchLiveStatus();
-      }
-    } catch (e) {
-      // Do NOT reset _sessionSeconds on failure so the delta is retried next cycle
-      debugPrint('[ScreenTime] Ping error: $e');
+  /// Manual refresh button.
+  Future<void> refreshAll() async {
+    if (currentRole.value.canViewScreenTime && selectedStudent.value == null) {
+      await fetchStudentsList();
+    } else if (_isViewingOwnDevice) {
+      await refreshOwn();
+    } else {
+      await Future.wait([fetchLiveStatus(), fetchHistory()]);
     }
   }
 
   /// Leader/Staff fetches directory of all students with today screen time overview from real API
-  Future<void> fetchStudentsList([String? search]) async {
-    isLoadingStudents.value = true;
+  Future<void> fetchStudentsList({String? search, bool silent = false}) async {
+    if (!silent) isLoadingStudents.value = true;
     try {
       final queryParams = <String, dynamic>{};
       if (search != null && search.trim().isNotEmpty) {
@@ -157,9 +123,8 @@ class StudentScreenTimeController extends GetxController with WidgetsBindingObse
       final data = response.data['data'] ?? response.data;
 
       if (data != null && data['students'] != null) {
-        final list = List<dynamic>.from(data['students']);
-        allStudents.assignAll(list);
-        filteredStudents.assignAll(list);
+        allStudents.assignAll(List<dynamic>.from(data['students']));
+        filterStudents(searchFilterController.text);
       }
     } catch (e) {
       debugPrint('[ScreenTime] fetchStudentsList error: $e');
@@ -170,6 +135,7 @@ class StudentScreenTimeController extends GetxController with WidgetsBindingObse
 
   /// Filter students locally by name, room, or Aadhar
   void filterStudents(String query) {
+    searchText.value = query;
     final q = query.trim().toLowerCase();
     if (q.isEmpty) {
       filteredStudents.assignAll(allStudents);
@@ -189,39 +155,53 @@ class StudentScreenTimeController extends GetxController with WidgetsBindingObse
   /// Select a student from list to inspect detailed screen time from real API
   void selectStudent(dynamic student) {
     selectedStudent.value = student;
-    final aadhar = (student['aadhar'] ?? '').toString();
-    targetedAadhar.value = aadhar;
-    fetchLiveStatus(aadhar);
-    fetchHistory(aadhar);
+    targetedAadhar.value = (student['aadhar'] ?? '').toString();
+    // Never show the previously selected student's numbers under this name.
+    _resetDetail();
+    fetchLiveStatus();
+    fetchHistory();
   }
 
   /// Return back to all students directory list
   void clearSelectedStudent() {
     selectedStudent.value = null;
     targetedAadhar.value = '';
+    _resetDetail();
     searchFilterController.clear();
-    filteredStudents.assignAll(allStudents);
+    filterStudents('');
+  }
+
+  void _resetDetail() {
+    isOnline.value = false;
+    isScreenOn.value = false;
+    currentApp.value = '';
+    totalMinutesToday.value = 0;
+    nightMinutesToday.value = 0;
+    appBreakdown.clear();
+    historyRecords.clear();
   }
 
   /// Fetch live status from real API (for self or targeted student aadhar)
-  Future<void> fetchLiveStatus([String? aadhar]) async {
+  Future<void> fetchLiveStatus() async {
+    final queryAadhar = targetedAadhar.value;
     isLoading.value = true;
     try {
-      final queryAadhar = aadhar ?? targetedAadhar.value;
       final endpoint = queryAadhar.isNotEmpty
           ? '/screen-time/live/$queryAadhar'
           : '/screen-time/live';
 
       final response = await _apiClient.dio.get(endpoint);
+      // Selection changed while the request was in flight — drop the result.
+      if (queryAadhar != targetedAadhar.value) return;
       final data = response.data['data'] ?? response.data;
 
       if (data != null) {
-        isOnline.value = data['isOnline'] ?? false;
-        isScreenOn.value = data['isScreenOn'] ?? false;
-        currentApp.value = data['currentApp'] ?? 'Idle';
-        totalMinutesToday.value = data['totalScreenTimeMinutes'] ?? 0;
-        nightMinutesToday.value = data['nightScreenTimeMinutes'] ?? 0;
-        appBreakdown.assignAll(data['appUsageBreakdown'] ?? []);
+        isOnline.value = data['isOnline'] == true;
+        isScreenOn.value = data['isScreenOn'] == true;
+        currentApp.value = (data['currentApp'] ?? 'Idle').toString();
+        totalMinutesToday.value = toInt(data['totalScreenTimeMinutes']);
+        nightMinutesToday.value = toInt(data['nightScreenTimeMinutes']);
+        appBreakdown.assignAll(_sortedByMinutes(data['appUsageBreakdown']));
       }
     } catch (e) {
       debugPrint('[ScreenTime] fetchLiveStatus error: $e');
@@ -231,14 +211,15 @@ class StudentScreenTimeController extends GetxController with WidgetsBindingObse
   }
 
   /// Fetch history logs from real API
-  Future<void> fetchHistory([String? aadhar]) async {
+  Future<void> fetchHistory() async {
+    final queryAadhar = targetedAadhar.value;
     try {
-      final queryAadhar = aadhar ?? targetedAadhar.value;
       final endpoint = queryAadhar.isNotEmpty
           ? '/screen-time/history/$queryAadhar'
           : '/screen-time/history';
 
       final response = await _apiClient.dio.get(endpoint);
+      if (queryAadhar != targetedAadhar.value) return;
       final data = response.data['data'] ?? response.data;
       if (data != null && data['records'] != null) {
         historyRecords.assignAll(data['records']);
@@ -246,5 +227,18 @@ class StudentScreenTimeController extends GetxController with WidgetsBindingObse
     } catch (e) {
       debugPrint('[ScreenTime] fetchHistory error: $e');
     }
+  }
+
+  List<dynamic> _sortedByMinutes(dynamic raw) {
+    final list = raw is List ? List<dynamic>.from(raw) : <dynamic>[];
+    list.sort((a, b) => toInt(b['minutes']).compareTo(toInt(a['minutes'])));
+    return list;
+  }
+
+  /// The API may send minutes as int, double or string.
+  static int toInt(dynamic value) {
+    if (value is num) return value.round();
+    if (value is String) return num.tryParse(value)?.round() ?? 0;
+    return 0;
   }
 }

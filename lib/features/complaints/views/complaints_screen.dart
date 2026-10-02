@@ -42,7 +42,7 @@ class ComplaintsScreen extends GetView<ComplaintsController> {
                   overline: 'Help desk',
                   title: 'Complaints',
                   subtitle: 'Report and track issues in your room',
-                  expandedHeight: 280.0,
+                  expandedHeight: 205.0,
                   leading: Navigator.canPop(context)
                       ? HeaderIconButton(
                           icon: Icons.arrow_back_rounded,
@@ -50,13 +50,7 @@ class ComplaintsScreen extends GetView<ComplaintsController> {
                           onPressed: () => Get.back(),
                         )
                       : null,
-                  actions: [
-                    HeaderIconButton(
-                      icon: Icons.refresh_rounded,
-                      tooltip: 'Refresh',
-                      onPressed: controller.load,
-                    ),
-                  ],
+                  
                   child: _StatusSummary(complaints: controller.complaints),
                 ),
                 SliverToBoxAdapter(
@@ -167,42 +161,117 @@ class _ComplaintCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final style = ComplaintCategoryStyle.of(complaint.category);
+    final statusColor = complaint.status.color;
+    final hasImages =
+        complaint.imagesCount > 0 || complaint.attachments.isNotEmpty;
+    final imageCount = complaint.imagesCount > 0
+        ? complaint.imagesCount
+        : complaint.attachments.length;
+
     return AppCard(
-      onTap: () => Get.toNamed(Routes.complaintDetail, arguments: complaint.id),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
+      onTap: () =>
+          Get.toNamed(Routes.complaintDetail, arguments: complaint.id),
+      padding: EdgeInsets.zero,
+      child: Stack(
         children: [
-          Row(
-            children: [
-              IconBadge(icon: style.icon, color: style.color),
-              const SizedBox(width: AppDimens.gapMd),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
+          // Left vertical status accent indicator
+          Positioned(
+            top: 14,
+            bottom: 14,
+            left: 0,
+            child: Container(
+              width: 3.5,
+              decoration: BoxDecoration(
+                color: statusColor,
+                borderRadius: const BorderRadius.horizontal(
+                  right: Radius.circular(3),
+                ),
+              ),
+            ),
+          ),
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  crossAxisAlignment: CrossAxisAlignment.center,
                   children: [
-                    Text(complaint.title, style: AppTextStyles.subtitle),
-                    const SizedBox(height: 2),
-                    Text(
-                      '${complaint.category} · ${DateFormatting.dateOnly(complaint.submittedAt)}',
-                      style: AppTextStyles.bodySm,
+                    IconBadge(
+                      icon: style.icon,
+                      color: style.color,
+                      size: 38,
+                    ),
+                    const SizedBox(width: AppDimens.gapMd),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            complaint.category,
+                            style: AppTextStyles.subtitle.copyWith(
+                              fontWeight: FontWeight.w700,
+                              fontSize: 15,
+                            ),
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                          const SizedBox(height: 3),
+                          Row(
+                            children: [
+                              Text(
+                                DateFormatting.dateOnly(complaint.submittedAt),
+                                style: AppTextStyles.caption.copyWith(
+                                  color: AppColors.textMuted,
+                                ),
+                              ),
+                              if (hasImages) ...[
+                                const SizedBox(width: 8),
+                                const Icon(
+                                  Icons.image_outlined,
+                                  size: 12,
+                                  color: AppColors.textMuted,
+                                ),
+                                const SizedBox(width: 3),
+                                Text(
+                                  '$imageCount',
+                                  style: AppTextStyles.caption.copyWith(
+                                    fontSize: 10.5,
+                                    color: AppColors.textMuted,
+                                  ),
+                                ),
+                              ],
+                            ],
+                          ),
+                        ],
+                      ),
+                    ),
+                    const SizedBox(width: AppDimens.gapSm),
+                    StatusBadge(
+                      label: complaint.status.label,
+                      color: statusColor,
+                    ),
+                    const SizedBox(width: 2),
+                    Icon(
+                      Icons.chevron_right_rounded,
+                      size: 18,
+                      color: AppColors.textLight,
                     ),
                   ],
                 ),
-              ),
-              StatusBadge(
-                label: complaint.status.label,
-                color: complaint.status.color,
-              ),
-            ],
-          ),
-          const SizedBox(height: AppDimens.gapMd),
-          Text(
-            complaint.description,
-            maxLines: 2,
-            overflow: TextOverflow.ellipsis,
-            style: AppTextStyles.bodyMd.copyWith(
-              color: AppColors.textSecondary,
-              height: 1.45,
+                if (complaint.description.trim().isNotEmpty) ...[
+                  const SizedBox(height: 10),
+                  Text(
+                    complaint.description,
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
+                    style: AppTextStyles.bodySm.copyWith(
+                      color: AppColors.textSecondary,
+                      height: 1.4,
+                    ),
+                  ),
+                ],
+              ],
             ),
           ),
         ],
@@ -223,7 +292,7 @@ class _ComplaintsShimmer extends StatelessWidget {
           overline: 'Help desk',
           title: 'Complaints',
           subtitle: 'Report and track issues in your room',
-          expandedHeight: 280.0,
+          expandedHeight: 205.0,
           leading: Navigator.canPop(context)
               ? HeaderIconButton(
                   icon: Icons.arrow_back_rounded,
@@ -321,55 +390,54 @@ class _ComplaintCardShimmer extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return AppCard(
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
+    return Container(
+      decoration: BoxDecoration(
+        color: AppColors.surface,
+        borderRadius: BorderRadius.circular(AppDimens.radiusLg),
+        border: Border.all(
+          color: AppColors.border,
+          width: 1.2,
+        ),
+      ),
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.center,
         children: [
-          Row(
-            children: [
-              SkeletonLoader(
-                height: 44,
-                width: 44,
-                borderRadius: BorderRadius.circular(14),
-              ),
-              const SizedBox(width: AppDimens.gapMd),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    SkeletonLoader(
-                      height: 16,
-                      width: 140,
-                      borderRadius: BorderRadius.circular(4),
-                    ),
-                    const SizedBox(height: 6),
-                    SkeletonLoader(
-                      height: 12,
-                      width: 96,
-                      borderRadius: BorderRadius.circular(3),
-                    ),
-                  ],
-                ),
-              ),
-              const SizedBox(width: AppDimens.gapSm),
-              SkeletonLoader(
-                height: 24,
-                width: 66,
-                borderRadius: BorderRadius.circular(AppDimens.radiusPill),
-              ),
-            ],
-          ),
-          const SizedBox(height: AppDimens.gapMd),
           SkeletonLoader(
-            height: 13,
-            width: double.infinity,
-            borderRadius: BorderRadius.circular(3),
+            height: 38,
+            width: 38,
+            borderRadius: BorderRadius.circular(12),
           ),
-          const SizedBox(height: 6),
-          const SkeletonLoader(
-            height: 13,
-            width: 200,
-            borderRadius: BorderRadius.all(Radius.circular(3)),
+          const SizedBox(width: AppDimens.gapMd),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                SkeletonLoader(
+                  height: 15,
+                  width: 130,
+                  borderRadius: BorderRadius.circular(4),
+                ),
+                const SizedBox(height: 5),
+                SkeletonLoader(
+                  height: 11,
+                  width: 90,
+                  borderRadius: BorderRadius.circular(3),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(width: AppDimens.gapSm),
+          SkeletonLoader(
+            height: 24,
+            width: 70,
+            borderRadius: BorderRadius.circular(AppDimens.radiusPill),
+          ),
+          const SizedBox(width: 4),
+          SkeletonLoader(
+            height: 14,
+            width: 14,
+            borderRadius: BorderRadius.circular(999),
           ),
         ],
       ),

@@ -12,6 +12,7 @@ import '../../shared/widgets/gradient_header.dart';
 import '../../shared/widgets/icon_badge.dart';
 import '../../shared/widgets/info_row.dart';
 import '../../shared/widgets/section_header.dart';
+import '../../shared/widgets/skeleton_loader.dart';
 import '../controllers/student_profile_controller.dart';
 
 class StudentProfileScreen extends GetView<StudentProfileController> {
@@ -26,6 +27,7 @@ class StudentProfileScreen extends GetView<StudentProfileController> {
           hasError: controller.hasError.value,
           errorMessage: controller.errorMessage.value,
           onRetry: controller.refreshProfile,
+          loadingWidget: const _ProfileSkeleton(),
           builder: (context) {
             final profile = controller.profile.value;
             if (profile == null) return const SizedBox.shrink();
@@ -87,29 +89,29 @@ class StudentProfileScreen extends GetView<StudentProfileController> {
                               ),
                             ],
                           ),
-                          if (profile.fatherPhone.isNotEmpty ||
-                              profile.motherPhone.isNotEmpty) ...[
-                            const SizedBox(height: AppDimens.gapXl),
-                            const SectionHeader(
-                              title: 'Parent & guardian contact',
-                            ),
-                            _DetailsCard(
-                              rows: [
-                                if (profile.fatherPhone.isNotEmpty)
-                                  InfoRow(
-                                    icon: Icons.family_restroom_outlined,
-                                    label: "Father's phone",
-                                    value: profile.fatherPhone,
-                                  ),
-                                if (profile.motherPhone.isNotEmpty)
-                                  InfoRow(
-                                    icon: Icons.family_restroom_outlined,
-                                    label: "Mother's phone",
-                                    value: profile.motherPhone,
-                                  ),
-                              ],
-                            ),
-                          ],
+                          // if (profile.fatherPhone.isNotEmpty ||
+                          //     profile.motherPhone.isNotEmpty) ...[
+                          //   const SizedBox(height: AppDimens.gapXl),
+                          //   const SectionHeader(
+                          //     title: 'Parent & guardian contact',
+                          //   ),
+                          //   _DetailsCard(
+                          //     rows: [
+                          //       if (profile.fatherPhone.isNotEmpty)
+                          //         InfoRow(
+                          //           icon: Icons.family_restroom_outlined,
+                          //           label: "Father's phone",
+                          //           value: profile.fatherPhone,
+                          //         ),
+                          //       if (profile.motherPhone.isNotEmpty)
+                          //         InfoRow(
+                          //           icon: Icons.family_restroom_outlined,
+                          //           label: "Mother's phone",
+                          //           value: profile.motherPhone,
+                          //         ),
+                          //     ],
+                          //   ),
+                          // ],
                         ],
                       ),
                     ),
@@ -144,12 +146,12 @@ class _ProfileHero extends StatelessWidget {
         : '?';
 
     return SliverGradientHeader(
+      expandedHeight: 185,
       overline: _greeting,
       title: profile.fullName,
-      // subtitle: profile.email,
       heroLeading: Container(
-        width: 60,
-        height: 60,
+        width: 64,
+        height: 64,
         padding: const EdgeInsets.all(3),
         decoration: BoxDecoration(
           shape: BoxShape.circle,
@@ -173,29 +175,34 @@ class _ProfileHero extends StatelessWidget {
           onPressed: () => Get.toNamed(Routes.setting),
         ),
       ],
-      child: Wrap(
-        spacing: AppDimens.gapSm,
-        runSpacing: AppDimens.gapSm,
-        children: [
-          if (profile.room.isNotEmpty)
-            HeaderPill(
-              icon: Icons.meeting_room_outlined,
-              label: profile.room.toLowerCase().contains('room')
-                  ? profile.room
-                  : 'Room ${profile.room}',
-            ),
-          // HeaderPill(
-          //   icon: Icons.verified_outlined,
-          //   label: profile.status.label,
-          // ),
-          if (profile.groupName.isNotEmpty)
-            HeaderPill(icon: Icons.groups_outlined, label: profile.groupName),
-          if (profile.bankCode.isNotEmpty)
-            HeaderPill(
-              icon: Icons.badge_outlined,
-              label: 'ID: ${profile.bankCode}',
-            ),
-        ],
+      child: Builder(
+        builder: (context) {
+          final pills = [
+            if (profile.room.isNotEmpty)
+              HeaderPill(
+                icon: Icons.meeting_room_outlined,
+                label: profile.room.toLowerCase().contains('room')
+                    ? profile.room
+                    : 'Room ${profile.room}',
+              ),
+            if (profile.groupName.isNotEmpty)
+              HeaderPill(icon: Icons.groups_outlined, label: profile.groupName),
+            if (profile.bankCode.isNotEmpty)
+              HeaderPill(
+                icon: Icons.badge_outlined,
+                label: 'ID: ${profile.bankCode}',
+              ),
+          ];
+          if (pills.isEmpty) return const SizedBox.shrink();
+          return Row(
+            children: [
+              for (int i = 0; i < pills.length; i++) ...[
+                if (i > 0) const SizedBox(width: AppDimens.gapSm),
+                Expanded(child: pills[i]),
+              ],
+            ],
+          );
+        },
       ),
     );
   }
@@ -294,6 +301,165 @@ class _DetailsCard extends StatelessWidget {
           ],
         ],
       ),
+    );
+  }
+}
+
+class _ProfileSkeleton extends StatelessWidget {
+  const _ProfileSkeleton();
+
+  String get _greeting {
+    final hour = DateTime.now().hour;
+    if (hour >= 5 && hour < 12) return 'Good morning';
+    if (hour >= 12 && hour < 17) return 'Good afternoon';
+    if (hour >= 17 && hour < 21) return 'Good evening';
+    return 'Good night';
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final cached = Get.isRegistered<StudentProfileController>()
+        ? Get.find<StudentProfileController>().profile.value
+        : null;
+
+    final initial = (cached != null && cached.firstName.isNotEmpty)
+        ? cached.firstName[0].toUpperCase()
+        : '';
+
+    return CustomScrollView(
+      physics: const NeverScrollableScrollPhysics(),
+      slivers: [
+        SliverGradientHeader(
+          expandedHeight: 185,
+          overline: _greeting,
+          title: cached?.fullName ?? 'Student Profile',
+          heroLeading: Container(
+            width: 64,
+            height: 64,
+            padding: const EdgeInsets.all(3),
+            decoration: BoxDecoration(
+              shape: BoxShape.circle,
+              border: Border.all(
+                color: Colors.white.withValues(alpha: 0.5),
+                width: 2,
+              ),
+            ),
+            child: CircleAvatar(
+              backgroundColor: Colors.white,
+              child: initial.isNotEmpty
+                  ? Text(
+                      initial,
+                      style: AppTextStyles.headline.copyWith(
+                        color: AppColors.primary,
+                      ),
+                    )
+                  : SkeletonLoader(
+                      width: 58,
+                      height: 58,
+                      borderRadius: BorderRadius.circular(999),
+                      baseColor: AppColors.primary.withValues(alpha: 0.15),
+                      highlightColor: AppColors.primary.withValues(alpha: 0.35),
+                    ),
+            ),
+          ),
+          actions: [
+            HeaderIconButton(
+              icon: Icons.settings_outlined,
+              tooltip: 'Settings',
+              onPressed: () {},
+            ),
+          ],
+          child: Row(
+            children: [
+              for (int i = 0; i < 3; i++) ...[
+                if (i > 0) const SizedBox(width: AppDimens.gapSm),
+                Expanded(
+                  child: SkeletonLoader(
+                    height: 32,
+                    borderRadius: BorderRadius.circular(AppDimens.radiusPill),
+                    baseColor: Colors.white.withValues(alpha: 0.18),
+                    highlightColor: Colors.white.withValues(alpha: 0.40),
+                  ),
+                ),
+              ],
+            ],
+          ),
+        ),
+        SliverToBoxAdapter(
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(
+              AppDimens.screenPadding,
+              AppDimens.gapXl,
+              AppDimens.screenPadding,
+              AppDimens.gapXl,
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                const SectionHeader(title: 'Quick actions'),
+                Row(
+                  children: [
+                    for (int i = 0; i < 4; i++) ...[
+                      if (i > 0) const SizedBox(width: AppDimens.gapMd),
+                      Expanded(
+                        child: AppCard(
+                          padding: const EdgeInsets.symmetric(
+                            vertical: AppDimens.gapLg,
+                          ),
+                          child: Column(
+                            children: const [
+                              SkeletonLoader(
+                                width: 42,
+                                height: 42,
+                                borderRadius: BorderRadius.all(
+                                  Radius.circular(AppDimens.radiusMd),
+                                ),
+                              ),
+                              SizedBox(height: AppDimens.gapSm),
+                              SkeletonLoader(width: 44, height: 11),
+                            ],
+                          ),
+                        ),
+                      ),
+                    ],
+                  ],
+                ),
+                const SizedBox(height: AppDimens.gapXl),
+                const SectionHeader(title: 'Personal details'),
+                AppCard(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: AppDimens.cardPadding,
+                    vertical: AppDimens.gapSm,
+                  ),
+                  child: Column(
+                    children: [
+                      for (int i = 0; i < 6; i++) ...[
+                        if (i > 0) const Divider(),
+                        Padding(
+                          padding: const EdgeInsets.symmetric(vertical: 12),
+                          child: Row(
+                            children: const [
+                              SkeletonLoader(
+                                width: 20,
+                                height: 20,
+                                borderRadius: BorderRadius.all(Radius.circular(6)),
+                              ),
+                              SizedBox(width: AppDimens.gapMd),
+                              SkeletonLoader(width: 70, height: 14),
+                              Spacer(),
+                              SkeletonLoader(width: 120, height: 14),
+                            ],
+                          ),
+                        ),
+                      ],
+                    ],
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ],
     );
   }
 }

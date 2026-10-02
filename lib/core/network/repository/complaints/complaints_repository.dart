@@ -140,9 +140,7 @@ class ComplaintsRepository {
         'aadhar': request.studentAadhar,
         'room': request.room,
         'compType': request.category,
-        'compDesc': request.title.isNotEmpty
-            ? '${request.title}\n\n${request.description}'
-            : request.description,
+        'compDesc': request.description,
       });
 
       for (int i = 0; i < request.images.length; i++) {

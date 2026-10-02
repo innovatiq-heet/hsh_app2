@@ -156,7 +156,7 @@ class SliverGradientHeader extends StatelessWidget {
     final minH = kToolbarHeight + topPadding;
     final calculatedExpanded = expandedHeight ??
         (child != null
-            ? 250.0
+            ? (leading != null ? 250.0 : 190.0)
             : (subtitle != null ? 180.0 : 140.0));
     final maxH = (calculatedExpanded + topPadding).clamp(minH, 650.0);
 
@@ -279,11 +279,13 @@ class _SliverGradientHeaderDelegate extends SliverPersistentHeaderDelegate {
             // Expanded body content (fades out as header collapses)
             if (expandedOpacity > 0)
               Positioned(
-                top: topPadding + kToolbarHeight,
+                top: topPadding + (leading != null ? kToolbarHeight : AppDimens.gapMd),
                 left: AppDimens.screenPadding,
                 right: AppDimens.screenPadding,
                 bottom: 0,
-                child: Opacity(
+                child: IgnorePointer(
+                  ignoring: expandedOpacity < 0.2,
+                  child: Opacity(
                   opacity: expandedOpacity,
                   child: Transform.translate(
                     offset: Offset(0, -15 * progress),
@@ -333,6 +335,7 @@ class _SliverGradientHeaderDelegate extends SliverPersistentHeaderDelegate {
                                   ],
                                 ),
                               ),
+                              if (actions.isNotEmpty) ...actions,
                             ],
                           ),
                           if (child != null) ...[
@@ -345,6 +348,7 @@ class _SliverGradientHeaderDelegate extends SliverPersistentHeaderDelegate {
                   ),
                 ),
               ),
+            ),
 
             // Pinned sticky top bar (stays fixed at top)
             Positioned(
@@ -352,7 +356,9 @@ class _SliverGradientHeaderDelegate extends SliverPersistentHeaderDelegate {
               left: 0,
               right: 0,
               height: kToolbarHeight,
-              child: Padding(
+              child: IgnorePointer(
+                ignoring: leading == null && collapsedOpacity < 0.2,
+                child: Padding(
                 padding: const EdgeInsets.symmetric(
                   horizontal: AppDimens.screenPadding,
                 ),
@@ -377,11 +383,16 @@ class _SliverGradientHeaderDelegate extends SliverPersistentHeaderDelegate {
                         ),
                       ),
                     ),
-                    ...actions,
+                    if (actions.isNotEmpty)
+                      Opacity(
+                        opacity: collapsedOpacity,
+                        child: Row(mainAxisSize: MainAxisSize.min, children: actions),
+                      ),
                   ],
                 ),
               ),
             ),
+          ),
           ],
         ),
       ),
@@ -429,7 +440,7 @@ class HeaderPill extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 7),
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
       decoration: BoxDecoration(
         color: Colors.white.withValues(alpha: 0.14),
         borderRadius: BorderRadius.circular(AppDimens.radiusPill),
@@ -437,16 +448,21 @@ class HeaderPill extends StatelessWidget {
       ),
       child: Row(
         mainAxisSize: MainAxisSize.min,
+        mainAxisAlignment: MainAxisAlignment.center,
         children: [
           if (icon != null) ...[
             Icon(icon, size: 14, color: Colors.white),
             const SizedBox(width: 6),
           ],
-          Text(
-            label,
-            style: AppTextStyles.caption.copyWith(
-              color: Colors.white,
-              fontSize: 12,
+          Flexible(
+            child: Text(
+              label,
+              style: AppTextStyles.caption.copyWith(
+                color: Colors.white,
+                fontSize: 12,
+              ),
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
             ),
           ),
         ],

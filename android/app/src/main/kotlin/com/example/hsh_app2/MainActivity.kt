@@ -6,6 +6,7 @@ import android.os.Handler
 import android.os.Looper
 import android.provider.Settings
 import com.example.hsh_app2.screentime.AppBlockerAccessibilityService
+import com.example.hsh_app2.screentime.PolicyPollService
 import com.example.hsh_app2.screentime.ScreenTimeSync
 import com.example.hsh_app2.screentime.UsageCollector
 import io.flutter.embedding.android.FlutterActivity
@@ -40,11 +41,13 @@ class MainActivity : FlutterActivity() {
                             result.error("bad_args", "token and baseUrl are required", null)
                         } else {
                             ScreenTimeSync.start(applicationContext, token, baseUrl)
+                            PolicyPollService.start(applicationContext)
                             result.success(null)
                         }
                     }
                     "stopMonitoring" -> {
                         ScreenTimeSync.stop(applicationContext)
+                        PolicyPollService.stop(applicationContext)
                         result.success(null)
                     }
                     "syncNow" -> screenTimeExecutor.execute {

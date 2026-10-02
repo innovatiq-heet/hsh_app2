@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import '../../../core/enums/user_role.dart';
@@ -11,6 +12,7 @@ class HomeController extends GetxController with WidgetsBindingObserver {
 
   bool _permissionDialogOpen = false;
   bool _accessibilityDialogOpen = false;
+  StreamSubscription? _policyTimer;
 
   void changeTab(int index) => tabIndex.value = index;
 
@@ -24,6 +26,7 @@ class HomeController extends GetxController with WidgetsBindingObserver {
   @override
   void onClose() {
     WidgetsBinding.instance.removeObserver(this);
+    _policyTimer?.cancel();
     super.onClose();
   }
 
@@ -123,6 +126,16 @@ class HomeController extends GetxController with WidgetsBindingObserver {
     // 3. Both permissions active: push usage & sync current policy to native
     ScreenTimeService.syncNow();
     _fetchAndApplyPolicy();
+    _startPeriodicPolicySync();
+  }
+
+  /// Periodically fetch lock/block policy from the backend every 30 seconds
+  /// while the app is in the foreground, so remote lock is enforced fast.
+  void _startPeriodicPolicySync() {
+    _policyTimer?.cancel();
+    _policyTimer = Stream.periodic(const Duration(seconds: 30)).listen((_) {
+      _fetchAndApplyPolicy();
+    });
   }
 
   Future<void> _fetchAndApplyPolicy() async {

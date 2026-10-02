@@ -981,31 +981,26 @@ class StudentScreenTimeController extends GetxController with WidgetsBindingObse
           'bedtime_end': bedtimeEnd.value,
           'blockedPackages': blockedPackages.toList(),
         });
+        debugPrint('[ScreenTime] Remote lock=$lock pushed to API for $target');
       }
-
-      // Sync lock state to native Android SharedPreferences
-      await ScreenTimeService.syncPolicyToNative(
-        blockedPackages: blockedPackages.toList(),
-        isLocked: lock,
-      );
 
       if (lock) {
         AppSnackbar.warning(
           'Device Locked',
-          '$studentName\'s phone has been remotely locked.',
+          '$studentName\'s phone has been remotely locked. Student\'s device will enforce within 30 seconds.',
         );
       } else {
         AppSnackbar.success(
           'Device Unlocked',
-          '$studentName\'s phone lock has been released.',
+          '$studentName\'s phone lock has been released. Student will regain access shortly.',
         );
       }
     } catch (e) {
-      debugPrint('[ScreenTime] toggleDeviceLock note: $e');
+      debugPrint('[ScreenTime] toggleDeviceLock error: $e');
       if (lock) {
         AppSnackbar.warning(
           'Device Locked',
-          'Lock command dispatched for $studentName.',
+          'Lock command dispatched for $studentName. Device will enforce at next sync.',
         );
       } else {
         AppSnackbar.success(

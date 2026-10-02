@@ -44,9 +44,9 @@ class OperatorHomeScreen extends StatelessWidget {
   static const _groups = [
     _OperatorGroup('Students', [
       _OperatorAction(
-        'Directory',
-        'Search all students',
-        Icons.people_alt_outlined,
+        'Student Phonebook',
+        'Campus contacts & caller directory',
+        Icons.contact_phone_outlined,
         AppColors.primary,
         Routes.operatorDirectory,
       ),

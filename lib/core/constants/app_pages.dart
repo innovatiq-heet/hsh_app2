@@ -34,13 +34,14 @@ import '../../features/operator/views/operator_admissions_screen.dart';
 import '../../features/operator/views/operator_attendance_behalf_screen.dart';
 import '../../features/operator/bindings/operator_binding.dart';
 import '../../features/operator/views/operator_deposit_debit_screen.dart';
-import '../../features/operator/views/operator_directory_screen.dart';
 import '../../features/operator/views/operator_fee_approvals_screen.dart';
 import '../../features/operator/views/operator_home_screen.dart';
 import '../../features/operator/views/operator_leave_approvals_screen.dart';
 import '../../features/operator/views/operator_mark_left_screen.dart';
 import '../../features/operator/views/operator_room_swap_screen.dart';
 import '../../features/operator/views/operator_sabha_screen.dart';
+import '../../features/phonebook/bindings/phonebook_binding.dart';
+import '../../features/phonebook/views/phonebook_screen.dart';
 import '../../features/auth/bindings/register_binding.dart';
 import '../../features/auth/views/register_screen.dart';
 import '../../features/services/views/services_screen.dart';
@@ -197,8 +198,8 @@ class AppPages {
     ),
     GetPage(
       name: Routes.operatorDirectory,
-      page: () => const OperatorDirectoryScreen(),
-      binding: OperatorBinding(),
+      page: () => const PhonebookScreen(),
+      binding: PhonebookBinding(),
     ),
     GetPage(
       name: Routes.operatorAdmissions,

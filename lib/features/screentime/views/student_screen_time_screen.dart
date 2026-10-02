@@ -8,6 +8,7 @@ import '../../../core/constants/app_text_styles.dart';
 import '../../shared/widgets/app_card.dart';
 import '../../shared/widgets/gradient_header.dart';
 import '../../shared/widgets/section_header.dart';
+import '../../../core/utils/app_snackbar.dart';
 import '../controllers/student_screen_time_controller.dart';
 
 class StudentScreenTimeScreen extends GetView<StudentScreenTimeController> {
@@ -30,12 +31,10 @@ class StudentScreenTimeScreen extends GetView<StudentScreenTimeController> {
               SliverGradientHeader(
                 title: selected != null
                     ? (selected['name'] ?? 'Student Screen Time')
-                    : (isLeader ? 'Students Screen Time' : 'Screen Time Monitor'),
+                    : 'Screen Time & Parental Control',
                 subtitle: selected != null
                     ? 'Room ${selected['room'] ?? 'N/A'} • Aadhar ${selected['aadhar'] ?? ''}'
-                    : (isLeader
-                        ? 'Live device activity directory'
-                        : 'Live device activity'),
+                    : 'Live device activity & app restrictions',
                 leading: HeaderIconButton(
                   icon: Icons.arrow_back_rounded,
                   tooltip: selected != null
@@ -64,7 +63,7 @@ class StudentScreenTimeScreen extends GetView<StudentScreenTimeController> {
                   padding: const EdgeInsets.all(AppDimens.screenPadding),
                   child: isLeader && selected == null
                       ? _buildStudentsDirectoryView()
-                      : _buildDetailedScreenTimeView(isLeader, selected),
+                      : _buildDetailedScreenTimeView(context, isLeader, selected),
                 ),
               ),
             ],
@@ -280,6 +279,44 @@ class StudentScreenTimeScreen extends GetView<StudentScreenTimeController> {
                         style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w600),
                       ),
                     ),
+                    if (student['is_locked'] == true || student['isLocked'] == true) ...[
+                      const SizedBox(width: 6),
+                      Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                        decoration: BoxDecoration(
+                          color: AppColors.cancelledRed.withValues(alpha: 0.12),
+                          borderRadius: BorderRadius.circular(6),
+                        ),
+                        child: const Text(
+                          '🔒 Locked',
+                          style: TextStyle(
+                            color: AppColors.cancelledRed,
+                            fontSize: 10,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                      ),
+                    ] else if ((student['blockedPackages'] is List &&
+                            (student['blockedPackages'] as List).isNotEmpty) ||
+                        (student['blocked_packages'] is List &&
+                            (student['blocked_packages'] as List).isNotEmpty)) ...[
+                      const SizedBox(width: 6),
+                      Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                        decoration: BoxDecoration(
+                          color: AppColors.warningOrange.withValues(alpha: 0.12),
+                          borderRadius: BorderRadius.circular(6),
+                        ),
+                        child: const Text(
+                          '🛡️ Restricted',
+                          style: TextStyle(
+                            color: AppColors.warningOrange,
+                            fontSize: 10,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                      ),
+                    ],
                   ],
                 ),
                 const SizedBox(height: 4),
@@ -346,8 +383,8 @@ class StudentScreenTimeScreen extends GetView<StudentScreenTimeController> {
     );
   }
 
-  /// Detailed screen time view for selected student or self
-  Widget _buildDetailedScreenTimeView(bool isLeader, dynamic selectedStudent) {
+  /// Detailed screen time view for selected student
+  Widget _buildDetailedScreenTimeView(BuildContext context, bool isLeader, dynamic selectedStudent) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -406,9 +443,6 @@ class StudentScreenTimeScreen extends GetView<StudentScreenTimeController> {
           ),
         ],
 
-        // Own device without Usage access: nothing can be reported
-        if (!isLeader) _buildPermissionBanner(),
-
         // Loading state feedback while fetching telemetry
         if (controller.isLoading.value && controller.totalMinutesToday.value == 0) ...[
           const SizedBox(height: 36),
@@ -430,8 +464,12 @@ class StudentScreenTimeScreen extends GetView<StudentScreenTimeController> {
           _buildTodayUsageCard(),
           const SizedBox(height: AppDimens.gapMd),
 
-          // Top Apps Breakdown from API
-          _buildAppBreakdownCard(),
+          // Parental Safety & Remote Lock Card
+          _buildParentalControlHeroCard(context),
+          const SizedBox(height: AppDimens.gapMd),
+
+          // Top Apps Breakdown & Restriction Controls
+          _buildAppBreakdownCard(context),
           const SizedBox(height: AppDimens.gapMd),
 
           // Historical Daily Logs from API
@@ -439,34 +477,6 @@ class StudentScreenTimeScreen extends GetView<StudentScreenTimeController> {
         ],
       ],
     );
-  }
-
-  Widget _buildPermissionBanner() {
-    return Obx(() {
-      if (controller.hasUsagePermission.value) return const SizedBox.shrink();
-      return Padding(
-        padding: const EdgeInsets.only(bottom: AppDimens.gapMd),
-        child: AppCard(
-          padding: const EdgeInsets.all(AppDimens.cardPadding),
-          child: Row(
-            children: [
-              const Icon(Icons.warning_amber_rounded, color: Colors.orange),
-              const SizedBox(width: 12),
-              Expanded(
-                child: Text(
-                  'Usage access is off, so your screen time is not being recorded.',
-                  style: AppTextStyles.bodySm,
-                ),
-              ),
-              TextButton(
-                onPressed: controller.openUsageSettings,
-                child: const Text('Enable'),
-              ),
-            ],
-          ),
-        ),
-      );
-    });
   }
 
   Widget _buildLiveCard() {
@@ -588,43 +598,169 @@ class StudentScreenTimeScreen extends GetView<StudentScreenTimeController> {
     });
   }
 
-  Widget _buildAppBreakdownCard() {
+  Widget _buildParentalControlHeroCard(BuildContext context) {
     return Obx(() {
-      final list = controller.appBreakdown;
-      if (list.isEmpty) {
-        return AppCard(
-          padding: const EdgeInsets.all(AppDimens.cardPadding),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              const SectionHeader(title: 'App Usage Breakdown'),
-              const SizedBox(height: 8),
-              Text(
-                'No app breakdown recorded by device for today.',
-                style: AppTextStyles.bodySm.copyWith(color: AppColors.textSecondary),
-              ),
-            ],
-          ),
-        );
-      }
+      final isLocked = controller.isDeviceLocked.value;
+      final limit = controller.dailyLimitMinutes.value;
+      final start = controller.bedtimeStart.value;
+      final end = controller.bedtimeEnd.value;
+      final blockedCount = controller.blockedPackages.length;
 
-      final appSum = list.fold<int>(
-        0,
-        (sum, it) =>
-            sum +
-            StudentScreenTimeController.toInt(
-              it['minutes'] ??
-                  it['total_minutes'] ??
-                  it['totalMinutes'] ??
-                  it['duration'] ??
-                  it['time'] ??
-                  it['timeInMinutes'] ??
-                  it['usage_minutes'],
+      return AppCard(
+        padding: const EdgeInsets.all(AppDimens.cardPadding),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                Container(
+                  padding: const EdgeInsets.all(8),
+                  decoration: BoxDecoration(
+                    color: isLocked
+                        ? AppColors.cancelledRed.withValues(alpha: 0.12)
+                        : AppColors.primary.withValues(alpha: 0.12),
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  child: Icon(
+                    isLocked ? Icons.lock_rounded : Icons.security_rounded,
+                    color: isLocked ? AppColors.cancelledRed : AppColors.primary,
+                    size: 20,
+                  ),
+                ),
+                const SizedBox(width: 10),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text('Parental & App Controls', style: AppTextStyles.title),
+                      Text(
+                        isLocked
+                            ? 'Student phone is remotely LOCKED'
+                            : '$blockedCount restricted apps • Curfew $start - $end',
+                        style: AppTextStyles.bodySm.copyWith(
+                          color: isLocked ? AppColors.cancelledRed : AppColors.textSecondary,
+                          fontWeight: isLocked ? FontWeight.bold : FontWeight.normal,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                IconButton(
+                  icon: const Icon(Icons.tune_rounded, color: AppColors.primary),
+                  tooltip: 'Curfew & Limit Settings',
+                  onPressed: () => _showCurfewSettingsSheet(context),
+                ),
+              ],
             ),
+            const SizedBox(height: 14),
+            Container(
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(
+                color: isLocked
+                    ? AppColors.cancelledRed.withValues(alpha: 0.08)
+                    : AppColors.mainBackground,
+                borderRadius: BorderRadius.circular(10),
+                border: Border.all(
+                  color: isLocked
+                      ? AppColors.cancelledRed.withValues(alpha: 0.3)
+                      : Colors.grey.shade200,
+                ),
+              ),
+              child: Row(
+                children: [
+                  Icon(
+                    isLocked ? Icons.screen_lock_portrait_rounded : Icons.lock_open_rounded,
+                    color: isLocked ? AppColors.cancelledRed : AppColors.successGreen,
+                    size: 22,
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          'Remote Device Lock',
+                          style: AppTextStyles.bodyMd.copyWith(fontWeight: FontWeight.bold),
+                        ),
+                        Text(
+                          isLocked
+                              ? 'Device is restricted from running student apps'
+                              : 'Student can freely use permitted apps',
+                          style: AppTextStyles.bodySm.copyWith(color: AppColors.textSecondary),
+                        ),
+                      ],
+                    ),
+                  ),
+                  Switch(
+                    value: isLocked,
+                    activeThumbColor: AppColors.cancelledRed,
+                    activeTrackColor: AppColors.cancelledRed.withValues(alpha: 0.3),
+                    onChanged: (val) => controller.toggleDeviceLock(val),
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(height: 10),
+            Row(
+              children: [
+                Expanded(
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+                    decoration: BoxDecoration(
+                      color: AppColors.surfaceMuted,
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                    child: Row(
+                      children: [
+                        const Icon(Icons.nightlight_round, size: 16, color: Colors.orangeAccent),
+                        const SizedBox(width: 6),
+                        Expanded(
+                          child: Text(
+                            'Curfew: $start - $end',
+                            style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w600),
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+                    decoration: BoxDecoration(
+                      color: AppColors.surfaceMuted,
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                    child: Row(
+                      children: [
+                        const Icon(Icons.hourglass_bottom_rounded, size: 16, color: AppColors.primary),
+                        const SizedBox(width: 6),
+                        Expanded(
+                          child: Text(
+                            limit > 0 ? 'Limit: $limit mins' : 'Limit: Unlimited',
+                            style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w600),
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ],
+        ),
       );
-      final total = controller.totalMinutesToday.value > 0
-          ? controller.totalMinutesToday.value
-          : (appSum > 0 ? appSum : 1);
+    });
+  }
+
+  Widget _buildAppBreakdownCard(BuildContext context) {
+    return Obx(() {
+      final list = controller.displayAppsList;
+      final blockedCount = controller.blockedPackages.length;
+      final currentFilter = controller.selectedAppFilter.value;
 
       return AppCard(
         padding: const EdgeInsets.all(AppDimens.cardPadding),
@@ -634,88 +770,561 @@ class StudentScreenTimeScreen extends GetView<StudentScreenTimeController> {
             Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
-                const SectionHeader(title: 'App Usage Breakdown'),
-                Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
-                  decoration: BoxDecoration(
-                    color: AppColors.primary.withValues(alpha: 0.1),
-                    borderRadius: BorderRadius.circular(10),
-                  ),
-                  child: Text(
-                    '${list.length} Apps',
-                    style: const TextStyle(
-                      fontSize: 11,
-                      fontWeight: FontWeight.bold,
-                      color: AppColors.primary,
+                Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const SectionHeader(title: 'App Usage & Restrictions'),
+                    Text(
+                      'Block or permit apps on student device',
+                      style: AppTextStyles.bodySm.copyWith(color: AppColors.textSecondary),
                     ),
+                  ],
+                ),
+                ElevatedButton.icon(
+                  onPressed: () => _showRestrictAppSheet(context),
+                  icon: const Icon(Icons.add_moderator_rounded, size: 16),
+                  label: const Text('Restrict App', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold)),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: AppColors.cancelledRed,
+                    foregroundColor: Colors.white,
+                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                    minimumSize: Size.zero,
+                    tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
                   ),
                 ),
               ],
             ),
             const SizedBox(height: 12),
-            ...list.map((item) {
-              final mins = StudentScreenTimeController.toInt(
-                item['minutes'] ??
-                    item['total_minutes'] ??
-                    item['totalMinutes'] ??
-                    item['duration'] ??
-                    item['time'] ??
-                    item['timeInMinutes'] ??
-                    item['usage_minutes'],
-              );
-              final name = (item['appName'] ??
-                      item['app_name'] ??
-                      item['name'] ??
-                      item['title'] ??
-                      item['label'] ??
-                      item['packageName'] ??
-                      item['package_name'] ??
-                      'App')
-                  .toString();
-              final progress = (mins / total).clamp(0.0, 1.0);
-              final pct = (progress * 100).round();
 
-              return Padding(
-                padding: const EdgeInsets.only(bottom: 12),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Row(
-                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                      children: [
-                        Expanded(
-                          child: Text(
-                            name,
-                            style: AppTextStyles.bodyMd.copyWith(fontWeight: FontWeight.w600),
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                          ),
-                        ),
-                        Text(
-                          '$mins mins ($pct%)',
-                          style: AppTextStyles.bodySm.copyWith(
-                            color: AppColors.textSecondary,
-                            fontWeight: FontWeight.w500,
-                          ),
-                        ),
-                      ],
-                    ),
-                    const SizedBox(height: 6),
-                    LinearProgressIndicator(
-                      value: progress,
-                      backgroundColor: Colors.grey.shade200,
-                      valueColor: const AlwaysStoppedAnimation<Color>(AppColors.primary),
-                      borderRadius: BorderRadius.circular(4),
-                      minHeight: 6,
-                    ),
-                  ],
+            // Search Bar for apps
+            TextField(
+              controller: controller.appSearchController,
+              onChanged: (val) => controller.appSearchQuery.value = val,
+              decoration: InputDecoration(
+                hintText: 'Search apps (e.g. YouTube, Instagram)...',
+                isDense: true,
+                contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                prefixIcon: const Icon(Icons.search_rounded, size: 18),
+                suffixIcon: controller.appSearchQuery.value.isNotEmpty
+                    ? IconButton(
+                        icon: const Icon(Icons.clear_rounded, size: 16),
+                        onPressed: () {
+                          controller.appSearchController.clear();
+                          controller.appSearchQuery.value = '';
+                        },
+                      )
+                    : null,
+                border: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(10),
+                  borderSide: BorderSide(color: Colors.grey.shade300),
                 ),
-              );
-            }),
+              ),
+            ),
+            const SizedBox(height: 10),
+
+            // Filter Tabs
+            SingleChildScrollView(
+              scrollDirection: Axis.horizontal,
+              child: Row(
+                children: [
+                  _buildAppFilterChip('All', list.length),
+                  const SizedBox(width: 8),
+                  _buildAppFilterChip('Used Today', controller.appBreakdown.length),
+                  const SizedBox(width: 8),
+                  _buildAppFilterChip('Restricted', blockedCount, isDestructive: true),
+                ],
+              ),
+            ),
+            const SizedBox(height: 14),
+
+            if (list.isEmpty)
+              Center(
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(vertical: 24),
+                  child: Column(
+                    children: [
+                      Icon(Icons.apps_rounded, size: 36, color: Colors.grey.shade400),
+                      const SizedBox(height: 8),
+                      Text(
+                        currentFilter == 'Restricted'
+                            ? 'No apps restricted yet for this student.'
+                            : 'No apps found matching search.',
+                        style: AppTextStyles.bodySm.copyWith(color: AppColors.textSecondary),
+                      ),
+                    ],
+                  ),
+                ),
+              )
+            else
+              ListView.separated(
+                shrinkWrap: true,
+                physics: const NeverScrollableScrollPhysics(),
+                itemCount: list.length,
+                separatorBuilder: (_, index) => const Divider(height: 16),
+                itemBuilder: (context, index) {
+                  final item = list[index];
+                  final pkg = (item['packageName'] ?? '').toString();
+                  final name = (item['appName'] ?? pkg).toString();
+                  final mins = (item['minutes'] as int?) ?? 0;
+                  final isBlocked = item['isBlocked'] == true;
+                  final total = controller.totalMinutesToday.value > 0
+                      ? controller.totalMinutesToday.value
+                      : 1;
+                  final progress = (mins / total).clamp(0.0, 1.0);
+                  final pct = (progress * 100).round();
+
+                  return Row(
+                    children: [
+                      // App Icon with Block / Allow badge
+                      Stack(
+                        children: [
+                          CircleAvatar(
+                            radius: 20,
+                            backgroundColor: isBlocked
+                                ? AppColors.cancelledRed.withValues(alpha: 0.12)
+                                : AppColors.primary.withValues(alpha: 0.1),
+                            child: Text(
+                              name.isNotEmpty ? name[0].toUpperCase() : 'A',
+                              style: TextStyle(
+                                color: isBlocked ? AppColors.cancelledRed : AppColors.primary,
+                                fontWeight: FontWeight.bold,
+                                fontSize: 16,
+                              ),
+                            ),
+                          ),
+                          if (isBlocked)
+                            Positioned(
+                              bottom: 0,
+                              right: 0,
+                              child: Container(
+                                padding: const EdgeInsets.all(2),
+                                decoration: const BoxDecoration(
+                                  color: AppColors.cancelledRed,
+                                  shape: BoxShape.circle,
+                                ),
+                                child: const Icon(Icons.block_rounded, size: 10, color: Colors.white),
+                              ),
+                            ),
+                        ],
+                      ),
+                      const SizedBox(width: 12),
+
+                      // Name, Package, & Usage
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Row(
+                              children: [
+                                Flexible(
+                                  child: Text(
+                                    name,
+                                    style: AppTextStyles.bodyMd.copyWith(
+                                      fontWeight: FontWeight.w600,
+                                      color: isBlocked ? AppColors.cancelledRed : null,
+                                      decoration: isBlocked ? TextDecoration.lineThrough : null,
+                                    ),
+                                    maxLines: 1,
+                                    overflow: TextOverflow.ellipsis,
+                                  ),
+                                ),
+                                const SizedBox(width: 6),
+                                if (isBlocked)
+                                  Container(
+                                    padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 1),
+                                    decoration: BoxDecoration(
+                                      color: AppColors.cancelledRed.withValues(alpha: 0.12),
+                                      borderRadius: BorderRadius.circular(4),
+                                    ),
+                                    child: const Text(
+                                      'BLOCKED',
+                                      style: TextStyle(
+                                        color: AppColors.cancelledRed,
+                                        fontSize: 9,
+                                        fontWeight: FontWeight.bold,
+                                      ),
+                                    ),
+                                  ),
+                              ],
+                            ),
+                            const SizedBox(height: 2),
+                            Text(
+                              pkg,
+                              style: AppTextStyles.caption.copyWith(
+                                color: Colors.grey.shade500,
+                                fontSize: 10,
+                              ),
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                            if (mins > 0) ...[
+                              const SizedBox(height: 4),
+                              Row(
+                                children: [
+                                  Expanded(
+                                    child: LinearProgressIndicator(
+                                      value: progress,
+                                      backgroundColor: Colors.grey.shade200,
+                                      valueColor: AlwaysStoppedAnimation<Color>(
+                                        isBlocked ? AppColors.cancelledRed : AppColors.primary,
+                                      ),
+                                      borderRadius: BorderRadius.circular(4),
+                                      minHeight: 4,
+                                    ),
+                                  ),
+                                  const SizedBox(width: 8),
+                                  Text(
+                                    '$mins mins ($pct%)',
+                                    style: AppTextStyles.caption.copyWith(
+                                      fontWeight: FontWeight.w600,
+                                      fontSize: 10,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ],
+                          ],
+                        ),
+                      ),
+                      const SizedBox(width: 8),
+
+                      // Allow / Block Switch
+                      Column(
+                        children: [
+                          Switch(
+                            value: !isBlocked,
+                            activeThumbColor: AppColors.successGreen,
+                            inactiveThumbColor: AppColors.cancelledRed,
+                            inactiveTrackColor: AppColors.cancelledRed.withValues(alpha: 0.25),
+                            onChanged: (allowed) {
+                              controller.toggleAppBlock(pkg, name, !allowed);
+                            },
+                          ),
+                          Text(
+                            isBlocked ? 'Blocked' : 'Allowed',
+                            style: TextStyle(
+                              fontSize: 10,
+                              fontWeight: FontWeight.bold,
+                              color: isBlocked ? AppColors.cancelledRed : AppColors.successGreen,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ],
+                  );
+                },
+              ),
           ],
         ),
       );
     });
+  }
+
+  Widget _buildAppFilterChip(String label, int count, {bool isDestructive = false}) {
+    return Obx(() {
+      final isSelected = controller.selectedAppFilter.value == label;
+      final Color activeColor = isDestructive ? AppColors.cancelledRed : AppColors.primary;
+
+      return GestureDetector(
+        onTap: () => controller.selectedAppFilter.value = label,
+        child: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+          decoration: BoxDecoration(
+            color: isSelected ? activeColor : activeColor.withValues(alpha: 0.08),
+            borderRadius: BorderRadius.circular(20),
+            border: Border.all(
+              color: isSelected ? activeColor : activeColor.withValues(alpha: 0.25),
+            ),
+          ),
+          child: Text(
+            '$label ($count)',
+            style: TextStyle(
+              fontSize: 11,
+              fontWeight: FontWeight.bold,
+              color: isSelected ? Colors.white : activeColor,
+            ),
+          ),
+        ),
+      );
+    });
+  }
+
+  void _showRestrictAppSheet(BuildContext context) {
+    final customPkgController = TextEditingController();
+    final customNameController = TextEditingController();
+
+    Get.bottomSheet(
+      Container(
+        decoration: const BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+        ),
+        padding: const EdgeInsets.fromLTRB(20, 16, 20, 24),
+        child: SingleChildScrollView(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Center(
+                child: Container(
+                  width: 40,
+                  height: 4,
+                  decoration: BoxDecoration(
+                    color: Colors.grey.shade300,
+                    borderRadius: BorderRadius.circular(2),
+                  ),
+                ),
+              ),
+              const SizedBox(height: 16),
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  Text('Restrict Distracting Apps', style: AppTextStyles.title),
+                  IconButton(
+                    icon: const Icon(Icons.close_rounded),
+                    onPressed: () => Get.back(),
+                  ),
+                ],
+              ),
+              Text(
+                'Select common apps or enter a custom package to restrict on this student\'s device.',
+                style: AppTextStyles.bodySm.copyWith(color: AppColors.textSecondary),
+              ),
+              const SizedBox(height: 16),
+              const SectionHeader(title: 'Quick Presets'),
+              const SizedBox(height: 8),
+              Obx(() {
+                final blocked = controller.blockedPackages;
+                return Wrap(
+                  spacing: 8,
+                  runSpacing: 8,
+                  children: StudentScreenTimeController.presetDistractingApps.map((preset) {
+                    final name = preset['name']!;
+                    final pkg = preset['pkg']!;
+                    final icon = preset['icon']!;
+                    final isRestricted = blocked.contains(pkg);
+
+                    return FilterChip(
+                      selected: isRestricted,
+                      showCheckmark: false,
+                      avatar: Text(icon, style: const TextStyle(fontSize: 14)),
+                      label: Text(
+                        isRestricted ? '$name (Blocked)' : name,
+                        style: TextStyle(
+                          fontSize: 12,
+                          fontWeight: FontWeight.bold,
+                          color: isRestricted ? Colors.white : AppColors.textPrimary,
+                        ),
+                      ),
+                      selectedColor: AppColors.cancelledRed,
+                      backgroundColor: Colors.grey.shade100,
+                      onSelected: (val) {
+                        controller.toggleAppBlock(pkg, name, val);
+                      },
+                    );
+                  }).toList(),
+                );
+              }),
+              const SizedBox(height: 20),
+              const SectionHeader(title: 'Add Custom Package'),
+              const SizedBox(height: 8),
+              TextField(
+                controller: customNameController,
+                decoration: InputDecoration(
+                  labelText: 'App Name (e.g. Free Fire, BGMI)',
+                  isDense: true,
+                  border: OutlineInputBorder(borderRadius: BorderRadius.circular(10)),
+                ),
+              ),
+              const SizedBox(height: 10),
+              TextField(
+                controller: customPkgController,
+                decoration: InputDecoration(
+                  labelText: 'Package Name (e.g. com.dts.freefireth)',
+                  isDense: true,
+                  border: OutlineInputBorder(borderRadius: BorderRadius.circular(10)),
+                ),
+              ),
+              const SizedBox(height: 14),
+              SizedBox(
+                width: double.infinity,
+                child: ElevatedButton.icon(
+                  onPressed: () {
+                    final pkg = customPkgController.text.trim();
+                    final name = customNameController.text.trim();
+                    if (pkg.isNotEmpty) {
+                      controller.addCustomBlockedApp(pkg, name);
+                      Get.back();
+                    } else {
+                      AppSnackbar.warning('Missing Package', 'Please enter a package name to block.');
+                    }
+                  },
+                  icon: const Icon(Icons.block_rounded, size: 18),
+                  label: const Text('Add Restriction'),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: AppColors.cancelledRed,
+                    foregroundColor: Colors.white,
+                    padding: const EdgeInsets.symmetric(vertical: 12),
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+      isScrollControlled: true,
+    );
+  }
+
+  void _showCurfewSettingsSheet(BuildContext context) {
+    final limitController = TextEditingController(
+      text: controller.dailyLimitMinutes.value > 0
+          ? controller.dailyLimitMinutes.value.toString()
+          : '',
+    );
+    final bedtimeStartRx = controller.bedtimeStart.value.obs;
+    final bedtimeEndRx = controller.bedtimeEnd.value.obs;
+
+    Get.bottomSheet(
+      Container(
+        decoration: const BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+        ),
+        padding: const EdgeInsets.fromLTRB(20, 16, 20, 24),
+        child: SingleChildScrollView(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Center(
+                child: Container(
+                  width: 40,
+                  height: 4,
+                  decoration: BoxDecoration(
+                    color: Colors.grey.shade300,
+                    borderRadius: BorderRadius.circular(2),
+                  ),
+                ),
+              ),
+              const SizedBox(height: 16),
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  Text('Curfew & Limits', style: AppTextStyles.title),
+                  IconButton(
+                    icon: const Icon(Icons.close_rounded),
+                    onPressed: () => Get.back(),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 16),
+              TextField(
+                controller: limitController,
+                keyboardType: TextInputType.number,
+                decoration: InputDecoration(
+                  labelText: 'Daily Screen Limit (in Minutes, e.g. 120)',
+                  hintText: 'Leave empty for no limit',
+                  isDense: true,
+                  border: OutlineInputBorder(borderRadius: BorderRadius.circular(10)),
+                ),
+              ),
+              const SizedBox(height: 16),
+              Obx(() => Row(
+                    children: [
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            const Text('Curfew Start', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 12)),
+                            const SizedBox(height: 4),
+                            InkWell(
+                              onTap: () async {
+                                final time = await showTimePicker(
+                                  context: context,
+                                  initialTime: const TimeOfDay(hour: 23, minute: 0),
+                                );
+                                if (time != null) {
+                                  final h = time.hour.toString().padLeft(2, '0');
+                                  final m = time.minute.toString().padLeft(2, '0');
+                                  bedtimeStartRx.value = '$h:$m';
+                                }
+                              },
+                              child: Container(
+                                padding: const EdgeInsets.all(12),
+                                decoration: BoxDecoration(
+                                  border: Border.all(color: Colors.grey.shade300),
+                                  borderRadius: BorderRadius.circular(10),
+                                ),
+                                child: Text(bedtimeStartRx.value, style: const TextStyle(fontWeight: FontWeight.bold)),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            const Text('Curfew End', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 12)),
+                            const SizedBox(height: 4),
+                            InkWell(
+                              onTap: () async {
+                                final time = await showTimePicker(
+                                  context: context,
+                                  initialTime: const TimeOfDay(hour: 5, minute: 0),
+                                );
+                                if (time != null) {
+                                  final h = time.hour.toString().padLeft(2, '0');
+                                  final m = time.minute.toString().padLeft(2, '0');
+                                  bedtimeEndRx.value = '$h:$m';
+                                }
+                              },
+                              child: Container(
+                                padding: const EdgeInsets.all(12),
+                                decoration: BoxDecoration(
+                                  border: Border.all(color: Colors.grey.shade300),
+                                  borderRadius: BorderRadius.circular(10),
+                                ),
+                                child: Text(bedtimeEndRx.value, style: const TextStyle(fontWeight: FontWeight.bold)),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ],
+                  )),
+              const SizedBox(height: 20),
+              SizedBox(
+                width: double.infinity,
+                child: ElevatedButton(
+                  onPressed: () {
+                    final mins = int.tryParse(limitController.text.trim()) ?? 0;
+                    controller.updateCurfewAndLimit(
+                      limitMinutes: mins,
+                      startBedtime: bedtimeStartRx.value,
+                      endBedtime: bedtimeEndRx.value,
+                    );
+                    Get.back();
+                  },
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: AppColors.primary,
+                    foregroundColor: Colors.white,
+                    padding: const EdgeInsets.symmetric(vertical: 12),
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                  ),
+                  child: const Text('Save Policy'),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+      isScrollControlled: true,
+    );
   }
 
   Widget _buildHistoryCard() {

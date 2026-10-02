@@ -72,9 +72,8 @@ extension UserRoleX on UserRole {
   /// True if user is a student leader
   bool get isLeader => this == UserRole.leader;
 
-  /// Can view student phone screen time data.
+  /// Can view student phone screen time and parental control data (Admin & Warden only).
   bool get canViewScreenTime =>
-      this == UserRole.leader ||
       this == UserRole.admin ||
       this == UserRole.warden;
 

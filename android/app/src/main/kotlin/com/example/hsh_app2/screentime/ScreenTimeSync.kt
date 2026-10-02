@@ -226,7 +226,27 @@ object ScreenTimeSync {
                 setRequestProperty("Authorization", "Bearer $token")
             }
             conn.outputStream.use { it.write(body.toString().toByteArray(Charsets.UTF_8)) }
-            conn.responseCode
+            val code = conn.responseCode
+            if (code in 200..299) {
+                try {
+                    val respStr = conn.inputStream.bufferedReader().use { it.readText() }
+                    val respJson = JSONObject(respStr)
+                    val data = respJson.optJSONObject("data") ?: respJson
+                    val blockedArr = data.optJSONArray("blockedPackages")
+                        ?: data.optJSONArray("blocked_packages")
+                    if (blockedArr != null) {
+                        val blockedSet = mutableSetOf<String>()
+                        for (i in 0 until blockedArr.length()) {
+                            blockedSet.add(blockedArr.getString(i))
+                        }
+                        context.getSharedPreferences("hsh_screen_time_policy", Context.MODE_PRIVATE)
+                            .edit()
+                            .putStringSet("blocked_packages", blockedSet)
+                            .apply()
+                    }
+                } catch (_: Exception) {}
+            }
+            code
         } catch (e: Exception) {
             Log.w(TAG, "ping failed: ${e.message}")
             -1

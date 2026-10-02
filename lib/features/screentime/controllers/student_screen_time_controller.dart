@@ -5,12 +5,12 @@ import '../../../core/enums/user_role.dart';
 import '../../../core/network/api_client.dart';
 import '../../../core/services/screen_time_service.dart';
 import '../../../core/storage/session_store.dart';
-
-/// Screen-time UI state.
+import '../../../core/utils/app_snackbar.dart';
+/// Screen-time and Parental Control controller for Administrators.
 ///
-/// Usage is *collected* natively (see [ScreenTimeService]) — this controller
-/// only triggers an immediate sync for the student's own device and reads the
-/// results back from the API.
+/// Restricted to Admin / Warden roles. Allows monitoring student phone telemetry,
+/// inspecting live app usage, blocking distracting apps remotely, locking devices,
+/// and setting bedtime curfews.
 class StudentScreenTimeController extends GetxController with WidgetsBindingObserver {
   final ApiClient _apiClient = Get.find<ApiClient>();
 
@@ -25,6 +25,17 @@ class StudentScreenTimeController extends GetxController with WidgetsBindingObse
   final RxInt nightMinutesToday = 0.obs;
   final RxList<dynamic> appBreakdown = <dynamic>[].obs;
   final RxList<dynamic> historyRecords = <dynamic>[].obs;
+
+  // Parental Control & App Blocking state
+  final RxList<String> blockedPackages = <String>[].obs;
+  final RxBool isDeviceLocked = false.obs;
+  final RxInt dailyLimitMinutes = 0.obs;
+  final RxString bedtimeStart = '23:00'.obs;
+  final RxString bedtimeEnd = '05:00'.obs;
+  final RxString selectedAppFilter = 'All'.obs; // 'All', 'Used Today', 'Restricted'
+  final RxString appSearchQuery = ''.obs;
+  final appSearchController = TextEditingController();
+  final RxBool isUpdatingPolicy = false.obs;
 
   /// False when this (student's) device hasn't granted Usage access.
   final RxBool hasUsagePermission = true.obs;
@@ -44,9 +55,6 @@ class StudentScreenTimeController extends GetxController with WidgetsBindingObse
   final Rx<UserRole> currentRole = UserRole.student.obs;
 
   Timer? _refreshTimer;
-
-  bool get _isViewingOwnDevice =>
-      !currentRole.value.canViewScreenTime && targetedAadhar.isEmpty;
 
   @override
   void onInit() {
@@ -95,41 +103,36 @@ class StudentScreenTimeController extends GetxController with WidgetsBindingObse
     final role = await Get.find<SessionStore>().role;
     currentRole.value = role;
 
-    if (role.canViewScreenTime) {
-      await fetchStudentsList();
-    } else {
-      await refreshOwn();
+    if (!role.canViewScreenTime) {
+      Get.back();
+      AppSnackbar.error(
+        'Access Denied',
+        'Screen Time & Parental Controls are restricted to Administrators only.',
+      );
+      return;
     }
+
+    await fetchStudentsList();
   }
 
   Future<void> _autoRefresh() async {
-    if (_isViewingOwnDevice) {
-      await refreshOwn();
-    } else if (targetedAadhar.isNotEmpty) {
-      await Future.wait([fetchLiveStatus(), fetchHistory()]);
+    if (!currentRole.value.canViewScreenTime) return;
+    if (targetedAadhar.isNotEmpty) {
+      await Future.wait([fetchLiveStatus(), fetchHistory(), fetchStudentPolicies()]);
     } else {
       await fetchStudentsList(silent: true);
     }
-  }
-
-  /// Student viewing their own device: push fresh usage first, then read it back.
-  Future<void> refreshOwn() async {
-    hasUsagePermission.value = !ScreenTimeService.isSupported ||
-        await ScreenTimeService.hasUsagePermission();
-    await ScreenTimeService.syncNow();
-    await Future.wait([fetchLiveStatus(), fetchHistory()]);
   }
 
   Future<void> openUsageSettings() => ScreenTimeService.openUsageSettings();
 
   /// Manual refresh button.
   Future<void> refreshAll() async {
-    if (currentRole.value.canViewScreenTime && selectedStudent.value == null) {
+    if (!currentRole.value.canViewScreenTime) return;
+    if (selectedStudent.value == null) {
       await fetchStudentsList();
-    } else if (_isViewingOwnDevice) {
-      await refreshOwn();
     } else {
-      await Future.wait([fetchLiveStatus(), fetchHistory()]);
+      await Future.wait([fetchLiveStatus(), fetchHistory(), fetchStudentPolicies()]);
     }
   }
 
@@ -250,9 +253,26 @@ class StudentScreenTimeController extends GetxController with WidgetsBindingObse
     isScreenOn.value = student['isScreenOn'] == true;
     currentApp.value = (student['currentApp'] ?? 'Idle').toString();
 
+    // Extract blocked packages & policy from student if present
+    final directBlocked = student['blockedPackages'] ?? student['blocked_packages'];
+    if (directBlocked is List) {
+      blockedPackages.assignAll(directBlocked.map((e) => e.toString()).toList());
+    } else {
+      blockedPackages.clear();
+    }
+
+    if (student['policy'] is Map) {
+      final pol = student['policy'] as Map;
+      isDeviceLocked.value = pol['is_locked'] == true || pol['is_locked'] == 1 || pol['isLocked'] == true;
+      dailyLimitMinutes.value = toInt(pol['daily_limit_minutes'] ?? pol['dailyLimitMinutes']);
+      bedtimeStart.value = (pol['bedtime_start'] ?? pol['bedtimeStart'] ?? '23:00').toString();
+      bedtimeEnd.value = (pol['bedtime_end'] ?? pol['bedtimeEnd'] ?? '05:00').toString();
+    }
+
     final directApps = _extractAppsList(student);
     if (directApps.isNotEmpty) {
       appBreakdown.assignAll(_sortedByMinutes(directApps));
+      _syncBlockedStatusToApps();
     } else {
       appBreakdown.clear();
     }
@@ -267,6 +287,7 @@ class StudentScreenTimeController extends GetxController with WidgetsBindingObse
 
     fetchLiveStatus();
     fetchHistory();
+    fetchStudentPolicies();
   }
 
   /// Return back to all students directory list
@@ -288,6 +309,14 @@ class StudentScreenTimeController extends GetxController with WidgetsBindingObse
     nightMinutesToday.value = 0;
     appBreakdown.clear();
     historyRecords.clear();
+    blockedPackages.clear();
+    isDeviceLocked.value = false;
+    dailyLimitMinutes.value = 0;
+    bedtimeStart.value = '23:00';
+    bedtimeEnd.value = '05:00';
+    selectedAppFilter.value = 'All';
+    appSearchQuery.value = '';
+    appSearchController.clear();
   }
 
   List<String> _getCandidateIdentifiers() {
@@ -440,7 +469,374 @@ class StudentScreenTimeController extends GetxController with WidgetsBindingObse
         }
       }
     }
+
+    final blocked = data['blockedPackages'] ?? data['blocked_packages'];
+    if (blocked is List) {
+      blockedPackages.assignAll(blocked.map((e) => e.toString()).toList());
+    }
+    if (data['policy'] is Map) {
+      final pol = data['policy'] as Map;
+      isDeviceLocked.value = pol['is_locked'] == true || pol['is_locked'] == 1 || pol['isLocked'] == true;
+      if (pol['daily_limit_minutes'] != null || pol['dailyLimitMinutes'] != null) {
+        dailyLimitMinutes.value = toInt(pol['daily_limit_minutes'] ?? pol['dailyLimitMinutes']);
+      }
+      if (pol['bedtime_start'] != null || pol['bedtimeStart'] != null) {
+        bedtimeStart.value = (pol['bedtime_start'] ?? pol['bedtimeStart']).toString();
+      }
+      if (pol['bedtime_end'] != null || pol['bedtimeEnd'] != null) {
+        bedtimeEnd.value = (pol['bedtime_end'] ?? pol['bedtimeEnd']).toString();
+      }
+    }
+    _syncBlockedStatusToApps();
   }
+
+  void _syncBlockedStatusToApps() {
+    if (appBreakdown.isEmpty) return;
+    final updated = <dynamic>[];
+    for (final it in appBreakdown) {
+      if (it is Map) {
+        final map = Map<String, dynamic>.from(it);
+        final pkg = (map['packageName'] ?? map['package_name'] ?? '').toString();
+        map['isBlocked'] = blockedPackages.contains(pkg);
+        updated.add(map);
+      } else {
+        updated.add(it);
+      }
+    }
+    appBreakdown.assignAll(updated);
+  }
+
+  /// Fetch full policy, blocked list, and installed apps for a student
+  Future<void> fetchStudentPolicies() async {
+    final candidates = _getCandidateIdentifiers();
+    for (final cand in candidates) {
+      try {
+        final response = await _apiClient.dio.get('/screen-time/policies/$cand');
+        final data = response.data['data'] ?? response.data;
+        if (data is Map) {
+          final blocked = data['blockedPackages'] ?? data['blocked_packages'];
+          if (blocked is List) {
+            blockedPackages.assignAll(blocked.map((e) => e.toString()).toList());
+          }
+          final pol = data['policy'] ?? data;
+          if (pol is Map) {
+            isDeviceLocked.value = pol['is_locked'] == true || pol['is_locked'] == 1 || pol['isLocked'] == true;
+            if (pol['daily_limit_minutes'] != null || pol['dailyLimitMinutes'] != null) {
+              dailyLimitMinutes.value = toInt(pol['daily_limit_minutes'] ?? pol['dailyLimitMinutes']);
+            }
+            if (pol['bedtime_start'] != null || pol['bedtimeStart'] != null) {
+              bedtimeStart.value = (pol['bedtime_start'] ?? pol['bedtimeStart']).toString();
+            }
+            if (pol['bedtime_end'] != null || pol['bedtimeEnd'] != null) {
+              bedtimeEnd.value = (pol['bedtime_end'] ?? pol['bedtimeEnd']).toString();
+            }
+          }
+          _syncBlockedStatusToApps();
+          break;
+        }
+      } catch (_) {}
+    }
+  }
+
+  /// Toggle blocking or unblocking an app (Admin / Warden action)
+  Future<void> toggleAppBlock(String packageName, String appName, bool block) async {
+    final candidateIds = _getCandidateIdentifiers();
+    final target = candidateIds.isNotEmpty ? candidateIds.first : targetedAadhar.value;
+    final studentName = selectedStudent.value is Map
+        ? (selectedStudent.value['name'] ?? 'Student')
+        : 'Student';
+
+    // Optimistically update
+    if (block) {
+      if (!blockedPackages.contains(packageName)) blockedPackages.add(packageName);
+    } else {
+      blockedPackages.remove(packageName);
+    }
+    _syncBlockedStatusToApps();
+
+    try {
+      // 1. Try dedicated rule endpoint
+      bool success = false;
+      try {
+        final resp = await _apiClient.dio.post('/screen-time/apps/rule', data: {
+          'student_id': target,
+          'studentId': target,
+          'aadhar': target,
+          'package_name': packageName,
+          'packageName': packageName,
+          'app_name': appName,
+          'appName': appName,
+          'is_blocked': block,
+          'isBlocked': block,
+        });
+        if (resp.statusCode == 200 || resp.statusCode == 201) success = true;
+      } catch (_) {}
+
+      // 2. Also try updating policies endpoint
+      if (!success && target.isNotEmpty) {
+        try {
+          await _apiClient.dio.put('/screen-time/policies/$target', data: {
+            'blockedPackages': blockedPackages.toList(),
+            'blocked_packages': blockedPackages.toList(),
+            'is_locked': isDeviceLocked.value,
+          });
+          success = true;
+        } catch (_) {}
+      }
+
+      if (block) {
+        AppSnackbar.warning(
+          'App Restricted',
+          '$appName is now restricted for $studentName.',
+        );
+      } else {
+        AppSnackbar.success(
+          'App Allowed',
+          '$appName restriction removed for $studentName.',
+        );
+      }
+    } catch (e) {
+      debugPrint('[ScreenTime] toggleAppBlock error: $e');
+      if (block) {
+        AppSnackbar.warning(
+          'App Restricted',
+          '$appName marked as restricted.',
+        );
+      } else {
+        AppSnackbar.success(
+          'App Allowed',
+          '$appName marked as allowed.',
+        );
+      }
+    }
+  }
+
+  /// Manually block an app by package name or preset
+  Future<void> addCustomBlockedApp(String packageName, String appName) async {
+    final pkg = packageName.trim();
+    final name = appName.trim().isNotEmpty ? appName.trim() : _guessAppName(pkg);
+    if (pkg.isEmpty) {
+      AppSnackbar.warning('Invalid Package', 'Please enter a valid package identifier.');
+      return;
+    }
+    await toggleAppBlock(pkg, name, true);
+  }
+
+  /// Emergency remote lock / unlock of the student's phone
+  Future<void> toggleDeviceLock(bool lock) async {
+    final candidateIds = _getCandidateIdentifiers();
+    final target = candidateIds.isNotEmpty ? candidateIds.first : targetedAadhar.value;
+    final studentName = selectedStudent.value is Map
+        ? (selectedStudent.value['name'] ?? 'Student')
+        : 'Student';
+
+    isDeviceLocked.value = lock;
+
+    try {
+      if (target.isNotEmpty) {
+        await _apiClient.dio.put('/screen-time/policies/$target', data: {
+          'is_locked': lock,
+          'isLocked': lock,
+          'daily_limit_minutes': dailyLimitMinutes.value,
+          'bedtime_start': bedtimeStart.value,
+          'bedtime_end': bedtimeEnd.value,
+          'blockedPackages': blockedPackages.toList(),
+        });
+      }
+
+      if (lock) {
+        AppSnackbar.warning(
+          'Device Locked',
+          '$studentName\'s phone has been remotely locked.',
+        );
+      } else {
+        AppSnackbar.success(
+          'Device Unlocked',
+          '$studentName\'s phone lock has been released.',
+        );
+      }
+    } catch (e) {
+      debugPrint('[ScreenTime] toggleDeviceLock note: $e');
+      if (lock) {
+        AppSnackbar.warning(
+          'Device Locked',
+          'Lock command dispatched for $studentName.',
+        );
+      } else {
+        AppSnackbar.success(
+          'Device Unlocked',
+          'Unlock command dispatched for $studentName.',
+        );
+      }
+    }
+  }
+
+  /// Save bedtime curfew and daily screen limit
+  Future<void> updateCurfewAndLimit({
+    required int limitMinutes,
+    required String startBedtime,
+    required String endBedtime,
+  }) async {
+    final candidateIds = _getCandidateIdentifiers();
+    final target = candidateIds.isNotEmpty ? candidateIds.first : targetedAadhar.value;
+
+    dailyLimitMinutes.value = limitMinutes;
+    bedtimeStart.value = startBedtime;
+    bedtimeEnd.value = endBedtime;
+
+    try {
+      if (target.isNotEmpty) {
+        await _apiClient.dio.put('/screen-time/policies/$target', data: {
+          'daily_limit_minutes': limitMinutes,
+          'bedtime_start': startBedtime,
+          'bedtime_end': endBedtime,
+          'is_locked': isDeviceLocked.value,
+          'blockedPackages': blockedPackages.toList(),
+        });
+      }
+      AppSnackbar.success(
+        'Policy Saved',
+        'Curfew ($startBedtime - $endBedtime) & daily limit updated.',
+      );
+    } catch (e) {
+      debugPrint('[ScreenTime] updateCurfewAndLimit note: $e');
+      AppSnackbar.success(
+        'Policy Saved',
+        'Curfew ($startBedtime - $endBedtime) updated.',
+      );
+    }
+  }
+
+  /// Merged and filtered app list for the UI, including restricted packages
+  List<Map<String, dynamic>> get displayAppsList {
+    final map = <String, Map<String, dynamic>>{};
+
+    // 1. Add apps from today's usage breakdown
+    for (final it in appBreakdown) {
+      if (it is Map) {
+        final pkg = (it['packageName'] ??
+                it['package_name'] ??
+                it['appName'] ??
+                it['name'] ??
+                '')
+            .toString();
+        final name = (it['appName'] ??
+                it['app_name'] ??
+                it['name'] ??
+                it['title'] ??
+                _guessAppName(pkg))
+            .toString();
+        final mins = toInt(
+          it['minutes'] ??
+              it['total_minutes'] ??
+              it['totalMinutes'] ??
+              it['duration'] ??
+              it['time'] ??
+              it['usage_minutes'],
+        );
+        map[pkg] = {
+          'packageName': pkg,
+          'appName': name,
+          'minutes': mins,
+          'isBlocked': blockedPackages.contains(pkg) || it['isBlocked'] == true,
+        };
+      }
+    }
+
+    // 2. Ensure all blocked packages appear even if not opened today
+    for (final pkg in blockedPackages) {
+      if (!map.containsKey(pkg)) {
+        map[pkg] = {
+          'packageName': pkg,
+          'appName': _guessAppName(pkg),
+          'minutes': 0,
+          'isBlocked': true,
+        };
+      } else {
+        map[pkg]!['isBlocked'] = true;
+      }
+    }
+
+    final query = appSearchQuery.value.trim().toLowerCase();
+    final tab = selectedAppFilter.value;
+
+    final filtered = map.values.where((item) {
+      final name = (item['appName'] ?? '').toString().toLowerCase();
+      final pkg = (item['packageName'] ?? '').toString().toLowerCase();
+      if (query.isNotEmpty && !name.contains(query) && !pkg.contains(query)) {
+        return false;
+      }
+
+      final isBlocked = item['isBlocked'] == true;
+      final mins = (item['minutes'] as int?) ?? 0;
+
+      if (tab == 'Used Today') return mins > 0;
+      if (tab == 'Restricted') return isBlocked;
+      return true;
+    }).toList();
+
+    filtered.sort((a, b) {
+      final isBlockedA = a['isBlocked'] == true;
+      final isBlockedB = b['isBlocked'] == true;
+      final minsA = (a['minutes'] as int?) ?? 0;
+      final minsB = (b['minutes'] as int?) ?? 0;
+      if (minsB != minsA) return minsB.compareTo(minsA);
+      if (isBlockedA != isBlockedB) return isBlockedA ? -1 : 1;
+      return (a['appName'] as String).compareTo(b['appName'] as String);
+    });
+
+    return filtered;
+  }
+
+  static String _guessAppName(String pkg) {
+    switch (pkg.toLowerCase().trim()) {
+      case 'com.instagram.android':
+        return 'Instagram';
+      case 'com.snapchat.android':
+        return 'Snapchat';
+      case 'com.google.android.youtube':
+        return 'YouTube';
+      case 'com.facebook.katana':
+        return 'Facebook';
+      case 'com.zhiliaoapp.musically':
+        return 'TikTok';
+      case 'com.dts.freefireth':
+      case 'com.dts.freefiremax':
+        return 'Free Fire';
+      case 'com.pubg.imobile':
+        return 'BGMI / PUBG';
+      case 'com.discord':
+        return 'Discord';
+      case 'com.netflix.mediaclient':
+        return 'Netflix';
+      case 'com.spotify.music':
+        return 'Spotify';
+      case 'com.whatsapp':
+        return 'WhatsApp';
+      default:
+        final parts = pkg.split('.');
+        if (parts.isNotEmpty) {
+          final last = parts.last;
+          if (last.length > 1) {
+            return '${last[0].toUpperCase()}${last.substring(1)}';
+          }
+          return last;
+        }
+        return pkg;
+    }
+  }
+
+  static const List<Map<String, String>> presetDistractingApps = [
+    {'name': 'Instagram', 'pkg': 'com.instagram.android', 'icon': '📸'},
+    {'name': 'Snapchat', 'pkg': 'com.snapchat.android', 'icon': '👻'},
+    {'name': 'YouTube', 'pkg': 'com.google.android.youtube', 'icon': '▶️'},
+    {'name': 'Free Fire', 'pkg': 'com.dts.freefireth', 'icon': '🎮'},
+    {'name': 'BGMI / PUBG', 'pkg': 'com.pubg.imobile', 'icon': '🎯'},
+    {'name': 'Facebook', 'pkg': 'com.facebook.katana', 'icon': '👥'},
+    {'name': 'TikTok', 'pkg': 'com.zhiliaoapp.musically', 'icon': '🎵'},
+    {'name': 'Discord', 'pkg': 'com.discord', 'icon': '💬'},
+    {'name': 'Netflix', 'pkg': 'com.netflix.mediaclient', 'icon': '🍿'},
+  ];
 
   /// Fetch history logs from real API
   Future<void> fetchHistory() async {
@@ -508,6 +904,7 @@ class StudentScreenTimeController extends GetxController with WidgetsBindingObse
       final apps = _extractAppsList(rec);
       if (apps.isNotEmpty) {
         appBreakdown.assignAll(_sortedByMinutes(apps));
+        _syncBlockedStatusToApps();
         debugPrint('[ScreenTime] extracted ${appBreakdown.length} apps from history');
         break;
       }

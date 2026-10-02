@@ -45,6 +45,22 @@ class MainActivity : FlutterActivity() {
                         val status = ScreenTimeSync.syncNow(applicationContext)
                         mainHandler.post { result.success(status) }
                     }
+                    "syncPolicyToNative" -> {
+                        val blockedPackages = call.argument<List<String>>("blockedPackages") ?: emptyList()
+                        val isLocked = call.argument<Boolean>("isLocked") ?: false
+                        val prefs = applicationContext.getSharedPreferences("hsh_screen_time_policy", android.content.Context.MODE_PRIVATE)
+                        prefs.edit().apply {
+                            putStringSet("blocked_packages", blockedPackages.toSet())
+                            putBoolean("is_locked", isLocked)
+                            apply()
+                        }
+                        result.success(true)
+                    }
+                    "getBlockedPackages" -> {
+                        val prefs = applicationContext.getSharedPreferences("hsh_screen_time_policy", android.content.Context.MODE_PRIVATE)
+                        val set = prefs.getStringSet("blocked_packages", emptySet()) ?: emptySet()
+                        result.success(set.toList())
+                    }
                     else -> result.notImplemented()
                 }
             }

@@ -51,6 +51,27 @@ class ScreenTimeService {
     }
   }
 
+  /// Push active parental control policies (blocked packages, lock state) to native SharedPreferences.
+  static Future<void> syncPolicyToNative({
+    required List<String> blockedPackages,
+    bool isLocked = false,
+  }) =>
+      _invoke('syncPolicyToNative', {
+        'blockedPackages': blockedPackages,
+        'isLocked': isLocked,
+      });
+
+  /// Retrieve locally stored blocked packages on this device.
+  static Future<List<String>> getBlockedPackages() async {
+    if (!isSupported) return [];
+    try {
+      final list = await _channel.invokeMethod<List<dynamic>>('getBlockedPackages');
+      return list?.map((e) => e.toString()).toList() ?? [];
+    } catch (e) {
+      return [];
+    }
+  }
+
   static Future<void> _invoke(String method, [Object? args]) async {
     if (!isSupported) return;
     try {

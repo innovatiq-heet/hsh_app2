@@ -142,12 +142,12 @@ object UsageCollector {
         packageName
     }
 
-    /** Home-screen launchers aren't "apps being used" — exclude them. */
+    /** Home-screen launchers aren't "apps being used" — exclude them. Also exclude our own app. */
     private fun ignoredPackages(context: Context): Set<String> {
         val intent = Intent(Intent.ACTION_MAIN).addCategory(Intent.CATEGORY_HOME)
         val launchers = context.packageManager
             .queryIntentActivities(intent, PackageManager.MATCH_DEFAULT_ONLY)
             .map { it.activityInfo.packageName }
-        return (launchers + "com.android.systemui").toSet()
+        return (launchers + "com.android.systemui" + context.packageName).toSet()
     }
 }

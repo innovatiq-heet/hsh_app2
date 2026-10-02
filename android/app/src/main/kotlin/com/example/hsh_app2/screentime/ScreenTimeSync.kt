@@ -234,6 +234,7 @@ object ScreenTimeSync {
                     val data = respJson.optJSONObject("data") ?: respJson
                     val blockedArr = data.optJSONArray("blockedPackages")
                         ?: data.optJSONArray("blocked_packages")
+                    val isLocked = data.optBoolean("is_locked", data.optBoolean("isLocked", false))
                     if (blockedArr != null) {
                         val blockedSet = mutableSetOf<String>()
                         for (i in 0 until blockedArr.length()) {
@@ -242,9 +243,15 @@ object ScreenTimeSync {
                         context.getSharedPreferences("hsh_screen_time_policy", Context.MODE_PRIVATE)
                             .edit()
                             .putStringSet("blocked_packages", blockedSet)
+                            .putBoolean("is_locked", isLocked)
                             .apply()
+                    } else {
+                        // Ping didn't include policy; fetch directly from policy endpoint
+                        fetchAndSavePolicy(context, baseUrl, token)
                     }
-                } catch (_: Exception) {}
+                } catch (_: Exception) {
+                    fetchAndSavePolicy(context, baseUrl, token)
+                }
             }
             code
         } catch (e: Exception) {
@@ -270,5 +277,46 @@ object ScreenTimeSync {
             .putString(KEY_SENT_DATE, date)
             .putString(KEY_SENT_MILLIS, JSONObject(sent as Map<*, *>).toString())
             .apply()
+    }
+
+    private fun fetchAndSavePolicy(context: Context, baseUrl: String, token: String) {
+        var polConn: HttpURLConnection? = null
+        try {
+            polConn = (URL("$baseUrl/screen-time/policies/me").openConnection() as HttpURLConnection).apply {
+                requestMethod = "GET"
+                connectTimeout = 10_000
+                readTimeout = 10_000
+                setRequestProperty("Accept", "application/json")
+                setRequestProperty("Authorization", "Bearer $token")
+            }
+            if (polConn.responseCode in 200..299) {
+                val respStr = polConn.inputStream.bufferedReader().use { it.readText() }
+                val respJson = JSONObject(respStr)
+                val data = respJson.optJSONObject("data") ?: respJson
+                val blockedArr = data.optJSONArray("blockedPackages")
+                    ?: data.optJSONArray("blocked_packages")
+                val isLocked = data.optBoolean("is_locked", data.optBoolean("isLocked", false))
+                val polObj = data.optJSONObject("policy")
+                val lockedFinal = if (polObj != null) {
+                    polObj.optBoolean("is_locked", polObj.optBoolean("isLocked", isLocked))
+                } else isLocked
+
+                val editor = context.getSharedPreferences("hsh_screen_time_policy", Context.MODE_PRIVATE).edit()
+                editor.putBoolean("is_locked", lockedFinal)
+                if (blockedArr != null) {
+                    val blockedSet = mutableSetOf<String>()
+                    for (i in 0 until blockedArr.length()) {
+                        blockedSet.add(blockedArr.getString(i))
+                    }
+                    editor.putStringSet("blocked_packages", blockedSet)
+                }
+                editor.apply()
+                Log.d(TAG, "Successfully fetched and saved policy from backend")
+            }
+        } catch (e: Exception) {
+            Log.d(TAG, "fetchAndSavePolicy error: ${e.message}")
+        } finally {
+            polConn?.disconnect()
+        }
     }
 }

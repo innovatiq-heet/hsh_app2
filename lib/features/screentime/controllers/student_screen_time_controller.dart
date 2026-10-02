@@ -1,11 +1,13 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
+import 'package:intl/intl.dart';
 import '../../../core/enums/user_role.dart';
 import '../../../core/network/api_client.dart';
 import '../../../core/services/screen_time_service.dart';
 import '../../../core/storage/session_store.dart';
 import '../../../core/utils/app_snackbar.dart';
+
 /// Screen-time and Parental Control controller for Administrators.
 ///
 /// Restricted to Admin / Warden roles. Allows monitoring student phone telemetry,
@@ -25,6 +27,115 @@ class StudentScreenTimeController extends GetxController with WidgetsBindingObse
   final RxInt nightMinutesToday = 0.obs;
   final RxList<dynamic> appBreakdown = <dynamic>[].obs;
   final RxList<dynamic> historyRecords = <dynamic>[].obs;
+
+  // Day-wise selection state
+  final RxString selectedDate = ''.obs; // 'yyyy-MM-dd' or empty for today
+
+  String get todayDateStr {
+    final now = DateTime.now();
+    return '${now.year.toString().padLeft(4, '0')}-${now.month.toString().padLeft(2, '0')}-${now.day.toString().padLeft(2, '0')}';
+  }
+
+  bool get isTodaySelected {
+    return selectedDate.value.isEmpty || selectedDate.value == todayDateStr;
+  }
+
+  String get effectiveSelectedDate {
+    return selectedDate.value.isEmpty ? todayDateStr : selectedDate.value;
+  }
+
+  void selectDate(String dateStr) {
+    selectedDate.value = dateStr;
+  }
+
+  List<Map<String, String>> get availableDays {
+    final list = <Map<String, String>>[];
+    final now = DateTime.now();
+    final today = todayDateStr;
+    final yest = now.subtract(const Duration(days: 1));
+    final yestStr = '${yest.year.toString().padLeft(4, '0')}-${yest.month.toString().padLeft(2, '0')}-${yest.day.toString().padLeft(2, '0')}';
+
+    list.add({'date': today, 'label': 'Today'});
+    list.add({'date': yestStr, 'label': 'Yesterday'});
+
+    final seenDates = {today, yestStr};
+    for (final r in historyRecords) {
+      if (r is Map) {
+        final d = (r['date'] ?? '').toString().split('T').first;
+        if (d.isNotEmpty && !seenDates.contains(d)) {
+          seenDates.add(d);
+          try {
+            final parsed = DateTime.parse(d);
+            final label = DateFormat('EEE, d MMM').format(parsed);
+            list.add({'date': d, 'label': label});
+          } catch (_) {
+            list.add({'date': d, 'label': d});
+          }
+        }
+      }
+    }
+    return list;
+  }
+
+  int get selectedDayTotalMinutes {
+    if (isTodaySelected) {
+      return totalMinutesToday.value;
+    }
+    final rec = _findHistoryRecord(selectedDate.value);
+    if (rec != null) {
+      return toInt(
+        rec['total_screen_time_minutes'] ??
+            rec['totalScreenTimeMinutes'] ??
+            rec['totalMinutes'] ??
+            rec['minutes'],
+      );
+    }
+    return 0;
+  }
+
+  int get selectedDayNightMinutes {
+    if (isTodaySelected) {
+      return nightMinutesToday.value;
+    }
+    final rec = _findHistoryRecord(selectedDate.value);
+    if (rec != null) {
+      return toInt(
+        rec['night_screen_time_minutes'] ??
+            rec['nightScreenTimeMinutes'] ??
+            rec['nightMinutes'] ??
+            rec['night'],
+      );
+    }
+    return 0;
+  }
+
+  Map<String, dynamic>? _findHistoryRecord(String dateStr) {
+    for (final r in historyRecords) {
+      if (r is Map) {
+        final d = (r['date'] ?? '').toString().split('T').first;
+        if (d == dateStr) return Map<String, dynamic>.from(r);
+      }
+    }
+    return null;
+  }
+
+  List<dynamic> get currentDayRawApps {
+    if (isTodaySelected) {
+      return appBreakdown;
+    }
+    final rec = _findHistoryRecord(selectedDate.value);
+    if (rec != null) {
+      final extracted = _extractAppsList(rec);
+      if (extracted.isNotEmpty) {
+        return extracted.where((a) {
+          final pkg = (a is Map ? (a['packageName'] ?? a['package_name'] ?? '') : '').toString();
+          return pkg != 'com.example.hsh_app2';
+        }).toList();
+      }
+    }
+    return [];
+  }
+
 
   // Parental Control & App Blocking state
   final RxList<String> blockedPackages = <String>[].obs;
@@ -445,7 +556,11 @@ class StudentScreenTimeController extends GetxController with WidgetsBindingObse
       nightMinutesToday.value = liveNight;
     }
 
-    final newApps = _extractAppsList(data);
+    final rawApps = _extractAppsList(data);
+    final newApps = rawApps.where((a) {
+      final pkg = (a is Map ? (a['packageName'] ?? a['package_name'] ?? '') : '').toString();
+      return pkg != 'com.example.hsh_app2';
+    }).toList();
     if (newApps.isNotEmpty) {
       appBreakdown.assignAll(_sortedByMinutes(newApps));
       debugPrint('[ScreenTime] updated appBreakdown with ${appBreakdown.length} apps. First app: ${appBreakdown.first}');
@@ -584,6 +699,12 @@ class StudentScreenTimeController extends GetxController with WidgetsBindingObse
         } catch (_) {}
       }
 
+      // Sync policy to local device if running on Android
+      await ScreenTimeService.syncPolicyToNative(
+        blockedPackages: blockedPackages.toList(),
+        isLocked: isDeviceLocked.value,
+      );
+
       if (block) {
         AppSnackbar.warning(
           'App Restricted',
@@ -643,6 +764,12 @@ class StudentScreenTimeController extends GetxController with WidgetsBindingObse
           'blockedPackages': blockedPackages.toList(),
         });
       }
+
+      // Sync lock state to native Android SharedPreferences
+      await ScreenTimeService.syncPolicyToNative(
+        blockedPackages: blockedPackages.toList(),
+        isLocked: lock,
+      );
 
       if (lock) {
         AppSnackbar.warning(
@@ -711,8 +838,8 @@ class StudentScreenTimeController extends GetxController with WidgetsBindingObse
   List<Map<String, dynamic>> get displayAppsList {
     final map = <String, Map<String, dynamic>>{};
 
-    // 1. Add apps from today's usage breakdown
-    for (final it in appBreakdown) {
+    // 1. Add apps from the selected day's usage breakdown (excluding our own app)
+    for (final it in currentDayRawApps) {
       if (it is Map) {
         final pkg = (it['packageName'] ??
                 it['package_name'] ??
@@ -720,6 +847,8 @@ class StudentScreenTimeController extends GetxController with WidgetsBindingObse
                 it['name'] ??
                 '')
             .toString();
+        if (pkg == 'com.example.hsh_app2') continue;
+
         final name = (it['appName'] ??
                 it['app_name'] ??
                 it['name'] ??
@@ -743,8 +872,9 @@ class StudentScreenTimeController extends GetxController with WidgetsBindingObse
       }
     }
 
-    // 2. Ensure all blocked packages appear even if not opened today
+    // 2. Ensure all blocked packages appear even if not opened on this day
     for (final pkg in blockedPackages) {
+      if (pkg == 'com.example.hsh_app2') continue;
       if (!map.containsKey(pkg)) {
         map[pkg] = {
           'packageName': pkg,
@@ -770,7 +900,7 @@ class StudentScreenTimeController extends GetxController with WidgetsBindingObse
       final isBlocked = item['isBlocked'] == true;
       final mins = (item['minutes'] as int?) ?? 0;
 
-      if (tab == 'Used Today') return mins > 0;
+      if (tab == 'Used Today' || tab == 'Used on Day') return mins > 0;
       if (tab == 'Restricted') return isBlocked;
       return true;
     }).toList();
@@ -903,10 +1033,16 @@ class StudentScreenTimeController extends GetxController with WidgetsBindingObse
     for (final rec in historyRecords) {
       final apps = _extractAppsList(rec);
       if (apps.isNotEmpty) {
-        appBreakdown.assignAll(_sortedByMinutes(apps));
-        _syncBlockedStatusToApps();
-        debugPrint('[ScreenTime] extracted ${appBreakdown.length} apps from history');
-        break;
+        final filteredApps = apps.where((a) {
+          final pkg = (a is Map ? (a['packageName'] ?? a['package_name'] ?? '') : '').toString();
+          return pkg != 'com.example.hsh_app2';
+        }).toList();
+        if (filteredApps.isNotEmpty) {
+          appBreakdown.assignAll(_sortedByMinutes(filteredApps));
+          _syncBlockedStatusToApps();
+          debugPrint('[ScreenTime] extracted ${appBreakdown.length} apps from history');
+          break;
+        }
       }
     }
   }

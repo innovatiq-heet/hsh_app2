@@ -460,8 +460,12 @@ class StudentScreenTimeScreen extends GetView<StudentScreenTimeController> {
           _buildLiveCard(),
           const SizedBox(height: AppDimens.gapMd),
 
-          // Daily Screen Time Hero Card
-          _buildTodayUsageCard(),
+          // Day Selector Bar (Today, Yesterday, Past History, Calendar)
+          _buildDaySelectorBar(context),
+          const SizedBox(height: AppDimens.gapSm),
+
+          // Day Screen Time Hero Card (Shows stats for selected day)
+          _buildDayUsageCard(),
           const SizedBox(height: AppDimens.gapMd),
 
           // Parental Safety & Remote Lock Card
@@ -530,18 +534,143 @@ class StudentScreenTimeScreen extends GetView<StudentScreenTimeController> {
     });
   }
 
-  Widget _buildTodayUsageCard() {
+  Widget _buildDaySelectorBar(BuildContext context) {
     return Obx(() {
-      final total = controller.totalMinutesToday.value;
+      final days = controller.availableDays;
+      final selectedDate = controller.effectiveSelectedDate;
+
+      return Container(
+        padding: const EdgeInsets.symmetric(vertical: 4),
+        child: SingleChildScrollView(
+          scrollDirection: Axis.horizontal,
+          child: Row(
+            children: [
+              ...days.map((d) {
+                final dateStr = d['date']!;
+                final label = d['label']!;
+                final isSelected = selectedDate == dateStr;
+
+                return Padding(
+                  padding: const EdgeInsets.only(right: 8),
+                  child: GestureDetector(
+                    onTap: () => controller.selectDate(dateStr),
+                    child: AnimatedContainer(
+                      duration: const Duration(milliseconds: 200),
+                      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+                      decoration: BoxDecoration(
+                        color: isSelected ? AppColors.primary : Colors.white,
+                        borderRadius: BorderRadius.circular(20),
+                        border: Border.all(
+                          color: isSelected ? AppColors.primary : Colors.grey.shade300,
+                          width: isSelected ? 1.5 : 1.0,
+                        ),
+                        boxShadow: isSelected
+                            ? [
+                                BoxShadow(
+                                  color: AppColors.primary.withValues(alpha: 0.25),
+                                  blurRadius: 6,
+                                  offset: const Offset(0, 2),
+                                )
+                              ]
+                            : null,
+                      ),
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          if (isSelected) ...[
+                            const Icon(Icons.check_circle_rounded, size: 14, color: Colors.white),
+                            const SizedBox(width: 5),
+                          ],
+                          Text(
+                            label,
+                            style: TextStyle(
+                              fontSize: 12,
+                              fontWeight: isSelected ? FontWeight.bold : FontWeight.w500,
+                              color: isSelected ? Colors.white : AppColors.textPrimary,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                );
+              }),
+
+              // Pick Date Calendar button
+              GestureDetector(
+                onTap: () async {
+                  final initial = DateTime.tryParse(selectedDate) ?? DateTime.now();
+                  final picked = await showDatePicker(
+                    context: context,
+                    initialDate: initial.isAfter(DateTime.now()) ? DateTime.now() : initial,
+                    firstDate: DateTime.now().subtract(const Duration(days: 90)),
+                    lastDate: DateTime.now(),
+                  );
+                  if (picked != null) {
+                    final pickedStr =
+                        '${picked.year.toString().padLeft(4, '0')}-${picked.month.toString().padLeft(2, '0')}-${picked.day.toString().padLeft(2, '0')}';
+                    controller.selectDate(pickedStr);
+                  }
+                },
+                child: Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                  decoration: BoxDecoration(
+                    color: Colors.white,
+                    borderRadius: BorderRadius.circular(20),
+                    border: Border.all(color: Colors.grey.shade300),
+                  ),
+                  child: const Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Icon(Icons.calendar_month_rounded, size: 16, color: AppColors.primary),
+                      SizedBox(width: 4),
+                      Text(
+                        'Pick Date',
+                        style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: AppColors.primary),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+      );
+    });
+  }
+
+  Widget _buildDayUsageCard() {
+    return Obx(() {
+      final isToday = controller.isTodaySelected;
+      final total = controller.selectedDayTotalMinutes;
       final hours = total ~/ 60;
       final minutes = total % 60;
-      final night = controller.nightMinutesToday.value;
+      final night = controller.selectedDayNightMinutes;
+
+      String dayTitle = "TODAY'S SCREEN TIME";
+      if (!isToday) {
+        final dStr = controller.effectiveSelectedDate;
+        try {
+          final parsed = DateTime.parse(dStr);
+          final now = DateTime.now();
+          final yest = now.subtract(const Duration(days: 1));
+          if (parsed.year == yest.year && parsed.month == yest.month && parsed.day == yest.day) {
+            dayTitle = "YESTERDAY'S SCREEN TIME";
+          } else {
+            dayTitle = DateFormat('EEE, d MMM yyyy').format(parsed).toUpperCase();
+          }
+        } catch (_) {
+          dayTitle = "SCREEN TIME — $dStr";
+        }
+      }
 
       return Container(
         padding: const EdgeInsets.all(20),
         decoration: BoxDecoration(
-          gradient: const LinearGradient(
-            colors: [Color(0xFF7A3723), Color(0xFFC44D28)],
+          gradient: LinearGradient(
+            colors: isToday
+                ? [const Color(0xFF7A3723), const Color(0xFFC44D28)]
+                : [const Color(0xFF2C3E50), const Color(0xFF4A6572)],
             begin: Alignment.topLeft,
             end: Alignment.bottomRight,
           ),
@@ -550,14 +679,30 @@ class StudentScreenTimeScreen extends GetView<StudentScreenTimeController> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            const Text(
-              "TODAY'S SCREEN TIME",
-              style: TextStyle(
-                color: Colors.white70,
-                fontSize: 12,
-                fontWeight: FontWeight.bold,
-                letterSpacing: 1.1,
-              ),
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Text(
+                  dayTitle,
+                  style: const TextStyle(
+                    color: Colors.white70,
+                    fontSize: 12,
+                    fontWeight: FontWeight.bold,
+                    letterSpacing: 1.1,
+                  ),
+                ),
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                  decoration: BoxDecoration(
+                    color: Colors.black26,
+                    borderRadius: BorderRadius.circular(6),
+                  ),
+                  child: Text(
+                    isToday ? 'Live Today' : 'Day Summary',
+                    style: const TextStyle(color: Colors.white, fontSize: 10, fontWeight: FontWeight.w600),
+                  ),
+                ),
+              ],
             ),
             const SizedBox(height: 8),
             Row(
@@ -761,6 +906,8 @@ class StudentScreenTimeScreen extends GetView<StudentScreenTimeController> {
       final list = controller.displayAppsList;
       final blockedCount = controller.blockedPackages.length;
       final currentFilter = controller.selectedAppFilter.value;
+      final isToday = controller.isTodaySelected;
+      final dayNote = isToday ? 'today' : 'on ${controller.effectiveSelectedDate}';
 
       return AppCard(
         padding: const EdgeInsets.all(AppDimens.cardPadding),
@@ -770,16 +917,20 @@ class StudentScreenTimeScreen extends GetView<StudentScreenTimeController> {
             Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
-                Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    const SectionHeader(title: 'App Usage & Restrictions'),
-                    Text(
-                      'Block or permit apps on student device',
-                      style: AppTextStyles.bodySm.copyWith(color: AppColors.textSecondary),
-                    ),
-                  ],
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text('App Usage & Restrictions', style: AppTextStyles.title),
+                      const SizedBox(height: 2),
+                      Text(
+                        'Apps used $dayNote • Block or permit apps on student device',
+                        style: AppTextStyles.bodySm.copyWith(color: AppColors.textSecondary),
+                      ),
+                    ],
+                  ),
                 ),
+                const SizedBox(width: 12),
                 ElevatedButton.icon(
                   onPressed: () => _showRestrictAppSheet(context),
                   icon: const Icon(Icons.add_moderator_rounded, size: 16),
@@ -830,7 +981,10 @@ class StudentScreenTimeScreen extends GetView<StudentScreenTimeController> {
                 children: [
                   _buildAppFilterChip('All', list.length),
                   const SizedBox(width: 8),
-                  _buildAppFilterChip('Used Today', controller.appBreakdown.length),
+                  _buildAppFilterChip(
+                    controller.isTodaySelected ? 'Used Today' : 'Used on Day',
+                    controller.currentDayRawApps.length,
+                  ),
                   const SizedBox(width: 8),
                   _buildAppFilterChip('Restricted', blockedCount, isDestructive: true),
                 ],
@@ -849,7 +1003,7 @@ class StudentScreenTimeScreen extends GetView<StudentScreenTimeController> {
                       Text(
                         currentFilter == 'Restricted'
                             ? 'No apps restricted yet for this student.'
-                            : 'No apps found matching search.',
+                            : 'No apps recorded for this day.',
                         style: AppTextStyles.bodySm.copyWith(color: AppColors.textSecondary),
                       ),
                     ],
@@ -868,8 +1022,8 @@ class StudentScreenTimeScreen extends GetView<StudentScreenTimeController> {
                   final name = (item['appName'] ?? pkg).toString();
                   final mins = (item['minutes'] as int?) ?? 0;
                   final isBlocked = item['isBlocked'] == true;
-                  final total = controller.totalMinutesToday.value > 0
-                      ? controller.totalMinutesToday.value
+                  final total = controller.selectedDayTotalMinutes > 0
+                      ? controller.selectedDayTotalMinutes
                       : 1;
                   final progress = (mins / total).clamp(0.0, 1.0);
                   final pct = (progress * 100).round();
@@ -1364,9 +1518,10 @@ class StudentScreenTimeScreen extends GetView<StudentScreenTimeController> {
               itemBuilder: (context, index) {
                 final rec = records[index];
                 final rawDate = (rec['date'] ?? '').toString();
-                String formattedDate = rawDate.split('T').first;
+                final dayIso = rawDate.split('T').first;
+                String formattedDate = dayIso;
                 try {
-                  final parsed = DateTime.parse(formattedDate);
+                  final parsed = DateTime.parse(dayIso);
                   formattedDate = dateFmt.format(parsed);
                 } catch (_) {}
 
@@ -1384,32 +1539,87 @@ class StudentScreenTimeScreen extends GetView<StudentScreenTimeController> {
                 );
                 final h = mins ~/ 60;
                 final m = mins % 60;
+                final isSelected = controller.effectiveSelectedDate == dayIso;
 
-                return Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  children: [
-                    Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
+                return InkWell(
+                  onTap: () {
+                    controller.selectDate(dayIso);
+                    AppSnackbar.info(
+                      'Day Selected',
+                      'Displaying screen time and app usage for $formattedDate.',
+                    );
+                  },
+                  borderRadius: BorderRadius.circular(8),
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 8),
+                    decoration: BoxDecoration(
+                      color: isSelected ? AppColors.primary.withValues(alpha: 0.08) : Colors.transparent,
+                      borderRadius: BorderRadius.circular(8),
+                      border: isSelected ? Border.all(color: AppColors.primary.withValues(alpha: 0.3)) : null,
+                    ),
+                    child: Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
                       children: [
-                        Text(formattedDate, style: AppTextStyles.bodyMd.copyWith(fontWeight: FontWeight.w600)),
-                        if (night > 0)
-                          Padding(
-                            padding: const EdgeInsets.only(top: 2),
-                            child: Text(
-                              '🌙 ${night}m night curfew',
-                              style: const TextStyle(fontSize: 11, color: Colors.redAccent, fontWeight: FontWeight.w500),
-                            ),
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Row(
+                                children: [
+                                  Text(
+                                    formattedDate,
+                                    style: AppTextStyles.bodyMd.copyWith(
+                                      fontWeight: isSelected ? FontWeight.bold : FontWeight.w600,
+                                      color: isSelected ? AppColors.primary : AppColors.textPrimary,
+                                    ),
+                                  ),
+                                  if (isSelected) ...[
+                                    const SizedBox(width: 8),
+                                    Container(
+                                      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                                      decoration: BoxDecoration(
+                                        color: AppColors.primary,
+                                        borderRadius: BorderRadius.circular(10),
+                                      ),
+                                      child: const Text(
+                                        'Viewing',
+                                        style: TextStyle(color: Colors.white, fontSize: 9, fontWeight: FontWeight.bold),
+                                      ),
+                                    ),
+                                  ],
+                                ],
+                              ),
+                              if (night > 0)
+                                Padding(
+                                  padding: const EdgeInsets.only(top: 2),
+                                  child: Text(
+                                    '🌙 ${night}m night curfew',
+                                    style: const TextStyle(fontSize: 11, color: Colors.redAccent, fontWeight: FontWeight.w500),
+                                  ),
+                                ),
+                            ],
                           ),
+                        ),
+                        Row(
+                          children: [
+                            Text(
+                              '${h}h ${m}m',
+                              style: AppTextStyles.bodyMd.copyWith(
+                                color: AppColors.primary,
+                                fontWeight: FontWeight.bold,
+                              ),
+                            ),
+                            const SizedBox(width: 6),
+                            Icon(
+                              Icons.chevron_right_rounded,
+                              size: 18,
+                              color: isSelected ? AppColors.primary : Colors.grey.shade400,
+                            ),
+                          ],
+                        ),
                       ],
                     ),
-                    Text(
-                      '${h}h ${m}m',
-                      style: AppTextStyles.bodyMd.copyWith(
-                        color: AppColors.primary,
-                        fontWeight: FontWeight.bold,
-                      ),
-                    ),
-                  ],
+                  ),
                 );
               },
             ),

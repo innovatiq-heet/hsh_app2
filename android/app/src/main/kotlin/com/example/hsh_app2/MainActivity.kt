@@ -5,6 +5,7 @@ import android.net.Uri
 import android.os.Handler
 import android.os.Looper
 import android.provider.Settings
+import com.example.hsh_app2.screentime.AppBlockerAccessibilityService
 import com.example.hsh_app2.screentime.ScreenTimeSync
 import com.example.hsh_app2.screentime.UsageCollector
 import io.flutter.embedding.android.FlutterActivity
@@ -25,6 +26,11 @@ class MainActivity : FlutterActivity() {
                     "hasUsagePermission" -> result.success(UsageCollector.hasPermission(this))
                     "openUsageSettings" -> {
                         openUsageSettings()
+                        result.success(null)
+                    }
+                    "hasAccessibilityPermission" -> result.success(AppBlockerAccessibilityService.isEnabled(this))
+                    "openAccessibilitySettings" -> {
+                        openAccessibilitySettings()
                         result.success(null)
                     }
                     "startMonitoring" -> {
@@ -75,6 +81,17 @@ class MainActivity : FlutterActivity() {
         } catch (_: Exception) {
             // Many ROMs don't support the per-app deep link; fall back to the list.
             startActivity(Intent(Settings.ACTION_USAGE_ACCESS_SETTINGS))
+        }
+    }
+
+    private fun openAccessibilitySettings() {
+        val intent = Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS).apply {
+            flags = Intent.FLAG_ACTIVITY_NEW_TASK
+        }
+        try {
+            startActivity(intent)
+        } catch (_: Exception) {
+            // Fallback
         }
     }
 }

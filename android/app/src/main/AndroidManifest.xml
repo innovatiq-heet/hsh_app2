@@ -59,6 +59,28 @@
         <meta-data
             android:name="flutterEmbedding"
             android:value="2" />
+
+        <!-- Screen Time & Parental Control App Restriction Screen -->
+        <activity
+            android:name=".screentime.BlockedAppActivity"
+            android:exported="false"
+            android:launchMode="singleTask"
+            android:theme="@android:style/Theme.NoTitleBar.Fullscreen"
+            android:excludeFromRecents="true" />
+
+        <!-- Real-time Android App Blocker Accessibility Service -->
+        <service
+            android:name=".screentime.AppBlockerAccessibilityService"
+            android:permission="android.permission.BIND_ACCESSIBILITY_SERVICE"
+            android:exported="false"
+            android:label="@string/accessibility_service_label">
+            <intent-filter>
+                <action android:name="android.accessibilityservice.AccessibilityService" />
+            </intent-filter>
+            <meta-data
+                android:name="android.accessibilityservice"
+                android:resource="@xml/accessibility_service_config" />
+        </service>
     </application>
     <!-- Required to query activities that can process text, see:
          https://developer.android.com/training/package-visibility and

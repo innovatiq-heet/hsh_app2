@@ -30,6 +30,20 @@ class ScreenTimeService {
   /// Opens the system "Usage access" page (there is no runtime dialog for it).
   static Future<void> openUsageSettings() => _invoke('openUsageSettings');
 
+  /// Whether the user has enabled the HSH App Blocker Accessibility Service.
+  static Future<bool> hasAccessibilityPermission() async {
+    if (!isSupported) return false;
+    try {
+      return await _channel.invokeMethod<bool>('hasAccessibilityPermission') ?? false;
+    } catch (e) {
+      developer.log('hasAccessibilityPermission failed: $e', name: 'ScreenTime');
+      return false;
+    }
+  }
+
+  /// Opens the system Accessibility settings page.
+  static Future<void> openAccessibilitySettings() => _invoke('openAccessibilitySettings');
+
   /// Hands the session token to the native side and schedules background sync.
   static Future<void> startMonitoring(String token) => _invoke(
         'startMonitoring',

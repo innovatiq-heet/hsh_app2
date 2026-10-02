@@ -51,17 +51,15 @@ class LaundryManagementController extends GetxController {
 
     lookupError.value = null;
 
-    // Aadhar numbers are 12 digits. Do not hit API for short incomplete inputs.
-    if (clean.length < 10) {
+    // Student ID / Bank code can be 3 to 12 digits. Do not hit API for < 3 characters.
+    if (clean.length < 3) {
       studentBalance.value = null;
       rechargeHistory.clear();
       return;
     }
 
-    // Debounce duration: 400ms for complete 12-digit number, 600ms if 10-11 digits
-    final delay = clean.length >= 12
-        ? const Duration(milliseconds: 400)
-        : const Duration(milliseconds: 600);
+    // Debounce duration: 400ms
+    const delay = Duration(milliseconds: 400);
 
     _debounceTimer = Timer(delay, () {
       checkStudent(clean, isManual: false);

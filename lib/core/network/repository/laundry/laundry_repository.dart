@@ -1,4 +1,4 @@
-﻿import 'dart:developer' as developer;
+import 'dart:developer' as developer;
 import 'package:dio/dio.dart';
 import 'package:get/get.dart';
 import '../../../enums/laundry_status.dart';
@@ -247,34 +247,50 @@ class LaundryRepository {
     }
   }
 
-  // --- 4.8 Recharge Student Balance (POST /laundry/admin/recharge) ---
+  // --- 4.8 Recharge Student Balance (POST /laundry/recharge) ---
   Future<LaundryRechargeModel> recharge(String aadhar, double amount) async {
     try {
       final response = await _dio.post(
-        '/laundry/admin/recharge',
-        data: {'aadhar': aadhar, 'amount': amount},
+        '/laundry/recharge',
+        data: {
+          'aadhar': aadhar,
+          'bankCode': aadhar,
+          'student_code': aadhar,
+          'amount': amount,
+        },
       );
-      final rechargeData = _extractMap(response.data, 'recharge');
+      final body = response.data;
+      Map<String, dynamic> rechargeData;
+      if (body is Map && body['data'] is Map) {
+        rechargeData = Map<String, dynamic>.from(body['data']);
+      } else {
+        rechargeData = {
+          'id': DateTime.now().millisecondsSinceEpoch.toString(),
+          'aadhar': aadhar,
+          'amount': amount,
+          'time': DateTime.now().toIso8601String(),
+        };
+      }
       return LaundryRechargeModel.fromJson(rechargeData);
     } on DioException catch (e) {
       developer.log(
-        'POST /laundry/admin/recharge error: ${e.message}',
+        'POST /laundry/recharge error: ${e.message}',
         name: 'LaundryRepository',
       );
       throw ApiException(_message(e), statusCode: e.response?.statusCode);
     } catch (e) {
       developer.log(
-        'POST /laundry/admin/recharge parsing error: $e',
+        'POST /laundry/recharge parsing error: $e',
         name: 'LaundryRepository',
       );
       throw ApiException('Failed to process recharge: $e');
     }
   }
 
-  // --- 4.9 View Recharge History (GET /laundry/admin/recharges/:aadhar) ---
+  // --- 4.9 View Recharge History (GET /laundry/recharge/:aadhar) ---
   Future<List<LaundryRechargeModel>> rechargeHistory(String aadhar) async {
     try {
-      final response = await _dio.get('/laundry/admin/recharges/$aadhar');
+      final response = await _dio.get('/laundry/recharge/$aadhar');
       final body = response.data;
       dynamic rawList;
       if (body is List) {
@@ -308,13 +324,13 @@ class LaundryRepository {
       return [];
     } on DioException catch (e) {
       developer.log(
-        'GET /laundry/admin/recharges error: ${e.message}',
+        'GET /laundry/recharge error: ${e.message}',
         name: 'LaundryRepository',
       );
       throw ApiException(_message(e), statusCode: e.response?.statusCode);
     } catch (e) {
       developer.log(
-        'GET /laundry/admin/recharges parsing error: $e',
+        'GET /laundry/recharge parsing error: $e',
         name: 'LaundryRepository',
       );
       throw ApiException('Failed to load recharge history: $e');

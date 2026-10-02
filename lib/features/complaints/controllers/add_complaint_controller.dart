@@ -7,6 +7,7 @@ import '../../../core/network/repository/complaints/complaints_repository.dart';
 import '../../../core/network/request/complaints/submit_complaint_request.dart';
 import '../../../core/utils/app_snackbar.dart';
 import '../../../core/services/aadhar_service.dart';
+import '../../../core/storage/session_store.dart';
 import '../../student_profile/controllers/student_profile_controller.dart';
 
 class AddComplaintController extends GetxController {
@@ -79,18 +80,12 @@ class AddComplaintController extends GetxController {
       return false;
     }
 
-    // The backend requires `room` alongside `aadhar`; it's never derived
-    // server-side, so it must be sent explicitly.
     final profileCtrl = Get.isRegistered<StudentProfileController>()
         ? Get.find<StudentProfileController>()
         : null;
-    final room = profileCtrl?.profile.value?.room;
-    if (room == null || room.isEmpty) {
-      AppSnackbar.warning(
-        'Profile still loading',
-        'Open your Profile tab once so it can load, then try again.',
-      );
-      return false;
+    String room = profileCtrl?.profile.value?.room ?? '';
+    if (room.isEmpty) {
+      room = (await Get.find<SessionStore>().cachedRoom) ?? '';
     }
 
     isSaving.value = true;

@@ -73,7 +73,7 @@ class AppBlockerAccessibilityService : AccessibilityService() {
         if (pkgName == packageName) return
 
         // 2. Never block our own BlockedAppActivity
-        if (pkgName == "com.example.hsh_app2") return
+        if (pkgName == "com.example.hsh_app2" || pkgName == "com.hsh.app" || pkgName == "com.avd_hsh.app") return
 
         // 3. Never block essential system components or launchers
         if (isLauncherOrSystem(pkgName)) return

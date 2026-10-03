@@ -1,5 +1,5 @@
 <resources>
-    <string name="app_name">HSH Seva</string>
+    <string name="app_name">HSH App</string>
     <string name="accessibility_service_label">HSH App Blocker &amp; Screen Time Service</string>
     <string name="accessibility_service_description">Monitors and restricts prohibited applications during study and curfew hours as configured by the hostel administration.</string>
 </resources>

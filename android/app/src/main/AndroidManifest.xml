@@ -31,7 +31,7 @@
     <uses-feature android:name="android.hardware.bluetooth_le" android:required="false" />
 
     <application
-        android:label="hsh_app2"
+        android:label="@string/app_name"
         android:name="${applicationName}"
         android:icon="@mipmap/ic_launcher"
         android:usesCleartextTraffic="true">

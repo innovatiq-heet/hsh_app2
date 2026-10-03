@@ -81,14 +81,17 @@ class StudentScreenTimeController extends GetxController with WidgetsBindingObse
     return list;
   }
 
+  bool _isOurApp(String pkg) =>
+      pkg == 'com.example.hsh_app2' || pkg == 'com.hsh.app' || pkg == 'com.avd_hsh.app';
+
   int get selectedDayTotalMinutes {
-    // 1. If we have the app list for the selected day, sum the actual tracked apps (excluding hsh_app2)
+    // 1. If we have the app list for the selected day, sum the actual tracked apps (excluding our own app)
     final apps = currentDayRawApps;
     if (apps.isNotEmpty) {
       final sum = apps.fold<int>(0, (acc, item) {
         if (item is Map) {
           final pkg = (item['packageName'] ?? item['package_name'] ?? '').toString();
-          if (pkg == 'com.example.hsh_app2') return acc;
+          if (_isOurApp(pkg)) return acc;
           return acc +
               toInt(
                 item['minutes'] ??
@@ -162,7 +165,7 @@ class StudentScreenTimeController extends GetxController with WidgetsBindingObse
       if (extracted.isNotEmpty) {
         return extracted.where((a) {
           final pkg = (a is Map ? (a['packageName'] ?? a['package_name'] ?? '') : '').toString();
-          return pkg != 'com.example.hsh_app2';
+          return !_isOurApp(pkg);
         }).toList();
       }
     }
@@ -214,7 +217,7 @@ class StudentScreenTimeController extends GetxController with WidgetsBindingObse
         if (apps.isNotEmpty) {
           total = apps.fold<int>(0, (sum, a) {
             final pkg = (a is Map ? (a['packageName'] ?? a['package_name'] ?? '') : '').toString();
-            if (pkg == 'com.example.hsh_app2') return sum;
+            if (_isOurApp(pkg)) return sum;
             return sum + toInt(a['minutes'] ?? a['total_minutes'] ?? a['totalMinutes'] ?? a['duration'] ?? a['time']);
           });
         }
@@ -779,7 +782,7 @@ class StudentScreenTimeController extends GetxController with WidgetsBindingObse
     final rawApps = _extractAppsList(data);
     final newApps = rawApps.where((a) {
       final pkg = (a is Map ? (a['packageName'] ?? a['package_name'] ?? '') : '').toString();
-      return pkg != 'com.example.hsh_app2';
+      return !_isOurApp(pkg);
     }).toList();
     if (newApps.isNotEmpty) {
       appBreakdown.assignAll(_sortedByMinutes(newApps));
@@ -1060,7 +1063,7 @@ class StudentScreenTimeController extends GetxController with WidgetsBindingObse
                 it['name'] ??
                 '')
             .toString();
-        if (pkg == 'com.example.hsh_app2') continue;
+        if (_isOurApp(pkg)) continue;
 
         final name = (it['appName'] ??
                 it['app_name'] ??
@@ -1087,7 +1090,7 @@ class StudentScreenTimeController extends GetxController with WidgetsBindingObse
 
     // 2. Ensure all blocked packages appear even if not opened on this day
     for (final pkg in blockedPackages) {
-      if (pkg == 'com.example.hsh_app2') continue;
+      if (_isOurApp(pkg)) continue;
       if (!map.containsKey(pkg)) {
         map[pkg] = {
           'packageName': pkg,
@@ -1248,7 +1251,7 @@ class StudentScreenTimeController extends GetxController with WidgetsBindingObse
       if (apps.isNotEmpty) {
         final filteredApps = apps.where((a) {
           final pkg = (a is Map ? (a['packageName'] ?? a['package_name'] ?? '') : '').toString();
-          return pkg != 'com.example.hsh_app2';
+          return !_isOurApp(pkg);
         }).toList();
         if (filteredApps.isNotEmpty) {
           appBreakdown.assignAll(_sortedByMinutes(filteredApps));

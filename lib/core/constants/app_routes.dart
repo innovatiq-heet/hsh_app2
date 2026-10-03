@@ -21,6 +21,7 @@ class Routes {
   static const chat = '/student/chat';
   static const services = '/student/services';
   static const studentScreenTime = '/student/screen-time';
+  static const deviceSetup = '/student/device-setup';
   static const setting = '/student/setting';
   static const vehicle = '/student/vehicle';
 

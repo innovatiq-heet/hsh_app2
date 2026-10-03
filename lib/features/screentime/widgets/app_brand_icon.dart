@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import '../../../core/constants/app_colors.dart';
+import '../services/app_icon_cache.dart';
 
 class _AppStyle {
   final List<Color> gradientColors;
@@ -13,7 +14,11 @@ class _AppStyle {
   });
 }
 
-/// A premium, recognizable brand icon widget for parental control and screen time lists.
+/// App icon for parental-control and screen-time lists.
+///
+/// Shows the app's real launcher icon when the student's device has uploaded
+/// it (see [AppIconCache]); otherwise falls back to a recognisable brand-styled
+/// placeholder so the list never shows a blank tile.
 class AppBrandIcon extends StatelessWidget {
   final String packageName;
   final String appName;
@@ -32,8 +37,16 @@ class AppBrandIcon extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final style = _resolveAppStyle(packageName, appName);
+    // Rebuild when a real icon for this package arrives after first paint.
+    return ValueListenableBuilder<int>(
+      valueListenable: AppIconCache.revision,
+      builder: (context, _, _) => _build(context),
+    );
+  }
+
+  Widget _build(BuildContext context) {
     final borderRadius = BorderRadius.circular(size * 0.26);
+    final realIcon = AppIconCache.get(packageName);
 
     return SizedBox(
       width: size,
@@ -41,45 +54,22 @@ class AppBrandIcon extends StatelessWidget {
       child: Stack(
         clipBehavior: Clip.none,
         children: [
-          // Base App Icon Container
-          Container(
-            width: size,
-            height: size,
-            decoration: BoxDecoration(
-              gradient: LinearGradient(
-                colors: style.gradientColors,
-                begin: Alignment.topLeft,
-                end: Alignment.bottomRight,
-              ),
+          if (realIcon != null)
+            ClipRRect(
               borderRadius: borderRadius,
-              boxShadow: [
-                BoxShadow(
-                  color: (style.gradientColors.first).withValues(alpha: 0.25),
-                  blurRadius: 6,
-                  offset: const Offset(0, 2),
-                ),
-              ],
-            ),
-            child: Center(
-              child: style.icon != null
-                  ? Icon(
-                      style.icon,
-                      size: size * 0.52,
-                      color: style.iconColor,
-                    )
-                  : Text(
-                      _getFallbackLetter(appName, packageName),
-                      style: TextStyle(
-                        color: Colors.white,
-                        fontSize: size * 0.44,
-                        fontWeight: FontWeight.w800,
-                        letterSpacing: -0.5,
-                      ),
-                    ),
-            ),
-          ),
+              child: Image.memory(
+                realIcon,
+                width: size,
+                height: size,
+                fit: BoxFit.cover,
+                gaplessPlayback: true,
+                filterQuality: FilterQuality.medium,
+                errorBuilder: (_, _, _) => _placeholder(borderRadius),
+              ),
+            )
+          else
+            _placeholder(borderRadius),
 
-          // Blocked Restriction Overlay / Badge
           if (isBlocked && showBadge)
             Positioned(
               bottom: -2,
@@ -106,6 +96,48 @@ class AppBrandIcon extends StatelessWidget {
             ),
         ],
       ),
+    );
+  }
+
+  /// Brand-coloured tile with a glyph or initial, used until the real icon is known.
+  Widget _placeholder(BorderRadius borderRadius) {
+    final style = _resolveAppStyle(packageName, appName);
+    return Container(
+      width: size,
+      height: size,
+      decoration: BoxDecoration(
+        gradient: LinearGradient(
+          colors: style.gradientColors,
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+        ),
+        borderRadius: borderRadius,
+        boxShadow: [
+          BoxShadow(
+            color: (style.gradientColors.first).withValues(alpha: 0.25),
+            blurRadius: 6,
+            offset: const Offset(0, 2),
+          ),
+        ],
+      ),
+      child: Center(
+        child: style.icon != null
+            ? Icon(
+                style.icon,
+                size: size * 0.52,
+                color: style.iconColor,
+              )
+            : Text(
+                _getFallbackLetter(appName, packageName),
+                style: TextStyle(
+                  color: Colors.white,
+                  fontSize: size * 0.44,
+                  fontWeight: FontWeight.w800,
+                  letterSpacing: -0.5,
+                ),
+              ),
+      ),
+    
     );
   }
 

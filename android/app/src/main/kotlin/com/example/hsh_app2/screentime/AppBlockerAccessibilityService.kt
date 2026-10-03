@@ -1,153 +1,66 @@
 package com.example.hsh_app2.screentime
 
 import android.accessibilityservice.AccessibilityService
+import android.content.ComponentName
 import android.content.Context
 import android.content.Intent
-import android.content.pm.PackageManager
 import android.provider.Settings
 import android.text.TextUtils
 import android.util.Log
 import android.view.accessibility.AccessibilityEvent
 
+/**
+ * Watches foreground app changes and enforces the [DevicePolicy] via
+ * [PolicyEvaluator]: remote lock, blocked apps, curfew and daily limit.
+ */
 class AppBlockerAccessibilityService : AccessibilityService() {
 
     companion object {
         private const val TAG = "AppBlockerService"
+        private const val DEBOUNCE_MS = 800L
 
-        /** Essential system packages that must never be locked even during remote device lock */
-        private val ESSENTIAL_WHITELIST = setOf(
-            "com.android.systemui",
-            "android",
-            "com.google.android.dialer",
-            "com.android.dialer",
-            "com.samsung.android.dialer",
-            "com.android.phone",
-            "com.android.server.telecom",
-            "com.google.android.packageinstaller",
-            "com.android.packageinstaller",
-            "com.android.settings",
-            "com.samsung.android.settings",
-            "com.android.providers.settings"
-        )
-
-        /**
-         * Checks whether this AccessibilityService is currently enabled in Android Settings.
-         */
+        /** Whether this service is switched on in Settings → Accessibility. */
         fun isEnabled(context: Context): Boolean {
-            val expectedServiceName = "${context.packageName}/${AppBlockerAccessibilityService::class.java.canonicalName}"
-            val enabledServices = Settings.Secure.getString(
-                context.contentResolver,
-                Settings.Secure.ENABLED_ACCESSIBILITY_SERVICES
+            val expected = ComponentName(context, AppBlockerAccessibilityService::class.java)
+            val enabled = Settings.Secure.getString(
+                context.contentResolver, Settings.Secure.ENABLED_ACCESSIBILITY_SERVICES,
             ) ?: return false
-
-            val colonSplitter = TextUtils.SimpleStringSplitter(':')
-            colonSplitter.setString(enabledServices)
-            while (colonSplitter.hasNext()) {
-                val componentName = colonSplitter.next()
-                if (componentName.equals(expectedServiceName, ignoreCase = true) ||
-                    componentName.contains("AppBlockerAccessibilityService", ignoreCase = true)) {
-                    return true
-                }
+            val splitter = TextUtils.SimpleStringSplitter(':')
+            splitter.setString(enabled)
+            for (entry in splitter) {
+                val cn = ComponentName.unflattenFromString(entry) ?: continue
+                if (cn == expected) return true
             }
             return false
         }
     }
 
     private var lastBlockedPkg: String? = null
-    private var lastBlockedTime: Long = 0
+    private var lastBlockedAt = 0L
 
     override fun onAccessibilityEvent(event: AccessibilityEvent?) {
-        if (event == null) return
+        if (event?.eventType != AccessibilityEvent.TYPE_WINDOW_STATE_CHANGED) return
+        val pkg = event.packageName?.toString() ?: return
+        val reason = PolicyEvaluator.evaluate(this, pkg) ?: return
 
-        // We handle both window state changes and window content changes for stronger enforcement
-        when (event.eventType) {
-            AccessibilityEvent.TYPE_WINDOW_STATE_CHANGED -> handleWindowChange(event)
-            else -> return
-        }
-    }
+        val now = System.currentTimeMillis()
+        if (pkg == lastBlockedPkg && now - lastBlockedAt < DEBOUNCE_MS) return
+        lastBlockedPkg = pkg
+        lastBlockedAt = now
 
-    private fun handleWindowChange(event: AccessibilityEvent) {
-        val pkgName = event.packageName?.toString() ?: return
+        val appName = UsageCollector.appLabel(this, pkg)
+        Log.w(TAG, "Blocking $pkg (${reason.wireName})")
+        PolicyStore.recordBlockEvent(this, pkg, appName, reason)
 
-        // 1. Never block our own app
-        if (pkgName == packageName) return
-
-        // 2. Never block our own BlockedAppActivity
-        if (pkgName == "com.example.hsh_app2" || pkgName == "com.hsh.app" || pkgName == "com.avd_hsh.app") return
-
-        // 3. Never block essential system components or launchers
-        if (isLauncherOrSystem(pkgName)) return
-
-        // 4. Check screen time policy
-        val prefs = getSharedPreferences("hsh_screen_time_policy", Context.MODE_PRIVATE)
-        val isLocked = prefs.getBoolean("is_locked", false)
-        val blockedPackages = prefs.getStringSet("blocked_packages", emptySet()) ?: emptySet()
-
-        val isTargetBlocked = blockedPackages.contains(pkgName)
-        val isFullDeviceLocked = isLocked && !isDialer(pkgName)
-
-        if (isTargetBlocked || isFullDeviceLocked) {
-            val now = System.currentTimeMillis()
-            // Debounce rapid repeat triggers for the same package within 800ms
-            if (pkgName == lastBlockedPkg && (now - lastBlockedTime) < 800) {
-                return
-            }
-            lastBlockedPkg = pkgName
-            lastBlockedTime = now
-
-            Log.w(TAG, "Blocking prohibited package: $pkgName (isLocked=$isLocked, inBlockedList=$isTargetBlocked)")
-
-            // Step A: Immediately send user to home screen to close the restricted app
-            try {
-                performGlobalAction(GLOBAL_ACTION_HOME)
-            } catch (e: Exception) {
-                Log.e(TAG, "Failed performGlobalAction HOME: ${e.message}")
-            }
-
-            // Step B: Show native restriction notification screen
-            val appLabel = UsageCollector.appLabel(this, pkgName)
-            val reason = when {
-                isFullDeviceLocked -> "Your device has been remotely locked by hostel administration."
-                isTargetBlocked -> "This app has been restricted by hostel policy."
-                else -> "Access restricted."
-            }
-            val blockIntent = Intent(this, BlockedAppActivity::class.java).apply {
-                flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP or Intent.FLAG_ACTIVITY_SINGLE_TOP
-                putExtra(BlockedAppActivity.EXTRA_PACKAGE_NAME, pkgName)
-                putExtra(BlockedAppActivity.EXTRA_APP_NAME, appLabel)
-                putExtra(BlockedAppActivity.EXTRA_REASON, reason)
-                putExtra(BlockedAppActivity.EXTRA_IS_DEVICE_LOCKED, isFullDeviceLocked)
-            }
-            try {
-                startActivity(blockIntent)
-            } catch (e: Exception) {
-                Log.e(TAG, "Failed to start BlockedAppActivity: ${e.message}")
-            }
-        }
+        // Kick the restricted app out first, then explain why on top of the launcher.
+        runCatching { performGlobalAction(GLOBAL_ACTION_HOME) }
+            .onFailure { Log.e(TAG, "GLOBAL_ACTION_HOME failed: ${it.message}") }
+        runCatching {
+            startActivity(BlockedAppActivity.intent(this, pkg, appName, reason))
+        }.onFailure { Log.e(TAG, "BlockedAppActivity failed: ${it.message}") }
     }
 
     override fun onInterrupt() {
-        Log.w(TAG, "AppBlockerAccessibilityService interrupted")
-    }
-
-    private fun isDialer(pkg: String): Boolean {
-        if (ESSENTIAL_WHITELIST.contains(pkg)) return true
-        val telecomIntent = Intent(Intent.ACTION_DIAL)
-        val resolveInfo = packageManager.resolveActivity(telecomIntent, PackageManager.MATCH_DEFAULT_ONLY)
-        return resolveInfo?.activityInfo?.packageName == pkg
-    }
-
-    private fun isLauncherOrSystem(pkg: String): Boolean {
-        if (ESSENTIAL_WHITELIST.contains(pkg)) return true
-
-        // Detect default or installed home launchers
-        val homeIntent = Intent(Intent.ACTION_MAIN).addCategory(Intent.CATEGORY_HOME)
-        val launchers = packageManager.queryIntentActivities(homeIntent, PackageManager.MATCH_DEFAULT_ONLY)
-        for (info in launchers) {
-            if (info.activityInfo?.packageName == pkg) {
-                return true
-            }
-        }
-        return false
+        Log.w(TAG, "interrupted")
     }
 }

@@ -1,7 +1,6 @@
 package com.example.hsh_app2.screentime
 
 import android.app.Activity
-import android.app.ActivityManager
 import android.content.Context
 import android.content.Intent
 import android.graphics.Color
@@ -22,26 +21,33 @@ class BlockedAppActivity : Activity() {
     companion object {
         const val EXTRA_PACKAGE_NAME = "extra_package_name"
         const val EXTRA_APP_NAME = "extra_app_name"
-        const val EXTRA_REASON = "extra_reason"
-        const val EXTRA_IS_DEVICE_LOCKED = "extra_is_device_locked"
+        const val EXTRA_REASON_CODE = "extra_reason_code"
+
+        fun intent(context: Context, packageName: String, appName: String, reason: BlockReason): Intent =
+            Intent(context, BlockedAppActivity::class.java).apply {
+                flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP or Intent.FLAG_ACTIVITY_SINGLE_TOP
+                putExtra(EXTRA_PACKAGE_NAME, packageName)
+                putExtra(EXTRA_APP_NAME, appName)
+                putExtra(EXTRA_REASON_CODE, reason.wireName)
+            }
     }
 
     private val handler = Handler(Looper.getMainLooper())
     private var isDeviceLocked = false
+    private var blockedPackage = ""
 
-    /** Re-check lock policy periodically while this activity is shown */
+    /** Dismiss automatically the moment the policy no longer blocks this app (unlock, curfew end…). */
     private val lockCheckRunnable = object : Runnable {
         override fun run() {
-            val prefs = getSharedPreferences("hsh_screen_time_policy", MODE_PRIVATE)
-            val stillLocked = prefs.getBoolean("is_locked", false)
-            if (!stillLocked && isDeviceLocked) {
-                // Lock was released! Auto-dismiss the block screen
+            if (PolicyEvaluator.evaluate(this@BlockedAppActivity, blockedPackage) == null) {
                 goToHomeScreen()
                 return
             }
-            handler.postDelayed(this, 3000) // Check every 3 seconds
+            handler.postDelayed(this, 3000)
         }
     }
+
+    private val policyListener: () -> Unit = { handler.post(lockCheckRunnable) }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -56,9 +62,10 @@ class BlockedAppActivity : Activity() {
 
         val pkgName = intent.getStringExtra(EXTRA_PACKAGE_NAME) ?: "Restricted Application"
         val appName = intent.getStringExtra(EXTRA_APP_NAME) ?: pkgName
-        val reason = intent.getStringExtra(EXTRA_REASON)
-            ?: "Access to this app has been restricted by your Hostel Administration."
-        isDeviceLocked = intent.getBooleanExtra(EXTRA_IS_DEVICE_LOCKED, false)
+        val blockReason = BlockReason.fromWire(intent.getStringExtra(EXTRA_REASON_CODE)) ?: BlockReason.APP_BLOCKED
+        val reason = blockReason.message
+        blockedPackage = pkgName
+        isDeviceLocked = blockReason == BlockReason.DEVICE_LOCKED
 
         // Root container
         val rootLayout = LinearLayout(this).apply {
@@ -122,7 +129,7 @@ class BlockedAppActivity : Activity() {
         cardLayout.addView(iconBadge)
 
         // Pill Tag
-        val tagText = if (isDeviceLocked) "DEVICE REMOTELY LOCKED" else "HOSTEL POLICY ENFORCEMENT"
+        val tagText = blockReason.tag
         val tagView = TextView(this).apply {
             text = tagText
             textSize = 11f
@@ -146,7 +153,7 @@ class BlockedAppActivity : Activity() {
         cardLayout.addView(tagView, tagLp)
 
         // Title
-        val titleText = if (isDeviceLocked) "Phone Locked" else "App Restricted"
+        val titleText = blockReason.title
         val titleView = TextView(this).apply {
             text = titleText
             textSize = 22f
@@ -274,19 +281,13 @@ class BlockedAppActivity : Activity() {
         rootLayout.addView(cardLayout)
         setContentView(rootLayout)
 
-        // If device is locked, start periodic check for unlock
-        if (isDeviceLocked) {
-            handler.postDelayed(lockCheckRunnable, 3000)
-        }
+        PolicyStore.addPolicyListener(policyListener)
     }
 
     override fun onResume() {
         super.onResume()
-        // When user comes back to this activity from recents, re-enforce
-        if (isDeviceLocked) {
-            handler.removeCallbacks(lockCheckRunnable)
-            handler.postDelayed(lockCheckRunnable, 3000)
-        }
+        handler.removeCallbacks(lockCheckRunnable)
+        handler.postDelayed(lockCheckRunnable, 3000)
     }
 
     override fun onPause() {
@@ -295,6 +296,7 @@ class BlockedAppActivity : Activity() {
     }
 
     override fun onDestroy() {
+        PolicyStore.removePolicyListener(policyListener)
         handler.removeCallbacks(lockCheckRunnable)
         super.onDestroy()
     }

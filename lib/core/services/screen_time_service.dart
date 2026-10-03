@@ -2,13 +2,15 @@ import 'dart:developer' as developer;
 import 'dart:io' show Platform;
 import 'package:flutter/services.dart';
 import '../constants/app_config.dart';
+import '../../features/screentime/models/screen_time_policy.dart';
 
 /// Bridge to the native Android screen-time monitor.
 ///
 /// Android reads real per-app usage from `UsageStatsManager` and syncs it to
-/// `POST /screen-time/ping` from a WorkManager job, so tracking continues
-/// while the app is closed and after reboots. Every call is a no-op on
-/// non-Android platforms.
+/// `POST /screen-time/ping` from a WorkManager job, enforces the
+/// [ScreenTimePolicy] through an Accessibility service and polls for remote
+/// lock from a foreground service — so everything keeps working while the
+/// app is closed and after reboots. Every call is a no-op on non-Android.
 class ScreenTimeService {
   ScreenTimeService._();
 
@@ -16,33 +18,29 @@ class ScreenTimeService {
 
   static bool get isSupported => Platform.isAndroid;
 
+  // ---------- Permissions / onboarding ----------
+
   /// Whether the user has granted "Usage access" in system Settings.
-  static Future<bool> hasUsagePermission() async {
-    if (!isSupported) return false;
-    try {
-      return await _channel.invokeMethod<bool>('hasUsagePermission') ?? false;
-    } catch (e) {
-      developer.log('hasUsagePermission failed: $e', name: 'ScreenTime');
-      return false;
-    }
-  }
+  static Future<bool> hasUsagePermission() => _bool('hasUsagePermission');
 
   /// Opens the system "Usage access" page (there is no runtime dialog for it).
   static Future<void> openUsageSettings() => _invoke('openUsageSettings');
 
-  /// Whether the user has enabled the HSH App Blocker Accessibility Service.
-  static Future<bool> hasAccessibilityPermission() async {
-    if (!isSupported) return false;
-    try {
-      return await _channel.invokeMethod<bool>('hasAccessibilityPermission') ?? false;
-    } catch (e) {
-      developer.log('hasAccessibilityPermission failed: $e', name: 'ScreenTime');
-      return false;
-    }
-  }
+  /// Whether the HSH App Blocker Accessibility Service is switched on.
+  static Future<bool> hasAccessibilityPermission() => _bool('hasAccessibilityPermission');
 
   /// Opens the system Accessibility settings page.
   static Future<void> openAccessibilitySettings() => _invoke('openAccessibilitySettings');
+
+  /// Whether the OS will leave our background work alone.
+  static Future<bool> isBatteryOptimizationIgnored() => _bool('isBatteryOptimizationIgnored');
+
+  /// Shows the system "ignore battery optimisation" prompt. Returns false when
+  /// the device has no such screen (then there's nothing more we can do).
+  static Future<bool> requestIgnoreBatteryOptimizations() =>
+      _bool('requestIgnoreBatteryOptimizations');
+
+  // ---------- Monitoring lifecycle ----------
 
   /// Hands the session token to the native side and schedules background sync.
   static Future<void> startMonitoring(String token) => _invoke(
@@ -50,7 +48,7 @@ class ScreenTimeService {
         {'token': token, 'baseUrl': AppConfig.baseUrl},
       );
 
-  /// Cancels background sync and forgets the token (call on logout).
+  /// Cancels background sync, forgets the token and clears the policy (logout).
   static Future<void> stopMonitoring() => _invoke('stopMonitoring');
 
   /// Pushes the latest usage immediately. Returns the native status
@@ -65,24 +63,54 @@ class ScreenTimeService {
     }
   }
 
-  /// Push active parental control policies (blocked packages, lock state) to native SharedPreferences.
-  static Future<void> syncPolicyToNative({
-    required List<String> blockedPackages,
-    bool isLocked = false,
-  }) =>
-      _invoke('syncPolicyToNative', {
-        'blockedPackages': blockedPackages,
-        'isLocked': isLocked,
-      });
+  // ---------- Policy ----------
 
-  /// Retrieve locally stored blocked packages on this device.
-  static Future<List<String>> getBlockedPackages() async {
-    if (!isSupported) return [];
+  /// Stores the full policy natively so the blocker enforces it immediately,
+  /// without waiting for the next poll.
+  static Future<void> syncPolicyToNative(ScreenTimePolicy policy) => _invoke(
+        'syncPolicyToNative',
+        {
+          'blockedPackages': policy.blockedPackages.toList(),
+          'isLocked': policy.isLocked,
+          'dailyLimitMinutes': policy.dailyLimitMinutes,
+          'bedtimeStart': policy.bedtimeStart,
+          'bedtimeEnd': policy.bedtimeEnd,
+          'version': policy.version,
+        },
+      );
+
+  /// The policy currently enforced on this device.
+  static Future<ScreenTimePolicy?> getNativePolicy() async {
+    if (!isSupported) return null;
     try {
-      final list = await _channel.invokeMethod<List<dynamic>>('getBlockedPackages');
-      return list?.map((e) => e.toString()).toList() ?? [];
+      final map = await _channel.invokeMapMethod<String, dynamic>('getPolicy');
+      return map == null ? null : ScreenTimePolicy.fromJson(map);
     } catch (e) {
-      return [];
+      developer.log('getPolicy failed: $e', name: 'ScreenTime');
+      return null;
+    }
+  }
+
+  /// Compliance flags as the device reports them to the backend.
+  static Future<Map<String, dynamic>> getCompliance() async {
+    if (!isSupported) return const {};
+    try {
+      return await _channel.invokeMapMethod<String, dynamic>('getCompliance') ?? const {};
+    } catch (e) {
+      developer.log('getCompliance failed: $e', name: 'ScreenTime');
+      return const {};
+    }
+  }
+
+  // ---------- helpers ----------
+
+  static Future<bool> _bool(String method) async {
+    if (!isSupported) return false;
+    try {
+      return await _channel.invokeMethod<bool>(method) ?? false;
+    } catch (e) {
+      developer.log('$method failed: $e', name: 'ScreenTime');
+      return false;
     }
   }
 

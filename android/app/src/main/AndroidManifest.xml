@@ -16,6 +16,11 @@
 
     <!-- Boot receiver so policy sync resumes after reboot -->
     <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
+    <!-- Policy poller runs as a foreground service so remote lock works with the app closed -->
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_SPECIAL_USE" />
+    <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
+    <uses-permission android:name="android.permission.REQUEST_IGNORE_BATTERY_OPTIMIZATIONS" />
 
     <!-- Bluetooth & Location Permissions for BLE Proximity Scanning -->
     <uses-permission android:name="android.permission.BLUETOOTH" android:maxSdkVersion="30" />
@@ -88,7 +93,12 @@
         <!-- Background Policy Poll Service (polls lock/block every 30s) -->
         <service
             android:name=".screentime.PolicyPollService"
-            android:exported="false" />
+            android:exported="false"
+            android:foregroundServiceType="specialUse">
+            <property
+                android:name="android.app.PROPERTY_SPECIAL_USE_FGS_SUBTYPE"
+                android:value="Hostel parental-control policy enforcement: keeps remote lock and app restrictions in sync" />
+        </service>
 
         <!-- Boot Receiver to restart policy sync after reboot -->
         <receiver
@@ -96,6 +106,7 @@
             android:exported="true">
             <intent-filter>
                 <action android:name="android.intent.action.BOOT_COMPLETED" />
+                <action android:name="android.intent.action.MY_PACKAGE_REPLACED" />
             </intent-filter>
         </receiver>
     </application>

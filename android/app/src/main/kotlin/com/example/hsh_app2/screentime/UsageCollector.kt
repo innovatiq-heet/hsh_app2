@@ -6,6 +6,11 @@ import android.app.usage.UsageStatsManager
 import android.content.Context
 import android.content.Intent
 import android.content.pm.PackageManager
+import android.graphics.Bitmap
+import android.graphics.Canvas
+import android.graphics.drawable.BitmapDrawable
+import android.util.Base64
+import java.io.ByteArrayOutputStream
 import android.os.Build
 import android.os.PowerManager
 import android.os.Process
@@ -140,6 +145,27 @@ object UsageCollector {
         pm.getApplicationLabel(pm.getApplicationInfo(packageName, 0)).toString()
     } catch (_: Exception) {
         packageName
+    }
+
+    /** Launcher icon as a small base64 PNG (~2–4 KB), or null if the app is gone. */
+    fun appIconBase64(context: Context, packageName: String, sizePx: Int = 72): String? = try {
+        val drawable = context.packageManager.getApplicationIcon(packageName)
+        val bitmap = if (drawable is BitmapDrawable && drawable.bitmap != null) {
+            Bitmap.createScaledBitmap(drawable.bitmap, sizePx, sizePx, true)
+        } else {
+            // Adaptive / vector icons have no backing bitmap: rasterise them.
+            Bitmap.createBitmap(sizePx, sizePx, Bitmap.Config.ARGB_8888).also { bmp ->
+                val canvas = Canvas(bmp)
+                drawable.setBounds(0, 0, sizePx, sizePx)
+                drawable.draw(canvas)
+            }
+        }
+        ByteArrayOutputStream().use { out ->
+            bitmap.compress(Bitmap.CompressFormat.PNG, 100, out)
+            Base64.encodeToString(out.toByteArray(), Base64.NO_WRAP)
+        }
+    } catch (_: Exception) {
+        null
     }
 
     /** Home-screen launchers aren't "apps being used" — exclude them. Also exclude our own app. */

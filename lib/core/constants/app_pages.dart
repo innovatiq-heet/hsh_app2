@@ -1,6 +1,7 @@
 import 'package:get/get.dart';
 import '../../features/screentime/bindings/student_screen_time_binding.dart';
 import '../../features/screentime/views/student_screen_time_screen.dart';
+import '../../features/screentime/views/device_setup_screen.dart';
 import '../../features/attendance/bindings/attendance_binding.dart';
 import '../../features/attendance/views/attendance_history_screen.dart';
 import '../../features/attendance/views/attendance_qr_display_screen.dart';
@@ -167,6 +168,11 @@ class AppPages {
       name: Routes.studentScreenTime,
       page: () => const StudentScreenTimeScreen(),
       binding: StudentScreenTimeBinding(),
+    ),
+    GetPage(
+      name: Routes.deviceSetup,
+      page: () => const DeviceSetupScreen(),
+      transition: Transition.fadeIn,
     ),
 
     // â”€â”€ Laundry module (staff / warden / admin) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€

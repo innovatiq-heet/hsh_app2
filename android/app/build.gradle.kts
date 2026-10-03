@@ -62,5 +62,8 @@ flutter {
 dependencies {
     // Background screen-time sync (survives app close + reboot)
     implementation("androidx.work:work-runtime:2.10.2")
+    // Encrypted storage for the session token + policy, notifications for the foreground poller
+    implementation("androidx.security:security-crypto:1.1.0-alpha06")
+    implementation("androidx.core:core-ktx:1.15.0")
 }
 

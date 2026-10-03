@@ -8,6 +8,7 @@ import 'core/network/global_bindings.dart';
 import 'features/shared/widgets/network_wrapper.dart';
 
 void main() {
+  WidgetsFlutterBinding.ensureInitialized();
   runApp(const HshApp());
 }
 

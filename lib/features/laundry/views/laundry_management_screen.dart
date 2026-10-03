@@ -114,7 +114,7 @@ class LaundryManagementScreen extends GetView<LaundryManagementController> {
                           Expanded(
                             child: AppTextField(
                               controller: controller.aadharController,
-                              label: 'Student ID / Bank Code',
+                              label: 'Student ID',
                               hint: 'Enter student code (e.g. 0876)',
                               prefixIcon: Icons.badge_outlined,
                               keyboardType: TextInputType.text,

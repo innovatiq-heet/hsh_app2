@@ -1,4 +1,5 @@
 import 'dart:io';
+import 'package:dio/dio.dart';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:permission_handler/permission_handler.dart';
@@ -8,7 +9,9 @@ import '../../../core/constants/app_routes.dart';
 import '../../../core/network/api_client.dart';
 import '../../../core/network/api_exception.dart';
 import '../../../core/network/repository/authentication/auth_repository.dart';
+import '../../../core/network/repository/student_profile/student_profile_repository.dart';
 import '../../../core/network/request/authentication/login_request.dart';
+import '../../../core/models/student_profile/student_profile_model.dart';
 import '../../../core/storage/session_store.dart';
 import '../../../core/utils/app_snackbar.dart';
 
@@ -20,23 +23,33 @@ class LoginController extends GetxController {
   late final TextEditingController studentIdController;
 
   final isLoading = false.obs;
+  final errorMessage = ''.obs;
 
   @override
   void onInit() {
     super.onInit();
     studentIdController = TextEditingController();
+    studentIdController.addListener(_clearError);
+
     _attemptAutoLogin();
+  }
+
+  void _clearError() {
+    if (errorMessage.value.isNotEmpty) {
+      errorMessage.value = '';
+    }
   }
 
   @override
   void onClose() {
+    studentIdController.removeListener(_clearError);
     studentIdController.dispose();
     super.onClose();
   }
 
   String? validateStudentId(String? value) {
     if (value == null || value.trim().isEmpty) {
-      return 'Please enter your Student ID / Bank Code';
+      return 'Please enter your Student ID';
     }
     return null;
   }
@@ -72,20 +85,68 @@ class LoginController extends GetxController {
 
       isLoading.value = true;
       final session = await _authRepository.autoLogin(simNumbers);
-      if (session.token.isNotEmpty) {
-        Get.find<ApiClient>().setAuthToken(session.token);
+      if (session.token.isEmpty) return;
+
+      final apiClient = Get.find<ApiClient>();
+      apiClient.setAuthToken(session.token);
+
+      // Verify student data exists on hostel backend before redirecting
+      if (session.role == UserRole.student || session.role == UserRole.leader) {
+        final studentCode = session.studentCode;
+        try {
+          final res = await apiClient.dio.get(
+            '/students/$studentCode',
+            options: Options(
+              headers: {'Authorization': 'Bearer ${session.token}'},
+            ),
+          );
+          if (res.data is Map && res.data['success'] == false) {
+            apiClient.setAuthToken(null);
+            return;
+          }
+        } catch (_) {
+          apiClient.setAuthToken(null);
+          return;
+        }
+
+        final profileRepo = Get.find<StudentProfileRepository>();
+        final profile = await profileRepo.fetchProfile(
+          phone: session.phone.isNotEmpty ? session.phone : simNumbers.firstOrNull,
+          email: session.email,
+          studentCode: session.studentCode,
+          name: session.name,
+        );
+        if (profile.fullName.isEmpty &&
+            profile.bankCode.isEmpty &&
+            profile.aadhar.isEmpty) {
+          apiClient.setAuthToken(null);
+          return;
+        }
+
+        await _session.saveSession(
+          token: session.token,
+          role: session.role,
+          email: session.email,
+          name: session.name,
+          phone: session.phone.isNotEmpty ? session.phone : simNumbers.firstOrNull,
+          studentCode: session.studentCode,
+          room: session.room,
+          studentProfile: profile,
+        );
+      } else {
+        await _session.saveSession(
+          token: session.token,
+          role: session.role,
+          email: session.email,
+          name: session.name,
+          phone: session.phone.isNotEmpty ? session.phone : simNumbers.firstOrNull,
+          studentCode: session.studentCode,
+          room: session.room,
+        );
       }
-      await _session.saveSession(
-        token: session.token,
-        role: session.role,
-        email: session.email,
-        name: session.name,
-        phone: session.phone.isNotEmpty ? session.phone : simNumbers.firstOrNull,
-        studentCode: session.studentCode,
-        room: session.room,
-      );
       _routeByRole(session.role);
     } catch (_) {
+      Get.find<ApiClient>().setAuthToken(null);
       // Gracefully fall back to the manual login form.
     } finally {
       isLoading.value = false;
@@ -95,6 +156,8 @@ class LoginController extends GetxController {
   Future<void> login() async {
     if (!formKey.currentState!.validate()) return;
     isLoading.value = true;
+    errorMessage.value = '';
+
     try {
       final rawInput = studentIdController.text.trim();
       final lower = rawInput.toLowerCase();
@@ -120,15 +183,85 @@ class LoginController extends GetxController {
         password = 'password123';
       }
 
+      // Step 1: Authenticate credentials
       final session = await _authRepository.login(
         LoginRequest(
           studentId: resolvedId,
           password: password,
         ),
       );
-      if (session.token.isNotEmpty) {
-        Get.find<ApiClient>().setAuthToken(session.token);
+
+      if (session.token.isEmpty) {
+        throw const ApiException('Invalid credentials or user not found.');
       }
+
+      final apiClient = Get.find<ApiClient>();
+      apiClient.setAuthToken(session.token);
+
+      StudentProfileModel? verifiedProfile;
+
+      // Step 2: For students & leaders, verify the account exists & is active on the backend BEFORE saving session or redirecting
+      if (session.role == UserRole.student || session.role == UserRole.leader) {
+        final studentCode = session.studentCode.isNotEmpty
+            ? session.studentCode
+            : resolvedId;
+
+        try {
+          final res = await apiClient.dio.get(
+            '/students/$studentCode',
+            options: Options(
+              headers: {'Authorization': 'Bearer ${session.token}'},
+            ),
+          );
+          final resData = res.data;
+          if (resData is Map && resData['success'] == false) {
+            final msg = resData['message']?.toString() ??
+                'Student account not found or inactive.';
+            throw ApiException(msg, statusCode: 401);
+          }
+        } on DioException catch (e) {
+          apiClient.setAuthToken(null);
+          final data = e.response?.data;
+          String msg = 'Student account not found or inactive. Please contact administration.';
+          if (data is Map &&
+              data['message'] is String &&
+              (data['message'] as String).trim().isNotEmpty) {
+            msg = data['message'];
+          }
+          throw ApiException(msg, statusCode: e.response?.statusCode ?? 401);
+        }
+
+        // Step 3: Fetch & verify student profile details
+        final profileRepo = Get.find<StudentProfileRepository>();
+        try {
+          final profile = await profileRepo.fetchProfile(
+            phone: session.phone,
+            email: session.email,
+            studentCode: studentCode,
+            name: session.name,
+            forceRefresh: true,
+          );
+          if (profile.fullName.isEmpty &&
+              profile.bankCode.isEmpty &&
+              profile.aadhar.isEmpty) {
+            apiClient.setAuthToken(null);
+            throw const ApiException(
+              'Student data is not available. Please contact administrator.',
+            );
+          }
+          verifiedProfile = profile;
+        } on ApiException {
+          apiClient.setAuthToken(null);
+          rethrow;
+        } catch (_) {
+          apiClient.setAuthToken(null);
+          throw const ApiException(
+            'Student data could not be verified. Please try again.',
+          );
+        }
+      }
+
+      // Step 4: Verification successful! Now save session & student data via SharedPreferences & OOP model
       await _session.saveSession(
         token: session.token,
         role: session.role,
@@ -139,18 +272,48 @@ class LoginController extends GetxController {
             ? session.studentCode
             : studentIdController.text.trim(),
         room: session.room,
+        studentProfile: verifiedProfile,
       );
+
+      // Step 5: Route to appropriate destination
       _routeByRole(session.role);
     } on ApiException catch (e) {
-      _showError(e.message);
+      Get.find<ApiClient>().setAuthToken(null);
+      final friendly = _formatErrorMessage(e.message);
+      _showError(friendly);
     } catch (_) {
-      _showError('Something went wrong. Please try again.');
+      Get.find<ApiClient>().setAuthToken(null);
+      _showError('Something went wrong. Please check your credentials and try again.');
     } finally {
       isLoading.value = false;
     }
   }
 
+  String _formatErrorMessage(String message) {
+    final lower = message.toLowerCase();
+    if (lower.contains('not found on avd') ||
+        lower.contains('not found or inactive') ||
+        lower.contains('account not found') ||
+        lower.contains('user not found')) {
+      return message;
+    }
+    if (lower.contains('missing id') || lower.contains('missing username')) {
+      return 'Please enter your Student ID.';
+    }
+    if (lower.contains('invalid password') ||
+        lower.contains('wrong password') ||
+        lower.contains('incorrect password')) {
+      return 'Incorrect password. Please try again.';
+    }
+    if (lower.contains('bad credentials') ||
+        lower.contains('invalid credentials')) {
+      return 'Invalid Login ID or Password. Please try again.';
+    }
+    return message;
+  }
+
   void _showError(String message) {
+    errorMessage.value = message;
     AppSnackbar.error(
       'Login Failed',
       message,

@@ -1,3 +1,4 @@
+import 'dart:convert';
 import 'package:dio/dio.dart';
 
 /// Base class for all repositories.
@@ -14,7 +15,12 @@ abstract class BaseRepository {
   /// 3. Friendly timeout/connection copy.
   /// 4. Raw [DioException.message].
   String errorMessage(DioException e, {String fallback = 'Something went wrong. Please try again.'}) {
-    final data = e.response?.data;
+    dynamic data = e.response?.data;
+    if (data is String) {
+      try {
+        data = jsonDecode(data);
+      } catch (_) {}
+    }
     if (data is Map) {
       final msg = data['message'];
       if (msg is String && msg.isNotEmpty) return msg;
@@ -26,6 +32,9 @@ abstract class BaseRepository {
         e.type == DioExceptionType.sendTimeout ||
         e.type == DioExceptionType.connectionError) {
       return 'Connection timed out. Please check your internet and try again.';
+    }
+    if (e.response?.statusCode == 401 || e.response?.statusCode == 404) {
+      return fallback;
     }
     return e.message ?? fallback;
   }

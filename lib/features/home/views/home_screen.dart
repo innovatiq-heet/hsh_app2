@@ -2,8 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import '../../../core/constants/app_colors.dart';
 import '../../attendance/views/attendance_screen.dart';
-import '../../complaints/views/complaints_screen.dart';
-import '../../laundry/views/laundry_screen.dart';
+// import '../../complaints/views/complaints_screen.dart';  // Commented out — feature disabled for now
+// import '../../laundry/views/laundry_screen.dart';          // Commented out — feature disabled for now
 import '../../student_profile/views/student_profile_screen.dart';
 import '../controllers/home_controller.dart';
 
@@ -12,8 +12,8 @@ class HomeScreen extends GetView<HomeController> {
 
   static const _tabs = [
     StudentProfileScreen(),
-    ComplaintsScreen(),
-    LaundryScreen(),
+    // ComplaintsScreen(),   // Commented out — feature disabled for now
+    // LaundryScreen(),      // Commented out — feature disabled for now
     AttendanceScreen(),
   ];
 
@@ -56,18 +56,18 @@ class HomeScreen extends GetView<HomeController> {
               NavigationDestination(
                 icon: Icon(Icons.person_outline_rounded),
                 selectedIcon: Icon(Icons.person_rounded),
-                label: 'Profile',
+                label: 'Dashboard',
               ),
-              NavigationDestination(
-                icon: Icon(Icons.support_agent_outlined),
-                selectedIcon: Icon(Icons.support_agent_rounded),
-                label: 'Complaints',
-              ),
-              NavigationDestination(
-                icon: Icon(Icons.local_laundry_service_outlined),
-                selectedIcon: Icon(Icons.local_laundry_service_rounded),
-                label: 'Laundry',
-              ),
+              // NavigationDestination(                          // Commented out — feature disabled for now
+              //   icon: Icon(Icons.support_agent_outlined),
+              //   selectedIcon: Icon(Icons.support_agent_rounded),
+              //   label: 'Complaints',
+              // ),
+              // NavigationDestination(                          // Commented out — feature disabled for now
+              //   icon: Icon(Icons.local_laundry_service_outlined),
+              //   selectedIcon: Icon(Icons.local_laundry_service_rounded),
+              //   label: 'Laundry',
+              // ),
               NavigationDestination(
                 icon: Icon(Icons.fact_check_outlined),
                 selectedIcon: Icon(Icons.fact_check_rounded),
@@ -80,3 +80,4 @@ class HomeScreen extends GetView<HomeController> {
     );
   }
 }
+

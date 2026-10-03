@@ -295,10 +295,6 @@ class BlockedAppActivity : Activity() {
         goToHomeScreen()
     }
 
-    // Prevent the user from seeing the restricted app in recents
-    override fun onTaskRemoved(rootIntent: Intent?) {
-        super.onTaskRemoved(rootIntent)
-    }
 
     private fun dp(value: Int): Int {
         return TypedValue.applyDimension(

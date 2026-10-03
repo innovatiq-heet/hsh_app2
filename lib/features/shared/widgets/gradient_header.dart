@@ -1,4 +1,4 @@
-﻿import 'package:flutter/material.dart';
+import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import '../../../core/constants/app_colors.dart';
 import '../../../core/constants/app_dimens.dart';
@@ -130,6 +130,8 @@ class GradientHeader extends StatelessWidget {
 /// a sticky top portion pinned with the screen title, back button, and actions.
 class SliverGradientHeader extends StatelessWidget {
   final String title;
+  final TextStyle? titleStyle;
+  final int? titleMaxLines;
   final String? subtitle;
   final String? overline;
   final List<Widget> actions;
@@ -141,6 +143,8 @@ class SliverGradientHeader extends StatelessWidget {
   const SliverGradientHeader({
     super.key,
     required this.title,
+    this.titleStyle,
+    this.titleMaxLines,
     this.subtitle,
     this.overline,
     this.actions = const [],
@@ -164,6 +168,8 @@ class SliverGradientHeader extends StatelessWidget {
       pinned: true,
       delegate: _SliverGradientHeaderDelegate(
         title: title,
+        titleStyle: titleStyle,
+        titleMaxLines: titleMaxLines,
         subtitle: subtitle,
         overline: overline,
         actions: actions,
@@ -180,6 +186,8 @@ class SliverGradientHeader extends StatelessWidget {
 
 class _SliverGradientHeaderDelegate extends SliverPersistentHeaderDelegate {
   final String title;
+  final TextStyle? titleStyle;
+  final int? titleMaxLines;
   final String? subtitle;
   final String? overline;
   final List<Widget> actions;
@@ -192,6 +200,8 @@ class _SliverGradientHeaderDelegate extends SliverPersistentHeaderDelegate {
 
   _SliverGradientHeaderDelegate({
     required this.title,
+    this.titleStyle,
+    this.titleMaxLines,
     this.subtitle,
     this.overline,
     this.actions = const [],
@@ -212,6 +222,8 @@ class _SliverGradientHeaderDelegate extends SliverPersistentHeaderDelegate {
   @override
   bool shouldRebuild(covariant _SliverGradientHeaderDelegate oldDelegate) {
     return oldDelegate.title != title ||
+        oldDelegate.titleStyle != titleStyle ||
+        oldDelegate.titleMaxLines != titleMaxLines ||
         oldDelegate.subtitle != subtitle ||
         oldDelegate.overline != overline ||
         oldDelegate.actions != actions ||
@@ -317,9 +329,17 @@ class _SliverGradientHeaderDelegate extends SliverPersistentHeaderDelegate {
                                       ),
                                     Text(
                                       title,
-                                      style: AppTextStyles.displayMd.copyWith(
-                                        color: Colors.white,
-                                      ),
+                                      style: titleStyle ??
+                                          (heroLeading != null
+                                              ? AppTextStyles.headline.copyWith(
+                                                  color: Colors.white,
+                                                  fontWeight: FontWeight.w700,
+                                                )
+                                              : AppTextStyles.displayMd.copyWith(
+                                                  color: Colors.white,
+                                                )),
+                                      maxLines: titleMaxLines ?? 2,
+                                      overflow: TextOverflow.ellipsis,
                                     ),
                                     if (subtitle != null) ...[
                                       const SizedBox(height: 2),
@@ -339,7 +359,7 @@ class _SliverGradientHeaderDelegate extends SliverPersistentHeaderDelegate {
                             ],
                           ),
                           if (child != null) ...[
-                            const SizedBox(height: AppDimens.gapLg),
+                            const SizedBox(height: AppDimens.gapMd),
                             child!,
                           ],
                         ],

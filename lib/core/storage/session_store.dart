@@ -1,78 +1,92 @@
+import 'dart:convert';
 import 'dart:developer' as developer;
-import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:get/get.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import '../enums/user_role.dart';
+import '../models/auth/user_session.dart';
+import '../models/student_profile/student_profile_model.dart';
+import '../network/api_client.dart';
+import '../services/aadhar_service.dart';
 import '../services/screen_time_service.dart';
 
-/// Secure, cached session store.
+/// Clean, OOP-based Session and Student Data Store backed by [SharedPreferences].
 ///
-/// Backed by [FlutterSecureStorage] so tokens are never stored in plain-text
-/// shared preferences. Every public getter has an in-memory fast-path so that
-/// hot paths (e.g. [AuthInterceptor]) never hit the Keystore on every request.
+/// Encapsulates authentication token, active [UserSession], and [StudentProfileModel]
+/// as strongly-typed, single-source-of-truth objects to eliminate data redundancy.
 ///
-/// **MIUI / Xiaomi note**: The first Keystore-backed read/write can stall for
-/// a long time or hang outright on some devices. Every call is timeout-guarded
-/// so a slow Keystore never blocks app startup — a timeout is treated as
-/// "no value stored".
-///
-/// Registered permanently in [GlobalBindings]; inject via `Get.find<SessionStore>()`.
+/// Provides fast, synchronous in-memory access for hot paths (e.g. AuthInterceptor)
+/// while guaranteeing atomic, consistent persistence in SharedPreferences.
 class SessionStore extends GetxService {
-  static const _storage = FlutterSecureStorage();
-
   static const _kToken = 'auth_token';
-  static const _kRole = 'user_role';
-  static const _kAadhar = 'student_aadhar';
-  static const _kEmail = 'user_email';
-  static const _kName = 'user_name';
-  static const _kRoom = 'student_room';
-  static const _kPhone = 'user_phone';
-  static const _kStudentCode = 'user_student_code';
-  static const _kBloodGroup = 'student_blood_group';
-  static const _kVehicle = 'student_vehicle';
+  static const _kUserSession = 'user_session';
+  static const _kStudentProfile = 'student_profile';
   static const _kLastAttendanceDate = 'last_attendance_date';
 
-  static const _timeout = Duration(seconds: 5);
+  SharedPreferences? _prefs;
 
-  // ---------- In-memory cache ----------
+  // ---------- In-memory cached models (Single Source of Truth) ----------
+  UserSession? _cachedSession;
+  StudentProfileModel? _cachedStudentProfile;
   String? _cachedToken;
-  UserRole? _cachedRole;
-  String? _cachedEmail;
-  String? _cachedName;
-  String? _cachedAadhar;
-  String? _cachedRoom;
-  String? _cachedPhone;
-  String? _cachedStudentCode;
-  String? _cachedBloodGroup;
-  String? _cachedVehicle;
   String? _cachedLastAttendanceDate;
 
-  // ---------- Synchronous accessors (in-memory only) ----------
+  @override
+  void onInit() {
+    super.onInit();
+    _initStorage();
+  }
 
-  /// Synchronous access to the currently loaded token.
-  /// Returns `null` if the token has not been loaded from storage yet.
-  String? get currentToken => _cachedToken;
+  Future<SharedPreferences> get _instance async {
+    _prefs ??= await SharedPreferences.getInstance();
+    return _prefs!;
+  }
 
-  // ---------- Private helpers ----------
-
-  Future<String?> _read(String key) async {
+  Future<void> _initStorage() async {
     try {
-      return await _storage.read(key: key).timeout(_timeout);
+      final prefs = await _instance;
+      _cachedToken = prefs.getString(_kToken);
+
+      final sessionJson = prefs.getString(_kUserSession);
+      if (sessionJson != null && sessionJson.isNotEmpty) {
+        try {
+          final decoded = jsonDecode(sessionJson);
+          if (decoded is Map<String, dynamic>) {
+            _cachedSession = UserSession.fromJson(decoded);
+          }
+        } catch (_) {}
+      }
+
+      final profileJson = prefs.getString(_kStudentProfile);
+      if (profileJson != null && profileJson.isNotEmpty) {
+        try {
+          final decoded = jsonDecode(profileJson);
+          if (decoded is Map<String, dynamic>) {
+            _cachedStudentProfile = StudentProfileModel.fromJson(decoded);
+          }
+        } catch (_) {}
+      }
+
+      _cachedLastAttendanceDate = prefs.getString(_kLastAttendanceDate);
     } catch (e) {
-      developer.log('read($key) failed or timed out: $e', name: 'SessionStore');
-      return null;
+      developer.log('Failed to initialize SharedPreferences: $e', name: 'SessionStore');
     }
   }
 
-  Future<void> _write(String key, String value) async {
-    try {
-      await _storage.write(key: key, value: value).timeout(_timeout);
-    } catch (e) {
-      developer.log('write($key) failed or timed out: $e', name: 'SessionStore');
-    }
-  }
+  // ---------- Synchronous accessors (Hot path) ----------
+
+  /// Synchronous access to currently loaded token.
+  String? get currentToken => _cachedSession?.token ?? _cachedToken;
+
+  /// Synchronous access to current user session model.
+  UserSession? get currentSession => _cachedSession;
+
+  /// Synchronous access to current student profile model.
+  StudentProfileModel? get currentStudentProfile =>
+      _cachedStudentProfile ?? _cachedSession?.studentProfile;
 
   // ---------- Session lifecycle ----------
 
+  /// Persists the authenticated session and student data using clean OOP models.
   Future<void> saveSession({
     required String token,
     required UserRole role,
@@ -82,35 +96,45 @@ class SessionStore extends GetxService {
     String? studentCode,
     String? aadhar,
     String? room,
+    StudentProfileModel? studentProfile,
   }) async {
+    final effectiveProfile = studentProfile ?? _cachedStudentProfile;
+
+    final session = UserSession(
+      token: token,
+      role: role,
+      name: name,
+      email: email,
+      phone: phone ?? '',
+      studentCode: studentCode ?? '',
+      room: room ?? '',
+      studentProfile: effectiveProfile,
+    );
+
     _cachedToken = token;
-    _cachedRole = role;
-    _cachedEmail = email;
-    _cachedName = name;
-    if (phone != null && phone.isNotEmpty) _cachedPhone = phone;
-    if (studentCode != null && studentCode.isNotEmpty) _cachedStudentCode = studentCode;
-    if (aadhar != null && aadhar.isNotEmpty) _cachedAadhar = aadhar;
-    if (room != null && room.isNotEmpty) _cachedRoom = room;
-
-    // Always clear old aadhar on new login so stale Aadhar from a
-    // previous session is never served to the new user.
-    await clearAadhar();
-
-    final writes = <Future<void>>[
-      _write(_kToken, token),
-      _write(_kRole, role.apiValue),
-      _write(_kEmail, email),
-      _write(_kName, name),
-    ];
-    if (phone != null && phone.isNotEmpty) writes.add(_write(_kPhone, phone));
-    if (studentCode != null && studentCode.isNotEmpty) {
-      writes.add(_write(_kStudentCode, studentCode));
+    _cachedSession = session;
+    if (studentProfile != null) {
+      _cachedStudentProfile = studentProfile;
     }
-    if (aadhar != null && aadhar.isNotEmpty) writes.add(_write(_kAadhar, aadhar));
-    if (room != null && room.isNotEmpty) writes.add(_write(_kRoom, room));
-    await Future.wait(writes);
 
-    // Students (incl. leaders) are screen-time monitored; staff are not.
+    try {
+      final prefs = await _instance;
+      await Future.wait([
+        prefs.setString(_kToken, token),
+        prefs.setString(_kUserSession, jsonEncode(session.toJson())),
+        if (effectiveProfile != null)
+          prefs.setString(_kStudentProfile, jsonEncode(effectiveProfile.toJson())),
+      ]);
+    } catch (e) {
+      developer.log('Error saving session to SharedPreferences: $e', name: 'SessionStore');
+    }
+
+    // Set authorization on ApiClient
+    if (Get.isRegistered<ApiClient>()) {
+      Get.find<ApiClient>().setAuthToken(token);
+    }
+
+    // Screen time monitoring
     if (role.isStudentOrLeader && token.isNotEmpty) {
       await ScreenTimeService.startMonitoring(token);
     } else {
@@ -118,139 +142,310 @@ class SessionStore extends GetxService {
     }
   }
 
-  Future<void> clear() async {
+  /// Updates and persists student profile data without data redundancy.
+  Future<void> saveStudentProfile(StudentProfileModel profile) async {
+    _cachedStudentProfile = profile;
+    if (_cachedSession != null) {
+      _cachedSession = _cachedSession!.copyWith(studentProfile: profile);
+    }
+
+    try {
+      final prefs = await _instance;
+      await prefs.setString(_kStudentProfile, jsonEncode(profile.toJson()));
+      if (_cachedSession != null) {
+        await prefs.setString(_kUserSession, jsonEncode(_cachedSession!.toJson()));
+      }
+    } catch (e) {
+      developer.log('Error updating student profile in SharedPreferences: $e', name: 'SessionStore');
+    }
+  }
+
+  /// Complete, proper logout cleanup:
+  /// - Removes token and student data from SharedPreferences
+  /// - Wipes in-memory session and profile caches
+  /// - Clears ApiClient authorization headers
+  /// - Stops background services (ScreenTimeService)
+  /// - Invalidates service caches (AadharService)
+  Future<void> logout() async {
     _cachedToken = null;
-    _cachedRole = null;
-    _cachedEmail = null;
-    _cachedName = null;
-    _cachedAadhar = null;
-    _cachedRoom = null;
-    _cachedPhone = null;
-    _cachedStudentCode = null;
-    _cachedBloodGroup = null;
-    _cachedVehicle = null;
+    _cachedSession = null;
+    _cachedStudentProfile = null;
     _cachedLastAttendanceDate = null;
 
+    // 1. Wipe SharedPreferences
+    try {
+      final prefs = await _instance;
+      await Future.wait([
+        prefs.remove(_kToken),
+        prefs.remove(_kUserSession),
+        prefs.remove(_kStudentProfile),
+        prefs.remove(_kLastAttendanceDate),
+      ]);
+    } catch (e) {
+      developer.log('Error clearing SharedPreferences on logout: $e', name: 'SessionStore');
+    }
+
+    // 2. Clear ApiClient authorization
+    if (Get.isRegistered<ApiClient>()) {
+      Get.find<ApiClient>().setAuthToken(null);
+    }
+
+    // 3. Stop screen-time monitoring
     await ScreenTimeService.stopMonitoring();
 
-    try {
-      await _storage.deleteAll().timeout(_timeout);
-    } catch (e) {
-      developer.log('clear() failed or timed out: $e', name: 'SessionStore');
+    // 4. Invalidate Aadhar cache
+    if (Get.isRegistered<AadharService>()) {
+      Get.find<AadharService>().invalidate();
     }
   }
+
+  /// Backward-compatible alias for logout().
+  Future<void> clear() => logout();
 
   Future<void> clearAadhar() async {
-    _cachedAadhar = null;
-    try {
-      await _storage.delete(key: _kAadhar).timeout(_timeout);
-    } catch (e) {
-      developer.log('clearAadhar() failed: $e', name: 'SessionStore');
+    if (_cachedStudentProfile != null) {
+      _cachedStudentProfile = _cachedStudentProfile!.copyWith();
     }
   }
 
-  // ---------- Lazy getters ----------
+  // ---------- Typed Lazy Getters & Helpers ----------
 
   Future<String?> get token async {
     if (_cachedToken != null && _cachedToken!.isNotEmpty) return _cachedToken;
-    _cachedToken = await _read(_kToken);
+    final prefs = await _instance;
+    _cachedToken = prefs.getString(_kToken);
     return _cachedToken;
   }
 
+  /// Asynchronous getter to ensure the full [UserSession] is loaded.
+  Future<UserSession?> get userSession async {
+    if (_cachedSession != null) return _cachedSession;
+    await _ensureSessionLoaded();
+    return _cachedSession;
+  }
+
+  /// Asynchronous getter to ensure the [StudentProfileModel] is loaded.
+  Future<StudentProfileModel?> get studentProfile async {
+    if (_cachedStudentProfile != null) return _cachedStudentProfile;
+    await _ensureProfileLoaded();
+    return _cachedStudentProfile ?? _cachedSession?.studentProfile;
+  }
+
   Future<UserRole> get role async {
-    if (_cachedRole != null) return _cachedRole!;
-    _cachedRole = UserRoleX.fromApi(await _read(_kRole));
-    return _cachedRole!;
+    if (_cachedSession != null) return _cachedSession!.role;
+    await _ensureSessionLoaded();
+    return _cachedSession?.role ?? UserRole.unknown;
   }
 
   Future<String?> get email async {
-    if (_cachedEmail != null) return _cachedEmail;
-    _cachedEmail = await _read(_kEmail);
-    return _cachedEmail;
+    if (_cachedSession != null) return _cachedSession!.email;
+    await _ensureSessionLoaded();
+    return _cachedSession?.email;
   }
 
   Future<String?> get name async {
-    if (_cachedName != null) return _cachedName;
-    _cachedName = await _read(_kName);
-    return _cachedName;
+    if (_cachedSession != null) return _cachedSession!.name;
+    await _ensureSessionLoaded();
+    return _cachedSession?.name;
   }
 
   Future<String?> get cachedAadhar async {
-    if (_cachedAadhar != null) return _cachedAadhar;
-    _cachedAadhar = await _read(_kAadhar);
-    return _cachedAadhar;
+    if (_cachedStudentProfile != null && _cachedStudentProfile!.aadhar.isNotEmpty) {
+      return _cachedStudentProfile!.aadhar;
+    }
+    await _ensureProfileLoaded();
+    return _cachedStudentProfile?.aadhar;
   }
 
-  Future<void> cacheAadhar(String aadhar) {
-    _cachedAadhar = aadhar;
-    return _write(_kAadhar, aadhar);
+  Future<void> cacheAadhar(String aadhar) async {
+    if (_cachedStudentProfile != null) {
+      await saveStudentProfile(
+        StudentProfileModel(
+          aadhar: aadhar,
+          firstName: _cachedStudentProfile!.firstName,
+          middleName: _cachedStudentProfile!.middleName,
+          lastName: _cachedStudentProfile!.lastName,
+          phone: _cachedStudentProfile!.phone,
+          whatsappNumber: _cachedStudentProfile!.whatsappNumber,
+          email: _cachedStudentProfile!.email,
+          room: _cachedStudentProfile!.room,
+          status: _cachedStudentProfile!.status,
+          subStatus: _cachedStudentProfile!.subStatus,
+          bloodGroup: _cachedStudentProfile!.bloodGroup,
+          dob: _cachedStudentProfile!.dob,
+          address: _cachedStudentProfile!.address,
+          pinCode: _cachedStudentProfile!.pinCode,
+          fatherFirstName: _cachedStudentProfile!.fatherFirstName,
+          fatherPhone: _cachedStudentProfile!.fatherPhone,
+          fatherProfession: _cachedStudentProfile!.fatherProfession,
+          motherFirstName: _cachedStudentProfile!.motherFirstName,
+          motherPhone: _cachedStudentProfile!.motherPhone,
+          playsCricket: _cachedStudentProfile!.playsCricket,
+          playsBadminton: _cachedStudentProfile!.playsBadminton,
+          goesToGym: _cachedStudentProfile!.goesToGym,
+          vehicleNumber: _cachedStudentProfile!.vehicleNumber,
+          category: _cachedStudentProfile!.category,
+          groupName: _cachedStudentProfile!.groupName,
+          bankCode: _cachedStudentProfile!.bankCode,
+          bankCodeChecked: _cachedStudentProfile!.bankCodeChecked,
+          notes: _cachedStudentProfile!.notes,
+        ),
+      );
+    }
   }
 
   Future<String?> get cachedPhone async {
-    if (_cachedPhone != null) return _cachedPhone;
-    _cachedPhone = await _read(_kPhone);
-    return _cachedPhone;
+    if (_cachedStudentProfile != null && _cachedStudentProfile!.phone.isNotEmpty) {
+      return _cachedStudentProfile!.phone;
+    }
+    if (_cachedSession != null && _cachedSession!.phone.isNotEmpty) {
+      return _cachedSession!.phone;
+    }
+    await _ensureProfileLoaded();
+    return _cachedStudentProfile?.phone ?? _cachedSession?.phone;
   }
 
-  Future<void> cachePhone(String phone) {
-    _cachedPhone = phone;
-    return _write(_kPhone, phone);
+  Future<void> cachePhone(String phone) async {
+    if (_cachedStudentProfile != null) {
+      await saveStudentProfile(_cachedStudentProfile!.copyWith(phone: phone));
+    }
   }
 
   Future<String?> get cachedStudentCode async {
-    if (_cachedStudentCode != null) return _cachedStudentCode;
-    _cachedStudentCode = await _read(_kStudentCode);
-    return _cachedStudentCode;
+    if (_cachedStudentProfile != null && _cachedStudentProfile!.bankCode.isNotEmpty) {
+      return _cachedStudentProfile!.bankCode;
+    }
+    if (_cachedSession != null && _cachedSession!.studentCode.isNotEmpty) {
+      return _cachedSession!.studentCode;
+    }
+    await _ensureProfileLoaded();
+    return _cachedStudentProfile?.bankCode ?? _cachedSession?.studentCode;
   }
 
-  Future<void> cacheStudentCode(String code) {
-    _cachedStudentCode = code;
-    return _write(_kStudentCode, code);
+  Future<void> cacheStudentCode(String code) async {
+    if (_cachedSession != null) {
+      _cachedSession = _cachedSession!.copyWith(studentCode: code);
+      final prefs = await _instance;
+      await prefs.setString(_kUserSession, jsonEncode(_cachedSession!.toJson()));
+    }
   }
 
   Future<String?> get cachedBloodGroup async {
-    if (_cachedBloodGroup != null) return _cachedBloodGroup;
-    _cachedBloodGroup = await _read(_kBloodGroup);
-    return _cachedBloodGroup;
+    if (_cachedStudentProfile != null && _cachedStudentProfile!.bloodGroup.isNotEmpty) {
+      return _cachedStudentProfile!.bloodGroup;
+    }
+    await _ensureProfileLoaded();
+    return _cachedStudentProfile?.bloodGroup;
   }
 
-  Future<void> cacheBloodGroup(String bg) {
-    _cachedBloodGroup = bg;
-    return _write(_kBloodGroup, bg);
+  Future<void> cacheBloodGroup(String bg) async {
+    if (_cachedStudentProfile != null) {
+      await saveStudentProfile(_cachedStudentProfile!.copyWith(bloodGroup: bg));
+    }
   }
 
   Future<String?> get cachedVehicleNumber async {
-    if (_cachedVehicle != null) return _cachedVehicle;
-    _cachedVehicle = await _read(_kVehicle);
-    return _cachedVehicle;
+    if (_cachedStudentProfile != null && _cachedStudentProfile!.vehicleNumber.isNotEmpty) {
+      return _cachedStudentProfile!.vehicleNumber;
+    }
+    await _ensureProfileLoaded();
+    return _cachedStudentProfile?.vehicleNumber;
   }
 
-  Future<void> cacheVehicleNumber(String vehicle) {
-    _cachedVehicle = vehicle;
-    return _write(_kVehicle, vehicle);
+  Future<void> cacheVehicleNumber(String vehicle) async {
+    if (_cachedStudentProfile != null) {
+      await saveStudentProfile(_cachedStudentProfile!.copyWith(vehicleNumber: vehicle));
+    }
   }
 
   Future<String?> get cachedRoom async {
-    if (_cachedRoom != null) return _cachedRoom;
-    _cachedRoom = await _read(_kRoom);
-    return _cachedRoom;
+    if (_cachedStudentProfile != null && _cachedStudentProfile!.room.isNotEmpty) {
+      return _cachedStudentProfile!.room;
+    }
+    if (_cachedSession != null && _cachedSession!.room.isNotEmpty) {
+      return _cachedSession!.room;
+    }
+    await _ensureProfileLoaded();
+    return _cachedStudentProfile?.room ?? _cachedSession?.room;
   }
 
-  Future<void> cacheRoom(String room) {
-    _cachedRoom = room;
-    return _write(_kRoom, room);
+  Future<void> cacheRoom(String room) async {
+    if (_cachedStudentProfile != null) {
+      await saveStudentProfile(
+        StudentProfileModel(
+          aadhar: _cachedStudentProfile!.aadhar,
+          firstName: _cachedStudentProfile!.firstName,
+          middleName: _cachedStudentProfile!.middleName,
+          lastName: _cachedStudentProfile!.lastName,
+          phone: _cachedStudentProfile!.phone,
+          whatsappNumber: _cachedStudentProfile!.whatsappNumber,
+          email: _cachedStudentProfile!.email,
+          room: room,
+          status: _cachedStudentProfile!.status,
+          subStatus: _cachedStudentProfile!.subStatus,
+          bloodGroup: _cachedStudentProfile!.bloodGroup,
+          dob: _cachedStudentProfile!.dob,
+          address: _cachedStudentProfile!.address,
+          pinCode: _cachedStudentProfile!.pinCode,
+          fatherFirstName: _cachedStudentProfile!.fatherFirstName,
+          fatherPhone: _cachedStudentProfile!.fatherPhone,
+          fatherProfession: _cachedStudentProfile!.fatherProfession,
+          motherFirstName: _cachedStudentProfile!.motherFirstName,
+          motherPhone: _cachedStudentProfile!.motherPhone,
+          playsCricket: _cachedStudentProfile!.playsCricket,
+          playsBadminton: _cachedStudentProfile!.playsBadminton,
+          goesToGym: _cachedStudentProfile!.goesToGym,
+          vehicleNumber: _cachedStudentProfile!.vehicleNumber,
+          category: _cachedStudentProfile!.category,
+          groupName: _cachedStudentProfile!.groupName,
+          bankCode: _cachedStudentProfile!.bankCode,
+          bankCodeChecked: _cachedStudentProfile!.bankCodeChecked,
+          notes: _cachedStudentProfile!.notes,
+        ),
+      );
+    }
   }
 
   Future<String?> get lastAttendanceDate async {
     if (_cachedLastAttendanceDate != null) return _cachedLastAttendanceDate;
-    _cachedLastAttendanceDate = await _read(_kLastAttendanceDate);
+    final prefs = await _instance;
+    _cachedLastAttendanceDate = prefs.getString(_kLastAttendanceDate);
     return _cachedLastAttendanceDate;
   }
 
-  Future<void> saveLastAttendanceDate(String date) {
+  Future<void> saveLastAttendanceDate(String date) async {
     _cachedLastAttendanceDate = date;
-    return _write(_kLastAttendanceDate, date);
+    final prefs = await _instance;
+    await prefs.setString(_kLastAttendanceDate, date);
   }
 
-  Future<bool> get hasSession async => (await token) != null;
+  Future<bool> get hasSession async => (await token) != null && (await token)!.isNotEmpty;
+
+  Future<void> _ensureSessionLoaded() async {
+    if (_cachedSession != null) return;
+    final prefs = await _instance;
+    final jsonStr = prefs.getString(_kUserSession);
+    if (jsonStr != null && jsonStr.isNotEmpty) {
+      try {
+        final map = jsonDecode(jsonStr);
+        if (map is Map<String, dynamic>) {
+          _cachedSession = UserSession.fromJson(map);
+        }
+      } catch (_) {}
+    }
+  }
+
+  Future<void> _ensureProfileLoaded() async {
+    if (_cachedStudentProfile != null) return;
+    final prefs = await _instance;
+    final jsonStr = prefs.getString(_kStudentProfile);
+    if (jsonStr != null && jsonStr.isNotEmpty) {
+      try {
+        final map = jsonDecode(jsonStr);
+        if (map is Map<String, dynamic>) {
+          _cachedStudentProfile = StudentProfileModel.fromJson(map);
+        }
+      } catch (_) {}
+    }
+  }
 }

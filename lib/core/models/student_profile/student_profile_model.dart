@@ -1,4 +1,4 @@
-﻿import '../../enums/admission_status.dart';
+import '../../enums/admission_status.dart';
 
 /// Shared student profile model — used by the student's own Profile screen
 /// and by the operator directory/admin edit screens alike.
@@ -273,6 +273,38 @@ class StudentProfileModel {
       notes: notes,
     );
   }
+
+  /// Full serialization for local cache persistence (SharedPreferences/SessionStore).
+  Map<String, dynamic> toJson() => {
+    'aadhar': aadhar,
+    'firstName': firstName,
+    'middleName': middleName,
+    'lastName': lastName,
+    'phone': phone,
+    'whatsAppNumber': whatsappNumber,
+    'email': email,
+    'room': room,
+    'status': status.name,
+    'subStatus': subStatus,
+    'bloodGroup': bloodGroup,
+    'dob': dob,
+    'address': address,
+    'pinCode': pinCode,
+    'fatherFirstName': fatherFirstName,
+    'fatherPhone': fatherPhone,
+    'fatherProfession': fatherProfession,
+    'motherFirstName': motherFirstName,
+    'motherPhone': motherPhone,
+    'cricket': playsCricket,
+    'badminton': playsBadminton,
+    'gym': goesToGym,
+    'vehicleNumber': vehicleNumber,
+    'category': category,
+    'groupName': groupName,
+    'bankCode': bankCode,
+    'bankCodeChecked': bankCodeChecked,
+    'notes': notes,
+  };
 
   /// Same allow-list the backend accepts on `PATCH /students/:aadhar`
   /// (API_HANDOFF.md §5.2), keyed by the API's own field names. Lets any

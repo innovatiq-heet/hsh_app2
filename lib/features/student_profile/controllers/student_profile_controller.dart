@@ -1,4 +1,4 @@
-﻿import 'package:get/get.dart';
+import 'package:get/get.dart';
 import '../../../core/abstracts/mixins/aadhar_resolving_mixin.dart';
 import '../../../core/abstracts/mixins/load_state_mixin.dart';
 import '../../../core/models/student_profile/student_profile_model.dart';
@@ -19,15 +19,26 @@ class StudentProfileController extends GetxController
   @override
   void onInit() {
     super.onInit();
-    loadProfile();
+    final cached = Get.find<SessionStore>().currentStudentProfile;
+    if (cached != null) {
+      profile.value = cached;
+    }
+    loadProfile(showLoading: cached == null);
   }
 
   Future<void> loadProfile({bool forceRefresh = false, bool showLoading = true}) => guard(() async {
-    final cachedPhone = await Get.find<SessionStore>().cachedPhone;
-    final cachedEmail = await Get.find<SessionStore>().email;
-    final cachedName = await Get.find<SessionStore>().name;
-    final cachedStudentCode = await Get.find<SessionStore>().cachedStudentCode;
-    String? aadhar = await Get.find<SessionStore>().cachedAadhar;
+    final sessionStore = Get.find<SessionStore>();
+    if (profile.value == null) {
+      final cached = await sessionStore.studentProfile;
+      if (cached != null) {
+        profile.value = cached;
+      }
+    }
+    final cachedPhone = await sessionStore.cachedPhone;
+    final cachedEmail = await sessionStore.email;
+    final cachedName = await sessionStore.name;
+    final cachedStudentCode = await sessionStore.cachedStudentCode;
+    String? aadhar = await sessionStore.cachedAadhar;
 
     if (aadhar == null || aadhar.isEmpty) {
       try {
@@ -65,7 +76,7 @@ class StudentProfileController extends GetxController
   Future<void> refreshProfile() => loadProfile(forceRefresh: true, showLoading: true);
 
   Future<void> logout() async {
-    await Get.find<SessionStore>().clear();
+    await Get.find<SessionStore>().logout();
     Get.offAllNamed(Routes.login);
   }
 }

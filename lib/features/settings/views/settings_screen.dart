@@ -19,7 +19,7 @@ class SettingScreen extends StatelessWidget {
   const SettingScreen({super.key});
 
   Future<void> _logout() async {
-    await Get.find<SessionStore>().clear();
+    await Get.find<SessionStore>().logout();
     Get.offAllNamed(Routes.login);
   }
 

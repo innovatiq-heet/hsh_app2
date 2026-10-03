@@ -56,6 +56,73 @@ class LoginScreen extends GetView<LoginController> {
                 ),
               ],
             ),
+            Obx(() {
+              if (!controller.isLoading.value) return const SizedBox.shrink();
+              return Positioned.fill(
+                child: AbsorbPointer(
+                  absorbing: true,
+                  child: Container(
+                    color: Colors.black.withValues(alpha: 0.5),
+                    child: Center(
+                      child: Container(
+                        margin: const EdgeInsets.symmetric(horizontal: 40),
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 28,
+                          vertical: 28,
+                        ),
+                        decoration: BoxDecoration(
+                          color: Colors.white,
+                          borderRadius: BorderRadius.circular(24),
+                          boxShadow: [
+                            BoxShadow(
+                              color: Colors.black.withValues(alpha: 0.18),
+                              blurRadius: 28,
+                              offset: const Offset(0, 10),
+                            ),
+                          ],
+                        ),
+                        child: Column(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Container(
+                              width: 54,
+                              height: 54,
+                              padding: const EdgeInsets.all(12),
+                              decoration: BoxDecoration(
+                                color: AppColors.primary.withValues(alpha: 0.1),
+                                shape: BoxShape.circle,
+                              ),
+                              child: const CircularProgressIndicator(
+                                strokeWidth: 3.2,
+                                valueColor: AlwaysStoppedAnimation<Color>(
+                                  AppColors.primary,
+                                ),
+                              ),
+                            ),
+                            const SizedBox(height: 20),
+                            Text(
+                              'Signing In...',
+                              style: AppTextStyles.headline.copyWith(
+                                color: AppColors.textPrimary,
+                                fontWeight: FontWeight.w700,
+                              ),
+                            ),
+                            const SizedBox(height: 6),
+                            Text(
+                              'Please wait while we verify your details',
+                              textAlign: TextAlign.center,
+                              style: AppTextStyles.bodySm.copyWith(
+                                color: AppColors.textSecondary,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
+              );
+            }),
           ],
         ),
       ),
@@ -95,7 +162,46 @@ class _FormPanel extends StatelessWidget {
                 color: AppColors.textSecondary,
               ),
             ),
-            const SizedBox(height: 32),
+            const SizedBox(height: 28),
+            Obx(() {
+              final err = controller.errorMessage.value;
+              if (err.isEmpty) return const SizedBox.shrink();
+              return Container(
+                margin: const EdgeInsets.only(bottom: 20),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 14,
+                  vertical: 12,
+                ),
+                decoration: BoxDecoration(
+                  color: AppColors.errorRed.withValues(alpha: 0.08),
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(
+                    color: AppColors.errorRed.withValues(alpha: 0.35),
+                  ),
+                ),
+                child: Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const Icon(
+                      Icons.error_outline_rounded,
+                      color: AppColors.errorRed,
+                      size: 20,
+                    ),
+                    const SizedBox(width: 10),
+                    Expanded(
+                      child: Text(
+                        err,
+                        style: AppTextStyles.bodySm.copyWith(
+                          color: AppColors.errorRed,
+                          fontWeight: FontWeight.w500,
+                          height: 1.3,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              );
+            }),
             AppTextField(
               controller: controller.studentIdController,
               label: 'Student ID', // Bank Code commented out
@@ -108,8 +214,8 @@ class _FormPanel extends StatelessWidget {
               () => AppButton(
                 label: 'Sign In',
                 icon: Icons.arrow_forward_rounded,
-                isLoading: controller.isLoading.value,
-                onPressed: controller.login,
+                isLoading: false,
+                onPressed: controller.isLoading.value ? null : controller.login,
               ),
             ),
             const SizedBox(height: 28),

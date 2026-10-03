@@ -1,4 +1,4 @@
-﻿import 'dart:developer' as developer;
+import 'dart:developer' as developer;
 import 'package:dio/dio.dart';
 import 'package:get/get.dart';
 import '../../../models/student_profile/student_profile_model.dart';
@@ -238,19 +238,8 @@ class StudentProfileRepository {
       );
     }
 
-    // Step 5: Update session caches with resolved data
-    if (finalModel.aadhar.isNotEmpty) {
-      await Get.find<SessionStore>().cacheAadhar(finalModel.aadhar);
-    }
-    if (finalModel.room.isNotEmpty) {
-      await Get.find<SessionStore>().cacheRoom(finalModel.room);
-    }
-    if (finalModel.phone.isNotEmpty) {
-      await Get.find<SessionStore>().cachePhone(finalModel.phone);
-    }
-    if (finalModel.bankCode.isNotEmpty) {
-      await Get.find<SessionStore>().cacheStudentCode(finalModel.bankCode);
-    }
+    // Step 5: Update session store with unified StudentProfileModel (eliminating redundancy)
+    await Get.find<SessionStore>().saveStudentProfile(finalModel);
 
     return finalModel;
   }

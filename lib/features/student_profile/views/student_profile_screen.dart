@@ -34,7 +34,9 @@ class StudentProfileScreen extends GetView<StudentProfileController> {
             return AppRefreshIndicator(
               onRefresh: controller.refreshProfile,
               child: CustomScrollView(
-                physics: const AlwaysScrollableScrollPhysics(),
+                physics: const AlwaysScrollableScrollPhysics(
+                  parent: ClampingScrollPhysics()
+                ),
                 slivers: [
                   _ProfileHero(profile: profile),
                   SliverToBoxAdapter(
@@ -48,9 +50,9 @@ class StudentProfileScreen extends GetView<StudentProfileController> {
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.stretch,
                         children: [
-                          const SectionHeader(title: 'Quick actions'),
-                          const _QuickActions(),
-                          const SizedBox(height: AppDimens.gapXl),
+                          // const SectionHeader(title: 'Quick actions'),
+                          // const _QuickActions(),
+                          // const SizedBox(height: AppDimens.gapXl),
                           const SectionHeader(title: 'Personal details'),
                           _DetailsCard(
                             rows: [
@@ -145,10 +147,26 @@ class _ProfileHero extends StatelessWidget {
         ? profile.firstName[0].toUpperCase()
         : '?';
 
+    final fullName = profile.fullName.trim();
+    final double titleFontSize = fullName.length > 25
+        ? 16.0
+        : (fullName.length > 18 ? 18.0 : 20.0);
+
+    final hasPills = profile.room.isNotEmpty ||
+        profile.groupName.isNotEmpty ||
+        profile.bankCode.isNotEmpty;
+
     return SliverGradientHeader(
-      expandedHeight: 185,
+      expandedHeight: hasPills ? 145 : 96,
       overline: _greeting,
-      title: profile.fullName,
+      title: fullName.isNotEmpty ? fullName : 'Student Profile',
+      titleStyle: AppTextStyles.headline.copyWith(
+        fontSize: titleFontSize,
+        fontWeight: FontWeight.w700,
+        color: Colors.white,
+        height: 1.25,
+      ),
+      titleMaxLines: 2,
       heroLeading: Container(
         width: 64,
         height: 64,
@@ -217,6 +235,7 @@ class _QuickAction {
   const _QuickAction(this.label, this.icon, this.color, this.route);
 }
 
+// ignore: unused_element
 class _QuickActions extends StatelessWidget {
   const _QuickActions();
 
@@ -326,13 +345,30 @@ class _ProfileSkeleton extends StatelessWidget {
         ? cached.firstName[0].toUpperCase()
         : '';
 
-    return CustomScrollView(
-      physics: const NeverScrollableScrollPhysics(),
-      slivers: [
-        SliverGradientHeader(
-          expandedHeight: 185,
-          overline: _greeting,
-          title: cached?.fullName ?? 'Student Profile',
+        final skeletonTitle = (cached?.fullName ?? 'Student Profile').trim();
+        final double skeletonTitleSize = skeletonTitle.length > 25
+            ? 16.0
+            : (skeletonTitle.length > 18 ? 18.0 : 20.0);
+
+        final hasCachedPills = cached != null &&
+            (cached.room.isNotEmpty ||
+                cached.groupName.isNotEmpty ||
+                cached.bankCode.isNotEmpty);
+
+        return CustomScrollView(
+          physics: const NeverScrollableScrollPhysics(),
+          slivers: [
+            SliverGradientHeader(
+              expandedHeight: hasCachedPills ? 145 : 96,
+              overline: _greeting,
+              title: skeletonTitle,
+              titleStyle: AppTextStyles.headline.copyWith(
+                fontSize: skeletonTitleSize,
+                fontWeight: FontWeight.w700,
+                color: Colors.white,
+                height: 1.25,
+              ),
+              titleMaxLines: 2,
           heroLeading: Container(
             width: 64,
             height: 64,

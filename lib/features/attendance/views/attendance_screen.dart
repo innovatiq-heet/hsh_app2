@@ -4,6 +4,7 @@ import 'package:intl/intl.dart';
 import '../../../core/enums/attendance_type.dart';
 import '../../../core/constants/app_colors.dart';
 import '../../../core/constants/app_dimens.dart';
+import '../../../core/constants/app_routes.dart';
 import '../../../core/constants/app_text_styles.dart';
 import '../../../core/network/responses/attendance/attendance_models.dart';
 import '../../shared/widgets/app_button.dart';
@@ -13,6 +14,7 @@ import '../../shared/widgets/async_state_view.dart';
 import '../../shared/widgets/gradient_header.dart';
 import '../../shared/widgets/namedrop_attendance_overlay.dart';
 import '../../shared/widgets/radar_animation.dart';
+import '../../shared/widgets/skeleton_loader.dart';
 import '../controllers/attendance_controller.dart';
 import 'attendance_event_style.dart';
 
@@ -406,7 +408,7 @@ class _AttendanceScreenState extends State<AttendanceScreen> with SingleTickerPr
 
     final tile = Container(
       margin: const EdgeInsets.only(bottom: 12),
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
       decoration: BoxDecoration(
         color: isActiveNow
             ? primaryColor.withValues(alpha: 0.08)
@@ -431,8 +433,8 @@ class _AttendanceScreenState extends State<AttendanceScreen> with SingleTickerPr
       child: Row(
         children: [
           Container(
-            width: 44,
-            height: 44,
+            width: 42,
+            height: 42,
             decoration: BoxDecoration(
               color: style.softBackgroundColor,
               borderRadius: BorderRadius.circular(12),
@@ -440,13 +442,14 @@ class _AttendanceScreenState extends State<AttendanceScreen> with SingleTickerPr
             child: Icon(
               iconData,
               color: primaryColor,
-              size: 22,
+              size: 20,
             ),
           ),
-          const SizedBox(width: 14),
+          const SizedBox(width: 12),
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisSize: MainAxisSize.min,
               children: [
                 Row(
                   children: [
@@ -454,7 +457,7 @@ class _AttendanceScreenState extends State<AttendanceScreen> with SingleTickerPr
                       child: Text(
                         name,
                         style: const TextStyle(
-                          fontSize: 15,
+                          fontSize: 14.5,
                           fontWeight: FontWeight.w700,
                           color: AppColors.textPrimary,
                         ),
@@ -463,20 +466,20 @@ class _AttendanceScreenState extends State<AttendanceScreen> with SingleTickerPr
                       ),
                     ),
                     if (isActiveNow) ...[
-                      const SizedBox(width: 8),
+                      const SizedBox(width: 6),
                       Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                        padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1.5),
                         decoration: BoxDecoration(
                           color: AppColors.primary,
-                          borderRadius: BorderRadius.circular(6),
+                          borderRadius: BorderRadius.circular(4),
                         ),
                         child: const Text(
                           'LIVE',
                           style: TextStyle(
-                            fontSize: 10,
+                            fontSize: 9.5,
                             fontWeight: FontWeight.w800,
                             color: Colors.white,
-                            letterSpacing: 0.5,
+                            letterSpacing: 0.4,
                           ),
                         ),
                       ),
@@ -484,26 +487,35 @@ class _AttendanceScreenState extends State<AttendanceScreen> with SingleTickerPr
                   ],
                 ),
                 const SizedBox(height: 3),
-                Row(
+                Wrap(
+                  crossAxisAlignment: WrapCrossAlignment.center,
+                  spacing: 6,
+                  runSpacing: 3,
                   children: [
                     Text(
                       timing,
                       style: const TextStyle(
                         fontSize: 12,
+                        fontWeight: FontWeight.w500,
                         color: AppColors.textMuted,
                       ),
                     ),
-                    if (lateTime != null && lateTime.isNotEmpty) ...[
-                      const SizedBox(width: 6),
-                      Text(
-                        '• Late after $lateTime',
-                        style: const TextStyle(
-                          fontSize: 11,
-                          fontWeight: FontWeight.w600,
-                          color: AppColors.warningOrange,
+                    if (lateTime != null && lateTime.isNotEmpty)
+                      Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1),
+                        decoration: BoxDecoration(
+                          color: AppColors.warningOrange.withValues(alpha: 0.12),
+                          borderRadius: BorderRadius.circular(4),
+                        ),
+                        child: Text(
+                          'Late: $lateTime',
+                          style: const TextStyle(
+                            fontSize: 10,
+                            fontWeight: FontWeight.w600,
+                            color: AppColors.warningOrange,
+                          ),
                         ),
                       ),
-                    ],
                   ],
                 ),
               ],
@@ -512,16 +524,16 @@ class _AttendanceScreenState extends State<AttendanceScreen> with SingleTickerPr
           const SizedBox(width: 8),
           if (isMarked)
             Container(
-              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
               decoration: BoxDecoration(
                 color: AppColors.successGreen.withValues(alpha: 0.12),
-                borderRadius: BorderRadius.circular(10),
-                border: Border.all(color: AppColors.successGreen.withValues(alpha: 0.3)),
+                borderRadius: BorderRadius.circular(8),
+                border: Border.all(color: AppColors.successGreen.withValues(alpha: 0.25)),
               ),
               child: Row(
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  const Icon(Icons.check_circle_rounded, size: 14, color: AppColors.successGreen),
+                  const Icon(Icons.check_circle_rounded, size: 13, color: AppColors.successGreen),
                   const SizedBox(width: 4),
                   Text(
                     markedTime != null
@@ -538,10 +550,10 @@ class _AttendanceScreenState extends State<AttendanceScreen> with SingleTickerPr
             )
           else if (isActiveNow)
             Container(
-              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
               decoration: BoxDecoration(
                 color: AppColors.primary.withValues(alpha: 0.12),
-                borderRadius: BorderRadius.circular(10),
+                borderRadius: BorderRadius.circular(8),
                 border: Border.all(color: AppColors.primary.withValues(alpha: 0.3)),
               ),
               child: const Text(
@@ -555,10 +567,10 @@ class _AttendanceScreenState extends State<AttendanceScreen> with SingleTickerPr
             )
           else
             Container(
-              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
               decoration: BoxDecoration(
                 color: AppColors.surfaceMuted,
-                borderRadius: BorderRadius.circular(10),
+                borderRadius: BorderRadius.circular(8),
               ),
               child: const Text(
                 'Upcoming',
@@ -605,6 +617,7 @@ class _AttendanceScreenState extends State<AttendanceScreen> with SingleTickerPr
           hasError: controller.hasError.value,
           errorMessage: controller.errorMessage.value,
           onRetry: controller.load,
+          loadingWidget: const _AttendanceSkeleton(),
           builder: (context) {
             final statusData = controller.studentStatus.value;
             final isMarking = controller.markingType.value != null;
@@ -662,14 +675,27 @@ class _AttendanceScreenState extends State<AttendanceScreen> with SingleTickerPr
             return AppRefreshIndicator(
               onRefresh: controller.load,
               child: CustomScrollView(
-                physics: const AlwaysScrollableScrollPhysics(),
+                physics: const AlwaysScrollableScrollPhysics(
+                  parent: ClampingScrollPhysics(),
+                ),
                 slivers: [
                   SliverGradientHeader(
                     overline: DateFormat('EEEE, d MMMM').format(DateTime.now()).toUpperCase(),
                     title: 'Attendance',
+                    titleStyle: AppTextStyles.headline.copyWith(
+                      fontSize: 20,
+                      fontWeight: FontWeight.w700,
+                      color: Colors.white,
+                      letterSpacing: -0.2,
+                    ),
                     subtitle: 'Daily routine & verification',
-                    expandedHeight: 160.0,
+                    expandedHeight: 145.0,
                     actions: [
+                      HeaderIconButton(
+                        icon: Icons.history_rounded,
+                        tooltip: 'Attendance History',
+                        onPressed: () => Get.toNamed(Routes.attendanceHistory),
+                      ),
                       HeaderIconButton(
                         icon: Icons.refresh_rounded,
                         tooltip: 'Refresh',
@@ -677,6 +703,23 @@ class _AttendanceScreenState extends State<AttendanceScreen> with SingleTickerPr
                       ),
                       const SizedBox(width: AppDimens.gapSm),
                     ],
+                    child: Row(
+                      children: [
+                        HeaderPill(
+                          icon: Icons.schedule_rounded,
+                          label: activeSessionName,
+                        ),
+                        const SizedBox(width: AppDimens.gapSm),
+                        HeaderPill(
+                          icon: isAlreadyMarked
+                              ? Icons.check_circle_outline
+                              : (isAttendanceOpen ? Icons.sensors_rounded : Icons.lock_clock_outlined),
+                          label: isAlreadyMarked
+                              ? 'Completed'
+                              : (isAttendanceOpen ? 'Live Now' : 'Closed'),
+                        ),
+                      ],
+                    ),
                   ),
                   SliverToBoxAdapter(
                     child: FadeTransition(
@@ -864,3 +907,187 @@ class _AttendanceScreenState extends State<AttendanceScreen> with SingleTickerPr
     );
   }
 }
+
+class _AttendanceSkeleton extends StatelessWidget {
+  const _AttendanceSkeleton();
+
+  @override
+  Widget build(BuildContext context) {
+    return CustomScrollView(
+      physics: const NeverScrollableScrollPhysics(),
+      slivers: [
+        SliverGradientHeader(
+          overline: DateFormat('EEEE, d MMMM').format(DateTime.now()).toUpperCase(),
+          title: 'Attendance',
+          titleStyle: AppTextStyles.headline.copyWith(
+            fontSize: 20,
+            fontWeight: FontWeight.w700,
+            color: Colors.white,
+            letterSpacing: -0.2,
+          ),
+          subtitle: 'Daily routine & verification',
+          expandedHeight: 145.0,
+          actions: [
+            HeaderIconButton(
+              icon: Icons.history_rounded,
+              tooltip: 'Attendance History',
+              onPressed: () {},
+            ),
+            HeaderIconButton(
+              icon: Icons.refresh_rounded,
+              tooltip: 'Refresh',
+              onPressed: () {},
+            ),
+            const SizedBox(width: AppDimens.gapSm),
+          ],
+          child: Row(
+            children: [
+              SkeletonLoader(
+                width: 105,
+                height: 32,
+                borderRadius: BorderRadius.circular(AppDimens.radiusPill),
+                baseColor: Colors.white.withValues(alpha: 0.18),
+                highlightColor: Colors.white.withValues(alpha: 0.40),
+              ),
+              const SizedBox(width: AppDimens.gapSm),
+              SkeletonLoader(
+                width: 95,
+                height: 32,
+                borderRadius: BorderRadius.circular(AppDimens.radiusPill),
+                baseColor: Colors.white.withValues(alpha: 0.18),
+                highlightColor: Colors.white.withValues(alpha: 0.40),
+              ),
+            ],
+          ),
+        ),
+        SliverToBoxAdapter(
+          child: Center(
+            child: Padding(
+              padding: const EdgeInsets.all(AppDimens.screenPadding),
+              child: ConstrainedBox(
+                constraints: const BoxConstraints(maxWidth: 480),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    // Main Action Card Skeleton
+                    AppCard(
+                      padding: const EdgeInsets.all(24.0),
+                      child: Column(
+                        children: [
+                          const SizedBox(height: 8),
+                          Center(
+                            child: SkeletonLoader(
+                              width: 72,
+                              height: 72,
+                              borderRadius: BorderRadius.circular(999),
+                              baseColor: AppColors.primary.withValues(alpha: 0.10),
+                              highlightColor: AppColors.primary.withValues(alpha: 0.25),
+                            ),
+                          ),
+                          const SizedBox(height: 18),
+                          Center(
+                            child: SkeletonLoader(
+                              width: 160,
+                              height: 22,
+                              borderRadius: BorderRadius.circular(6),
+                            ),
+                          ),
+                          const SizedBox(height: 8),
+                          Center(
+                            child: SkeletonLoader(
+                              width: 130,
+                              height: 14,
+                              borderRadius: BorderRadius.circular(4),
+                            ),
+                          ),
+                          const SizedBox(height: 12),
+                          Center(
+                            child: SkeletonLoader(
+                              width: 240,
+                              height: 12,
+                              borderRadius: BorderRadius.circular(4),
+                            ),
+                          ),
+                          const SizedBox(height: 22),
+                          SkeletonLoader(
+                            width: double.infinity,
+                            height: 52,
+                            borderRadius: BorderRadius.circular(AppDimens.radiusMd),
+                          ),
+                        ],
+                      ),
+                    ),
+                    const SizedBox(height: 24),
+
+                    // Section Heading Skeleton
+                    Row(
+                      children: [
+                        Container(
+                          width: 4,
+                          height: 18,
+                          decoration: BoxDecoration(
+                            color: AppColors.primary.withValues(alpha: 0.4),
+                            borderRadius: BorderRadius.circular(2),
+                          ),
+                        ),
+                        const SizedBox(width: 8),
+                        SkeletonLoader(
+                          width: 140,
+                          height: 18,
+                          borderRadius: BorderRadius.circular(4),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 12),
+
+                    // 3 Session Card Skeletons
+                    for (int i = 0; i < 3; i++) ...[
+                      if (i > 0) const SizedBox(height: 10),
+                      AppCard(
+                        padding: const EdgeInsets.all(14.0),
+                        child: Row(
+                          children: [
+                            SkeletonLoader(
+                              width: 44,
+                              height: 44,
+                              borderRadius: BorderRadius.circular(AppDimens.radiusSm),
+                            ),
+                            const SizedBox(width: 14),
+                            Expanded(
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  SkeletonLoader(
+                                    width: 110,
+                                    height: 16,
+                                    borderRadius: BorderRadius.circular(4),
+                                  ),
+                                  const SizedBox(height: 6),
+                                  SkeletonLoader(
+                                    width: 85,
+                                    height: 12,
+                                    borderRadius: BorderRadius.circular(4),
+                                  ),
+                                ],
+                              ),
+                            ),
+                            SkeletonLoader(
+                              width: 76,
+                              height: 28,
+                              borderRadius: BorderRadius.circular(AppDimens.radiusPill),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ],
+                  ],
+                ),
+              ),
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+}
+

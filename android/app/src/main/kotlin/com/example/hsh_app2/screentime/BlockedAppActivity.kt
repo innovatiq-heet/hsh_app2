@@ -83,11 +83,41 @@ class BlockedAppActivity : Activity() {
             setPadding(cPad, cPad, cPad, cPad)
         }
 
+        // Real App Icon if available from device PackageManager
+        var hasRealIcon = false
+        if (!isDeviceLocked) {
+            try {
+                val appDrawable = packageManager.getApplicationIcon(pkgName)
+                val appIconView = android.widget.ImageView(this).apply {
+                    setImageDrawable(appDrawable)
+                    val s = dp(64)
+                    layoutParams = LinearLayout.LayoutParams(s, s).apply {
+                        gravity = Gravity.CENTER_HORIZONTAL
+                        bottomMargin = dp(8)
+                    }
+                }
+                cardLayout.addView(appIconView)
+                hasRealIcon = true
+            } catch (_: Exception) {
+                // PackageManager icon not available, fallback to warning badge below
+            }
+        }
+
         // Warning Icon Circle
         val iconBadge = TextView(this).apply {
-            text = if (isDeviceLocked) "🔒" else "🚫"
-            textSize = 48f
+            text = if (isDeviceLocked) "🔒" else (if (hasRealIcon) "🚫" else "🛡️")
+            textSize = if (hasRealIcon) 24f else 48f
             gravity = Gravity.CENTER
+            if (hasRealIcon) {
+                val lp = LinearLayout.LayoutParams(
+                    LinearLayout.LayoutParams.WRAP_CONTENT,
+                    LinearLayout.LayoutParams.WRAP_CONTENT
+                ).apply {
+                    gravity = Gravity.CENTER_HORIZONTAL
+                    bottomMargin = dp(4)
+                }
+                layoutParams = lp
+            }
         }
         cardLayout.addView(iconBadge)
 

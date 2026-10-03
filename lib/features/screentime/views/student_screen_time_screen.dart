@@ -11,6 +11,7 @@ import '../../shared/widgets/gradient_header.dart';
 import '../../shared/widgets/section_header.dart';
 import '../../../core/utils/app_snackbar.dart';
 import '../controllers/student_screen_time_controller.dart';
+import '../widgets/app_brand_icon.dart';
 
 class StudentScreenTimeScreen extends GetView<StudentScreenTimeController> {
   const StudentScreenTimeScreen({super.key});
@@ -1628,36 +1629,11 @@ class StudentScreenTimeScreen extends GetView<StudentScreenTimeController> {
                   return Row(
                     children: [
                       // App Icon with Block / Allow badge
-                      Stack(
-                        children: [
-                          CircleAvatar(
-                            radius: 20,
-                            backgroundColor: isBlocked
-                                ? AppColors.cancelledRed.withValues(alpha: 0.12)
-                                : AppColors.primary.withValues(alpha: 0.1),
-                            child: Text(
-                              name.isNotEmpty ? name[0].toUpperCase() : 'A',
-                              style: TextStyle(
-                                color: isBlocked ? AppColors.cancelledRed : AppColors.primary,
-                                fontWeight: FontWeight.bold,
-                                fontSize: 16,
-                              ),
-                            ),
-                          ),
-                          if (isBlocked)
-                            Positioned(
-                              bottom: 0,
-                              right: 0,
-                              child: Container(
-                                padding: const EdgeInsets.all(2),
-                                decoration: const BoxDecoration(
-                                  color: AppColors.cancelledRed,
-                                  shape: BoxShape.circle,
-                                ),
-                                child: const Icon(Icons.block_rounded, size: 10, color: Colors.white),
-                              ),
-                            ),
-                        ],
+                      AppBrandIcon(
+                        packageName: pkg,
+                        appName: name,
+                        size: 42,
+                        isBlocked: isBlocked,
                       ),
                       const SizedBox(width: 12),
 
@@ -1853,13 +1829,17 @@ class StudentScreenTimeScreen extends GetView<StudentScreenTimeController> {
                   children: StudentScreenTimeController.presetDistractingApps.map((preset) {
                     final name = preset['name']!;
                     final pkg = preset['pkg']!;
-                    final icon = preset['icon']!;
                     final isRestricted = blocked.contains(pkg);
 
                     return FilterChip(
                       selected: isRestricted,
                       showCheckmark: false,
-                      avatar: Text(icon, style: const TextStyle(fontSize: 14)),
+                      avatar: AppBrandIcon(
+                        packageName: pkg,
+                        appName: name,
+                        size: 20,
+                        showBadge: false,
+                      ),
                       label: Text(
                         isRestricted ? '$name (Blocked)' : name,
                         style: TextStyle(

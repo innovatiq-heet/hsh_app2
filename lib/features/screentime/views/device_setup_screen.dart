@@ -4,6 +4,7 @@ import 'package:get/get.dart';
 import '../../../core/constants/app_colors.dart';
 import '../../../core/constants/app_dimens.dart';
 import '../../../core/constants/app_text_styles.dart';
+import '../../../core/services/geofence_device_service.dart';
 import '../../../core/services/screen_time_service.dart';
 import '../../shared/widgets/app_button.dart';
 
@@ -20,12 +21,13 @@ class DeviceSetupScreen extends StatefulWidget {
 class _DeviceSetupScreenState extends State<DeviceSetupScreen> with WidgetsBindingObserver {
   bool _usage = false;
   bool _accessibility = false;
+  bool _location = false;
   bool _battery = false;
   bool _batterySkipped = false;
   bool _checking = true;
   Timer? _poll;
 
-  bool get _requiredDone => _usage && _accessibility;
+  bool get _requiredDone => _usage && _accessibility && _location;
   bool get _allDone => _requiredDone && (_battery || _batterySkipped);
 
   @override
@@ -56,11 +58,13 @@ class _DeviceSetupScreenState extends State<DeviceSetupScreen> with WidgetsBindi
       ScreenTimeService.hasAccessibilityPermission(),
       ScreenTimeService.isBatteryOptimizationIgnored(),
     ]);
+    final location = await GeofenceDeviceService.locationPermission();
     if (!mounted) return;
     setState(() {
       _usage = results[0];
       _accessibility = results[1];
       _battery = results[2];
+      _location = location == 'always';
       _checking = false;
     });
     if (_allDone) _finish();
@@ -69,12 +73,13 @@ class _DeviceSetupScreenState extends State<DeviceSetupScreen> with WidgetsBindi
   void _finish() {
     _poll?.cancel();
     ScreenTimeService.syncNow();
+    GeofenceDeviceService.sampleNow();
     if (Get.currentRoute.contains('device-setup')) Get.back();
   }
 
   @override
   Widget build(BuildContext context) {
-    final done = [_usage, _accessibility, _battery || _batterySkipped].where((b) => b).length;
+    final done = [_usage, _accessibility, _location, _battery || _batterySkipped].where((b) => b).length;
 
     return PopScope(
       canPop: false,
@@ -113,7 +118,7 @@ class _DeviceSetupScreenState extends State<DeviceSetupScreen> with WidgetsBindi
                       child: ClipRRect(
                         borderRadius: BorderRadius.circular(4),
                         child: LinearProgressIndicator(
-                          value: done / 3,
+                          value: done / 4,
                           minHeight: 6,
                           backgroundColor: AppColors.borderLight,
                           valueColor: const AlwaysStoppedAnimation(AppColors.primary),
@@ -121,7 +126,7 @@ class _DeviceSetupScreenState extends State<DeviceSetupScreen> with WidgetsBindi
                       ),
                     ),
                     const SizedBox(width: 12),
-                    Text('$done of 3', style: AppTextStyles.label.copyWith(color: AppColors.textSecondary)),
+                    Text('$done of 4', style: AppTextStyles.label.copyWith(color: AppColors.textSecondary)),
                   ],
                 ),
                 const SizedBox(height: AppDimens.gapLg),
@@ -156,6 +161,22 @@ class _DeviceSetupScreenState extends State<DeviceSetupScreen> with WidgetsBindi
                       const SizedBox(height: AppDimens.gapMd),
                       _Step(
                         index: 3,
+                        icon: Icons.my_location_rounded,
+                        title: 'Location — allow all the time',
+                        description: 'Checks you are on campus during curfew hours only.',
+                        hint: 'Choose "While using the app" first, then on the next screen pick "Allow all the time".',
+                        done: _location,
+                        checking: _checking,
+                        actionLabel: 'Allow location',
+                        onAction: () async {
+                          final level = await GeofenceDeviceService.requestLocationAlways();
+                          if (mounted) setState(() => _location = level == 'always');
+                        },
+                        enabled: _usage && _accessibility,
+                      ),
+                      const SizedBox(height: AppDimens.gapMd),
+                      _Step(
+                        index: 4,
                         icon: Icons.battery_saver_rounded,
                         title: 'Keep running in background',
                         description: 'Stops Android from pausing monitoring to save battery.',

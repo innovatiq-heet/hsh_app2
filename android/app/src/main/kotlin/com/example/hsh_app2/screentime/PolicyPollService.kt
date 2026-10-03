@@ -41,6 +41,8 @@ class PolicyPollService : Service() {
         /** Fast while the student is actually using the phone, relaxed when the screen is off. */
         private const val POLL_ACTIVE_MS = 30_000L
         private const val POLL_IDLE_MS = 120_000L
+        /** Curfew rules change rarely; the lock/block policy is what needs to be fast. */
+        private const val GEO_POLICY_TTL_MS = 10 * 60 * 1000L
 
         fun start(context: Context) {
             if (!PolicyStore.hasSession(context)) return
@@ -59,11 +61,16 @@ class PolicyPollService : Service() {
     private val handler = Handler(Looper.getMainLooper())
     private val executor = Executors.newSingleThreadExecutor()
     private var running = false
+    @Volatile private var geoPolicyFetchedAt = 0L
 
     private val pollRunnable = object : Runnable {
         override fun run() {
             if (!running) return
-            executor.execute { fetchPolicy() }
+            executor.execute {
+                fetchPolicy()
+                fetchGeofencePolicyIfStale()
+                sampleGeofenceIfDue()
+            }
             val pm = getSystemService(Context.POWER_SERVICE) as PowerManager
             handler.postDelayed(this, if (pm.isInteractive) POLL_ACTIVE_MS else POLL_IDLE_MS)
         }
@@ -75,13 +82,20 @@ class PolicyPollService : Service() {
         super.onCreate()
         createChannel()
         val notification = buildNotification()
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE) {
-            ServiceCompat.startForeground(
+        // Declaring the LOCATION type without the permission throws on API 34+,
+        // so only claim it when the student has actually granted location.
+        val hasLocation = LocationSampler.hasAnyPermission(this)
+        when {
+            Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE -> {
+                var type = ServiceInfo.FOREGROUND_SERVICE_TYPE_SPECIAL_USE
+                if (hasLocation) type = type or ServiceInfo.FOREGROUND_SERVICE_TYPE_LOCATION
+                ServiceCompat.startForeground(this, NOTIFICATION_ID, notification, type)
+            }
+            Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q -> ServiceCompat.startForeground(
                 this, NOTIFICATION_ID, notification,
-                ServiceInfo.FOREGROUND_SERVICE_TYPE_SPECIAL_USE,
+                if (hasLocation) ServiceInfo.FOREGROUND_SERVICE_TYPE_LOCATION else 0,
             )
-        } else {
-            startForeground(NOTIFICATION_ID, notification)
+            else -> startForeground(NOTIFICATION_ID, notification)
         }
     }
 
@@ -137,6 +151,53 @@ class PolicyPollService : Service() {
             Log.d(TAG, "poll failed: ${e.message}")
         } finally {
             conn?.disconnect()
+        }
+    }
+
+    private fun fetchGeofencePolicyIfStale() {
+        val now = System.currentTimeMillis()
+        if (now - geoPolicyFetchedAt < GEO_POLICY_TTL_MS) return
+        val token = PolicyStore.token(this) ?: return
+        val baseUrl = PolicyStore.baseUrl(this) ?: return
+        var conn: HttpURLConnection? = null
+        try {
+            conn = (URL("$baseUrl/geofence/policy").openConnection() as HttpURLConnection).apply {
+                requestMethod = "GET"
+                connectTimeout = 10_000
+                readTimeout = 10_000
+                setRequestProperty("Accept", "application/json")
+                setRequestProperty("Authorization", "Bearer $token")
+            }
+            if (conn.responseCode in 200..299) {
+                val body = conn.inputStream.bufferedReader().use { it.readText() }
+                PolicyStore.applyGeofencePolicyJson(this, JSONObject(body))
+                geoPolicyFetchedAt = now
+            }
+        } catch (e: Exception) {
+            Log.d(TAG, "geofence policy fetch failed: ${e.message}")
+        } finally {
+            conn?.disconnect()
+        }
+    }
+
+    /**
+     * During curfew, take a fix every `checkIntervalMinutes` (more often while
+     * we're still deciding whether an exit is real) and run the fence check.
+     * An exit or spoofing event is pushed to the backend straight away.
+     */
+    private fun sampleGeofenceIfDue() {
+        if (!GeofenceEvaluator.isEnforcing(this)) return
+        if (!LocationSampler.hasAnyPermission(this)) return
+        val policy = PolicyStore.geofencePolicy(this)
+        val now = System.currentTimeMillis()
+        val deciding = PolicyStore.geofenceStreak(this) > 0
+        val interval = if (deciding) 60_000L else policy.intervalMinutes.coerceAtLeast(1) * 60_000L
+        if (now - PolicyStore.lastSampleAt(this) < interval) return
+
+        PolicyStore.markSampleAttempt(this)
+        val fix = LocationSampler.sample(this) ?: return
+        when (GeofenceEvaluator.process(this, fix)) {
+            "exit", "mock_location", "enter" -> ScreenTimeSync.syncNow(this)
         }
     }
 

@@ -13,6 +13,7 @@ class AdminGeofenceController extends GetxController {
   final RxList<GeofenceBreachEvent> breachLogs = <GeofenceBreachEvent>[].obs;
   final RxBool isLoading = false.obs;
   final RxBool isSaving = false.obs;
+  final RxString loadError = ''.obs;
 
   @override
   void onInit() {
@@ -21,14 +22,18 @@ class AdminGeofenceController extends GetxController {
   }
 
   Future<void> loadData() async {
-    isLoading.value = true;
+    isLoading.value = breachLogs.isEmpty;
+    loadError.value = '';
     try {
-      final p = await _repository.fetchPolicy();
-      policy.value = p;
-      final logs = await _repository.fetchBreachLogs();
-      breachLogs.assignAll(logs);
+      final results = await Future.wait([
+        _repository.fetchPolicy(),
+        _repository.fetchBreachLogs(),
+      ]);
+      policy.value = results[0] as GeofencePolicyModel;
+      breachLogs.assignAll(results[1] as List<GeofenceBreachEvent>);
     } catch (e) {
       debugPrint('[AdminGeofence] loadData error: $e');
+      loadError.value = 'Could not load geofence data. Pull to retry.';
     } finally {
       isLoading.value = false;
     }
@@ -43,155 +48,144 @@ class AdminGeofenceController extends GetxController {
   List<GeofenceBreachEvent> get resolvedLogs =>
       breachLogs.where((e) => e.isResolved).toList();
 
-  /// Update Curfew active start & end times
+  // ---------- Policy ----------
+
   Future<void> updateCurfewTimes(TimeOfDay start, TimeOfDay end) async {
+    if (start == end) {
+      AppSnackbar.warning('Invalid Curfew', 'Start and end time cannot be the same.');
+      return;
+    }
+    await _savePolicy(
+      policy.value.copyWith(startTime: start, endTime: end),
+      success: ('Curfew Updated', 'Curfew now runs ${policy.value.copyWith(startTime: start, endTime: end).formatTimeRange()}.'),
+    );
+  }
+
+  Future<void> toggleGeofence(bool enabled) => _savePolicy(
+        policy.value.copyWith(isActive: enabled),
+        success: enabled
+            ? ('Geofencing Active', 'Campus perimeter is monitored during curfew.')
+            : ('Geofencing Paused', 'Perimeter monitoring is off until re-enabled.'),
+      );
+
+  Future<void> toggleLockOnBreach(bool enabled) => _savePolicy(
+        policy.value.copyWith(enforcePhoneLock: enabled),
+        success: enabled
+            ? ('Auto-lock On', 'Phones lock automatically while outside campus during curfew.')
+            : ('Auto-lock Off', 'Breaches are reported but phones stay usable.'),
+      );
+
+  Future<void> _savePolicy(GeofencePolicyModel updated, {required (String, String) success}) async {
+    final previous = policy.value;
+    policy.value = updated; // optimistic
     isSaving.value = true;
     try {
-      final updated = policy.value.copyWith(startTime: start, endTime: end);
       await _repository.savePolicy(updated);
-      policy.value = updated;
-      AppSnackbar.success(
-        'Curfew Updated',
-        'Geofence curfew schedule set to ${updated.formatTimeRange()}',
-      );
+      AppSnackbar.success(success.$1, success.$2);
     } catch (e) {
-      AppSnackbar.error('Save Failed', 'Could not update curfew: $e');
+      policy.value = previous;
+      debugPrint('[AdminGeofence] savePolicy error: $e');
+      AppSnackbar.error('Not Saved', 'Could not reach the server. Curfew settings are unchanged.');
     } finally {
       isSaving.value = false;
     }
   }
 
-  /// Toggle Geofencing Active / Inactive
-  Future<void> toggleGeofence(bool enabled) async {
-    try {
-      final updated = policy.value.copyWith(isActive: enabled);
-      await _repository.savePolicy(updated);
-      policy.value = updated;
-      if (enabled) {
-        AppSnackbar.success('Geofencing Active', 'Hostel perimeter monitoring enabled.');
-      } else {
-        AppSnackbar.info('Geofencing Paused', 'Perimeter tracking has been temporarily disabled.');
-      }
-    } catch (e) {
-      AppSnackbar.error('Toggle Failed', '$e');
-    }
-  }
+  // ---------- Breach actions ----------
 
-  /// 🔒 Action 1: Remote Lock Student Phone
-  Future<void> remoteLockStudentPhone(GeofenceBreachEvent breach) async {
-    try {
-      await _repository.recordAdminAction(
-        breachId: breach.id,
-        studentId: breach.studentId,
-        action: BreachActionStatus.phoneLocked,
+  /// 🔒 Remote-lock the student's phone (keeps their other screen-time rules).
+  Future<void> remoteLockStudentPhone(GeofenceBreachEvent breach) => _act(
+        breach,
+        BreachActionStatus.phoneLocked,
+        resolves: true,
+        before: () => _repository.lockStudentPhone(breach.studentId),
+        success: ('Device Locked', '${breach.studentName}\'s phone locks within about 30 seconds.'),
       );
-      breach.actionTaken = BreachActionStatus.phoneLocked;
-      breach.isResolved = true;
-      breachLogs.refresh();
 
-      AppSnackbar.success(
-        'Device Locked 🔒',
-        '${breach.studentName}\'s phone has been remotely locked via Hostel Screen Time enforcement.',
+  /// 📞 Call the student.
+  Future<void> callStudent(GeofenceBreachEvent breach) =>
+      _call(breach, breach.phone, BreachActionStatus.calledStudent, 'Student mobile number is not available.');
+
+  /// 👨‍👩‍👧 Call the parent / guardian.
+  Future<void> callParent(GeofenceBreachEvent breach) =>
+      _call(breach, breach.parentPhone, BreachActionStatus.calledParent, 'Parent contact is not available.');
+
+  /// ⚠️ Official in-app curfew warning (delivered by the backend).
+  Future<void> sendCurfewWarning(GeofenceBreachEvent breach) => _act(
+        breach,
+        BreachActionStatus.warningSent,
+        success: ('Warning Sent', 'Curfew warning queued for ${breach.studentName}.'),
       );
-    } catch (e) {
-      AppSnackbar.error('Remote Lock Failed', '$e');
-    }
-  }
 
-  /// 📞 Action 2: Call Student Directly
-  Future<void> callStudent(GeofenceBreachEvent breach) async {
-    if (breach.phone.isEmpty) {
-      AppSnackbar.warning('No Phone Number', 'Student mobile number is not available.');
+  /// 🟢 Gate pass: backend sets `exemptUntil` so the phone stops reporting.
+  Future<void> grantTemporaryGatePass(GeofenceBreachEvent breach, int hours) => _act(
+        breach,
+        BreachActionStatus.gatePassGranted,
+        resolves: true,
+        gatePassHours: hours,
+        success: ('Gate Pass Granted', '${breach.studentName} may be outside for the next $hours h.'),
+      );
+
+  Future<void> dismissBreach(GeofenceBreachEvent breach) =>
+      _act(breach, BreachActionStatus.dismissed, resolves: true);
+
+  Future<void> _call(GeofenceBreachEvent breach, String number, BreachActionStatus action, String missingMsg) async {
+    if (number.trim().isEmpty) {
+      AppSnackbar.warning('No Number', missingMsg);
       return;
     }
-
-    final uri = Uri.parse('tel:${breach.phone}');
-    if (await canLaunchUrl(uri)) {
-      await launchUrl(uri);
-      await _repository.recordAdminAction(
-        breachId: breach.id,
-        studentId: breach.studentId,
-        action: BreachActionStatus.calledStudent,
-      );
-      breach.actionTaken = BreachActionStatus.calledStudent;
-      breachLogs.refresh();
-    } else {
-      AppSnackbar.error('Call Error', 'Could not open phone dialer.');
-    }
-  }
-
-  /// 👨‍👩‍👧 Action 3: Call Parent / Guardian
-  Future<void> callParent(GeofenceBreachEvent breach) async {
-    if (breach.parentPhone.isEmpty) {
-      AppSnackbar.warning('No Parent Contact', 'Parent emergency contact is not available.');
+    try {
+      final launched = await launchUrl(Uri(scheme: 'tel', path: number.trim()));
+      if (!launched) throw Exception('no dialer');
+    } catch (_) {
+      AppSnackbar.error('Call Error', 'Could not open the phone dialer.');
       return;
     }
-
-    final uri = Uri.parse('tel:${breach.parentPhone}');
-    if (await canLaunchUrl(uri)) {
-      await launchUrl(uri);
-      await _repository.recordAdminAction(
-        breachId: breach.id,
-        studentId: breach.studentId,
-        action: BreachActionStatus.calledParent,
-      );
-      breach.actionTaken = BreachActionStatus.calledParent;
-      breachLogs.refresh();
-    } else {
-      AppSnackbar.error('Call Error', 'Could not open phone dialer.');
-    }
+    await _act(breach, action);
   }
 
-  /// ⚠️ Action 4: Send Official In-App Curfew Warning
-  Future<void> sendCurfewWarning(GeofenceBreachEvent breach) async {
-    try {
-      await _repository.recordAdminAction(
-        breachId: breach.id,
-        studentId: breach.studentId,
-        action: BreachActionStatus.warningSent,
-      );
-      breach.actionTaken = BreachActionStatus.warningSent;
-      breachLogs.refresh();
-
-      AppSnackbar.info(
-        'Warning Dispatched ⚠️',
-        'Urgent curfew warning notification sent to ${breach.studentName}\'s screen.',
-      );
-    } catch (e) {
-      AppSnackbar.error('Failed to Send Warning', '$e');
-    }
-  }
-
-  /// 🟢 Action 5: Grant Temporary Gate Pass (Allow excursion)
-  Future<void> grantTemporaryGatePass(GeofenceBreachEvent breach, int hours) async {
-    try {
-      await _repository.recordAdminAction(
-        breachId: breach.id,
-        studentId: breach.studentId,
-        action: BreachActionStatus.gatePassGranted,
-      );
-      breach.actionTaken = BreachActionStatus.gatePassGranted;
-      breach.isResolved = true;
-      breachLogs.refresh();
-
-      AppSnackbar.success(
-        'Gate Pass Granted 🟢',
-        'Authorized $hours-hour gate pass granted for ${breach.studentName}.',
-      );
-    } catch (e) {
-      AppSnackbar.error('Error Granting Pass', '$e');
-    }
-  }
-
-  /// Dismiss alert
-  Future<void> dismissBreach(GeofenceBreachEvent breach) async {
-    await _repository.recordAdminAction(
-      breachId: breach.id,
-      studentId: breach.studentId,
-      action: BreachActionStatus.dismissed,
-    );
-    breach.actionTaken = BreachActionStatus.dismissed;
-    breach.isResolved = true;
+  /// Applies an action optimistically, persists it, then re-syncs from the
+  /// server so every warden sees the same state. Rolls back on failure.
+  Future<void> _act(
+    GeofenceBreachEvent breach,
+    BreachActionStatus action, {
+    bool resolves = false,
+    int? gatePassHours,
+    Future<void> Function()? before,
+    (String, String)? success,
+  }) async {
+    final prevAction = breach.actionTaken;
+    final prevResolved = breach.isResolved;
+    breach.actionTaken = action;
+    if (resolves) breach.isResolved = true;
     breachLogs.refresh();
+
+    try {
+      if (before != null) await before();
+      await _repository.recordAdminAction(
+        breachId: breach.id,
+        studentId: breach.studentId,
+        action: action,
+        gatePassHours: gatePassHours,
+      );
+      if (success != null) AppSnackbar.success(success.$1, success.$2);
+      loadData();
+    } catch (e) {
+      breach.actionTaken = prevAction;
+      breach.isResolved = prevResolved;
+      breachLogs.refresh();
+      debugPrint('[AdminGeofence] action ${action.name} failed: $e');
+      AppSnackbar.error('Action Failed', 'Could not record "${_label(action)}". Please try again.');
+    }
   }
+
+  static String _label(BreachActionStatus a) => switch (a) {
+        BreachActionStatus.phoneLocked => 'Lock phone',
+        BreachActionStatus.calledStudent => 'Call student',
+        BreachActionStatus.calledParent => 'Call parent',
+        BreachActionStatus.warningSent => 'Send warning',
+        BreachActionStatus.gatePassGranted => 'Gate pass',
+        BreachActionStatus.dismissed => 'Dismiss',
+        BreachActionStatus.none => 'None',
+      };
 }

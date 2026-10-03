@@ -245,6 +245,31 @@ class AdminGeofenceScreen extends StatelessWidget {
               ),
             ],
           ),
+          const Divider(height: 24),
+          // Enforcement: lock the phone while outside (self-releasing on return)
+          Row(
+            children: [
+              const Icon(Icons.phonelink_lock_rounded, color: AppColors.cancelledRed, size: 20),
+              const SizedBox(width: 10),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text('Auto-lock phone when outside', style: AppTextStyles.bodyMd.copyWith(fontWeight: FontWeight.w600)),
+                    Text(
+                      'Locks on the student phone during a breach and unlocks when they return.',
+                      style: AppTextStyles.caption.copyWith(color: AppColors.textSecondary),
+                    ),
+                  ],
+                ),
+              ),
+              Switch(
+                value: policy.enforcePhoneLock,
+                activeThumbColor: AppColors.cancelledRed,
+                onChanged: policy.isActive ? controller.toggleLockOnBreach : null,
+              ),
+            ],
+          ),
         ],
       ),
     );
@@ -502,7 +527,7 @@ class AdminGeofenceScreen extends StatelessWidget {
           ),
           const SizedBox(height: 6),
           Text(
-            'Hari Saurabh Hostel boundary defined with ${CampusGeofenceService.campusPolygon.length} GPS perimeter coordinates (~22.55° N, 72.91° E). Evaluated with Ray-Casting algorithm.',
+            'Hari Saurabh Hostel boundary defined with ${CampusGeofenceService.campusPolygon.length} GPS perimeter coordinates (~22.55° N, 72.91° E). Checked on every student phone during curfew; a breach needs two consecutive GPS fixes outside.',
             style: AppTextStyles.caption.copyWith(color: AppColors.textSecondary),
           ),
         ],

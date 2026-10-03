@@ -213,6 +213,7 @@ object ScreenTimeSync {
         }
 
         val blockEvents = PolicyStore.pendingBlockEvents(context)
+        val geofenceEvents = PolicyStore.pendingGeofenceEvents(context)
         val policy = PolicyStore.policy(context)
 
         val body = JSONObject()
@@ -221,9 +222,12 @@ object ScreenTimeSync {
             .put("isScreenOn", isScreenOn)
             .put("currentApp", currentPackage?.let { UsageCollector.appLabel(context, it) } ?: "Idle")
             .put("currentPackage", currentPackage ?: JSONObject.NULL)
+            // Lets the backend detect a phone whose clock was moved to dodge curfew.
+            .put("deviceTime", System.currentTimeMillis())
             .put("compliance", complianceJson(context, policy))
         if (breakdown.length() > 0) body.put("appUsageBreakdown", breakdown)
         if (blockEvents.length() > 0) body.put("blockEvents", blockEvents)
+        if (geofenceEvents.length() > 0) body.put("geofenceEvents", geofenceEvents)
 
         var conn: HttpURLConnection? = null
         return try {
@@ -241,6 +245,7 @@ object ScreenTimeSync {
             if (code in 200..299) {
                 PolicyStore.markIconsSent(context, iconsInThisPing)
                 PolicyStore.dropBlockEvents(context, blockEvents.length())
+                PolicyStore.dropGeofenceEvents(context, geofenceEvents.length())
                 // The ping response may echo the current policy; otherwise fetch it.
                 val applied = runCatching {
                     val respStr = conn.inputStream.bufferedReader().use { it.readText() }
@@ -271,6 +276,9 @@ object ScreenTimeSync {
             .put("policyAppliedAt", PolicyStore.policyAppliedAt(context))
             .put("appVersion", versionName)
             .put("sdkInt", android.os.Build.VERSION.SDK_INT)
+            .put("locationPermission", LocationSampler.permission(context).name.lowercase())
+            .put("geofenceState", PolicyStore.geofenceState(context).name.lowercase())
+            .put("geofenceLastSampleAt", PolicyStore.lastSampleAt(context))
             .put("manufacturer", android.os.Build.MANUFACTURER)
     }
 

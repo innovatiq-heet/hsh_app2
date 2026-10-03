@@ -46,6 +46,16 @@ object PolicyStore {
     private const val KEY_SENT_ICONS = "sent_icons"
     private const val KEY_BLOCK_EVENTS = "block_events"
 
+    private const val KEY_GEO_POLICY = "geofence_policy"
+    private const val KEY_GEO_STATE = "geofence_state"
+    private const val KEY_GEO_STREAK = "geofence_streak"
+    private const val KEY_GEO_HEARTBEAT_AT = "geofence_heartbeat_at"
+    private const val KEY_GEO_LAST_FIX = "geofence_last_fix"
+    private const val KEY_GEO_LAST_SAMPLE_AT = "geofence_last_sample_at"
+    private const val KEY_GEO_LAST_MOCK_AT = "geofence_last_mock_at"
+    private const val KEY_GEO_EVENTS = "geofence_events"
+    private const val MAX_GEO_EVENTS = 300
+
     private const val KEY_IS_LOCKED = "is_locked"
     private const val KEY_BLOCKED = "blocked_packages"
     private const val KEY_DAILY_LIMIT = "daily_limit_minutes"
@@ -265,6 +275,105 @@ object PolicyStore {
         val rest = JSONArray()
         for (i in count until arr.length()) rest.put(arr.get(i))
         prefs(context).edit().putString(KEY_BLOCK_EVENTS, rest.toString()).apply()
+    }
+
+    // ---------- Geofence ----------
+
+    @Volatile private var geoPolicyCache: GeofencePolicy? = null
+
+    fun geofencePolicy(context: Context): GeofencePolicy {
+        geoPolicyCache?.let { return it }
+        val raw = prefs(context).getString(KEY_GEO_POLICY, null)
+        val parsed = raw?.let { runCatching { GeofencePolicy.fromJson(JSONObject(it)) }.getOrNull() } ?: GeofencePolicy()
+        geoPolicyCache = parsed
+        return parsed
+    }
+
+    fun saveGeofencePolicy(context: Context, policy: GeofencePolicy) {
+        prefs(context).edit().putString(KEY_GEO_POLICY, policy.toJson().toString()).apply()
+        val changed = geoPolicyCache != policy
+        geoPolicyCache = policy
+        if (changed) {
+            Log.i(TAG, "Geofence policy updated: $policy")
+            synchronized(listeners) { listeners.toList() }.forEach { runCatching { it() } }
+        }
+    }
+
+    /** Parses `/geofence/policy` (or a `geofence` object inside any policy payload). */
+    fun applyGeofencePolicyJson(context: Context, root: JSONObject): GeofencePolicy? {
+        val parsed = GeofencePolicy.fromJson(root, geofencePolicy(context)) ?: return null
+        saveGeofencePolicy(context, parsed)
+        return parsed
+    }
+
+    fun geofenceState(context: Context): GeofenceState =
+        runCatching { GeofenceState.valueOf(prefs(context).getString(KEY_GEO_STATE, null) ?: "") }
+            .getOrDefault(GeofenceState.UNKNOWN)
+
+    fun geofenceStreak(context: Context): Int = prefs(context).getInt(KEY_GEO_STREAK, 0)
+    fun geofenceHeartbeatAt(context: Context): Long = prefs(context).getLong(KEY_GEO_HEARTBEAT_AT, 0L)
+
+    fun saveGeofenceState(context: Context, state: GeofenceState, streak: Int, heartbeatAt: Long? = null) {
+        val old = geofenceState(context)
+        prefs(context).edit().apply {
+            putString(KEY_GEO_STATE, state.name)
+            putInt(KEY_GEO_STREAK, streak)
+            if (heartbeatAt != null) putLong(KEY_GEO_HEARTBEAT_AT, heartbeatAt)
+        }.apply()
+        // The blocker may need to lock/unlock immediately on an exit/enter.
+        if (old != state) synchronized(listeners) { listeners.toList() }.forEach { runCatching { it() } }
+    }
+
+    fun lastFix(context: Context): LocationFix? {
+        val raw = prefs(context).getString(KEY_GEO_LAST_FIX, null) ?: return null
+        return runCatching {
+            val j = JSONObject(raw)
+            LocationFix(
+                latitude = j.getDouble("lat"),
+                longitude = j.getDouble("lng"),
+                accuracyMeters = j.getDouble("acc").toFloat(),
+                timeMillis = j.getLong("time"),
+                mocked = j.optBoolean("mock", false),
+            )
+        }.getOrNull()
+    }
+
+    fun saveLastFix(context: Context, fix: LocationFix) {
+        prefs(context).edit()
+            .putString(
+                KEY_GEO_LAST_FIX,
+                JSONObject().put("lat", fix.latitude).put("lng", fix.longitude)
+                    .put("acc", fix.accuracyMeters.toDouble()).put("time", fix.timeMillis).put("mock", fix.mocked).toString(),
+            )
+            .putLong(KEY_GEO_LAST_SAMPLE_AT, System.currentTimeMillis())
+            .apply()
+    }
+
+    fun lastSampleAt(context: Context): Long = prefs(context).getLong(KEY_GEO_LAST_SAMPLE_AT, 0L)
+    fun markSampleAttempt(context: Context) = prefs(context).edit().putLong(KEY_GEO_LAST_SAMPLE_AT, System.currentTimeMillis()).apply()
+
+    fun lastMockEventAt(context: Context): Long = prefs(context).getLong(KEY_GEO_LAST_MOCK_AT, 0L)
+    fun markMockEvent(context: Context, at: Long) = prefs(context).edit().putLong(KEY_GEO_LAST_MOCK_AT, at).apply()
+
+    fun recordGeofenceEvent(context: Context, event: JSONObject) {
+        val p = prefs(context)
+        val arr = runCatching { JSONArray(p.getString(KEY_GEO_EVENTS, "[]")) }.getOrDefault(JSONArray())
+        arr.put(event)
+        val trimmed = if (arr.length() > MAX_GEO_EVENTS) {
+            JSONArray().also { out -> for (i in arr.length() - MAX_GEO_EVENTS until arr.length()) out.put(arr.get(i)) }
+        } else arr
+        p.edit().putString(KEY_GEO_EVENTS, trimmed.toString()).apply()
+    }
+
+    fun pendingGeofenceEvents(context: Context): JSONArray =
+        runCatching { JSONArray(prefs(context).getString(KEY_GEO_EVENTS, "[]")) }.getOrDefault(JSONArray())
+
+    fun dropGeofenceEvents(context: Context, count: Int) {
+        if (count <= 0) return
+        val arr = pendingGeofenceEvents(context)
+        val rest = JSONArray()
+        for (i in count until arr.length()) rest.put(arr.get(i))
+        prefs(context).edit().putString(KEY_GEO_EVENTS, rest.toString()).apply()
     }
 
     // ---------- helpers ----------

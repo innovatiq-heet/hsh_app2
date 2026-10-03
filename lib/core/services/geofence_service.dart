@@ -13,7 +13,10 @@ enum GeofenceStatus {
   unknown,
 }
 
-/// Validates whether coordinates fall inside the Hari Saurabh Hostel campus perimeter.
+/// Campus perimeter maths for the admin UI (map preview, distance labels).
+///
+/// Enforcement happens natively in `GeofenceEvaluator.kt`, which carries the
+/// same polygon; keep the two in sync if the outline changes.
 class CampusGeofenceService {
   CampusGeofenceService._();
   static final CampusGeofenceService instance = CampusGeofenceService._();
@@ -32,64 +35,53 @@ class CampusGeofenceService {
     LatLng(22.554003697052291, 72.918952455256232),
     LatLng(22.55618098579334, 72.919393558763247),
     LatLng(22.557134125502561, 72.919293597367883),
-    LatLng(22.558964147296141, 72.91912238597169),
   ];
 
-  /// Standard Ray-Casting algorithm for Point-in-Polygon (PIP) testing.
-  /// Returns `true` if (latitude, longitude) is inside the hostel polygon.
+  /// Ray casting point-in-polygon. Horizontal edges never satisfy the first
+  /// test, so the division below is always safe.
   bool isInsideCampus(double lat, double lng) {
-    if (campusPolygon.isEmpty) return false;
-
     bool inside = false;
     int j = campusPolygon.length - 1;
-
     for (int i = 0; i < campusPolygon.length; i++) {
-      final xi = campusPolygon[i].longitude;
-      final yi = campusPolygon[i].latitude;
-      final xj = campusPolygon[j].longitude;
-      final yj = campusPolygon[j].latitude;
-
-      final intersect = ((yi > lat) != (yj > lat)) &&
-          (lng < (xj - xi) * (lat - yi) / ((yj - yi) != 0 ? (yj - yi) : 0.0000001) + xi);
-
-      if (intersect) inside = !inside;
+      final xi = campusPolygon[i].longitude, yi = campusPolygon[i].latitude;
+      final xj = campusPolygon[j].longitude, yj = campusPolygon[j].latitude;
+      if (((yi > lat) != (yj > lat)) && (lng < (xj - xi) * (lat - yi) / (yj - yi) + xi)) {
+        inside = !inside;
+      }
       j = i;
     }
-
     return inside;
   }
 
-  /// Calculates shortest straight-line distance in meters to the perimeter
+  /// Shortest distance in metres from the point to the fence **edge**.
+  ///
+  /// Uses a flat projection centred on the point; error is negligible over a
+  /// few hundred metres. (Measuring to the nearest *corner* overstated the
+  /// distance by up to the half-length of an edge.)
   double distanceToPerimeterMeters(double lat, double lng) {
-    double minDistance = double.infinity;
-    for (final point in campusPolygon) {
-      final d = _haversineDistance(lat, lng, point.latitude, point.longitude);
-      if (d < minDistance) {
-        minDistance = d;
-      }
+    const mPerDegLat = 110540.0;
+    final mPerDegLng = 111320.0 * math.cos(lat * math.pi / 180);
+
+    double best = double.infinity;
+    int j = campusPolygon.length - 1;
+    for (int i = 0; i < campusPolygon.length; i++) {
+      final ax = (campusPolygon[j].longitude - lng) * mPerDegLng;
+      final ay = (campusPolygon[j].latitude - lat) * mPerDegLat;
+      final bx = (campusPolygon[i].longitude - lng) * mPerDegLng;
+      final by = (campusPolygon[i].latitude - lat) * mPerDegLat;
+      final dx = bx - ax, dy = by - ay;
+      final len2 = dx * dx + dy * dy;
+      final t = len2 == 0 ? 0.0 : (-(ax * dx + ay * dy) / len2).clamp(0.0, 1.0);
+      final cx = ax + t * dx, cy = ay + t * dy;
+      best = math.min(best, math.sqrt(cx * cx + cy * cy));
+      j = i;
     }
-    return minDistance;
+    return best;
   }
-
-  double _haversineDistance(double lat1, double lon1, double lat2, double lon2) {
-    const r = 6371000.0; // Earth radius in meters
-    final dLat = _degToRad(lat2 - lat1);
-    final dLon = _degToRad(lon2 - lon1);
-    final a = math.sin(dLat / 2) * math.sin(dLat / 2) +
-        math.cos(_degToRad(lat1)) *
-            math.cos(_degToRad(lat2)) *
-            math.sin(dLon / 2) *
-            math.sin(dLon / 2);
-    final c = 2 * math.atan2(math.sqrt(a), math.sqrt(1 - a));
-    return r * c;
-  }
-
-  double _degToRad(double deg) => deg * (math.pi / 180.0);
 
   /// Approximate center of campus for maps view
   LatLng get campusCenter {
-    double sumLat = 0;
-    double sumLng = 0;
+    double sumLat = 0, sumLng = 0;
     for (final p in campusPolygon) {
       sumLat += p.latitude;
       sumLng += p.longitude;

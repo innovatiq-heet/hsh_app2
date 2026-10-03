@@ -5,7 +5,6 @@ import '../../../core/constants/app_routes.dart';
 import '../../../core/enums/user_role.dart';
 import '../../../core/network/api_client.dart';
 import '../../../core/services/screen_time_service.dart';
-import '../../../core/services/student_geofence_monitor_service.dart';
 import '../../../core/storage/session_store.dart';
 import '../../screentime/models/screen_time_policy.dart';
 
@@ -23,14 +22,12 @@ class HomeController extends GetxController with WidgetsBindingObserver {
     super.onReady();
     WidgetsBinding.instance.addObserver(this);
     _enforceSetup();
-    StudentGeofenceMonitorService.instance.startCurfewMonitoring();
   }
 
   @override
   void onClose() {
     WidgetsBinding.instance.removeObserver(this);
     _policyTimer?.cancel();
-    StudentGeofenceMonitorService.instance.stopCurfewMonitoring();
     super.onClose();
   }
 

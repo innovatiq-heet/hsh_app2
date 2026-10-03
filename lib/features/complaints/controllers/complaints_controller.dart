@@ -16,8 +16,8 @@ class ComplaintsController extends GetxController with LoadStateMixin {
     load();
   }
 
-  Future<void> load() => guard(() async {
+  Future<void> load({bool showLoading = true}) => guard(() async {
         final aadhar = await _aadharService.resolve();
         complaints.assignAll(await _repository.list(studentAadhar: aadhar));
-      });
+      }, showLoading: showLoading);
 }

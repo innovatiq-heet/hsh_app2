@@ -22,7 +22,7 @@ class StudentProfileController extends GetxController
     loadProfile();
   }
 
-  Future<void> loadProfile({bool forceRefresh = false}) => guard(() async {
+  Future<void> loadProfile({bool forceRefresh = false, bool showLoading = true}) => guard(() async {
     final cachedPhone = await Get.find<SessionStore>().cachedPhone;
     final cachedEmail = await Get.find<SessionStore>().email;
     final cachedName = await Get.find<SessionStore>().name;
@@ -56,13 +56,13 @@ class StudentProfileController extends GetxController
       }
       rethrow;
     }
-  });
+  }, showLoading: showLoading);
 
   /// Pull-to-refresh / post-edit reload entry point — same as the initial
   /// load, kept as a distinct name so call sites read intent rather than
   /// implementation. (Not named `refresh()`: GetX's `ListNotifierMixin`
   /// already defines that, for forcing a `GetBuilder` rebuild.)
-  Future<void> refreshProfile() => loadProfile(forceRefresh: true);
+  Future<void> refreshProfile() => loadProfile(forceRefresh: true, showLoading: true);
 
   Future<void> logout() async {
     await Get.find<SessionStore>().clear();

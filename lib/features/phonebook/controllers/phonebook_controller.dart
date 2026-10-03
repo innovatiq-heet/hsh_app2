@@ -6,6 +6,7 @@ import 'package:url_launcher/url_launcher.dart';
 import '../../../core/enums/user_role.dart';
 import '../../../core/storage/session_store.dart';
 import '../../../core/utils/app_snackbar.dart';
+import '../services/caller_id_service.dart';
 import '../models/phonebook_models.dart';
 import '../services/phonebook_database_service.dart';
 import '../services/phonebook_sync_service.dart';
@@ -22,6 +23,10 @@ class PhonebookController extends GetxController {
   final selectedGroup = 'All'.obs;
   final lastSync = Rxn<DateTime>();
   final totalCachedCount = 0.obs;
+
+  /// Truecaller-style caller ID for this warden's phone.
+  final callerId = const CallerIdStatus().obs;
+  final isEnablingCallerId = false.obs;
 
   Timer? _debounceTimer;
 
@@ -57,13 +62,52 @@ class PhonebookController extends GetxController {
       return;
     }
 
+    _applyLaunchArguments();
     await _loadMetadata();
     await search();
+    refreshCallerIdStatus();
 
     // If cache is empty, trigger initial sync in the background
     if (totalCachedCount.value == 0) {
       syncNow(silent: true);
     }
+  }
+
+  /// Opened from a caller-ID popup/notification → jump straight to that student.
+  void _applyLaunchArguments() {
+    final args = Get.arguments;
+    final query = args is Map ? (args['query'] ?? args['studentId'] ?? '').toString() : '';
+    if (query.isNotEmpty) {
+      searchController.text = query;
+      searchText.value = query;
+    }
+  }
+
+  Future<void> refreshCallerIdStatus() async {
+    callerId.value = await CallerIdService.status();
+  }
+
+  /// Android: system role sheet (+ overlay permission). iOS: opens Settings → Phone.
+  Future<void> enableCallerId() async {
+    isEnablingCallerId.value = true;
+    try {
+      final ok = await CallerIdService.requestEnable();
+      await refreshCallerIdStatus();
+      if (ok && !callerId.value.overlayGranted && GetPlatform.isAndroid) {
+        await CallerIdService.requestOverlay();
+      }
+      if (GetPlatform.isIOS) {
+        // The directory must exist before the user flips the Settings switch.
+        await CallerIdService.syncDirectory();
+      }
+    } finally {
+      isEnablingCallerId.value = false;
+    }
+  }
+
+  Future<void> disableCallerId() async {
+    await CallerIdService.setActive(false);
+    await refreshCallerIdStatus();
   }
 
   Future<void> _loadMetadata() async {
@@ -119,6 +163,8 @@ class PhonebookController extends GetxController {
       if (res.success) {
         await _loadMetadata();
         await search();
+        // iOS caller ID reads a pre-built directory; keep it in step with the cache.
+        CallerIdService.syncDirectory();
         if (!silent) {
           AppSnackbar.success(
             'Sync Complete',

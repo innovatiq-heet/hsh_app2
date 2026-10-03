@@ -8,6 +8,7 @@ import '../models/student_profile/student_profile_model.dart';
 import '../network/api_client.dart';
 import '../services/aadhar_service.dart';
 import '../services/screen_time_service.dart';
+import '../../features/phonebook/services/caller_id_service.dart';
 
 /// Clean, OOP-based Session and Student Data Store backed by [SharedPreferences].
 ///
@@ -140,6 +141,8 @@ class SessionStore extends GetxService {
     } else {
       await ScreenTimeService.stopMonitoring();
     }
+    // Caller ID only ever runs for warden/admin sessions.
+    if (!role.canOperate) await CallerIdService.setActive(false);
   }
 
   /// Updates and persists student profile data without data redundancy.
@@ -190,8 +193,9 @@ class SessionStore extends GetxService {
       Get.find<ApiClient>().setAuthToken(null);
     }
 
-    // 3. Stop screen-time monitoring
+    // 3. Stop screen-time monitoring and caller ID
     await ScreenTimeService.stopMonitoring();
+    await CallerIdService.setActive(false);
 
     // 4. Invalidate Aadhar cache
     if (Get.isRegistered<AadharService>()) {

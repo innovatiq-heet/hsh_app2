@@ -24,6 +24,8 @@
     <uses-permission android:name="android.permission.ACCESS_BACKGROUND_LOCATION" />
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
     <uses-permission android:name="android.permission.REQUEST_IGNORE_BATTERY_OPTIMIZATIONS" />
+    <!-- Caller ID popup over the incoming-call screen (wardens only) -->
+    <uses-permission android:name="android.permission.SYSTEM_ALERT_WINDOW" />
 
     <!-- Bluetooth & Location Permissions for BLE Proximity Scanning -->
     <uses-permission android:name="android.permission.BLUETOOTH" android:maxSdkVersion="30" />
@@ -101,6 +103,16 @@
             <property
                 android:name="android.app.PROPERTY_SPECIAL_USE_FGS_SUBTYPE"
                 android:value="Hostel parental-control policy enforcement: keeps remote lock and app restrictions in sync" />
+        </service>
+
+        <!-- Caller ID: identifies students/parents from the phonebook when a call arrives -->
+        <service
+            android:name=".callerid.CallerIdScreeningService"
+            android:exported="true"
+            android:permission="android.permission.BIND_SCREENING_SERVICE">
+            <intent-filter>
+                <action android:name="android.telecom.CallScreeningService" />
+            </intent-filter>
         </service>
 
         <!-- Boot Receiver to restart policy sync after reboot -->

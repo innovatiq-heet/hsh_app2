@@ -1,12 +1,16 @@
 package com.example.hsh_app2
 
+import android.app.role.RoleManager
 import android.content.Context
 import android.content.Intent
 import android.net.Uri
+import android.os.Build
 import android.os.Handler
 import android.os.Looper
 import android.os.PowerManager
 import android.provider.Settings
+import com.example.hsh_app2.callerid.CallerIdOverlay
+import com.example.hsh_app2.callerid.CallerIdStore
 import com.example.hsh_app2.screentime.AppBlockerAccessibilityService
 import com.example.hsh_app2.screentime.DevicePolicy
 import com.example.hsh_app2.screentime.GeofenceEvaluator
@@ -29,6 +33,47 @@ import java.util.concurrent.Executors
 class MainActivity : FlutterActivity() {
     private val screenTimeExecutor = Executors.newSingleThreadExecutor()
     private val mainHandler = Handler(Looper.getMainLooper())
+
+    /** Pending answer for the Call Screening role dialog. */
+    private var roleResult: MethodChannel.Result? = null
+    /** Set when launched from a caller-ID popup/notification; read once by Flutter. */
+    private var launchTarget: Map<String, String>? = null
+
+    override fun onCreate(savedInstanceState: Bundle?) {
+        super.onCreate(savedInstanceState)
+        captureLaunchTarget(intent)
+    }
+
+    override fun onNewIntent(intent: Intent) {
+        super.onNewIntent(intent)
+        captureLaunchTarget(intent)
+    }
+
+    private fun captureLaunchTarget(intent: Intent?) {
+        val target = intent?.getStringExtra(CallerIdOverlay.EXTRA_TARGET) ?: return
+        launchTarget = mapOf(
+            "target" to target,
+            "studentId" to (intent.getStringExtra(CallerIdOverlay.EXTRA_STUDENT_ID) ?: ""),
+            "query" to (intent.getStringExtra(CallerIdOverlay.EXTRA_QUERY) ?: ""),
+        )
+        intent.removeExtra(CallerIdOverlay.EXTRA_TARGET)
+    }
+
+    override fun onActivityResult(requestCode: Int, resultCode: Int, data: Intent?) {
+        super.onActivityResult(requestCode, resultCode, data)
+        if (requestCode == REQ_CALL_SCREENING_ROLE) {
+            val held = holdsScreeningRole()
+            if (held) CallerIdStore.setActive(this, true)
+            roleResult?.success(held)
+            roleResult = null
+        }
+    }
+
+    private fun holdsScreeningRole(): Boolean {
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.Q) return false
+        val rm = getSystemService(Context.ROLE_SERVICE) as RoleManager
+        return rm.isRoleAvailable(RoleManager.ROLE_CALL_SCREENING) && rm.isRoleHeld(RoleManager.ROLE_CALL_SCREENING)
+    }
 
     override fun configureFlutterEngine(flutterEngine: FlutterEngine) {
         super.configureFlutterEngine(flutterEngine)
@@ -115,6 +160,62 @@ class MainActivity : FlutterActivity() {
                 }
             }
 
+        MethodChannel(flutterEngine.dartExecutor.binaryMessenger, "hsh/caller_id")
+            .setMethodCallHandler { call, result ->
+                when (call.method) {
+                    "getStatus" -> result.success(
+                        mapOf(
+                            "supported" to (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q),
+                            "enabled" to holdsScreeningRole(),
+                            "overlayGranted" to CallerIdOverlay.canDraw(this),
+                            "active" to CallerIdStore.isActive(this),
+                        ),
+                    )
+                    // System sheet: "Set HSH App as your caller ID & spam app?"
+                    "requestEnable" -> {
+                        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.Q) {
+                            result.success(false)
+                        } else if (holdsScreeningRole()) {
+                            CallerIdStore.setActive(this, true)
+                            result.success(true)
+                        } else {
+                            roleResult?.success(false)
+                            roleResult = result
+                            val rm = getSystemService(Context.ROLE_SERVICE) as RoleManager
+                            startActivityForResult(rm.createRequestRoleIntent(RoleManager.ROLE_CALL_SCREENING), REQ_CALL_SCREENING_ROLE)
+                        }
+                    }
+                    "requestOverlay" -> {
+                        if (CallerIdOverlay.canDraw(this)) {
+                            result.success(true)
+                        } else {
+                            runCatching {
+                                startActivity(
+                                    Intent(Settings.ACTION_MANAGE_OVERLAY_PERMISSION, Uri.parse("package:$packageName")),
+                                )
+                            }
+                            result.success(false)
+                        }
+                    }
+                    "setActive" -> {
+                        val active = call.argument<Boolean>("active") ?: false
+                        CallerIdStore.setActive(this, active)
+                        if (!active) CallerIdOverlay.hide()
+                        result.success(null)
+                    }
+                    "consumeLaunchTarget" -> {
+                        result.success(launchTarget)
+                        launchTarget = null
+                    }
+                    // Warden can test the lookup from the app without a real call.
+                    "lookup" -> {
+                        val matches = CallerIdStore.lookup(this, call.argument<String>("number"))
+                        result.success(matches.map { mapOf("studentId" to it.studentId, "name" to it.name, "place" to it.place, "relation" to it.relation) })
+                    }
+                    else -> result.notImplemented()
+                }
+            }
+
         MethodChannel(flutterEngine.dartExecutor.binaryMessenger, "hsh/geofence")
             .setMethodCallHandler { call, result ->
                 when (call.method) {
@@ -142,6 +243,10 @@ class MainActivity : FlutterActivity() {
         is JSONObject -> jsonToMap(v)
         is JSONArray -> (0 until v.length()).map { jsonValue(v.get(it)) }
         else -> v
+    }
+
+    companion object {
+        private const val REQ_CALL_SCREENING_ROLE = 7201
     }
 
     /** Usage access can't be requested via a runtime dialog — only via Settings. */

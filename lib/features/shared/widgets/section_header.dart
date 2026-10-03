@@ -1,4 +1,4 @@
-﻿import 'package:flutter/material.dart';
+import 'package:flutter/material.dart';
 import '../../../core/constants/app_colors.dart';
 import '../../../core/constants/app_dimens.dart';
 import '../../../core/constants/app_text_styles.dart';
@@ -7,12 +7,14 @@ class SectionHeader extends StatelessWidget {
   final String title;
   final String? actionLabel;
   final VoidCallback? onAction;
+  final Widget? trailing;
 
   const SectionHeader({
     super.key,
     required this.title,
     this.actionLabel,
     this.onAction,
+    this.trailing,
   });
 
   @override
@@ -22,6 +24,7 @@ class SectionHeader extends StatelessWidget {
       child: Row(
         children: [
           Expanded(child: Text(title, style: AppTextStyles.title)),
+          ?trailing,
           if (actionLabel != null && onAction != null)
             GestureDetector(
               onTap: onAction,

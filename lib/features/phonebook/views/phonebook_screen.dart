@@ -11,6 +11,7 @@ import '../../shared/widgets/gradient_header.dart';
 import '../../shared/widgets/status_badge.dart';
 import '../controllers/phonebook_controller.dart';
 import '../models/phonebook_models.dart';
+import '../widgets/caller_id_card.dart';
 
 class PhonebookScreen extends GetView<PhonebookController> {
   const PhonebookScreen({super.key});
@@ -380,6 +381,13 @@ class PhonebookScreen extends GetView<PhonebookController> {
               ),
             );
           }),
+
+          const SliverToBoxAdapter(
+            child: Padding(
+              padding: EdgeInsets.fromLTRB(AppDimens.screenPadding, AppDimens.gapMd, AppDimens.screenPadding, 0),
+              child: CallerIdCard(),
+            ),
+          ),
 
           // Search and Filters Section
           SliverToBoxAdapter(

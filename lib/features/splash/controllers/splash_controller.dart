@@ -4,6 +4,7 @@ import '../../../core/enums/user_role.dart';
 import '../../../core/constants/app_routes.dart';
 import '../../../core/network/api_client.dart';
 import '../../../core/services/screen_time_service.dart';
+import '../../../features/phonebook/services/caller_id_service.dart';
 import '../../../core/services/shorebird_service.dart';
 import '../../../core/storage/session_store.dart';
 
@@ -55,7 +56,20 @@ class SplashController extends GetxController {
     _routeByRole(role == UserRole.unknown ? UserRole.student : role);
   }
 
+  /// Launched by tapping a caller-ID popup: land on the phonebook with that student.
+  Future<void> _openCallerIdTargetIfAny(UserRole role) async {
+    final target = await CallerIdService.consumeLaunchTarget();
+    if (target == null || target['target'] != 'phonebook' || !role.canOperate) return;
+    // Let the role's home route settle first, then push the phonebook on top.
+    await Future.delayed(const Duration(milliseconds: 400));
+    Get.toNamed(Routes.operatorDirectory, arguments: {
+      'studentId': target['studentId'],
+      'query': target['query'],
+    });
+  }
+
   void _routeByRole(UserRole role) {
+    _openCallerIdTargetIfAny(role);
     switch (role) {
       case UserRole.student:
       case UserRole.leader:

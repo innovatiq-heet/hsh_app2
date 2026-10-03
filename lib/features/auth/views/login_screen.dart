@@ -98,7 +98,7 @@ class _FormPanel extends StatelessWidget {
             const SizedBox(height: 32),
             AppTextField(
               controller: controller.studentIdController,
-              label: 'Student ID / Bank Code',
+              label: 'Student ID', // Bank Code commented out
               prefixIcon: Icons.badge_outlined,
               keyboardType: TextInputType.text,
               validator: controller.validateStudentId,

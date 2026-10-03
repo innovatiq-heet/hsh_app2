@@ -36,7 +36,8 @@ class LoginController extends GetxController {
 
   String? validateStudentId(String? value) {
     if (value == null || value.trim().isEmpty) {
-      return 'Please enter your Student ID / Bank Code';
+      // return 'Please enter your Student ID / Bank Code';
+      return 'Please enter your Student ID';
     }
     return null;
   }

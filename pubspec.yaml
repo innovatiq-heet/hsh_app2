@@ -2,7 +2,7 @@ name: hsh_app2
 description: "Hari Saurabh Hostel App"
 publish_to: 'none'
 
-version: 1.0.0+1
+version: 1.0.1+2
 
 environment:
   sdk: ^3.11.4
@@ -48,6 +48,7 @@ dependencies:
   sqflite: ^2.4.2+1
   path: ^1.9.1
   url_launcher: ^6.3.2
+  shorebird_code_push: ^2.0.7
 
 dev_dependencies:
   flutter_test:
@@ -61,3 +62,4 @@ flutter:
 
   assets:
     - assets/images/
+    - shorebird.yaml

@@ -1,9 +1,10 @@
-﻿import 'package:get/get.dart';
+import 'package:get/get.dart';
 import '../../../core/enums/user_role.dart';
 import '../../../core/constants/app_routes.dart';
 import '../../../core/network/api_client.dart';
 import '../../../core/network/repository/authentication/auth_repository.dart';
 import '../../../core/services/screen_time_service.dart';
+import '../../../core/services/shorebird_service.dart';
 import '../../../core/storage/session_store.dart';
 
 class SplashController extends GetxController {
@@ -16,6 +17,9 @@ class SplashController extends GetxController {
   }
 
   Future<void> _bootstrap() async {
+    // Check for Shorebird OTA patches in background without blocking startup
+    ShorebirdService.instance.checkForUpdatesAndDownload();
+
     await Future.delayed(const Duration(milliseconds: 900));
     final hasSession = await Get.find<SessionStore>().hasSession;
     if (!hasSession) {

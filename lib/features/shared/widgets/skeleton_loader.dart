@@ -1,4 +1,4 @@
-﻿import 'package:flutter/material.dart';
+import 'package:flutter/material.dart';
 import '../../../core/constants/app_colors.dart';
 import '../../../core/constants/app_dimens.dart';
 
@@ -70,20 +70,39 @@ class _SkeletonLoaderState extends State<SkeletonLoader>
 class SkeletonList extends StatelessWidget {
   final int count;
   final double itemHeight;
+  final EdgeInsetsGeometry? padding;
+  final ScrollPhysics? physics;
+  final bool? shrinkWrap;
 
-  const SkeletonList({super.key, this.count = 5, this.itemHeight = 72});
+  const SkeletonList({
+    super.key,
+    this.count = 5,
+    this.itemHeight = 72,
+    this.padding,
+    this.physics,
+    this.shrinkWrap,
+  });
 
   @override
   Widget build(BuildContext context) {
-    return ListView.separated(
-      padding: const EdgeInsets.all(AppDimens.screenPadding),
-      itemCount: count,
-      separatorBuilder: (_, _) => const SizedBox(height: AppDimens.gapMd),
-      itemBuilder: (_, _) => SkeletonLoader(
-        height: itemHeight,
-        width: double.infinity,
-        borderRadius: BorderRadius.circular(AppDimens.radiusMd),
-      ),
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final isUnbounded = constraints.maxHeight.isInfinite;
+        return ListView.separated(
+          padding: padding ?? const EdgeInsets.all(AppDimens.screenPadding),
+          physics: isUnbounded
+              ? const NeverScrollableScrollPhysics()
+              : physics,
+          shrinkWrap: shrinkWrap ?? isUnbounded,
+          itemCount: count,
+          separatorBuilder: (_, _) => const SizedBox(height: AppDimens.gapMd),
+          itemBuilder: (_, _) => SkeletonLoader(
+            height: itemHeight,
+            width: double.infinity,
+            borderRadius: BorderRadius.circular(AppDimens.radiusMd),
+          ),
+        );
+      },
     );
   }
 }

@@ -204,7 +204,7 @@ class _FormPanel extends StatelessWidget {
             }),
             AppTextField(
               controller: controller.studentIdController,
-              label: 'Student ID',
+              label: 'Student ID / Mobile Number',
               prefixIcon: Icons.badge_outlined,
               keyboardType: TextInputType.text,
               validator: controller.validateStudentId,

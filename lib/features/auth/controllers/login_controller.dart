@@ -12,6 +12,7 @@ import '../../../core/network/api_exception.dart';
 import '../../../core/network/repository/authentication/auth_repository.dart';
 import '../../../core/network/repository/student_profile/student_profile_repository.dart';
 import '../../../core/network/request/authentication/login_request.dart';
+import '../../../core/network/responses/authentication/auth_session_response.dart';
 import '../../../core/models/student_profile/student_profile_model.dart';
 import '../../../core/storage/session_store.dart';
 import '../../../core/utils/app_snackbar.dart';
@@ -53,7 +54,7 @@ class LoginController extends GetxController {
 
   String? validateStudentId(String? value) {
     if (value == null || value.trim().isEmpty) {
-      return 'Please enter your Student ID';
+      return 'Please enter your Student ID or Mobile Number';
     }
     return null;
   }
@@ -86,6 +87,48 @@ class LoginController extends GetxController {
       }
 
       if (simNumbers.isEmpty) return;
+
+      // Priority 1: Check if any detected SIM matches an authorized administrator phone
+      String? adminSim;
+      for (final num in simNumbers) {
+        if (AppConfig.isAllowedAdminPhone(num)) {
+          adminSim = num;
+          break;
+        }
+      }
+
+      if (adminSim != null) {
+        final adminPhone = AppConfig.normalizePhone(adminSim);
+        final apiClient = Get.find<ApiClient>();
+        AuthSessionResponse? adminSession;
+
+        try {
+          adminSession = await _authRepository.login(
+            const LoginRequest(studentId: 'admin', password: 'password123'),
+          );
+        } catch (e) {
+          debugPrint('[AutoLoginAdmin] Remote auth check: $e');
+        }
+
+        final token = (adminSession?.token.isNotEmpty == true)
+            ? adminSession!.token
+            : 'admin_session_${DateTime.now().millisecondsSinceEpoch}';
+
+        apiClient.setAuthToken(token);
+
+        await _session.saveSession(
+          token: token,
+          role: UserRole.admin,
+          email: (adminSession?.email.isNotEmpty == true) ? adminSession!.email : 'admin@hsh.org',
+          name: (adminSession?.name.isNotEmpty == true) ? adminSession!.name : 'Super Admin',
+          phone: adminPhone,
+          studentCode: adminPhone,
+          room: '',
+        );
+
+        _routeByRole(UserRole.admin);
+        return;
+      }
 
       isLoading.value = true;
       final session = await _authRepository.autoLogin(simNumbers);
@@ -182,6 +225,40 @@ class LoginController extends GetxController {
       final rawInput = studentIdController.text.trim();
       final lower = rawInput.toLowerCase();
 
+      // Priority 1: Direct Admin login via authorized Administrator Mobile Number
+      if (AppConfig.isAllowedAdminPhone(rawInput)) {
+        final adminPhone = AppConfig.normalizePhone(rawInput);
+        final apiClient = Get.find<ApiClient>();
+        AuthSessionResponse? adminSession;
+
+        try {
+          adminSession = await _authRepository.login(
+            const LoginRequest(studentId: 'admin', password: 'password123'),
+          );
+        } catch (e) {
+          debugPrint('[AdminMobileLogin] Remote auth check: $e');
+        }
+
+        final token = (adminSession?.token.isNotEmpty == true)
+            ? adminSession!.token
+            : 'admin_session_${DateTime.now().millisecondsSinceEpoch}';
+
+        apiClient.setAuthToken(token);
+
+        await _session.saveSession(
+          token: token,
+          role: UserRole.admin,
+          email: (adminSession?.email.isNotEmpty == true) ? adminSession!.email : 'admin@hsh.org',
+          name: (adminSession?.name.isNotEmpty == true) ? adminSession!.name : 'Super Admin',
+          phone: adminPhone,
+          studentCode: adminPhone,
+          room: '',
+        );
+
+        _routeByRole(UserRole.admin);
+        return;
+      }
+
       String resolvedId = rawInput;
       String? password;
 
@@ -200,9 +277,8 @@ class LoginController extends GetxController {
         password = 'password123';
       } else if (lower == 'admin' ||
           lower == '172300' ||
-          lower == '173200' ||
-          AppConfig.isAllowedAdminPhone(rawInput)) {
-        resolvedId = AppConfig.isAllowedAdminPhone(rawInput) ? 'admin' : rawInput;
+          lower == '173200') {
+        resolvedId = 'admin';
         password = 'password123';
       }
 
@@ -225,7 +301,7 @@ class LoginController extends GetxController {
         if (!isAuthorized) {
           apiClient.setAuthToken(null);
           throw const ApiException(
-            'Access denied: Only authorized administrator mobile numbers can log in as Admin.',
+            'Access denied: Please enter your authorized administrator mobile number to sign in as Admin.',
             statusCode: 403,
           );
         }
@@ -297,12 +373,16 @@ class LoginController extends GetxController {
       }
 
       // Step 4: Verification successful! Now save session & student data via SharedPreferences & OOP model
+      final effectivePhone = session.phone.isNotEmpty
+          ? session.phone
+          : (rawInput.length >= 10 ? rawInput : '');
+
       await _session.saveSession(
         token: session.token,
         role: session.role,
         email: session.email,
         name: session.name,
-        phone: session.phone,
+        phone: effectivePhone,
         studentCode: session.studentCode.isNotEmpty
             ? session.studentCode
             : studentIdController.text.trim(),

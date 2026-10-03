@@ -34,18 +34,19 @@ class AppConfig {
     '9081476469',
   ];
 
+  /// Normalizes a phone number to its last 10 digits.
+  static String normalizePhone(String? phone) {
+    if (phone == null || phone.trim().isEmpty) return '';
+    final digits = phone.replaceAll(RegExp(r'\D'), '');
+    return digits.length >= 10 ? digits.substring(digits.length - 10) : digits;
+  }
+
   /// Checks if a given phone number belongs to an authorized administrator.
   static bool isAllowedAdminPhone(String? phone) {
-    if (phone == null || phone.trim().isEmpty) return false;
-    final digits = phone.replaceAll(RegExp(r'\D'), '');
-    final norm = digits.length >= 10
-        ? digits.substring(digits.length - 10)
-        : digits;
+    final norm = normalizePhone(phone);
+    if (norm.isEmpty) return false;
     return allowedAdminPhoneNumbers.any((p) {
-      final pDigits = p.replaceAll(RegExp(r'\D'), '');
-      final pNorm = pDigits.length >= 10
-          ? pDigits.substring(pDigits.length - 10)
-          : pDigits;
+      final pNorm = normalizePhone(p);
       return pNorm == norm;
     });
   }

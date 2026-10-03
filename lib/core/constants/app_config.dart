@@ -26,4 +26,27 @@ class AppConfig {
 
   /// Artificial delay used in repositories that serve mock/local data.
   static const Duration mockNetworkDelay = Duration(milliseconds: 600);
+
+  /// Authorized mobile numbers permitted to log in as Admin.
+  static const List<String> allowedAdminPhoneNumbers = [
+    '7984907753',
+    '7778885383',
+    '9081476469',
+  ];
+
+  /// Checks if a given phone number belongs to an authorized administrator.
+  static bool isAllowedAdminPhone(String? phone) {
+    if (phone == null || phone.trim().isEmpty) return false;
+    final digits = phone.replaceAll(RegExp(r'\D'), '');
+    final norm = digits.length >= 10
+        ? digits.substring(digits.length - 10)
+        : digits;
+    return allowedAdminPhoneNumbers.any((p) {
+      final pDigits = p.replaceAll(RegExp(r'\D'), '');
+      final pNorm = pDigits.length >= 10
+          ? pDigits.substring(pDigits.length - 10)
+          : pDigits;
+      return pNorm == norm;
+    });
+  }
 }

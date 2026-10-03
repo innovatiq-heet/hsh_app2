@@ -1,4 +1,5 @@
 import 'package:get/get.dart';
+import '../../../core/constants/app_config.dart';
 import '../../../core/enums/user_role.dart';
 import '../../../core/constants/app_routes.dart';
 import '../../../core/network/api_client.dart';
@@ -35,6 +36,15 @@ class SplashController extends GetxController {
     // Resolve active session and role
     final session = await _sessionStore.userSession;
     final role = session?.role ?? await _sessionStore.role;
+
+    // Restrict Admin access to authorized mobile numbers only
+    if (role == UserRole.admin || role == UserRole.warden) {
+      if (!AppConfig.isAllowedAdminPhone(session?.phone)) {
+        await _sessionStore.logout();
+        Get.offAllNamed(Routes.login);
+        return;
+      }
+    }
 
     // Re-arm background screen-time sync on every launch for students
     if (role.isStudentOrLeader) {

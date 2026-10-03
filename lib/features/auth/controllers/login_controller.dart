@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:permission_handler/permission_handler.dart';
 import 'package:mobile_number/mobile_number.dart';
+import '../../../core/constants/app_config.dart';
 import '../../../core/enums/user_role.dart';
 import '../../../core/constants/app_routes.dart';
 import '../../../core/network/api_client.dart';
@@ -16,6 +17,9 @@ import '../../../core/storage/session_store.dart';
 import '../../../core/utils/app_snackbar.dart';
 
 class LoginController extends GetxController {
+  /// Authorized administrator mobile numbers
+  static const List<String> allowedAdminPhoneNumbers = AppConfig.allowedAdminPhoneNumbers;
+
   final AuthRepository _authRepository = Get.find();
   final SessionStore _session = Get.find();
 
@@ -87,6 +91,16 @@ class LoginController extends GetxController {
       final session = await _authRepository.autoLogin(simNumbers);
       if (session.token.isEmpty) return;
 
+      // Restrict Admin login to authorized mobile numbers only
+      if (session.role == UserRole.admin || session.role == UserRole.warden) {
+        final isAuthorized = AppConfig.isAllowedAdminPhone(session.phone) ||
+            simNumbers.any(AppConfig.isAllowedAdminPhone);
+        if (!isAuthorized) {
+          debugPrint('[AutoLogin] Denied: SIM numbers do not match authorized admin numbers.');
+          return;
+        }
+      }
+
       final apiClient = Get.find<ApiClient>();
       apiClient.setAuthToken(session.token);
 
@@ -111,7 +125,9 @@ class LoginController extends GetxController {
 
         final profileRepo = Get.find<StudentProfileRepository>();
         final profile = await profileRepo.fetchProfile(
-          phone: session.phone.isNotEmpty ? session.phone : simNumbers.firstOrNull,
+          phone: session.phone.isNotEmpty
+              ? session.phone
+              : simNumbers.firstOrNull,
           email: session.email,
           studentCode: session.studentCode,
           name: session.name,
@@ -128,7 +144,9 @@ class LoginController extends GetxController {
           role: session.role,
           email: session.email,
           name: session.name,
-          phone: session.phone.isNotEmpty ? session.phone : simNumbers.firstOrNull,
+          phone: session.phone.isNotEmpty
+              ? session.phone
+              : simNumbers.firstOrNull,
           studentCode: session.studentCode,
           room: session.room,
           studentProfile: profile,
@@ -139,7 +157,9 @@ class LoginController extends GetxController {
           role: session.role,
           email: session.email,
           name: session.name,
-          phone: session.phone.isNotEmpty ? session.phone : simNumbers.firstOrNull,
+          phone: session.phone.isNotEmpty
+              ? session.phone
+              : simNumbers.firstOrNull,
           studentCode: session.studentCode,
           room: session.room,
         );
@@ -178,17 +198,17 @@ class LoginController extends GetxController {
           lower == 'laundry_man') {
         resolvedId = 'laundrymanager';
         password = 'password123';
-      } else if (lower == 'admin' || lower == '172300' || lower == '173200') {
-        resolvedId = rawInput;
+      } else if (lower == 'admin' ||
+          lower == '172300' ||
+          lower == '173200' ||
+          AppConfig.isAllowedAdminPhone(rawInput)) {
+        resolvedId = AppConfig.isAllowedAdminPhone(rawInput) ? 'admin' : rawInput;
         password = 'password123';
       }
 
       // Step 1: Authenticate credentials
       final session = await _authRepository.login(
-        LoginRequest(
-          studentId: resolvedId,
-          password: password,
-        ),
+        LoginRequest(studentId: resolvedId, password: password),
       );
 
       if (session.token.isEmpty) {
@@ -197,6 +217,19 @@ class LoginController extends GetxController {
 
       final apiClient = Get.find<ApiClient>();
       apiClient.setAuthToken(session.token);
+
+      // Step 1.5: Enforce mobile number restriction for Admin role
+      if (session.role == UserRole.admin || session.role == UserRole.warden) {
+        final isAuthorized = AppConfig.isAllowedAdminPhone(session.phone) ||
+            AppConfig.isAllowedAdminPhone(rawInput);
+        if (!isAuthorized) {
+          apiClient.setAuthToken(null);
+          throw const ApiException(
+            'Access denied: Only authorized administrator mobile numbers can log in as Admin.',
+            statusCode: 403,
+          );
+        }
+      }
 
       StudentProfileModel? verifiedProfile;
 
@@ -215,14 +248,16 @@ class LoginController extends GetxController {
           );
           final resData = res.data;
           if (resData is Map && resData['success'] == false) {
-            final msg = resData['message']?.toString() ??
+            final msg =
+                resData['message']?.toString() ??
                 'Student account not found or inactive.';
             throw ApiException(msg, statusCode: 401);
           }
         } on DioException catch (e) {
           apiClient.setAuthToken(null);
           final data = e.response?.data;
-          String msg = 'Student account not found or inactive. Please contact administration.';
+          String msg =
+              'Student account not found or inactive. Please contact administration.';
           if (data is Map &&
               data['message'] is String &&
               (data['message'] as String).trim().isNotEmpty) {
@@ -283,7 +318,9 @@ class LoginController extends GetxController {
       _showError(friendly);
     } catch (_) {
       Get.find<ApiClient>().setAuthToken(null);
-      _showError('Something went wrong. Please check your credentials and try again.');
+      _showError(
+        'Something went wrong. Please check your credentials and try again.',
+      );
     } finally {
       isLoading.value = false;
     }
@@ -314,10 +351,7 @@ class LoginController extends GetxController {
 
   void _showError(String message) {
     errorMessage.value = message;
-    AppSnackbar.error(
-      'Login Failed',
-      message,
-    );
+    AppSnackbar.error('Login Failed', message);
   }
 
   void _routeByRole(UserRole role) {

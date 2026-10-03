@@ -1,6 +1,6 @@
 name: hsh_app2
 description: "Hari Saurabh Hostel App"
-publish_to: 'none'
+publish_to: "none"
 
 version: 1.0.1+2
 

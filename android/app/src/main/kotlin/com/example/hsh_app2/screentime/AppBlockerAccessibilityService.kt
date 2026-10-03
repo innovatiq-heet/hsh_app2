@@ -24,7 +24,10 @@ class AppBlockerAccessibilityService : AccessibilityService() {
             "com.android.phone",
             "com.android.server.telecom",
             "com.google.android.packageinstaller",
-            "com.android.packageinstaller"
+            "com.android.packageinstaller",
+            "com.android.settings",
+            "com.samsung.android.settings",
+            "com.android.providers.settings"
         )
 
         /**
@@ -54,17 +57,28 @@ class AppBlockerAccessibilityService : AccessibilityService() {
     private var lastBlockedTime: Long = 0
 
     override fun onAccessibilityEvent(event: AccessibilityEvent?) {
-        if (event == null || event.eventType != AccessibilityEvent.TYPE_WINDOW_STATE_CHANGED) return
+        if (event == null) return
 
+        // We handle both window state changes and window content changes for stronger enforcement
+        when (event.eventType) {
+            AccessibilityEvent.TYPE_WINDOW_STATE_CHANGED -> handleWindowChange(event)
+            else -> return
+        }
+    }
+
+    private fun handleWindowChange(event: AccessibilityEvent) {
         val pkgName = event.packageName?.toString() ?: return
 
         // 1. Never block our own app
         if (pkgName == packageName) return
 
-        // 2. Never block essential system components or launchers
+        // 2. Never block our own BlockedAppActivity
+        if (pkgName == "com.example.hsh_app2") return
+
+        // 3. Never block essential system components or launchers
         if (isLauncherOrSystem(pkgName)) return
 
-        // 3. Check screen time policy
+        // 4. Check screen time policy
         val prefs = getSharedPreferences("hsh_screen_time_policy", Context.MODE_PRIVATE)
         val isLocked = prefs.getBoolean("is_locked", false)
         val blockedPackages = prefs.getStringSet("blocked_packages", emptySet()) ?: emptySet()
@@ -74,8 +88,8 @@ class AppBlockerAccessibilityService : AccessibilityService() {
 
         if (isTargetBlocked || isFullDeviceLocked) {
             val now = System.currentTimeMillis()
-            // Debounce rapid repeat triggers for the same package within 1.5 seconds
-            if (pkgName == lastBlockedPkg && (now - lastBlockedTime) < 1500) {
+            // Debounce rapid repeat triggers for the same package within 800ms
+            if (pkgName == lastBlockedPkg && (now - lastBlockedTime) < 800) {
                 return
             }
             lastBlockedPkg = pkgName
@@ -92,10 +106,17 @@ class AppBlockerAccessibilityService : AccessibilityService() {
 
             // Step B: Show native restriction notification screen
             val appLabel = UsageCollector.appLabel(this, pkgName)
+            val reason = when {
+                isFullDeviceLocked -> "Your device has been remotely locked by hostel administration."
+                isTargetBlocked -> "This app has been restricted by hostel policy."
+                else -> "Access restricted."
+            }
             val blockIntent = Intent(this, BlockedAppActivity::class.java).apply {
-                flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP
+                flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP or Intent.FLAG_ACTIVITY_SINGLE_TOP
                 putExtra(BlockedAppActivity.EXTRA_PACKAGE_NAME, pkgName)
                 putExtra(BlockedAppActivity.EXTRA_APP_NAME, appLabel)
+                putExtra(BlockedAppActivity.EXTRA_REASON, reason)
+                putExtra(BlockedAppActivity.EXTRA_IS_DEVICE_LOCKED, isFullDeviceLocked)
             }
             try {
                 startActivity(blockIntent)

@@ -1,14 +1,18 @@
 package com.example.hsh_app2.screentime
 
 import android.app.Activity
+import android.app.ActivityManager
+import android.content.Context
 import android.content.Intent
 import android.graphics.Color
 import android.graphics.Typeface
 import android.graphics.drawable.GradientDrawable
 import android.os.Bundle
+import android.os.Handler
+import android.os.Looper
 import android.util.TypedValue
 import android.view.Gravity
-import android.view.View
+import android.view.WindowManager
 import android.widget.Button
 import android.widget.LinearLayout
 import android.widget.TextView
@@ -18,13 +22,43 @@ class BlockedAppActivity : Activity() {
     companion object {
         const val EXTRA_PACKAGE_NAME = "extra_package_name"
         const val EXTRA_APP_NAME = "extra_app_name"
+        const val EXTRA_REASON = "extra_reason"
+        const val EXTRA_IS_DEVICE_LOCKED = "extra_is_device_locked"
+    }
+
+    private val handler = Handler(Looper.getMainLooper())
+    private var isDeviceLocked = false
+
+    /** Re-check lock policy periodically while this activity is shown */
+    private val lockCheckRunnable = object : Runnable {
+        override fun run() {
+            val prefs = getSharedPreferences("hsh_screen_time_policy", MODE_PRIVATE)
+            val stillLocked = prefs.getBoolean("is_locked", false)
+            if (!stillLocked && isDeviceLocked) {
+                // Lock was released! Auto-dismiss the block screen
+                goToHomeScreen()
+                return
+            }
+            handler.postDelayed(this, 3000) // Check every 3 seconds
+        }
     }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
 
+        // Lock screen flags — show even over lock screen, keep screen on
+        window.addFlags(
+            WindowManager.LayoutParams.FLAG_SHOW_WHEN_LOCKED or
+            WindowManager.LayoutParams.FLAG_DISMISS_KEYGUARD or
+            WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON or
+            WindowManager.LayoutParams.FLAG_TURN_SCREEN_ON
+        )
+
         val pkgName = intent.getStringExtra(EXTRA_PACKAGE_NAME) ?: "Restricted Application"
         val appName = intent.getStringExtra(EXTRA_APP_NAME) ?: pkgName
+        val reason = intent.getStringExtra(EXTRA_REASON)
+            ?: "Access to this app has been restricted by your Hostel Administration."
+        isDeviceLocked = intent.getBooleanExtra(EXTRA_IS_DEVICE_LOCKED, false)
 
         // Root container
         val rootLayout = LinearLayout(this).apply {
@@ -51,15 +85,16 @@ class BlockedAppActivity : Activity() {
 
         // Warning Icon Circle
         val iconBadge = TextView(this).apply {
-            text = "🚫"
+            text = if (isDeviceLocked) "🔒" else "🚫"
             textSize = 48f
             gravity = Gravity.CENTER
         }
         cardLayout.addView(iconBadge)
 
-        // Pill Tag: "RESTRICTED ACCESS"
+        // Pill Tag
+        val tagText = if (isDeviceLocked) "DEVICE REMOTELY LOCKED" else "HOSTEL POLICY ENFORCEMENT"
         val tagView = TextView(this).apply {
-            text = "HOSTEL POLICY ENFORCEMENT"
+            text = tagText
             textSize = 11f
             setTextColor(Color.parseColor("#FF5252"))
             setTypeface(Typeface.DEFAULT_BOLD)
@@ -81,8 +116,9 @@ class BlockedAppActivity : Activity() {
         cardLayout.addView(tagView, tagLp)
 
         // Title
+        val titleText = if (isDeviceLocked) "Phone Locked" else "App Restricted"
         val titleView = TextView(this).apply {
-            text = "App Restricted"
+            text = titleText
             textSize = 22f
             setTextColor(Color.WHITE)
             setTypeface(Typeface.DEFAULT_BOLD)
@@ -114,7 +150,7 @@ class BlockedAppActivity : Activity() {
 
         // Subtitle / Reason
         val descView = TextView(this).apply {
-            text = "Access to this app has been restricted by your Hostel Administration to help students stay focused during study and curfew hours."
+            text = reason
             textSize = 13f
             setTextColor(Color.parseColor("#B0B0B0"))
             gravity = Gravity.CENTER_HORIZONTAL
@@ -127,6 +163,24 @@ class BlockedAppActivity : Activity() {
             topMargin = dp(12)
         }
         cardLayout.addView(descView, descLp)
+
+        // Extra note for device locked
+        if (isDeviceLocked) {
+            val lockNote = TextView(this).apply {
+                text = "Your warden has remotely locked this device.\nContact hostel administration to unlock."
+                textSize = 12f
+                setTextColor(Color.parseColor("#EF5350"))
+                gravity = Gravity.CENTER_HORIZONTAL
+                setLineSpacing(dp(2).toFloat(), 1.0f)
+            }
+            val lockNoteLp = LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.MATCH_PARENT,
+                LinearLayout.LayoutParams.WRAP_CONTENT
+            ).apply {
+                topMargin = dp(8)
+            }
+            cardLayout.addView(lockNote, lockNoteLp)
+        }
 
         // Package Name Note
         val pkgView = TextView(this).apply {
@@ -189,6 +243,30 @@ class BlockedAppActivity : Activity() {
 
         rootLayout.addView(cardLayout)
         setContentView(rootLayout)
+
+        // If device is locked, start periodic check for unlock
+        if (isDeviceLocked) {
+            handler.postDelayed(lockCheckRunnable, 3000)
+        }
+    }
+
+    override fun onResume() {
+        super.onResume()
+        // When user comes back to this activity from recents, re-enforce
+        if (isDeviceLocked) {
+            handler.removeCallbacks(lockCheckRunnable)
+            handler.postDelayed(lockCheckRunnable, 3000)
+        }
+    }
+
+    override fun onPause() {
+        super.onPause()
+        handler.removeCallbacks(lockCheckRunnable)
+    }
+
+    override fun onDestroy() {
+        handler.removeCallbacks(lockCheckRunnable)
+        super.onDestroy()
     }
 
     private fun goToHomeScreen() {
@@ -215,6 +293,11 @@ class BlockedAppActivity : Activity() {
     override fun onBackPressed() {
         // Prevent bypassing the block with back press; send user to device launcher
         goToHomeScreen()
+    }
+
+    // Prevent the user from seeing the restricted app in recents
+    override fun onTaskRemoved(rootIntent: Intent?) {
+        super.onTaskRemoved(rootIntent)
     }
 
     private fun dp(value: Int): Int {

@@ -57,6 +57,13 @@ class OperatorHomeScreen extends StatelessWidget {
         Color(0xFF8B4513),
         Routes.studentScreenTime,
       ),
+      _OperatorAction(
+        'Campus Geofence',
+        'Curfew hours, hostel perimeter & breach alerts',
+        Icons.fmd_good_rounded,
+        Color(0xFFE65100),
+        Routes.operatorGeofence,
+      ),
     ]),
   ];
 

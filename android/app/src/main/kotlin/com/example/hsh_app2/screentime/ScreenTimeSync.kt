@@ -1,6 +1,7 @@
 package com.example.hsh_app2.screentime
 
 import android.content.Context
+import android.os.PowerManager
 import android.util.Log
 import androidx.work.Constraints
 import androidx.work.ExistingPeriodicWorkPolicy
@@ -26,19 +27,24 @@ import java.util.concurrent.TimeUnit
  * minutes — leftover seconds carry over to the next sync, nothing is lost or
  * double-counted). Runs entirely natively so it keeps working while the
  * Flutter UI is closed.
+ *
+ * Each ping also carries:
+ *  - `compliance`  — whether Usage Access / Accessibility / battery exemption
+ *                    are still on, so the warden can spot tampering;
+ *  - `blockEvents` — the audit queue of apps the blocker stopped;
+ *  - `icon`        — a small PNG of each app's launcher icon, sent once per
+ *                    package so the warden UI can show real icons.
  */
 object ScreenTimeSync {
     private const val TAG = "ScreenTimeSync"
-    private const val PREFS = "hsh_screen_time"
-    private const val KEY_TOKEN = "token"
-    private const val KEY_BASE_URL = "base_url"
-    private const val KEY_SENT_DATE = "sent_date"
-    private const val KEY_SENT_MILLIS = "sent_millis"
 
     private const val TICK_WORK = "hsh_screen_time_tick"
     private const val WATCHDOG_WORK = "hsh_screen_time_watchdog"
     private const val TICK_MINUTES = 5L
     private const val MINUTE_MS = 60_000L
+
+    /** Bound the payload when a phone has dozens of never-reported apps. */
+    private const val MAX_ICONS_PER_PING = 12
 
     const val STATUS_OK = "ok"
     const val STATUS_NO_SESSION = "no_session"
@@ -46,18 +52,12 @@ object ScreenTimeSync {
     const val STATUS_UNAUTHORIZED = "unauthorized"
     const val STATUS_ERROR = "error"
 
-    private fun prefs(context: Context) =
-        context.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
-
     private fun dateFormat() = SimpleDateFormat("yyyy-MM-dd", Locale.US)
 
     // ---------- Lifecycle ----------
 
     fun start(context: Context, token: String, baseUrl: String) {
-        prefs(context).edit()
-            .putString(KEY_TOKEN, token)
-            .putString(KEY_BASE_URL, baseUrl.trimEnd('/'))
-            .apply()
+        PolicyStore.saveSession(context, token, baseUrl)
         schedule(context)
     }
 
@@ -65,13 +65,12 @@ object ScreenTimeSync {
         val wm = WorkManager.getInstance(context)
         wm.cancelUniqueWork(TICK_WORK)
         wm.cancelUniqueWork(WATCHDOG_WORK)
-        // Keep the "already sent" bookkeeping: if the same student logs back in
-        // today we must not re-report minutes the backend already has.
-        prefs(context).edit().remove(KEY_TOKEN).remove(KEY_BASE_URL).apply()
+        PolicyStore.clearSession(context)
+        // A logged-out phone must not keep enforcing the previous student's rules.
+        PolicyStore.savePolicy(context, DevicePolicy())
     }
 
-    fun isConfigured(context: Context): Boolean =
-        !prefs(context).getString(KEY_TOKEN, null).isNullOrEmpty()
+    fun isConfigured(context: Context): Boolean = PolicyStore.hasSession(context)
 
     /**
      * A 15-min periodic watchdog (survives reboots / process death) plus a
@@ -111,9 +110,8 @@ object ScreenTimeSync {
     /** Blocking — call off the main thread. Serialized so worker + UI never race. */
     @Synchronized
     fun syncNow(context: Context): String {
-        val p = prefs(context)
-        val token = p.getString(KEY_TOKEN, null)
-        val baseUrl = p.getString(KEY_BASE_URL, null)
+        val token = PolicyStore.token(context)
+        val baseUrl = PolicyStore.baseUrl(context)
         if (token.isNullOrEmpty() || baseUrl.isNullOrEmpty()) return STATUS_NO_SESSION
 
         val now = System.currentTimeMillis()
@@ -121,27 +119,27 @@ object ScreenTimeSync {
         val today = dateFormat().format(todayStart)
 
         if (!UsageCollector.hasPermission(context)) {
-            // Still heartbeat so the warden sees the device online, with zero usage.
-            val code = post(baseUrl, token, today, emptyMap(), UsageCollector.isScreenOn(context), null, context)
+            // Still heartbeat so the warden sees the device online (and non-compliant).
+            val code = post(context, baseUrl, token, today, emptyMap(), UsageCollector.isScreenOn(context), null)
             return if (handleAuth(context, code)) STATUS_UNAUTHORIZED else STATUS_NO_PERMISSION
         }
 
         return try {
             // Day rolled over since the last successful sync: flush the tail of
             // the previous day first so the minutes before midnight aren't lost.
-            val sentDate = p.getString(KEY_SENT_DATE, null)
+            val sentDate = PolicyStore.sentDate(context)
             if (sentDate != null && sentDate != today) {
                 val prevStart = runCatching { dateFormat().parse(sentDate)?.time }.getOrNull()
                 if (prevStart != null && todayStart - prevStart <= 2 * 24 * 60 * MINUTE_MS) {
                     val snap = UsageCollector.collect(context, prevStart, UsageCollector.nextDayStart(prevStart))
-                    val status = sendDeltas(context, baseUrl, token, sentDate, snap, loadSent(p))
+                    val status = sendDeltas(context, baseUrl, token, sentDate, snap, PolicyStore.sentMillis(context))
                     if (status != STATUS_OK) return status
                 }
-                saveSent(p, today, emptyMap())
+                PolicyStore.saveSent(context, today, emptyMap())
             }
 
             val snap = UsageCollector.collect(context, todayStart, UsageCollector.nextDayStart(todayStart))
-            val sent = if (p.getString(KEY_SENT_DATE, null) == today) loadSent(p) else emptyMap()
+            val sent = if (PolicyStore.sentDate(context) == today) PolicyStore.sentMillis(context) else emptyMap()
             sendDeltas(context, baseUrl, token, today, snap, sent)
         } catch (e: Exception) {
             Log.w(TAG, "sync failed", e)
@@ -163,7 +161,7 @@ object ScreenTimeSync {
             if (delta > 0) deltaMinutes[pkg] = delta
         }
 
-        val code = post(baseUrl, token, date, deltaMinutes, snap.isScreenOn, snap.currentPackage, context)
+        val code = post(context, baseUrl, token, date, deltaMinutes, snap.isScreenOn, snap.currentPackage)
         if (handleAuth(context, code)) return STATUS_UNAUTHORIZED
         if (code !in 200..299) return STATUS_ERROR
 
@@ -172,7 +170,8 @@ object ScreenTimeSync {
         for ((pkg, minutes) in deltaMinutes) {
             newSent[pkg] = (sent[pkg] ?: 0L) + minutes * MINUTE_MS
         }
-        saveSent(prefs(context), date, newSent)
+        PolicyStore.saveSent(context, date, newSent)
+        PolicyEvaluator.invalidateUsage()
         return STATUS_OK
     }
 
@@ -182,37 +181,49 @@ object ScreenTimeSync {
         val wm = WorkManager.getInstance(context)
         wm.cancelUniqueWork(TICK_WORK)
         wm.cancelUniqueWork(WATCHDOG_WORK)
-        prefs(context).edit().remove(KEY_TOKEN).apply()
+        PolicyStore.clearToken(context)
         return true
     }
 
     private fun post(
+        context: Context,
         baseUrl: String,
         token: String,
         date: String,
         deltaMinutes: Map<String, Int>,
         isScreenOn: Boolean,
         currentPackage: String?,
-        context: Context,
     ): Int {
+        val alreadySentIcons = PolicyStore.sentIcons(context)
+        val iconsInThisPing = ArrayList<String>()
+
         val breakdown = JSONArray()
         for ((pkg, minutes) in deltaMinutes) {
-            breakdown.put(
-                JSONObject()
-                    .put("packageName", pkg)
-                    .put("appName", UsageCollector.appLabel(context, pkg))
-                    .put("minutes", minutes),
-            )
+            val entry = JSONObject()
+                .put("packageName", pkg)
+                .put("appName", UsageCollector.appLabel(context, pkg))
+                .put("minutes", minutes)
+            if (pkg !in alreadySentIcons && iconsInThisPing.size < MAX_ICONS_PER_PING) {
+                UsageCollector.appIconBase64(context, pkg)?.let {
+                    entry.put("icon", it)
+                    iconsInThisPing.add(pkg)
+                }
+            }
+            breakdown.put(entry)
         }
+
+        val blockEvents = PolicyStore.pendingBlockEvents(context)
+        val policy = PolicyStore.policy(context)
+
         val body = JSONObject()
             .put("date", date)
             .put("totalScreenTimeMinutes", deltaMinutes.values.sum())
             .put("isScreenOn", isScreenOn)
-            .put(
-                "currentApp",
-                currentPackage?.let { UsageCollector.appLabel(context, it) } ?: "Idle",
-            )
+            .put("currentApp", currentPackage?.let { UsageCollector.appLabel(context, it) } ?: "Idle")
+            .put("currentPackage", currentPackage ?: JSONObject.NULL)
+            .put("compliance", complianceJson(context, policy))
         if (breakdown.length() > 0) body.put("appUsageBreakdown", breakdown)
+        if (blockEvents.length() > 0) body.put("blockEvents", blockEvents)
 
         var conn: HttpURLConnection? = null
         return try {
@@ -228,30 +239,14 @@ object ScreenTimeSync {
             conn.outputStream.use { it.write(body.toString().toByteArray(Charsets.UTF_8)) }
             val code = conn.responseCode
             if (code in 200..299) {
-                try {
+                PolicyStore.markIconsSent(context, iconsInThisPing)
+                PolicyStore.dropBlockEvents(context, blockEvents.length())
+                // The ping response may echo the current policy; otherwise fetch it.
+                val applied = runCatching {
                     val respStr = conn.inputStream.bufferedReader().use { it.readText() }
-                    val respJson = JSONObject(respStr)
-                    val data = respJson.optJSONObject("data") ?: respJson
-                    val blockedArr = data.optJSONArray("blockedPackages")
-                        ?: data.optJSONArray("blocked_packages")
-                    val isLocked = data.optBoolean("is_locked", data.optBoolean("isLocked", false))
-                    if (blockedArr != null) {
-                        val blockedSet = mutableSetOf<String>()
-                        for (i in 0 until blockedArr.length()) {
-                            blockedSet.add(blockedArr.getString(i))
-                        }
-                        context.getSharedPreferences("hsh_screen_time_policy", Context.MODE_PRIVATE)
-                            .edit()
-                            .putStringSet("blocked_packages", blockedSet)
-                            .putBoolean("is_locked", isLocked)
-                            .apply()
-                    } else {
-                        // Ping didn't include policy; fetch directly from policy endpoint
-                        fetchAndSavePolicy(context, baseUrl, token)
-                    }
-                } catch (_: Exception) {
-                    fetchAndSavePolicy(context, baseUrl, token)
-                }
+                    PolicyStore.applyPolicyJson(context, JSONObject(respStr))
+                }.getOrNull()
+                if (applied == null) fetchAndSavePolicy(context, baseUrl, token)
             }
             code
         } catch (e: Exception) {
@@ -262,61 +257,41 @@ object ScreenTimeSync {
         }
     }
 
-    private fun loadSent(p: android.content.SharedPreferences): Map<String, Long> {
-        val raw = p.getString(KEY_SENT_MILLIS, null) ?: return emptyMap()
-        return try {
-            val json = JSONObject(raw)
-            json.keys().asSequence().associateWith { json.getLong(it) }
-        } catch (_: Exception) {
-            emptyMap()
-        }
+    /** What the warden needs to know to trust this device's numbers. */
+    fun complianceJson(context: Context, policy: DevicePolicy = PolicyStore.policy(context)): JSONObject {
+        val pm = context.getSystemService(Context.POWER_SERVICE) as PowerManager
+        val versionName = runCatching {
+            context.packageManager.getPackageInfo(context.packageName, 0).versionName
+        }.getOrNull() ?: ""
+        return JSONObject()
+            .put("usageAccess", UsageCollector.hasPermission(context))
+            .put("accessibilityEnabled", AppBlockerAccessibilityService.isEnabled(context))
+            .put("batteryOptimizationIgnored", pm.isIgnoringBatteryOptimizations(context.packageName))
+            .put("policyVersion", policy.version)
+            .put("policyAppliedAt", PolicyStore.policyAppliedAt(context))
+            .put("appVersion", versionName)
+            .put("sdkInt", android.os.Build.VERSION.SDK_INT)
+            .put("manufacturer", android.os.Build.MANUFACTURER)
     }
 
-    private fun saveSent(p: android.content.SharedPreferences, date: String, sent: Map<String, Long>) {
-        p.edit()
-            .putString(KEY_SENT_DATE, date)
-            .putString(KEY_SENT_MILLIS, JSONObject(sent as Map<*, *>).toString())
-            .apply()
-    }
-
-    private fun fetchAndSavePolicy(context: Context, baseUrl: String, token: String) {
-        var polConn: HttpURLConnection? = null
+    fun fetchAndSavePolicy(context: Context, baseUrl: String, token: String) {
+        var conn: HttpURLConnection? = null
         try {
-            polConn = (URL("$baseUrl/screen-time/policies/me").openConnection() as HttpURLConnection).apply {
+            conn = (URL("$baseUrl/screen-time/policies/me").openConnection() as HttpURLConnection).apply {
                 requestMethod = "GET"
                 connectTimeout = 10_000
                 readTimeout = 10_000
                 setRequestProperty("Accept", "application/json")
                 setRequestProperty("Authorization", "Bearer $token")
             }
-            if (polConn.responseCode in 200..299) {
-                val respStr = polConn.inputStream.bufferedReader().use { it.readText() }
-                val respJson = JSONObject(respStr)
-                val data = respJson.optJSONObject("data") ?: respJson
-                val blockedArr = data.optJSONArray("blockedPackages")
-                    ?: data.optJSONArray("blocked_packages")
-                val isLocked = data.optBoolean("is_locked", data.optBoolean("isLocked", false))
-                val polObj = data.optJSONObject("policy")
-                val lockedFinal = if (polObj != null) {
-                    polObj.optBoolean("is_locked", polObj.optBoolean("isLocked", isLocked))
-                } else isLocked
-
-                val editor = context.getSharedPreferences("hsh_screen_time_policy", Context.MODE_PRIVATE).edit()
-                editor.putBoolean("is_locked", lockedFinal)
-                if (blockedArr != null) {
-                    val blockedSet = mutableSetOf<String>()
-                    for (i in 0 until blockedArr.length()) {
-                        blockedSet.add(blockedArr.getString(i))
-                    }
-                    editor.putStringSet("blocked_packages", blockedSet)
-                }
-                editor.apply()
-                Log.d(TAG, "Successfully fetched and saved policy from backend")
+            if (conn.responseCode in 200..299) {
+                val respStr = conn.inputStream.bufferedReader().use { it.readText() }
+                PolicyStore.applyPolicyJson(context, JSONObject(respStr))
             }
         } catch (e: Exception) {
             Log.d(TAG, "fetchAndSavePolicy error: ${e.message}")
         } finally {
-            polConn?.disconnect()
+            conn?.disconnect()
         }
     }
 }

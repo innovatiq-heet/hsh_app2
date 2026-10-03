@@ -8,6 +8,7 @@ import '../network/repository/geofence/geofence_repository.dart';
 import '../services/geofence_service.dart';
 import '../services/screen_time_service.dart';
 import '../storage/session_store.dart';
+import '../../features/screentime/models/screen_time_policy.dart';
 
 class StudentGeofenceMonitorService {
   StudentGeofenceMonitorService._();
@@ -104,10 +105,9 @@ class StudentGeofenceMonitorService {
 
       // If curfew policy enforces phone lock, trigger native lock
       if (policy.enforcePhoneLock) {
-        await ScreenTimeService.syncPolicyToNative(
-          blockedPackages: const [],
-          isLocked: true,
-        );
+        final currentPolicy = await ScreenTimeService.getNativePolicy();
+        final locked = (currentPolicy ?? const ScreenTimePolicy()).copyWith(isLocked: true);
+        await ScreenTimeService.syncPolicyToNative(locked);
       }
     } catch (e) {
       debugPrint('[GeofenceMonitor] evaluateCurfewGeofence error: $e');

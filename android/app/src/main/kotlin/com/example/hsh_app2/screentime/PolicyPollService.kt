@@ -1,47 +1,58 @@
 package com.example.hsh_app2.screentime
 
+import android.app.Notification
+import android.app.NotificationChannel
+import android.app.NotificationManager
+import android.app.PendingIntent
 import android.app.Service
 import android.content.Context
 import android.content.Intent
+import android.content.pm.ServiceInfo
+import android.os.Build
 import android.os.Handler
 import android.os.IBinder
 import android.os.Looper
+import android.os.PowerManager
 import android.util.Log
+import androidx.core.app.NotificationCompat
+import androidx.core.app.ServiceCompat
+import androidx.core.content.ContextCompat
 import org.json.JSONObject
 import java.net.HttpURLConnection
 import java.net.URL
 import java.util.concurrent.Executors
 
 /**
- * A lightweight background service that polls the lock/block policy from the
- * backend every 30 seconds so the student's device enforces remote lock
- * commands almost instantly (rather than waiting for the 5-minute WorkManager
- * tick).
+ * Foreground service that polls `/screen-time/policies/me` so a remote lock or
+ * block lands on the device within seconds, with the app closed.
  *
- * Runs as a normal (non-foreground) service. Android may kill it to reclaim
- * resources, but START_STICKY asks the OS to restart it, and the WorkManager
- * watchdog re-fetches policy anyway as a fallback.
+ * It must be a *foreground* service: since Android 8 a plain background
+ * service is killed about a minute after the app leaves the screen, and
+ * starting one from a boot broadcast throws. The persistent low-priority
+ * notification is also what keeps the process alive on aggressive OEM ROMs.
  */
 class PolicyPollService : Service() {
 
     companion object {
         private const val TAG = "PolicyPollService"
-        private const val POLL_INTERVAL_MS = 30_000L // 30 seconds
-        private const val PREFS_SESSION = "hsh_screen_time"
-        private const val PREFS_POLICY = "hsh_screen_time_policy"
+        private const val CHANNEL_ID = "hsh_monitoring"
+        private const val NOTIFICATION_ID = 7101
+
+        /** Fast while the student is actually using the phone, relaxed when the screen is off. */
+        private const val POLL_ACTIVE_MS = 30_000L
+        private const val POLL_IDLE_MS = 120_000L
 
         fun start(context: Context) {
+            if (!PolicyStore.hasSession(context)) return
             try {
-                context.startService(Intent(context, PolicyPollService::class.java))
+                ContextCompat.startForegroundService(context, Intent(context, PolicyPollService::class.java))
             } catch (e: Exception) {
-                Log.w(TAG, "Failed to start PolicyPollService: ${e.message}")
+                Log.w(TAG, "start failed: ${e.message}")
             }
         }
 
         fun stop(context: Context) {
-            try {
-                context.stopService(Intent(context, PolicyPollService::class.java))
-            } catch (_: Exception) {}
+            runCatching { context.stopService(Intent(context, PolicyPollService::class.java)) }
         }
     }
 
@@ -53,17 +64,36 @@ class PolicyPollService : Service() {
         override fun run() {
             if (!running) return
             executor.execute { fetchPolicy() }
-            handler.postDelayed(this, POLL_INTERVAL_MS)
+            val pm = getSystemService(Context.POWER_SERVICE) as PowerManager
+            handler.postDelayed(this, if (pm.isInteractive) POLL_ACTIVE_MS else POLL_IDLE_MS)
         }
     }
 
     override fun onBind(intent: Intent?): IBinder? = null
 
+    override fun onCreate() {
+        super.onCreate()
+        createChannel()
+        val notification = buildNotification()
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE) {
+            ServiceCompat.startForeground(
+                this, NOTIFICATION_ID, notification,
+                ServiceInfo.FOREGROUND_SERVICE_TYPE_SPECIAL_USE,
+            )
+        } else {
+            startForeground(NOTIFICATION_ID, notification)
+        }
+    }
+
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
+        if (!PolicyStore.hasSession(this)) {
+            stopSelf()
+            return START_NOT_STICKY
+        }
         if (!running) {
             running = true
             handler.post(pollRunnable)
-            Log.d(TAG, "PolicyPollService started — polling every ${POLL_INTERVAL_MS / 1000}s")
+            Log.d(TAG, "started")
         }
         return START_STICKY
     }
@@ -72,15 +102,16 @@ class PolicyPollService : Service() {
         running = false
         handler.removeCallbacks(pollRunnable)
         executor.shutdownNow()
-        Log.d(TAG, "PolicyPollService destroyed")
         super.onDestroy()
     }
 
     private fun fetchPolicy() {
-        val session = getSharedPreferences(PREFS_SESSION, MODE_PRIVATE)
-        val token = session.getString("token", null)
-        val baseUrl = session.getString("base_url", null)
-        if (token.isNullOrEmpty() || baseUrl.isNullOrEmpty()) return
+        val token = PolicyStore.token(this)
+        val baseUrl = PolicyStore.baseUrl(this)
+        if (token.isNullOrEmpty() || baseUrl.isNullOrEmpty()) {
+            handler.post { stopSelf() }
+            return
+        }
 
         var conn: HttpURLConnection? = null
         try {
@@ -91,41 +122,48 @@ class PolicyPollService : Service() {
                 setRequestProperty("Accept", "application/json")
                 setRequestProperty("Authorization", "Bearer $token")
             }
-            if (conn.responseCode in 200..299) {
-                val respStr = conn.inputStream.bufferedReader().use { it.readText() }
-                val respJson = JSONObject(respStr)
-                val data = respJson.optJSONObject("data") ?: respJson
-
-                // Extract lock state
-                val polObj = data.optJSONObject("policy")
-                val isLocked = if (polObj != null) {
-                    polObj.optBoolean("is_locked", polObj.optBoolean("isLocked", false))
-                } else {
-                    data.optBoolean("is_locked", data.optBoolean("isLocked", false))
+            when (conn.responseCode) {
+                in 200..299 -> {
+                    val body = conn.inputStream.bufferedReader().use { it.readText() }
+                    PolicyStore.applyPolicyJson(this, JSONObject(body))
                 }
-
-                // Extract blocked packages
-                val blockedArr = data.optJSONArray("blockedPackages")
-                    ?: data.optJSONArray("blocked_packages")
-                    ?: polObj?.optJSONArray("blockedPackages")
-                    ?: polObj?.optJSONArray("blocked_packages")
-
-                val editor = getSharedPreferences(PREFS_POLICY, MODE_PRIVATE).edit()
-                editor.putBoolean("is_locked", isLocked)
-                if (blockedArr != null) {
-                    val blockedSet = mutableSetOf<String>()
-                    for (i in 0 until blockedArr.length()) {
-                        blockedSet.add(blockedArr.getString(i))
-                    }
-                    editor.putStringSet("blocked_packages", blockedSet)
+                401 -> {
+                    // Session is dead; stop until the app hands us a fresh token.
+                    PolicyStore.clearToken(this)
+                    handler.post { stopSelf() }
                 }
-                editor.apply()
-                Log.d(TAG, "Policy synced: isLocked=$isLocked, blocked=${blockedArr?.length() ?: 0} apps")
             }
         } catch (e: Exception) {
-            Log.d(TAG, "Policy poll failed: ${e.message}")
+            Log.d(TAG, "poll failed: ${e.message}")
         } finally {
             conn?.disconnect()
         }
+    }
+
+    private fun createChannel() {
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.O) return
+        val channel = NotificationChannel(
+            CHANNEL_ID, "Hostel monitoring", NotificationManager.IMPORTANCE_MIN,
+        ).apply {
+            description = "Keeps screen-time monitoring active"
+            setShowBadge(false)
+        }
+        (getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager).createNotificationChannel(channel)
+    }
+
+    private fun buildNotification(): Notification {
+        val launch = packageManager.getLaunchIntentForPackage(packageName)
+        val pending = launch?.let {
+            PendingIntent.getActivity(this, 0, it, PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT)
+        }
+        return NotificationCompat.Builder(this, CHANNEL_ID)
+            .setSmallIcon(android.R.drawable.ic_lock_idle_lock)
+            .setContentTitle("Hostel monitoring active")
+            .setContentText("Screen-time rules are being applied on this phone")
+            .setPriority(NotificationCompat.PRIORITY_MIN)
+            .setOngoing(true)
+            .setSilent(true)
+            .setContentIntent(pending)
+            .build()
     }
 }

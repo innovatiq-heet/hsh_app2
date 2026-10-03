@@ -7,6 +7,8 @@ import '../../../core/network/api_client.dart';
 import '../../../core/services/screen_time_service.dart';
 import '../../../core/storage/session_store.dart';
 import '../../../core/utils/app_snackbar.dart';
+import '../models/screen_time_policy.dart';
+import '../services/app_icon_cache.dart';
 
 /// Screen-time and Parental Control controller for Administrators.
 ///
@@ -27,6 +29,100 @@ class StudentScreenTimeController extends GetxController with WidgetsBindingObse
   final RxInt nightMinutesToday = 0.obs;
   final RxList<dynamic> appBreakdown = <dynamic>[].obs;
   final RxList<dynamic> historyRecords = <dynamic>[].obs;
+
+  /// When the student's phone last reported in, and what it reported about
+  /// its own monitoring health (Usage Access / Accessibility / battery).
+  final Rx<DateTime?> lastSeenAt = Rx<DateTime?>(null);
+  final RxMap<String, dynamic> compliance = <String, dynamic>{}.obs;
+  /// Package of the foreground app (for its icon); [currentApp] is the label.
+  final RxString currentPackage = ''.obs;
+
+  /// Monitoring on the selected student's phone has been switched off.
+  bool get isTampered => isStudentTampered({'compliance': compliance});
+
+  /// Share of the daily allowance used on the selected day (0 when unlimited).
+  double get limitProgress => dailyLimitMinutes.value > 0
+      ? (selectedDayTotalMinutes / dailyLimitMinutes.value).clamp(0.0, 1.0)
+      : 0.0;
+
+  // Directory quick filter: All / Online / Locked / Restricted / Night / Attention
+  final RxString directoryFilter = 'All'.obs;
+  static const directoryFilters = ['All', 'Online', 'Locked', 'Restricted', 'Night', 'Attention'];
+
+  void setDirectoryFilter(String filter) {
+    directoryFilter.value = filter;
+    filterStudents(searchFilterController.text);
+  }
+
+  int directoryCount(String filter) =>
+      allStudents.where((s) => _matchesDirectoryFilter(s, filter)).length;
+
+  static bool _matchesDirectoryFilter(dynamic s, String filter) {
+    switch (filter) {
+      case 'Online':
+        return s is Map && s['isOnline'] == true;
+      case 'Locked':
+        return isStudentLocked(s);
+      case 'Restricted':
+        return isStudentRestricted(s);
+      case 'Night':
+        return s is Map && toInt(s['nightScreenTimeMinutes'] ?? s['night_screen_time_minutes']) > 0;
+      case 'Attention':
+        return isStudentTampered(s) || isStudentLocked(s);
+      default:
+        return true;
+    }
+  }
+
+  // ---------- Student-row helpers (directory entries are raw API maps) ----------
+
+  static Map<String, dynamic>? complianceOf(dynamic s) =>
+      s is Map && s['compliance'] is Map ? Map<String, dynamic>.from(s['compliance']) : null;
+
+  static bool isStudentTampered(dynamic s) {
+    final c = complianceOf(s);
+    if (c == null || c.isEmpty) return false;
+    return c['usageAccess'] == false || c['accessibilityEnabled'] == false;
+  }
+
+  static bool isStudentLocked(dynamic s) {
+    if (s is! Map) return false;
+    final pol = s['policy'] is Map ? s['policy'] as Map : s;
+    return pol['is_locked'] == true || pol['isLocked'] == true || pol['is_locked'] == 1;
+  }
+
+  static List<String> blockedOf(dynamic s) {
+    if (s is! Map) return const [];
+    final pol = s['policy'] is Map ? s['policy'] as Map : const {};
+    final raw = s['blockedPackages'] ?? s['blocked_packages'] ?? pol['blockedPackages'] ?? pol['blocked_packages'];
+    return raw is List ? raw.map((e) => e.toString()).toList() : const [];
+  }
+
+  static bool isStudentRestricted(dynamic s) => blockedOf(s).isNotEmpty;
+
+  static DateTime? lastSeenOf(dynamic s) {
+    if (s is! Map) return null;
+    final raw = s['lastSeenAt'] ?? s['lastSeen'] ?? s['last_seen'] ?? s['lastPing'] ?? s['last_ping'] ?? s['updatedAt'];
+    if (raw == null) return null;
+    if (raw is num) return DateTime.fromMillisecondsSinceEpoch(raw > 1e12 ? raw.toInt() : raw.toInt() * 1000);
+    return DateTime.tryParse(raw.toString())?.toLocal();
+  }
+
+  /// "just now", "4 min ago", "3 h ago", "2 d ago".
+  static String relativeTime(DateTime t) {
+    final d = DateTime.now().difference(t);
+    if (d.inSeconds < 60) return 'just now';
+    if (d.inMinutes < 60) return '${d.inMinutes} min ago';
+    if (d.inHours < 24) return '${d.inHours} h ago';
+    return '${d.inDays} d ago';
+  }
+
+  static String formatMinutes(int mins) {
+    final h = mins ~/ 60;
+    final m = mins % 60;
+    if (h == 0) return '${m}m';
+    return m == 0 ? '${h}h' : '${h}h ${m}m';
+  }
 
   // Day-wise selection state
   final RxString selectedDate = ''.obs; // 'yyyy-MM-dd' or empty for today
@@ -81,8 +177,8 @@ class StudentScreenTimeController extends GetxController with WidgetsBindingObse
     return list;
   }
 
-  bool _isOurApp(String pkg) =>
-      pkg == 'com.example.hsh_app2' || pkg == 'com.hsh.app' || pkg == 'com.avd_hsh.app';
+  static const _ownPackage = 'com.example.hsh_app2';
+  bool _isOurApp(String pkg) => pkg == _ownPackage;
 
   int get selectedDayTotalMinutes {
     // 1. If we have the app list for the selected day, sum the actual tracked apps (excluding our own app)
@@ -369,6 +465,34 @@ class StudentScreenTimeController extends GetxController with WidgetsBindingObse
   final RxInt dailyLimitMinutes = 0.obs;
   final RxString bedtimeStart = '23:00'.obs;
   final RxString bedtimeEnd = '05:00'.obs;
+  final RxString policyVersion = ''.obs;
+
+  /// The selected student's policy as currently shown in the UI.
+  ScreenTimePolicy get currentPolicy => ScreenTimePolicy(
+        isLocked: isDeviceLocked.value,
+        blockedPackages: blockedPackages.toSet(),
+        dailyLimitMinutes: dailyLimitMinutes.value,
+        bedtimeStart: bedtimeStart.value,
+        bedtimeEnd: bedtimeEnd.value,
+        version: policyVersion.value,
+      );
+
+  void _applyPolicy(ScreenTimePolicy p) {
+    isDeviceLocked.value = p.isLocked;
+    blockedPackages.assignAll(p.blockedPackages.toList());
+    dailyLimitMinutes.value = p.dailyLimitMinutes;
+    bedtimeStart.value = p.bedtimeStart;
+    bedtimeEnd.value = p.bedtimeEnd;
+    policyVersion.value = p.version;
+    _syncBlockedStatusToApps();
+  }
+
+  /// Which identifier (`_id`, aadhar, ...) the API accepted for the selected
+  /// student, remembered so every later call is a single request.
+  String? _resolvedId;
+
+  String get _targetId =>
+      _resolvedId ?? (_getCandidateIdentifiers().firstOrNull ?? targetedAadhar.value);
   final RxString selectedAppFilter = 'All'.obs; // 'All', 'Used Today', 'Restricted'
   final RxString appSearchQuery = ''.obs;
   final appSearchController = TextEditingController();
@@ -564,23 +688,30 @@ class StudentScreenTimeController extends GetxController with WidgetsBindingObse
   void filterStudents(String query) {
     searchText.value = query;
     final q = query.trim().toLowerCase();
-    if (q.isEmpty) {
-      filteredStudents.assignAll(allStudents);
-      return;
-    }
+    final filter = directoryFilter.value;
 
     final matched = allStudents.where((student) {
+      if (!_matchesDirectoryFilter(student, filter)) return false;
+      if (q.isEmpty) return true;
       final name = (student['name'] ?? '').toString().toLowerCase();
       final room = (student['room'] ?? '').toString().toLowerCase();
       final aadhar = (student['aadhar'] ?? '').toString();
       return name.contains(q) || room.contains(q) || aadhar.contains(q);
     }).toList();
 
+    // Students needing attention first, then heaviest users.
+    matched.sort((a, b) {
+      final attA = isStudentTampered(a) || isStudentLocked(a);
+      final attB = isStudentTampered(b) || isStudentLocked(b);
+      if (attA != attB) return attA ? -1 : 1;
+      return toInt(b['totalScreenTimeMinutes']).compareTo(toInt(a['totalScreenTimeMinutes']));
+    });
     filteredStudents.assignAll(matched);
   }
 
   /// Select a student from list to inspect detailed screen time from real API
   void selectStudent(dynamic student) {
+    _resolvedId = null;
     selectedStudent.value = student;
 
     // Retain all existing stats from the student object immediately so data is visible
@@ -629,6 +760,7 @@ class StudentScreenTimeController extends GetxController with WidgetsBindingObse
 
   /// Return back to all students directory list
   void clearSelectedStudent() {
+    _resolvedId = null;
     selectedStudent.value = null;
     targetedAadhar.value = '';
     _pendingTargetStudent = null;
@@ -639,6 +771,8 @@ class StudentScreenTimeController extends GetxController with WidgetsBindingObse
   }
 
   void _resetDetail() {
+    lastSeenAt.value = null;
+    compliance.clear();
     isOnline.value = false;
     isScreenOn.value = false;
     currentApp.value = '';
@@ -657,6 +791,8 @@ class StudentScreenTimeController extends GetxController with WidgetsBindingObse
   }
 
   List<String> _getCandidateIdentifiers() {
+    final resolved = _resolvedId;
+    if (resolved != null && resolved.isNotEmpty) return [resolved];
     final s = selectedStudent.value;
     final list = <String>[];
     if (s is Map) {
@@ -687,36 +823,16 @@ class StudentScreenTimeController extends GetxController with WidgetsBindingObse
         return;
       }
 
-      bool success = false;
       for (final cand in candidates) {
         try {
-          final endpoint = '/screen-time/live/$cand';
-          debugPrint('[ScreenTime] Trying live endpoint: $endpoint');
-          final response = await _apiClient.dio.get(endpoint);
+          final response = await _apiClient.dio.get('/screen-time/live/$cand');
           if (response.statusCode == 200 && response.data != null) {
+            _resolvedId = cand;
             _applyLiveStatusResponse(response.data);
-            success = true;
             break;
           }
         } catch (e) {
           debugPrint('[ScreenTime] live endpoint with $cand failed: $e');
-        }
-      }
-
-      // If path param failed, try query param format
-      if (!success) {
-        for (final cand in candidates) {
-          try {
-            final response = await _apiClient.dio.get(
-              '/screen-time/live',
-              queryParameters: {'aadhar': cand, 'id': cand, 'studentId': cand},
-            );
-            if (response.statusCode == 200 && response.data != null) {
-              _applyLiveStatusResponse(response.data);
-              success = true;
-              break;
-            }
-          } catch (_) {}
         }
       }
     } catch (e) {
@@ -779,6 +895,17 @@ class StudentScreenTimeController extends GetxController with WidgetsBindingObse
       nightMinutesToday.value = liveNight;
     }
 
+    final seen = lastSeenOf(data);
+    if (seen != null) {
+      lastSeenAt.value = seen;
+    } else if (isOnline.value) {
+      lastSeenAt.value = DateTime.now();
+    }
+    if (data['compliance'] is Map) {
+      compliance.assignAll(Map<String, dynamic>.from(data['compliance']));
+    }
+    currentPackage.value = (data['currentPackage'] ?? data['current_package'] ?? '').toString();
+
     final rawApps = _extractAppsList(data);
     final newApps = rawApps.where((a) {
       final pkg = (a is Map ? (a['packageName'] ?? a['package_name'] ?? '') : '').toString();
@@ -806,23 +933,8 @@ class StudentScreenTimeController extends GetxController with WidgetsBindingObse
       totalMinutesToday.value = liveTotal;
     }
 
-    final blocked = data['blockedPackages'] ?? data['blocked_packages'];
-    if (blocked is List) {
-      blockedPackages.assignAll(blocked.map((e) => e.toString()).toList());
-    }
-    if (data['policy'] is Map) {
-      final pol = data['policy'] as Map;
-      isDeviceLocked.value = pol['is_locked'] == true || pol['is_locked'] == 1 || pol['isLocked'] == true;
-      if (pol['daily_limit_minutes'] != null || pol['dailyLimitMinutes'] != null) {
-        dailyLimitMinutes.value = toInt(pol['daily_limit_minutes'] ?? pol['dailyLimitMinutes']);
-      }
-      if (pol['bedtime_start'] != null || pol['bedtimeStart'] != null) {
-        bedtimeStart.value = (pol['bedtime_start'] ?? pol['bedtimeStart']).toString();
-      }
-      if (pol['bedtime_end'] != null || pol['bedtimeEnd'] != null) {
-        bedtimeEnd.value = (pol['bedtime_end'] ?? pol['bedtimeEnd']).toString();
-      }
-    }
+    final policy = ScreenTimePolicy.tryParse(data, current: currentPolicy);
+    if (policy != null) _applyPolicy(policy);
     _syncBlockedStatusToApps();
   }
 
@@ -844,112 +956,55 @@ class StudentScreenTimeController extends GetxController with WidgetsBindingObse
 
   /// Fetch full policy, blocked list, and installed apps for a student
   Future<void> fetchStudentPolicies() async {
-    final candidates = _getCandidateIdentifiers();
-    for (final cand in candidates) {
+    for (final cand in _getCandidateIdentifiers()) {
       try {
         final response = await _apiClient.dio.get('/screen-time/policies/$cand');
-        final data = response.data['data'] ?? response.data;
-        if (data is Map) {
-          final blocked = data['blockedPackages'] ?? data['blocked_packages'];
-          if (blocked is List) {
-            blockedPackages.assignAll(blocked.map((e) => e.toString()).toList());
-          }
-          final pol = data['policy'] ?? data;
-          if (pol is Map) {
-            isDeviceLocked.value = pol['is_locked'] == true || pol['is_locked'] == 1 || pol['isLocked'] == true;
-            if (pol['daily_limit_minutes'] != null || pol['dailyLimitMinutes'] != null) {
-              dailyLimitMinutes.value = toInt(pol['daily_limit_minutes'] ?? pol['dailyLimitMinutes']);
-            }
-            if (pol['bedtime_start'] != null || pol['bedtimeStart'] != null) {
-              bedtimeStart.value = (pol['bedtime_start'] ?? pol['bedtimeStart']).toString();
-            }
-            if (pol['bedtime_end'] != null || pol['bedtimeEnd'] != null) {
-              bedtimeEnd.value = (pol['bedtime_end'] ?? pol['bedtimeEnd']).toString();
-            }
-          }
-          _syncBlockedStatusToApps();
+        final policy = ScreenTimePolicy.tryParse(response.data, current: currentPolicy);
+        if (policy != null) {
+          _resolvedId = cand;
+          _applyPolicy(policy);
           break;
         }
-      } catch (_) {}
+      } catch (e) {
+        debugPrint('[ScreenTime] policies endpoint with $cand failed: $e');
+      }
     }
+  }
+
+  /// Saves [policy] for the selected student. Throws on failure so callers can
+  /// roll back their optimistic UI change.
+  Future<void> _putPolicy(ScreenTimePolicy policy) async {
+    final target = _targetId;
+    if (target.isEmpty) throw StateError('No student selected');
+    await _apiClient.dio.put('/screen-time/policies/$target', data: policy.toJson());
+    policyVersion.value = DateTime.now().toIso8601String();
   }
 
   /// Toggle blocking or unblocking an app (Admin / Warden action)
   Future<void> toggleAppBlock(String packageName, String appName, bool block) async {
-    final candidateIds = _getCandidateIdentifiers();
-    final target = candidateIds.isNotEmpty ? candidateIds.first : targetedAadhar.value;
     final studentName = selectedStudent.value is Map
         ? (selectedStudent.value['name'] ?? 'Student')
         : 'Student';
+    final previous = currentPolicy;
+    final updated = previous.copyWith(
+      blockedPackages: block
+          ? {...previous.blockedPackages, packageName}
+          : previous.blockedPackages.where((p) => p != packageName).toSet(),
+    );
 
-    // Optimistically update
-    if (block) {
-      if (!blockedPackages.contains(packageName)) blockedPackages.add(packageName);
-    } else {
-      blockedPackages.remove(packageName);
-    }
-    _syncBlockedStatusToApps();
-
+    // Optimistic update; rolled back below if the API rejects it.
+    _applyPolicy(updated);
     try {
-      // 1. Try dedicated rule endpoint
-      bool success = false;
-      try {
-        final resp = await _apiClient.dio.post('/screen-time/apps/rule', data: {
-          'student_id': target,
-          'studentId': target,
-          'aadhar': target,
-          'package_name': packageName,
-          'packageName': packageName,
-          'app_name': appName,
-          'appName': appName,
-          'is_blocked': block,
-          'isBlocked': block,
-        });
-        if (resp.statusCode == 200 || resp.statusCode == 201) success = true;
-      } catch (_) {}
-
-      // 2. Also try updating policies endpoint
-      if (!success && target.isNotEmpty) {
-        try {
-          await _apiClient.dio.put('/screen-time/policies/$target', data: {
-            'blockedPackages': blockedPackages.toList(),
-            'blocked_packages': blockedPackages.toList(),
-            'is_locked': isDeviceLocked.value,
-          });
-          success = true;
-        } catch (_) {}
-      }
-
-      // Sync policy to local device if running on Android
-      await ScreenTimeService.syncPolicyToNative(
-        blockedPackages: blockedPackages.toList(),
-        isLocked: isDeviceLocked.value,
-      );
-
+      await _putPolicy(updated);
       if (block) {
-        AppSnackbar.warning(
-          'App Restricted',
-          '$appName is now restricted for $studentName.',
-        );
+        AppSnackbar.warning('App Restricted', '$appName is now restricted for $studentName.');
       } else {
-        AppSnackbar.success(
-          'App Allowed',
-          '$appName restriction removed for $studentName.',
-        );
+        AppSnackbar.success('App Allowed', '$appName restriction removed for $studentName.');
       }
     } catch (e) {
       debugPrint('[ScreenTime] toggleAppBlock error: $e');
-      if (block) {
-        AppSnackbar.warning(
-          'App Restricted',
-          '$appName marked as restricted.',
-        );
-      } else {
-        AppSnackbar.success(
-          'App Allowed',
-          '$appName marked as allowed.',
-        );
-      }
+      _applyPolicy(previous);
+      AppSnackbar.error('Not Saved', 'Could not update $appName for $studentName. Please try again.');
     }
   }
 
@@ -966,51 +1021,32 @@ class StudentScreenTimeController extends GetxController with WidgetsBindingObse
 
   /// Emergency remote lock / unlock of the student's phone
   Future<void> toggleDeviceLock(bool lock) async {
-    final candidateIds = _getCandidateIdentifiers();
-    final target = candidateIds.isNotEmpty ? candidateIds.first : targetedAadhar.value;
     final studentName = selectedStudent.value is Map
         ? (selectedStudent.value['name'] ?? 'Student')
         : 'Student';
+    final previous = currentPolicy;
 
-    isDeviceLocked.value = lock;
-
+    _applyPolicy(previous.copyWith(isLocked: lock));
     try {
-      if (target.isNotEmpty) {
-        await _apiClient.dio.put('/screen-time/policies/$target', data: {
-          'is_locked': lock,
-          'isLocked': lock,
-          'daily_limit_minutes': dailyLimitMinutes.value,
-          'bedtime_start': bedtimeStart.value,
-          'bedtime_end': bedtimeEnd.value,
-          'blockedPackages': blockedPackages.toList(),
-        });
-        debugPrint('[ScreenTime] Remote lock=$lock pushed to API for $target');
-      }
-
+      await _putPolicy(currentPolicy);
       if (lock) {
         AppSnackbar.warning(
           'Device Locked',
-          '$studentName\'s phone has been remotely locked. Student\'s device will enforce within 30 seconds.',
+          "$studentName's phone has been remotely locked. The device applies it within about 30 seconds.",
         );
       } else {
         AppSnackbar.success(
           'Device Unlocked',
-          '$studentName\'s phone lock has been released. Student will regain access shortly.',
+          "$studentName's phone lock has been released. Access returns shortly.",
         );
       }
     } catch (e) {
       debugPrint('[ScreenTime] toggleDeviceLock error: $e');
-      if (lock) {
-        AppSnackbar.warning(
-          'Device Locked',
-          'Lock command dispatched for $studentName. Device will enforce at next sync.',
-        );
-      } else {
-        AppSnackbar.success(
-          'Device Unlocked',
-          'Unlock command dispatched for $studentName.',
-        );
-      }
+      _applyPolicy(previous);
+      AppSnackbar.error(
+        lock ? 'Lock Failed' : 'Unlock Failed',
+        "Could not reach the server. $studentName's phone is unchanged.",
+      );
     }
   }
 
@@ -1020,33 +1056,23 @@ class StudentScreenTimeController extends GetxController with WidgetsBindingObse
     required String startBedtime,
     required String endBedtime,
   }) async {
-    final candidateIds = _getCandidateIdentifiers();
-    final target = candidateIds.isNotEmpty ? candidateIds.first : targetedAadhar.value;
-
-    dailyLimitMinutes.value = limitMinutes;
-    bedtimeStart.value = startBedtime;
-    bedtimeEnd.value = endBedtime;
+    final previous = currentPolicy;
+    _applyPolicy(previous.copyWith(
+      dailyLimitMinutes: limitMinutes,
+      bedtimeStart: startBedtime,
+      bedtimeEnd: endBedtime,
+    ));
 
     try {
-      if (target.isNotEmpty) {
-        await _apiClient.dio.put('/screen-time/policies/$target', data: {
-          'daily_limit_minutes': limitMinutes,
-          'bedtime_start': startBedtime,
-          'bedtime_end': endBedtime,
-          'is_locked': isDeviceLocked.value,
-          'blockedPackages': blockedPackages.toList(),
-        });
-      }
+      await _putPolicy(currentPolicy);
       AppSnackbar.success(
         'Policy Saved',
         'Curfew ($startBedtime - $endBedtime) & daily limit updated.',
       );
     } catch (e) {
-      debugPrint('[ScreenTime] updateCurfewAndLimit note: $e');
-      AppSnackbar.success(
-        'Policy Saved',
-        'Curfew ($startBedtime - $endBedtime) updated.',
-      );
+      debugPrint('[ScreenTime] updateCurfewAndLimit error: $e');
+      _applyPolicy(previous);
+      AppSnackbar.error('Not Saved', 'Could not save the curfew and daily limit. Please try again.');
     }
   }
 
@@ -1200,6 +1226,7 @@ class StudentScreenTimeController extends GetxController with WidgetsBindingObse
           debugPrint('[ScreenTime] Trying history endpoint: $endpoint');
           final response = await _apiClient.dio.get(endpoint);
           if (response.statusCode == 200 && response.data != null) {
+            _resolvedId = cand;
             _applyHistoryResponse(response.data);
             break;
           }
@@ -1224,6 +1251,9 @@ class StudentScreenTimeController extends GetxController with WidgetsBindingObse
     }
 
     if (records != null && records.isNotEmpty) {
+      for (final rec in records) {
+        AppIconCache.ingest(_extractAppsList(rec));
+      }
       historyRecords.assignAll(records);
       debugPrint('[ScreenTime] loaded ${historyRecords.length} history records: ${historyRecords.first}');
       _extractAppsFromHistoryIfEmpty();
@@ -1280,6 +1310,7 @@ class StudentScreenTimeController extends GetxController with WidgetsBindingObse
       ];
       for (final c in candidates) {
         if (c is List && c.isNotEmpty) {
+          AppIconCache.ingest(c);
           return c;
         }
       }

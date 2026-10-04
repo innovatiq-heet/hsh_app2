@@ -8,7 +8,7 @@ import Foundation
 /// whole load is rejected. `CallerIdPlugin` writes the file in that shape;
 /// we still validate here so a bad export can never brick caller ID.
 final class CallDirectoryHandler: CXCallDirectoryProvider {
-    private static let appGroup = "group.com.example.hshApp2"
+    private static let appGroup = "group.in.innovatiq.hshApp2"
     private static let directoryFile = "callerid-directory.json"
 
     override func beginRequest(with context: CXCallDirectoryExtensionContext) {

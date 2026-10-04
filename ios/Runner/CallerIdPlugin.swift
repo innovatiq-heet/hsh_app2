@@ -10,9 +10,9 @@ import UIKit
 /// system. The label then appears on the incoming-call screen and in Recents.
 final class CallerIdPlugin: NSObject, FlutterPlugin {
     /// Must match the extension target's bundle identifier.
-    static let extensionIdentifier = "com.example.hshApp2.CallDirectoryExtension"
+    static let extensionIdentifier = "in.innovatiq.hshApp2.CallDirectoryExtension"
     /// Must match the App Group added to BOTH targets' entitlements.
-    static let appGroup = "group.com.example.hshApp2"
+    static let appGroup = "group.in.innovatiq.hshApp2"
     static let directoryFile = "callerid-directory.json"
     private static let activeKey = "hsh_caller_id_active"
 

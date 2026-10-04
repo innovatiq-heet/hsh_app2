@@ -76,5 +76,11 @@
 	<string>Bluetooth is required to detect nearby hostel attendance beacons and verify your presence.</string>
 	<key>NSBluetoothPeripheralUsageDescription</key>
 	<string>Bluetooth is required to verify attendance with the floor beacon device.</string>
+	<key>NSLocationWhenInUseUsageDescription</key>
+	<string>Location access is required to verify you are within the hostel premises for attendance.</string>
+	<key>NSLocationAlwaysAndWhenInUseUsageDescription</key>
+	<string>Location access is required to verify you are within the hostel premises for attendance.</string>
+	<key>NSLocationAlwaysUsageDescription</key>
+	<string>Location access is required to verify you are within the hostel premises for attendance.</string>
 </dict>
 </plist>

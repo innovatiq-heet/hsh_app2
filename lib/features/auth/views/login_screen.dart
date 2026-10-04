@@ -1,3 +1,4 @@
+import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:get/get.dart';
@@ -227,11 +228,17 @@ class _FormPanel extends StatelessWidget {
               ),
               child: Row(
                 children: [
-                  const Icon(Icons.sim_card_outlined, color: AppColors.headerBlue, size: 22),
+                  Icon(
+                    Platform.isIOS ? Icons.login_rounded : Icons.sim_card_outlined,
+                    color: AppColors.headerBlue,
+                    size: 22,
+                  ),
                   const SizedBox(width: 12),
                   Expanded(
                     child: Text(
-                      'Auto-login will automatically authenticate when your registered SIM card is detected.',
+                      Platform.isIOS
+                          ? 'Enter your Student ID or mobile number to sign in manually.'
+                          : 'Auto-login will automatically authenticate when your registered SIM card is detected.',
                       style: AppTextStyles.bodySm.copyWith(
                         color: AppColors.textSecondary,
                         height: 1.3,

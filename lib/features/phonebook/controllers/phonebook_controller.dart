@@ -65,7 +65,13 @@ class PhonebookController extends GetxController {
     _applyLaunchArguments();
     await _loadMetadata();
     await search();
-    refreshCallerIdStatus();
+    await refreshCallerIdStatus();
+
+    // iOS: if Caller ID is already enabled, push a fresh directory every time
+    // the phonebook opens so labels are never stale.
+    if (GetPlatform.isIOS && callerId.value.enabled) {
+      CallerIdService.syncDirectory();
+    }
 
     // If cache is empty, trigger initial sync in the background
     if (totalCachedCount.value == 0) {

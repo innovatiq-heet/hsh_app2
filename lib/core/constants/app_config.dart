@@ -5,9 +5,11 @@
 class AppConfig {
   AppConfig._();
 
-  static const String host = 'https://hshbackend.hpys.in';
-  static const String baseUrl = 'https://hshbackend.hpys.in/api';
-  static const String healthUrl = 'https://hshbackend.hpys.in/';
+  static const String host = 'https://yellow-gaur-484396.hostingersite.com';
+  static const String baseUrl =
+      'https://yellow-gaur-484396.hostingersite.com/api';
+  static const String healthUrl =
+      'https://yellow-gaur-484396.hostingersite.com/';
 
   /// Live hosted attendance schedule endpoint.
   static const String attendanceScheduleUrl =

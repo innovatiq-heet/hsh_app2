@@ -1,4 +1,4 @@
-﻿import 'dart:developer' as developer;
+import 'dart:developer' as developer;
 import 'package:dio/dio.dart';
 import 'package:flutter/foundation.dart';
 import '../../core/constants/app_config.dart';
@@ -54,6 +54,7 @@ class _RedactingLogInterceptor extends Interceptor {
 
   @override
   void onRequest(RequestOptions options, RequestInterceptorHandler handler) {
+    debugPrint('--> [HTTP ${options.method}] ${options.uri}');
     developer.log('--> ${options.method} ${options.uri}', name: 'HTTP');
     final auth = options.headers['Authorization'];
     if (auth is String && auth.isNotEmpty) {
@@ -82,6 +83,7 @@ class _RedactingLogInterceptor extends Interceptor {
 
   @override
   void onResponse(Response response, ResponseInterceptorHandler handler) {
+    debugPrint('<-- [HTTP ${response.statusCode}] ${response.requestOptions.method} ${response.requestOptions.uri}');
     developer.log(
       '<-- ${response.statusCode} ${response.requestOptions.uri}',
       name: 'HTTP',
@@ -92,11 +94,13 @@ class _RedactingLogInterceptor extends Interceptor {
 
   @override
   void onError(DioException err, ErrorInterceptorHandler handler) {
+    debugPrint('<-- [HTTP ERROR ${err.response?.statusCode ?? 'FAIL'}] ${err.requestOptions.method} ${err.requestOptions.uri}: ${err.message}');
     developer.log(
       '<-- ERROR ${err.response?.statusCode} ${err.requestOptions.uri}: ${err.message}',
       name: 'HTTP',
     );
     if (err.response?.data != null) {
+      debugPrint('    error body: ${err.response?.data}');
       developer.log('    error body: ${err.response?.data}', name: 'HTTP');
     }
     handler.next(err);

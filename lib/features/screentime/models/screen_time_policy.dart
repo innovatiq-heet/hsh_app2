@@ -84,10 +84,15 @@ class ScreenTimePolicy {
   /// Body for `PUT /screen-time/policies/:id`.
   Map<String, dynamic> toJson() => {
         'is_locked': isLocked,
+        'isLocked': isLocked,
         'blockedPackages': blockedPackages.toList(),
+        'blocked_packages': blockedPackages.toList(),
         'daily_limit_minutes': dailyLimitMinutes,
+        'dailyLimitMinutes': dailyLimitMinutes,
         'bedtime_start': bedtimeStart,
+        'bedtimeStart': bedtimeStart,
         'bedtime_end': bedtimeEnd,
+        'bedtimeEnd': bedtimeEnd,
       };
 
   static dynamic _pick(Map m, List<String> keys) {

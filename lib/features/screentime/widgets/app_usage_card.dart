@@ -137,8 +137,19 @@ class _AppRow extends GetView<StudentScreenTimeController> {
 
   @override
   Widget build(BuildContext context) {
-    final pkg = (item['packageName'] ?? '').toString();
-    final name = (item['appName'] ?? pkg).toString();
+    final pkg = (item['packageName'] ??
+            item['package_name'] ??
+            item['package'] ??
+            item['pkg'] ??
+            '')
+        .toString()
+        .trim();
+    final name = (item['appName'] ??
+            item['app_name'] ??
+            item['name'] ??
+            pkg)
+        .toString()
+        .trim();
     final mins = StudentScreenTimeController.toInt(item['minutes']);
     final blocked = item['isBlocked'] == true;
     final share = dayTotal > 0 ? (mins / dayTotal).clamp(0.0, 1.0) : 0.0;

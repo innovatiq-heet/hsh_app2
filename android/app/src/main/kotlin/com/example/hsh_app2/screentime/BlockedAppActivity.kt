@@ -49,6 +49,15 @@ class BlockedAppActivity : Activity() {
 
     private val policyListener: () -> Unit = { handler.post(lockCheckRunnable) }
 
+    private lateinit var appIconView: android.widget.ImageView
+    private lateinit var iconBadge: TextView
+    private lateinit var tagView: TextView
+    private lateinit var titleView: TextView
+    private lateinit var appNameView: TextView
+    private lateinit var descView: TextView
+    private lateinit var lockNoteView: TextView
+    private lateinit var pkgView: TextView
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
 
@@ -59,13 +68,6 @@ class BlockedAppActivity : Activity() {
             WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON or
             WindowManager.LayoutParams.FLAG_TURN_SCREEN_ON
         )
-
-        val pkgName = intent.getStringExtra(EXTRA_PACKAGE_NAME) ?: "Restricted Application"
-        val appName = intent.getStringExtra(EXTRA_APP_NAME) ?: pkgName
-        val blockReason = BlockReason.fromWire(intent.getStringExtra(EXTRA_REASON_CODE)) ?: BlockReason.APP_BLOCKED
-        val reason = blockReason.message
-        blockedPackage = pkgName
-        isDeviceLocked = blockReason == BlockReason.DEVICE_LOCKED
 
         // Root container
         val rootLayout = LinearLayout(this).apply {
@@ -90,48 +92,32 @@ class BlockedAppActivity : Activity() {
             setPadding(cPad, cPad, cPad, cPad)
         }
 
-        // Real App Icon if available from device PackageManager
-        var hasRealIcon = false
-        if (!isDeviceLocked) {
-            try {
-                val appDrawable = packageManager.getApplicationIcon(pkgName)
-                val appIconView = android.widget.ImageView(this).apply {
-                    setImageDrawable(appDrawable)
-                    val s = dp(64)
-                    layoutParams = LinearLayout.LayoutParams(s, s).apply {
-                        gravity = Gravity.CENTER_HORIZONTAL
-                        bottomMargin = dp(8)
-                    }
-                }
-                cardLayout.addView(appIconView)
-                hasRealIcon = true
-            } catch (_: Exception) {
-                // PackageManager icon not available, fallback to warning badge below
+        // Real App Icon ImageView
+        appIconView = android.widget.ImageView(this).apply {
+            val s = dp(64)
+            layoutParams = LinearLayout.LayoutParams(s, s).apply {
+                gravity = Gravity.CENTER_HORIZONTAL
+                bottomMargin = dp(8)
             }
+            visibility = android.view.View.GONE
         }
+        cardLayout.addView(appIconView)
 
-        // Warning Icon Circle
-        val iconBadge = TextView(this).apply {
-            text = if (isDeviceLocked) "🔒" else (if (hasRealIcon) "🚫" else "🛡️")
-            textSize = if (hasRealIcon) 24f else 48f
+        // Warning Icon Circle Badge
+        iconBadge = TextView(this).apply {
             gravity = Gravity.CENTER
-            if (hasRealIcon) {
-                val lp = LinearLayout.LayoutParams(
-                    LinearLayout.LayoutParams.WRAP_CONTENT,
-                    LinearLayout.LayoutParams.WRAP_CONTENT
-                ).apply {
-                    gravity = Gravity.CENTER_HORIZONTAL
-                    bottomMargin = dp(4)
-                }
-                layoutParams = lp
+            layoutParams = LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.WRAP_CONTENT,
+                LinearLayout.LayoutParams.WRAP_CONTENT
+            ).apply {
+                gravity = Gravity.CENTER_HORIZONTAL
+                bottomMargin = dp(4)
             }
         }
         cardLayout.addView(iconBadge)
 
         // Pill Tag
-        val tagText = blockReason.tag
-        val tagView = TextView(this).apply {
-            text = tagText
+        tagView = TextView(this).apply {
             textSize = 11f
             setTextColor(Color.parseColor("#FF5252"))
             setTypeface(Typeface.DEFAULT_BOLD)
@@ -153,9 +139,7 @@ class BlockedAppActivity : Activity() {
         cardLayout.addView(tagView, tagLp)
 
         // Title
-        val titleText = blockReason.title
-        val titleView = TextView(this).apply {
-            text = titleText
+        titleView = TextView(this).apply {
             textSize = 22f
             setTextColor(Color.WHITE)
             setTypeface(Typeface.DEFAULT_BOLD)
@@ -170,8 +154,7 @@ class BlockedAppActivity : Activity() {
         cardLayout.addView(titleView, titleLp)
 
         // App Name Callout
-        val appNameView = TextView(this).apply {
-            text = "\"$appName\""
+        appNameView = TextView(this).apply {
             textSize = 18f
             setTextColor(Color.parseColor("#FFA726"))
             setTypeface(Typeface.DEFAULT_BOLD)
@@ -186,8 +169,7 @@ class BlockedAppActivity : Activity() {
         cardLayout.addView(appNameView, appNameLp)
 
         // Subtitle / Reason
-        val descView = TextView(this).apply {
-            text = reason
+        descView = TextView(this).apply {
             textSize = 13f
             setTextColor(Color.parseColor("#B0B0B0"))
             gravity = Gravity.CENTER_HORIZONTAL
@@ -202,26 +184,24 @@ class BlockedAppActivity : Activity() {
         cardLayout.addView(descView, descLp)
 
         // Extra note for device locked
-        if (isDeviceLocked) {
-            val lockNote = TextView(this).apply {
-                text = "Your warden has remotely locked this device.\nContact hostel administration to unlock."
-                textSize = 12f
-                setTextColor(Color.parseColor("#EF5350"))
-                gravity = Gravity.CENTER_HORIZONTAL
-                setLineSpacing(dp(2).toFloat(), 1.0f)
-            }
-            val lockNoteLp = LinearLayout.LayoutParams(
-                LinearLayout.LayoutParams.MATCH_PARENT,
-                LinearLayout.LayoutParams.WRAP_CONTENT
-            ).apply {
-                topMargin = dp(8)
-            }
-            cardLayout.addView(lockNote, lockNoteLp)
+        lockNoteView = TextView(this).apply {
+            text = "Your warden has remotely locked this device.\nContact hostel administration to unlock."
+            textSize = 12f
+            setTextColor(Color.parseColor("#EF5350"))
+            gravity = Gravity.CENTER_HORIZONTAL
+            setLineSpacing(dp(2).toFloat(), 1.0f)
+            visibility = android.view.View.GONE
         }
+        val lockNoteLp = LinearLayout.LayoutParams(
+            LinearLayout.LayoutParams.MATCH_PARENT,
+            LinearLayout.LayoutParams.WRAP_CONTENT
+        ).apply {
+            topMargin = dp(8)
+        }
+        cardLayout.addView(lockNoteView, lockNoteLp)
 
         // Package Name Note
-        val pkgView = TextView(this).apply {
-            text = pkgName
+        pkgView = TextView(this).apply {
             textSize = 11f
             setTextColor(Color.parseColor("#757575"))
             gravity = Gravity.CENTER_HORIZONTAL
@@ -281,7 +261,47 @@ class BlockedAppActivity : Activity() {
         rootLayout.addView(cardLayout)
         setContentView(rootLayout)
 
+        bindData(intent)
         PolicyStore.addPolicyListener(policyListener)
+    }
+
+    override fun onNewIntent(intent: Intent?) {
+        super.onNewIntent(intent)
+        setIntent(intent)
+        if (intent != null) {
+            bindData(intent)
+        }
+    }
+
+    private fun bindData(intent: Intent) {
+        val pkgName = intent.getStringExtra(EXTRA_PACKAGE_NAME) ?: "Restricted Application"
+        val appName = intent.getStringExtra(EXTRA_APP_NAME) ?: pkgName
+        val blockReason = BlockReason.fromWire(intent.getStringExtra(EXTRA_REASON_CODE)) ?: BlockReason.APP_BLOCKED
+        blockedPackage = pkgName
+        isDeviceLocked = blockReason == BlockReason.DEVICE_LOCKED
+
+        var hasRealIcon = false
+        if (!isDeviceLocked) {
+            try {
+                val appDrawable = packageManager.getApplicationIcon(pkgName)
+                appIconView.setImageDrawable(appDrawable)
+                appIconView.visibility = android.view.View.VISIBLE
+                hasRealIcon = true
+            } catch (_: Exception) {
+                appIconView.visibility = android.view.View.GONE
+            }
+        } else {
+            appIconView.visibility = android.view.View.GONE
+        }
+
+        iconBadge.text = if (isDeviceLocked) "🔒" else (if (hasRealIcon) "🚫" else "🛡️")
+        iconBadge.textSize = if (hasRealIcon) 24f else 48f
+        tagView.text = blockReason.tag
+        titleView.text = blockReason.title
+        appNameView.text = "\"$appName\""
+        descView.text = blockReason.message
+        lockNoteView.visibility = if (isDeviceLocked) android.view.View.VISIBLE else android.view.View.GONE
+        pkgView.text = pkgName
     }
 
     override fun onResume() {

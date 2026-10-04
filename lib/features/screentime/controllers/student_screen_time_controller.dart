@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'package:dio/dio.dart';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:intl/intl.dart';
@@ -491,8 +492,7 @@ class StudentScreenTimeController extends GetxController with WidgetsBindingObse
   /// student, remembered so every later call is a single request.
   String? _resolvedId;
 
-  String get _targetId =>
-      _resolvedId ?? (_getCandidateIdentifiers().firstOrNull ?? targetedAadhar.value);
+
   final RxString selectedAppFilter = 'All'.obs; // 'All', 'Used Today', 'Restricted'
   final RxString appSearchQuery = ''.obs;
   final appSearchController = TextEditingController();
@@ -530,20 +530,9 @@ class StudentScreenTimeController extends GetxController with WidgetsBindingObse
     final args = Get.arguments;
     if (args is Map) {
       final map = Map<String, dynamic>.from(args);
-      final aadhar = (map['aadhar'] ?? map['studentId'] ?? '').toString();
-      final name = (map['name'] ?? map['fullName'] ?? '').toString();
-      final room = (map['room'] ?? '').toString();
-
       openedWithDirectTarget.value = true;
       _pendingTargetStudent = map;
-
-      if (aadhar.isNotEmpty && !aadhar.startsWith('stu_')) {
-        selectStudent({
-          'aadhar': aadhar,
-          'name': name.isNotEmpty ? name : 'Student',
-          'room': room.isNotEmpty ? room : 'N/A',
-        });
-      }
+      selectStudent(map);
     }
   }
 
@@ -722,7 +711,11 @@ class StudentScreenTimeController extends GetxController with WidgetsBindingObse
     currentApp.value = (student['currentApp'] ?? 'Idle').toString();
 
     // Extract blocked packages & policy from student if present
-    final directBlocked = student['blockedPackages'] ?? student['blocked_packages'];
+    final pol = student['policy'] is Map ? (student['policy'] as Map) : const {};
+    final directBlocked = student['blockedPackages'] ??
+        student['blocked_packages'] ??
+        pol['blockedPackages'] ??
+        pol['blocked_packages'];
     if (directBlocked is List) {
       blockedPackages.assignAll(directBlocked.map((e) => e.toString()).toList());
     } else {
@@ -730,7 +723,6 @@ class StudentScreenTimeController extends GetxController with WidgetsBindingObse
     }
 
     if (student['policy'] is Map) {
-      final pol = student['policy'] as Map;
       isDeviceLocked.value = pol['is_locked'] == true || pol['is_locked'] == 1 || pol['isLocked'] == true;
       dailyLimitMinutes.value = toInt(pol['daily_limit_minutes'] ?? pol['dailyLimitMinutes']);
       bedtimeStart.value = (pol['bedtime_start'] ?? pol['bedtimeStart'] ?? '23:00').toString();
@@ -790,22 +782,36 @@ class StudentScreenTimeController extends GetxController with WidgetsBindingObse
     appSearchController.clear();
   }
 
-  List<String> _getCandidateIdentifiers() {
+  List<String> _getCandidateIdentifiers({bool includeAll = false}) {
     final resolved = _resolvedId;
-    if (resolved != null && resolved.isNotEmpty) return [resolved];
+    if (!includeAll && resolved != null && resolved.isNotEmpty) return [resolved];
     final s = selectedStudent.value;
     final list = <String>[];
-    if (s is Map) {
-      final id = (s['_id'] ?? s['id'] ?? '').toString().trim();
-      final aadhar = (s['aadhar'] ?? '').toString().trim();
-      final studentId = (s['studentId'] ?? s['student_id'] ?? '').toString().trim();
-      final studentCode = (s['studentCode'] ?? s['bankCode'] ?? '').toString().trim();
+    if (resolved != null && resolved.isNotEmpty) list.add(resolved);
 
-      if (id.isNotEmpty) list.add(id);
-      if (aadhar.isNotEmpty && !list.contains(aadhar)) list.add(aadhar);
+    void extractFrom(dynamic obj) {
+      if (obj is! Map) return;
+      final id = (obj['_id'] ?? obj['id'] ?? '').toString().trim();
+      final aadhar = (obj['aadhar'] ?? '').toString().trim();
+      final studentId = (obj['studentId'] ?? obj['student_id'] ?? '').toString().trim();
+      final studentCode = (obj['studentCode'] ?? obj['bankCode'] ?? '').toString().trim();
+      final phone = (obj['phone'] ?? obj['mobile'] ?? '').toString().trim();
+
+      if (id.isNotEmpty && !list.contains(id)) list.add(id);
       if (studentId.isNotEmpty && !list.contains(studentId)) list.add(studentId);
+      if (aadhar.isNotEmpty && !list.contains(aadhar)) list.add(aadhar);
       if (studentCode.isNotEmpty && !list.contains(studentCode)) list.add(studentCode);
+      if (phone.isNotEmpty && !list.contains(phone)) list.add(phone);
+
+      if (obj['student'] is Map) extractFrom(obj['student']);
+      if (obj['user'] is Map) extractFrom(obj['user']);
+      if (obj['studentDetails'] is Map) extractFrom(obj['studentDetails']);
+      if (obj['data'] is Map) extractFrom(obj['data']);
     }
+
+    extractFrom(s);
+    extractFrom(_pendingTargetStudent);
+
     if (targetedAadhar.value.isNotEmpty && !list.contains(targetedAadhar.value)) {
       list.add(targetedAadhar.value);
     }
@@ -971,30 +977,138 @@ class StudentScreenTimeController extends GetxController with WidgetsBindingObse
     }
   }
 
+  static const Map<String, String> _nameToPackage = {
+    'instagram': 'com.instagram.android',
+    'youtube': 'com.google.android.youtube',
+    'facebook': 'com.facebook.katana',
+    'snapchat': 'com.snapchat.android',
+    'free fire': 'com.dts.freefireth',
+    'free fire max': 'com.dts.freefiremax',
+    'bgmi': 'com.pubg.imobile',
+    'pubg': 'com.pubg.imobile',
+    'whatsapp': 'com.whatsapp',
+    'chrome': 'com.android.chrome',
+    'netflix': 'com.netflix.mediaclient',
+  };
+
+  static const Map<String, List<String>> _packageAliases = {
+    'com.instagram.android': ['com.instagram.android', 'com.instagram.lite'],
+    'com.instagram.lite': ['com.instagram.android', 'com.instagram.lite'],
+    'com.dts.freefireth': ['com.dts.freefireth', 'com.dts.freefiremax'],
+    'com.dts.freefiremax': ['com.dts.freefireth', 'com.dts.freefiremax'],
+    'com.facebook.katana': ['com.facebook.katana', 'com.facebook.lite'],
+    'com.facebook.lite': ['com.facebook.katana', 'com.facebook.lite'],
+    'com.pubg.imobile': ['com.pubg.imobile', 'com.tencent.ig', 'com.pubg.krmobile'],
+  };
+
   /// Saves [policy] for the selected student. Throws on failure so callers can
   /// roll back their optimistic UI change.
   Future<void> _putPolicy(ScreenTimePolicy policy) async {
-    final target = _targetId;
-    if (target.isEmpty) throw StateError('No student selected');
-    await _apiClient.dio.put('/screen-time/policies/$target', data: policy.toJson());
-    policyVersion.value = DateTime.now().toIso8601String();
+    final candidates = _getCandidateIdentifiers(includeAll: true);
+    if (candidates.isEmpty) {
+      candidates.add('me');
+    }
+
+    final basePayload = policy.toJson();
+    final s = selectedStudent.value;
+    final aadhar = (s is Map ? (s['aadhar'] ?? '') : targetedAadhar.value).toString().trim();
+    if (aadhar.isNotEmpty) {
+      basePayload['aadhar'] = aadhar;
+    }
+
+    debugPrint('[ScreenTime API] >>> _putPolicy starting. Targets: $candidates');
+    dynamic lastError;
+    for (final target in candidates) {
+      final endpoint = '/screen-time/policies/$target';
+      final payload = {
+        ...basePayload,
+        'studentId': target,
+        'student_id': target,
+        'id': target,
+      };
+      debugPrint('[ScreenTime API] Dispatching PUT $endpoint with ${policy.blockedPackages.length} blocked packages');
+      try {
+        final response = await _apiClient.dio.put(
+          endpoint,
+          data: payload,
+        );
+        debugPrint('[ScreenTime API] PUT $endpoint SUCCESS (${response.statusCode})');
+        if (response.statusCode == 200 || response.statusCode == 201) {
+          _resolvedId = target;
+          policyVersion.value = DateTime.now().toIso8601String();
+          try {
+            await ScreenTimeService.syncPolicyToNative(policy);
+          } catch (_) {}
+          return;
+        }
+      } catch (e) {
+        lastError = e;
+        if (e is DioException) {
+          debugPrint('[ScreenTime API] PUT $endpoint failed: ${e.response?.statusCode} -> ${e.response?.data}');
+        } else {
+          debugPrint('[ScreenTime API] PUT $endpoint failed: $e');
+        }
+      }
+    }
+
+    // Secondary fallback for backend routes using singular /policy/:id
+    for (final target in candidates) {
+      final alt = '/screen-time/policy/$target';
+      try {
+        debugPrint('[ScreenTime API] Dispatching fallback PUT $alt');
+        final response = await _apiClient.dio.put(
+          alt,
+          data: {
+            ...basePayload,
+            'studentId': target,
+            'student_id': target,
+          },
+        );
+        if (response.statusCode == 200 || response.statusCode == 201) {
+          _resolvedId = target;
+          policyVersion.value = DateTime.now().toIso8601String();
+          try {
+            await ScreenTimeService.syncPolicyToNative(policy);
+          } catch (_) {}
+          return;
+        }
+      } catch (_) {}
+    }
+
+    if (lastError != null) throw lastError;
   }
 
   /// Toggle blocking or unblocking an app (Admin / Warden action)
   Future<void> toggleAppBlock(String packageName, String appName, bool block) async {
+    final rawPkg = packageName.trim();
+    if (rawPkg.isEmpty) {
+      debugPrint('[ScreenTime] toggleAppBlock skipped: empty packageName');
+      return;
+    }
+
+    final lowerPkg = rawPkg.toLowerCase();
+    final resolvedPkg = (!lowerPkg.contains('.') && _nameToPackage.containsKey(lowerPkg))
+        ? _nameToPackage[lowerPkg]!
+        : rawPkg;
+
     final studentName = selectedStudent.value is Map
         ? (selectedStudent.value['name'] ?? 'Student')
         : 'Student';
     final previous = currentPolicy;
+    final pkgsToToggle = _packageAliases[resolvedPkg.toLowerCase()] ?? [resolvedPkg];
+    final updatedBlocked = block
+        ? {...previous.blockedPackages, ...pkgsToToggle}
+        : previous.blockedPackages.where((p) => !pkgsToToggle.contains(p)).toSet();
+
     final updated = previous.copyWith(
-      blockedPackages: block
-          ? {...previous.blockedPackages, packageName}
-          : previous.blockedPackages.where((p) => p != packageName).toSet(),
+      blockedPackages: updatedBlocked,
     );
 
     // Optimistic update; rolled back below if the API rejects it.
     _applyPolicy(updated);
+    isUpdatingPolicy.value = true;
     try {
+      debugPrint('[ScreenTime] toggleAppBlock called: $appName ($resolvedPkg) -> block=$block');
       await _putPolicy(updated);
       if (block) {
         AppSnackbar.warning('App Restricted', '$appName is now restricted for $studentName.');
@@ -1005,6 +1119,8 @@ class StudentScreenTimeController extends GetxController with WidgetsBindingObse
       debugPrint('[ScreenTime] toggleAppBlock error: $e');
       _applyPolicy(previous);
       AppSnackbar.error('Not Saved', 'Could not update $appName for $studentName. Please try again.');
+    } finally {
+      isUpdatingPolicy.value = false;
     }
   }
 

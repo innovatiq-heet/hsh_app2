@@ -148,7 +148,7 @@ object PolicyStore {
         val p = prefs(context)
         return DevicePolicy(
             isLocked = p.getBoolean(KEY_IS_LOCKED, false),
-            blockedPackages = readStringSet(p.getString(KEY_BLOCKED, null)),
+            blockedPackages = readStringSet(safeGetString(p, KEY_BLOCKED)),
             dailyLimitMinutes = p.getInt(KEY_DAILY_LIMIT, 0),
             bedtimeStart = p.getString(KEY_BEDTIME_START, "") ?: "",
             bedtimeEnd = p.getString(KEY_BEDTIME_END, "") ?: "",
@@ -193,13 +193,19 @@ object PolicyStore {
         if (!hasAny) return null
 
         val current = policy(context)
+        val hasBlockedKey = pol.has("blockedPackages") || pol.has("blocked_packages") ||
+            data.has("blockedPackages") || data.has("blocked_packages")
         val blockedArr = data.optJSONArray("blockedPackages")
             ?: data.optJSONArray("blocked_packages")
             ?: pol.optJSONArray("blockedPackages")
             ?: pol.optJSONArray("blocked_packages")
-        val blocked = blockedArr?.let { arr ->
-            (0 until arr.length()).mapNotNull { arr.optString(it).takeIf { s -> s.isNotBlank() } }.toSet()
-        } ?: current.blockedPackages
+        val blocked = if (blockedArr != null) {
+            (0 until blockedArr.length()).mapNotNull { blockedArr.optString(it).trim().takeIf { s -> s.isNotBlank() } }.toSet()
+        } else if (hasBlockedKey) {
+            emptySet()
+        } else {
+            current.blockedPackages
+        }
 
         val updated = DevicePolicy(
             isLocked = optBool(pol, "is_locked", "isLocked") ?: optBool(data, "is_locked", "isLocked") ?: current.isLocked,
@@ -377,6 +383,19 @@ object PolicyStore {
     }
 
     // ---------- helpers ----------
+
+    private fun safeGetString(p: SharedPreferences, key: String): String? {
+        return try {
+            p.getString(key, null)
+        } catch (_: ClassCastException) {
+            val set = p.getStringSet(key, null) ?: emptySet()
+            val json = JSONArray(set.toList()).toString()
+            p.edit().putString(key, json).apply()
+            json
+        } catch (_: Exception) {
+            null
+        }
+    }
 
     private fun readStringSet(raw: String?): Set<String> {
         if (raw.isNullOrEmpty()) return emptySet()

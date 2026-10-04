@@ -52,12 +52,21 @@ class AppBlockerAccessibilityService : AccessibilityService() {
         Log.w(TAG, "Blocking $pkg (${reason.wireName})")
         PolicyStore.recordBlockEvent(this, pkg, appName, reason)
 
-        // Kick the restricted app out first, then explain why on top of the launcher.
-        runCatching { performGlobalAction(GLOBAL_ACTION_HOME) }
-            .onFailure { Log.e(TAG, "GLOBAL_ACTION_HOME failed: ${it.message}") }
-        runCatching {
-            startActivity(BlockedAppActivity.intent(this, pkg, appName, reason))
-        }.onFailure { Log.e(TAG, "BlockedAppActivity failed: ${it.message}") }
+        // Launch BlockedAppActivity over the restricted app.
+        val intent = BlockedAppActivity.intent(this, pkg, appName, reason)
+        val started = runCatching {
+            startActivity(intent)
+            true
+        }.getOrElse {
+            Log.e(TAG, "BlockedAppActivity failed: ${it.message}")
+            false
+        }
+
+        // Fallback for ROMs that prevent background activity launches: kick out to Home
+        if (!started) {
+            runCatching { performGlobalAction(GLOBAL_ACTION_HOME) }
+                .onFailure { Log.e(TAG, "GLOBAL_ACTION_HOME fallback failed: ${it.message}") }
+        }
     }
 
     override fun onInterrupt() {

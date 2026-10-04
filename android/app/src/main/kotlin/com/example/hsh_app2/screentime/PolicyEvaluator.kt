@@ -83,7 +83,10 @@ object PolicyEvaluator {
         val policy = PolicyStore.policy(context)
         if (policy.isLocked) return BlockReason.DEVICE_LOCKED
         if (GeofenceEvaluator.shouldLock(context)) return BlockReason.OUT_OF_CAMPUS
-        if (packageName in policy.blockedPackages) return BlockReason.APP_BLOCKED
+        val targetPkg = packageName.trim()
+        if (policy.blockedPackages.any { it.trim().equals(targetPkg, ignoreCase = true) }) {
+            return BlockReason.APP_BLOCKED
+        }
         if (policy.hasBedtime && isInBedtime(policy)) return BlockReason.BEDTIME
         if (policy.dailyLimitMinutes > 0 && todayMinutes(context) >= policy.dailyLimitMinutes) {
             return BlockReason.DAILY_LIMIT

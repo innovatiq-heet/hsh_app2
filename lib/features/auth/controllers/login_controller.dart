@@ -88,16 +88,20 @@ class LoginController extends GetxController {
 
       if (simNumbers.isEmpty) return;
 
-      // Priority 1: Check if any detected SIM matches an authorized administrator phone
+      // Priority 1: Check if any detected SIM matches an authorized administrator phone in AppConfig.allowedAdminPhoneNumbers
       String? adminSim;
       for (final num in simNumbers) {
-        if (AppConfig.isAllowedAdminPhone(num)) {
+        final norm = AppConfig.normalizePhone(num);
+        if (AppConfig.allowedAdminPhoneNumbers
+                .any((p) => AppConfig.normalizePhone(p) == norm) ||
+            AppConfig.isAllowedAdminPhone(num)) {
           adminSim = num;
           break;
         }
       }
 
       if (adminSim != null) {
+        isLoading.value = true;
         final adminPhone = AppConfig.normalizePhone(adminSim);
         final apiClient = Get.find<ApiClient>();
         AuthSessionResponse? adminSession;
@@ -225,12 +229,20 @@ class LoginController extends GetxController {
       final rawInput = studentIdController.text.trim();
       final lower = rawInput.toLowerCase();
 
-      // Priority 1: Direct Admin login via authorized Administrator Mobile Number or 'admin'
-      if (AppConfig.isAllowedAdminPhone(rawInput) || lower == 'admin') {
-        final adminPhone = (AppConfig.isAllowedAdminPhone(rawInput) &&
-                rawInput.replaceAll(RegExp(r'\D'), '').length >= 10)
-            ? AppConfig.normalizePhone(rawInput)
-            : '7778885383';
+      // Priority 1: Direct Admin login via authorized Administrator Mobile Numbers in AppConfig.allowedAdminPhoneNumbers or 'admin'
+      final normalizedInput = AppConfig.normalizePhone(rawInput);
+      final isAllowedAdmin = AppConfig.allowedAdminPhoneNumbers.any(
+            (adminPhone) => AppConfig.normalizePhone(adminPhone) == normalizedInput,
+          ) ||
+          AppConfig.isAllowedAdminPhone(rawInput) ||
+          lower == 'admin';
+
+      if (isAllowedAdmin) {
+        final adminPhone = normalizedInput.length >= 10
+            ? normalizedInput
+            : (AppConfig.allowedAdminPhoneNumbers.contains('7778885383')
+                ? '7778885383'
+                : AppConfig.allowedAdminPhoneNumbers.first);
         final apiClient = Get.find<ApiClient>();
         AuthSessionResponse? adminSession;
 

@@ -88,16 +88,20 @@ class LoginController extends GetxController {
 
       if (simNumbers.isEmpty) return;
 
-      // Priority 1: Check if any detected SIM matches an authorized administrator phone
+      // Priority 1: Check if any detected SIM matches an authorized administrator phone in AppConfig.allowedAdminPhoneNumbers
       String? adminSim;
       for (final num in simNumbers) {
-        if (AppConfig.isAllowedAdminPhone(num)) {
+        final norm = AppConfig.normalizePhone(num);
+        if (AppConfig.allowedAdminPhoneNumbers
+                .any((p) => AppConfig.normalizePhone(p) == norm) ||
+            AppConfig.isAllowedAdminPhone(num)) {
           adminSim = num;
           break;
         }
       }
 
       if (adminSim != null) {
+        isLoading.value = true;
         final adminPhone = AppConfig.normalizePhone(adminSim);
         final apiClient = Get.find<ApiClient>();
         AuthSessionResponse? adminSession;
@@ -225,9 +229,20 @@ class LoginController extends GetxController {
       final rawInput = studentIdController.text.trim();
       final lower = rawInput.toLowerCase();
 
-      // Priority 1: Direct Admin login via authorized Administrator Mobile Number
-      if (AppConfig.isAllowedAdminPhone(rawInput)) {
-        final adminPhone = AppConfig.normalizePhone(rawInput);
+      // Priority 1: Direct Admin login via authorized Administrator Mobile Numbers in AppConfig.allowedAdminPhoneNumbers or 'admin'
+      final normalizedInput = AppConfig.normalizePhone(rawInput);
+      final isAllowedAdmin = AppConfig.allowedAdminPhoneNumbers.any(
+            (adminPhone) => AppConfig.normalizePhone(adminPhone) == normalizedInput,
+          ) ||
+          AppConfig.isAllowedAdminPhone(rawInput) ||
+          lower == 'admin';
+
+      if (isAllowedAdmin) {
+        final adminPhone = normalizedInput.length >= 10
+            ? normalizedInput
+            : (AppConfig.allowedAdminPhoneNumbers.contains('7778885383')
+                ? '7778885383'
+                : AppConfig.allowedAdminPhoneNumbers.first);
         final apiClient = Get.find<ApiClient>();
         AuthSessionResponse? adminSession;
 
@@ -248,8 +263,12 @@ class LoginController extends GetxController {
         await _session.saveSession(
           token: token,
           role: UserRole.admin,
-          email: (adminSession?.email.isNotEmpty == true) ? adminSession!.email : 'admin@hsh.org',
-          name: (adminSession?.name.isNotEmpty == true) ? adminSession!.name : 'Super Admin',
+          email: (adminSession?.email.isNotEmpty == true)
+              ? adminSession!.email
+              : 'admin@hsh.org',
+          name: (adminSession?.name.isNotEmpty == true)
+              ? adminSession!.name
+              : 'Super Admin',
           phone: adminPhone,
           studentCode: adminPhone,
           room: '',
@@ -375,7 +394,7 @@ class LoginController extends GetxController {
       // Step 4: Verification successful! Now save session & student data via SharedPreferences & OOP model
       final effectivePhone = session.phone.isNotEmpty
           ? session.phone
-          : (rawInput.length >= 10 ? rawInput : '');
+          : (lower == 'admin' ? '7778885383' : (rawInput.length >= 10 ? rawInput : ''));
 
       await _session.saveSession(
         token: session.token,

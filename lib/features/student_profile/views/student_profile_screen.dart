@@ -186,13 +186,13 @@ class _ProfileHero extends StatelessWidget {
           ),
         ),
       ),
-      actions: [
-        HeaderIconButton(
-          icon: Icons.settings_outlined,
-          tooltip: 'Settings',
-          onPressed: () => Get.toNamed(Routes.setting),
-        ),
-      ],
+      // actions: [
+      //   HeaderIconButton(
+      //     icon: Icons.settings_outlined,
+      //     tooltip: 'Settings',
+      //     onPressed: () => Get.toNamed(Routes.setting),
+      //   ),
+      // ],
       child: Builder(
         builder: (context) {
           final pills = [

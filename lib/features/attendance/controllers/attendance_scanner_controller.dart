@@ -88,11 +88,22 @@ class AttendanceScannerController extends GetxController {
     HapticFeedback.mediumImpact();
 
     try {
+      int? floorId;
+      String? serviceUuid;
+      if (Get.isRegistered<AttendanceController>()) {
+        final attCtrl = Get.find<AttendanceController>();
+        floorId = attCtrl.assignedFloorId.value;
+        serviceUuid = attCtrl.currentFloorServiceUuid.value;
+      }
+
       final record = await _repository.mark(
         MarkAttendanceRequest(
           type: selectedType.value,
+          sessionKey: selectedType.value.apiValue,
           viaCode: true,
           qrToken: qrToken,
+          floorId: floorId,
+          serviceUuid: serviceUuid,
         ),
       );
 

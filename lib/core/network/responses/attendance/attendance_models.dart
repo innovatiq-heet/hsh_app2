@@ -24,6 +24,9 @@ class AttendanceRecord {
   /// Convenience getter matching previous `AttendanceLogEntry.markedAt` interface.
   DateTime get markedAt => time;
 
+  /// Getter for session key from attendance type.
+  String get sessionKey => type.apiValue;
+
   factory AttendanceRecord.fromJson(Map<String, dynamic> json) {
     DateTime parseDate(dynamic v) {
       if (v is DateTime) return v.toUtc();

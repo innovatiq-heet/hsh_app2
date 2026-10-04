@@ -732,6 +732,9 @@ class _AttendanceScreenState extends State<AttendanceScreen> with SingleTickerPr
                             child: Column(
                               crossAxisAlignment: CrossAxisAlignment.start,
                               children: [
+                                // Student Profile Card
+                                _ProfileCard(controller: controller),
+
                                 // Attendance Action Card
                                 AppCard(
                                   padding: const EdgeInsets.all(24.0),
@@ -1090,4 +1093,175 @@ class _AttendanceSkeleton extends StatelessWidget {
     );
   }
 }
+
+class _ProfileCard extends StatelessWidget {
+  final AttendanceController controller;
+  const _ProfileCard({required this.controller});
+
+  @override
+  Widget build(BuildContext context) {
+    return Obx(() {
+      final details = controller.studentDetails.value;
+      final name = details != null && details.fullName.isNotEmpty ? details.fullName : 'Student';
+      final room = details != null && details.room.isNotEmpty ? details.room : '--';
+      final phone = details != null && details.phone.isNotEmpty ? details.phone : '--';
+      String rawBankCode = (details != null && details.bankCode.isNotEmpty && details.bankCode != '--')
+          ? details.bankCode
+          : (controller.studentId.value != null ? controller.studentId.value.toString() : '');
+      final bankCode = (rawBankCode.length == 3 && RegExp(r'^[0-9]{3}$').hasMatch(rawBankCode))
+          ? '0$rawBankCode'
+          : rawBankCode;
+
+      final parts = name.trim().split(RegExp(r'\s+')).where((p) => p.isNotEmpty).toList();
+      String initials = "ST";
+      if (parts.length >= 2) {
+        initials = (parts[0][0] + parts[1][0]).toUpperCase();
+      } else if (parts.isNotEmpty && parts[0].isNotEmpty) {
+        initials = parts[0][0].toUpperCase();
+      }
+
+      final floorName = controller.assignedFloorName.value.isNotEmpty
+          ? controller.assignedFloorName.value
+          : (controller.assignedFloorId.value == 0
+              ? 'Ground Floor'
+              : (controller.assignedFloorId.value > 0
+                  ? 'Floor ${controller.assignedFloorId.value}'
+                  : 'Floor --'));
+
+      final groupName = (details != null && details.groupName.isNotEmpty) ? details.groupName : '';
+
+      return Padding(
+        padding: const EdgeInsets.only(bottom: AppDimens.gapLg),
+        child: AppCard(
+          padding: const EdgeInsets.all(16.0),
+          child: Column(
+            children: [
+              Row(
+                children: [
+                  Container(
+                    width: 50,
+                    height: 50,
+                    decoration: const BoxDecoration(
+                      shape: BoxShape.circle,
+                      gradient: LinearGradient(
+                        colors: [AppColors.primary, AppColors.primaryLight],
+                      ),
+                    ),
+                    child: Center(
+                      child: Text(
+                        initials,
+                        style: const TextStyle(
+                          color: Colors.white,
+                          fontWeight: FontWeight.w700,
+                          fontSize: 16,
+                        ),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 14),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          name,
+                          style: const TextStyle(
+                            fontSize: 16,
+                            fontWeight: FontWeight.w700,
+                            color: AppColors.textPrimary,
+                          ),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                        const SizedBox(height: 6),
+                        Wrap(
+                          spacing: 6,
+                          runSpacing: 4,
+                          children: [
+                            if (bankCode.isNotEmpty)
+                              _buildInfoChip(Icons.badge_outlined, bankCode),
+                            _buildInfoChip(Icons.meeting_room_outlined, 'Room $room'),
+                            _buildInfoChip(Icons.apartment_rounded, floorName),
+                            if (groupName.isNotEmpty)
+                              _buildInfoChip(Icons.groups_rounded, groupName),
+                          ],
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+              if (phone.isNotEmpty && phone != '--') ...[
+                const SizedBox(height: 12),
+                const Divider(height: 1, color: AppColors.borderLight),
+                const SizedBox(height: 10),
+                Row(
+                  children: [
+                    const Icon(Icons.phone_android_rounded, size: 15, color: AppColors.textMuted),
+                    const SizedBox(width: 6),
+                    Text(
+                      phone,
+                      style: const TextStyle(
+                        fontSize: 12.5,
+                        color: AppColors.textSecondary,
+                      ),
+                    ),
+                    const Spacer(),
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                      decoration: BoxDecoration(
+                        color: AppColors.successGreen.withValues(alpha: 0.12),
+                        borderRadius: BorderRadius.circular(20),
+                      ),
+                      child: const Row(
+                        children: [
+                          Icon(Icons.verified_user_rounded, size: 12, color: AppColors.successGreen),
+                          SizedBox(width: 4),
+                          Text(
+                            'Verified',
+                            style: TextStyle(
+                              fontSize: 10.5,
+                              color: AppColors.successGreen,
+                              fontWeight: FontWeight.w700,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+              ],
+            ],
+          ),
+        ),
+      );
+    });
+  }
+
+  Widget _buildInfoChip(IconData icon, String label) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 3),
+      decoration: BoxDecoration(
+        color: AppColors.primary.withValues(alpha: 0.08),
+        borderRadius: BorderRadius.circular(6),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(icon, size: 12, color: AppColors.primary),
+          const SizedBox(width: 4),
+          Text(
+            label,
+            style: const TextStyle(
+              fontSize: 11,
+              fontWeight: FontWeight.w600,
+              color: AppColors.primary,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
 

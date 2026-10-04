@@ -423,6 +423,62 @@ class SessionStore extends GetxService {
     await prefs.setString(_kLastAttendanceDate, date);
   }
 
+  // ---------- Per-Session Attendance Caching ----------
+
+  Future<void> saveMarkedSessionDate(String sessionKey, String date) async {
+    final prefs = await _instance;
+    await prefs.setString('att_session_date_$sessionKey', date);
+  }
+
+  Future<void> saveMarkedSessionTime(String sessionKey, DateTime time) async {
+    final prefs = await _instance;
+    await prefs.setString('att_session_time_$sessionKey', time.toIso8601String());
+  }
+
+  Future<DateTime?> getMarkedSessionTime(String sessionKey) async {
+    try {
+      final prefs = await _instance;
+      final today = DateTime.now();
+      final todayStr = '${today.year}-${today.month.toString().padLeft(2, '0')}-${today.day.toString().padLeft(2, '0')}';
+      final savedDate = prefs.getString('att_session_date_$sessionKey');
+      if (savedDate != todayStr) return null;
+      final timeStr = prefs.getString('att_session_time_$sessionKey');
+      if (timeStr == null) return null;
+      return DateTime.parse(timeStr);
+    } catch (_) {
+      return null;
+    }
+  }
+
+  // ---------- Floor ID Caching ----------
+
+  int? _cachedFloorId;
+
+  int? get currentFloorId => _cachedFloorId;
+
+  Future<int?> get cachedFloorId async {
+    if (_cachedFloorId != null) return _cachedFloorId;
+    final prefs = await _instance;
+    final stored = prefs.getInt('assigned_floor_id');
+    _cachedFloorId = stored;
+    return stored;
+  }
+
+  Future<void> cacheFloorId(int floorId) async {
+    _cachedFloorId = floorId;
+    final prefs = await _instance;
+    await prefs.setInt('assigned_floor_id', floorId);
+  }
+
+  // Synchronous current student code (from cached session/profile)
+  String? get currentStudentCode {
+    final bankCode = _cachedStudentProfile?.bankCode;
+    if (bankCode != null && bankCode.isNotEmpty) return bankCode;
+    final studentCode = _cachedSession?.studentCode;
+    if (studentCode != null && studentCode.isNotEmpty) return studentCode;
+    return null;
+  }
+
   Future<bool> get hasSession async => (await token) != null && (await token)!.isNotEmpty;
 
   Future<void> _ensureSessionLoaded() async {

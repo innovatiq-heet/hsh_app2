@@ -9,22 +9,31 @@ class MarkAttendanceRequest {
   final bool viaCode;
   final String? qrToken;
   final int? rssi; // Added for BLE proximity attendance
+  final String? sessionKey; // Per-session key (e.g. 'aarti', 'night')
+  final int? floorId; // Student's assigned floor ID
+  final String? serviceUuid; // Verified floor string / 'GLOBAL_ALL_FLOORS'
 
   const MarkAttendanceRequest({
     required this.type,
     this.viaCode = true,
     this.qrToken,
     this.rssi,
+    this.sessionKey,
+    this.floorId,
+    this.serviceUuid,
   });
 
   Map<String, dynamic> toJson() => {
     'type': type.apiValue,
-    'session_type': type.apiValue,
+    'session_type': sessionKey ?? type.apiValue,
     if (qrToken != null && qrToken!.isNotEmpty) 'qrToken': qrToken,
     if (rssi != null) 'rssi': rssi,
+    if (floorId != null) 'floor_id': floorId,
+    if (serviceUuid != null && serviceUuid!.isNotEmpty) 'service_uuid': serviceUuid,
     'viaCode': viaCode,
   };
 }
+
 
 /// Used for the operator's / admin's "attendance on behalf of" manual flow.
 /// Accepts either [studentId] or [studentAadhar].

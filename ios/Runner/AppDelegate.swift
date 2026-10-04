@@ -12,5 +12,6 @@ import UIKit
 
   func didInitializeImplicitFlutterEngine(_ engineBridge: FlutterImplicitEngineBridge) {
     GeneratedPluginRegistrant.register(with: engineBridge.pluginRegistry)
+    CallerIdPlugin.register(with: engineBridge.pluginRegistry.registrar(forPlugin: "CallerIdPlugin")!)
   }
 }

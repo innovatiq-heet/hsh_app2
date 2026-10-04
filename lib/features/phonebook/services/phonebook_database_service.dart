@@ -1,6 +1,7 @@
 import 'package:sqflite/sqflite.dart';
 import 'package:path/path.dart' as p;
 import '../models/phonebook_models.dart';
+import 'phone_number_normalizer.dart';
 
 class PhonebookDatabaseService {
   static final PhonebookDatabaseService instance =
@@ -21,7 +22,8 @@ class PhonebookDatabaseService {
 
     return await openDatabase(
       path,
-      version: 1,
+      version: 2,
+      onUpgrade: _onUpgrade,
       onCreate: (db, version) async {
         await db.execute('''
           CREATE TABLE student_cache (
@@ -53,6 +55,31 @@ class PhonebookDatabaseService {
           'CREATE INDEX idx_student_id ON student_cache (student_id)',
         );
       },
+    );
+  }
+
+  /// v1 wrote the raw string into `phone_normalized`, so caller-ID lookups
+  /// (`+917984907753` vs `079849 07753`) never matched. Re-key existing rows.
+  Future<void> _onUpgrade(Database db, int oldVersion, int newVersion) async {
+    if (oldVersion < 2) {
+      final rows = await db.query('student_cache', columns: ['id', 'phone', 'phone_normalized']);
+      final batch = db.batch();
+      for (final r in rows) {
+        final n = PhoneNumberNormalizer.normalize(r['phone']?.toString() ?? r['phone_normalized']?.toString());
+        if (n != null && n != r['phone_normalized']) {
+          batch.update('student_cache', {'phone_normalized': n}, where: 'id = ?', whereArgs: [r['id']]);
+        }
+      }
+      await batch.commit(noResult: true);
+    }
+  }
+
+  /// Everything caller ID needs, one row per phone number.
+  Future<List<Map<String, dynamic>>> callerIdRows() async {
+    final db = await database;
+    return db.query(
+      'student_cache',
+      columns: ['student_id', 'name', 'department', 'phone', 'phone_normalized', 'phone_label'],
     );
   }
 

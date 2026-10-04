@@ -1,6 +1,7 @@
 import 'dart:convert';
 import 'dart:developer' as developer;
 import 'package:dio/dio.dart';
+import 'phone_number_normalizer.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import '../models/phonebook_models.dart';
 import 'phonebook_database_service.dart';
@@ -137,7 +138,7 @@ class PhonebookSyncService {
             'batch': batch,
             'email': email,
             'phone_raw': phone,
-            'phone': phone,
+            'phone': PhoneNumberNormalizer.normalize(phone) ?? phone,
             'is_primary': 1,
             'phone_label': 'Student Mobile',
             'updated_at': nowIso,
@@ -162,7 +163,7 @@ class PhonebookSyncService {
             'batch': batch,
             'email': email,
             'phone_raw': fatherPhone,
-            'phone': fatherPhone,
+            'phone': PhoneNumberNormalizer.normalize(fatherPhone) ?? fatherPhone,
             'is_primary': 0,
             'phone_label': fatherLabel,
             'updated_at': nowIso,
@@ -184,7 +185,7 @@ class PhonebookSyncService {
             'batch': batch,
             'email': email,
             'phone_raw': motherPhone,
-            'phone': motherPhone,
+            'phone': PhoneNumberNormalizer.normalize(motherPhone) ?? motherPhone,
             'is_primary': 0,
             'phone_label': 'Mother Contact',
             'updated_at': nowIso,
@@ -207,7 +208,7 @@ class PhonebookSyncService {
             'batch': batch,
             'email': email,
             'phone_raw': whatsApp,
-            'phone': whatsApp,
+            'phone': PhoneNumberNormalizer.normalize(whatsApp) ?? whatsApp,
             'is_primary': 0,
             'phone_label': 'WhatsApp',
             'updated_at': nowIso,

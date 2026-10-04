@@ -62,29 +62,26 @@ class AdminGeofenceScreen extends StatelessWidget {
                     const SizedBox(height: 18),
 
                     // 3. Active Breaches (Students Outside Campus)
-                    Row(
-                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                      children: [
-                        const SectionHeader(title: 'Active Breaches Outside Campus'),
-                        if (active.isNotEmpty)
-                          Container(
-                            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
-                            decoration: BoxDecoration(
-                              color: AppColors.cancelledRed,
-                              borderRadius: BorderRadius.circular(12),
-                            ),
-                            child: Text(
-                              '${active.length} ALERT${active.length > 1 ? 'S' : ''}',
-                              style: const TextStyle(
-                                color: Colors.white,
-                                fontSize: 11,
-                                fontWeight: FontWeight.bold,
+                    SectionHeader(
+                      title: 'Active Breaches Outside Campus',
+                      trailing: active.isNotEmpty
+                          ? Container(
+                              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                              decoration: BoxDecoration(
+                                color: AppColors.cancelledRed,
+                                borderRadius: BorderRadius.circular(12),
                               ),
-                            ),
-                          ),
-                      ],
+                              child: Text(
+                                '${active.length} ALERT${active.length > 1 ? 'S' : ''}',
+                                style: const TextStyle(
+                                  color: Colors.white,
+                                  fontSize: 11,
+                                  fontWeight: FontWeight.bold,
+                                ),
+                              ),
+                            )
+                          : null,
                     ),
-                    const SizedBox(height: 8),
 
                     if (active.isEmpty)
                       _buildSafeStatusCard()
@@ -189,29 +186,34 @@ class AdminGeofenceScreen extends StatelessWidget {
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              Row(
-                children: [
-                  Container(
-                    padding: const EdgeInsets.all(8),
-                    decoration: BoxDecoration(
-                      color: AppColors.primary.withValues(alpha: 0.1),
-                      borderRadius: BorderRadius.circular(10),
-                    ),
-                    child: const Icon(Icons.shield_outlined, color: AppColors.primary, size: 20),
-                  ),
-                  const SizedBox(width: 10),
-                  Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text('Curfew Schedule', style: AppTextStyles.title),
-                      Text(
-                        'Set night hours for geofence enforcement',
-                        style: AppTextStyles.caption.copyWith(color: AppColors.textSecondary),
+              Expanded(
+                child: Row(
+                  children: [
+                    Container(
+                      padding: const EdgeInsets.all(8),
+                      decoration: BoxDecoration(
+                        color: AppColors.primary.withValues(alpha: 0.1),
+                        borderRadius: BorderRadius.circular(10),
                       ),
-                    ],
-                  ),
-                ],
+                      child: const Icon(Icons.shield_outlined, color: AppColors.primary, size: 20),
+                    ),
+                    const SizedBox(width: 10),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text('Curfew Schedule', style: AppTextStyles.title),
+                          Text(
+                            'Set night hours for geofence enforcement',
+                            style: AppTextStyles.caption.copyWith(color: AppColors.textSecondary),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
               ),
+              const SizedBox(width: 8),
               Switch(
                 value: policy.isActive,
                 activeThumbColor: AppColors.primary,

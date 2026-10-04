@@ -27,7 +27,13 @@ class StudentDirectoryView extends GetView<StudentScreenTimeController> {
         const SizedBox(height: AppDimens.gapMd),
         Obx(() {
           if (controller.isLoadingStudents.value && controller.allStudents.isEmpty) {
-            return const SkeletonList(count: 6, itemHeight: 76);
+            return const SkeletonList(
+              count: 6,
+              itemHeight: 76,
+              padding: EdgeInsets.zero,
+              shrinkWrap: true,
+              physics: NeverScrollableScrollPhysics(),
+            );
           }
           final list = controller.filteredStudents;
           if (list.isEmpty) {

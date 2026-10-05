@@ -483,12 +483,18 @@ class StudentScreenTimeController extends GetxController with WidgetsBindingObse
     _syncBlockedStatusToApps();
   }
 
-  /// Which identifier (`_id`, aadhar, ...) the API accepted for the selected
-  /// student, remembered so every later call is a single request.
-  String? _resolvedId;
+  /// Numeric `students.id` of the selected student (from the directory) — the
+  /// only identifier ever sent to the API. Bank codes are never used: they
+  /// are numeric too, so the API would read "0768" as student #768.
+  String get _studentId {
+    final s = selectedStudent.value;
+    if (s is! Map) return '';
+    final id = (s['id'] ?? s['_id'] ?? '').toString().trim();
+    return _isStudentId(id) ? id : '';
+  }
 
-  String get _targetId =>
-      _resolvedId ?? (_getCandidateIdentifiers().firstOrNull ?? targetedAadhar.value);
+  static final _studentIdPattern = RegExp(r'^[1-9]\d*$');
+  static bool _isStudentId(String value) => _studentIdPattern.hasMatch(value);
   final RxString selectedAppFilter = 'All'.obs; // 'All', 'Used Today', 'Restricted'
   final RxString appSearchQuery = ''.obs;
   final appSearchController = TextEditingController();
@@ -502,13 +508,11 @@ class StudentScreenTimeController extends GetxController with WidgetsBindingObse
   final RxList<dynamic> filteredStudents = <dynamic>[].obs;
   final Rx<dynamic> selectedStudent = Rx<dynamic>(null);
 
-  /// True if user navigated directly targeting a specific student from another screen
+  /// True if another screen opened this one for one specific student (by id).
   final RxBool openedWithDirectTarget = false.obs;
-  Map<String, dynamic>? _pendingTargetStudent;
 
   final searchFilterController = TextEditingController();
   final RxString searchText = ''.obs;
-  final RxString targetedAadhar = ''.obs;
   final Rx<UserRole> currentRole = UserRole.student.obs;
 
   Timer? _refreshTimer;
@@ -522,24 +526,32 @@ class StudentScreenTimeController extends GetxController with WidgetsBindingObse
     _refreshTimer = Timer.periodic(_refreshInterval, (_) => _autoRefresh());
   }
 
+  /// Another screen opened this one. With a numeric student id (`id` or
+  /// `studentId`) that student is opened directly. Without one — e.g. from
+  /// the phonebook, whose records have no `students.id` — the directory opens
+  /// searched by name and the warden picks the student, so nothing is ever
+  /// guessed from a bank code or name.
   void _checkInitialArguments() {
     final args = Get.arguments;
-    if (args is Map) {
-      final map = Map<String, dynamic>.from(args);
-      final aadhar = (map['aadhar'] ?? map['studentId'] ?? '').toString();
-      final name = (map['name'] ?? map['fullName'] ?? '').toString();
-      final room = (map['room'] ?? '').toString();
+    if (args is! Map) return;
+    final map = Map<String, dynamic>.from(args);
+    final name = (map['name'] ?? map['fullName'] ?? '').toString().trim();
+    final room = (map['room'] ?? '').toString().trim();
+    final id = (map['id'] ?? map['studentId'] ?? '').toString().trim();
 
+    if (_isStudentId(id)) {
       openedWithDirectTarget.value = true;
-      _pendingTargetStudent = map;
+      selectStudent({
+        'id': id,
+        'name': name.isNotEmpty ? name : 'Student',
+        'room': room.isNotEmpty ? room : 'N/A',
+      });
+      return;
+    }
 
-      if (aadhar.isNotEmpty && !aadhar.startsWith('stu_')) {
-        selectStudent({
-          'aadhar': aadhar,
-          'name': name.isNotEmpty ? name : 'Student',
-          'room': room.isNotEmpty ? room : 'N/A',
-        });
-      }
+    if (name.isNotEmpty) {
+      searchFilterController.text = name;
+      searchText.value = name;
     }
   }
 
@@ -574,7 +586,7 @@ class StudentScreenTimeController extends GetxController with WidgetsBindingObse
 
   Future<void> _autoRefresh() async {
     if (!currentRole.value.canViewScreenTime) return;
-    if (targetedAadhar.isNotEmpty) {
+    if (_studentId.isNotEmpty) {
       await Future.wait([fetchLiveStatus(), fetchHistory(), fetchStudentPolicies()]);
     } else {
       await fetchStudentsList(silent: true);
@@ -593,13 +605,17 @@ class StudentScreenTimeController extends GetxController with WidgetsBindingObse
     }
   }
 
-  /// Leader/Staff fetches directory of all students with today screen time overview from real API
+  /// Leader/Staff fetches directory of all students with today screen time overview from real API.
+  /// Without an explicit [search] the text in the directory search box is
+  /// sent, so the server searches every student (the unfiltered list is
+  /// capped at 100) and auto-refresh keeps the same results.
   Future<void> fetchStudentsList({String? search, bool silent = false}) async {
     if (!silent) isLoadingStudents.value = true;
     try {
       final queryParams = <String, dynamic>{};
-      if (search != null && search.trim().isNotEmpty) {
-        queryParams['search'] = search.trim();
+      final query = (search ?? searchFilterController.text).trim();
+      if (query.isNotEmpty) {
+        queryParams['search'] = query;
       }
 
       final response = await _apiClient.dio.get(
@@ -611,72 +627,11 @@ class StudentScreenTimeController extends GetxController with WidgetsBindingObse
       if (data != null && data['students'] != null) {
         allStudents.assignAll(List<dynamic>.from(data['students']));
         filterStudents(searchFilterController.text);
-
-        if (_pendingTargetStudent != null &&
-            (selectedStudent.value == null ||
-                (selectedStudent.value['aadhar'] ?? '').toString().isEmpty)) {
-          _matchAndSelectPendingStudent();
-        }
       }
     } catch (e) {
       debugPrint('[ScreenTime] fetchStudentsList error: $e');
     } finally {
       isLoadingStudents.value = false;
-    }
-  }
-
-  void _matchAndSelectPendingStudent() {
-    if (_pendingTargetStudent == null) return;
-    final targetName = (_pendingTargetStudent!['name'] ??
-            _pendingTargetStudent!['fullName'] ??
-            '')
-        .toString()
-        .toLowerCase()
-        .trim();
-    final targetRoom =
-        (_pendingTargetStudent!['room'] ?? '').toString().toLowerCase().trim();
-    final targetAadhar = (_pendingTargetStudent!['aadhar'] ??
-            _pendingTargetStudent!['studentId'] ??
-            '')
-        .toString()
-        .trim();
-
-    dynamic matched;
-    for (final s in allStudents) {
-      final sAadhar = (s['aadhar'] ?? '').toString().trim();
-      final sName = (s['name'] ?? '').toString().toLowerCase().trim();
-      final sRoom = (s['room'] ?? '').toString().toLowerCase().trim();
-
-      if (targetAadhar.isNotEmpty &&
-          sAadhar.isNotEmpty &&
-          (sAadhar == targetAadhar ||
-              sAadhar.endsWith(targetAadhar) ||
-              targetAadhar.endsWith(sAadhar))) {
-        matched = s;
-        break;
-      }
-      if (targetName.isNotEmpty &&
-          sName.isNotEmpty &&
-          (sName == targetName ||
-              sName.contains(targetName) ||
-              targetName.contains(sName))) {
-        matched = s;
-        break;
-      }
-      if (targetRoom.isNotEmpty &&
-          sRoom.isNotEmpty &&
-          sRoom == targetRoom &&
-          targetName.isNotEmpty &&
-          sName.contains(targetName)) {
-        matched = s;
-        break;
-      }
-    }
-
-    if (matched != null) {
-      selectStudent(matched);
-    } else if (targetAadhar.isNotEmpty && selectedStudent.value == null) {
-      selectStudent(_pendingTargetStudent);
     }
   }
 
@@ -707,7 +662,6 @@ class StudentScreenTimeController extends GetxController with WidgetsBindingObse
 
   /// Select a student from list to inspect detailed screen time from real API
   void selectStudent(dynamic student) {
-    _resolvedId = null;
     selectedStudent.value = student;
 
     // Retain all existing stats from the student object immediately so data is visible
@@ -744,12 +698,7 @@ class StudentScreenTimeController extends GetxController with WidgetsBindingObse
     }
     historyRecords.clear();
 
-    final aadhar = (student['aadhar'] ?? '').toString().trim();
-    final id = (student['_id'] ?? student['id'] ?? '').toString().trim();
-    final studentId = (student['studentId'] ?? student['student_id'] ?? '').toString().trim();
-    targetedAadhar.value = aadhar.isNotEmpty ? aadhar : (id.isNotEmpty ? id : studentId);
-
-    debugPrint('[ScreenTime] selectStudent: ${student['name']}, aadhar=$aadhar, id=$id, studentId=$studentId, initialMins=${totalMinutesToday.value}, appsCount=${appBreakdown.length}');
+    debugPrint('[ScreenTime] selectStudent: ${student['name']}, id=$_studentId, initialMins=${totalMinutesToday.value}, appsCount=${appBreakdown.length}');
 
     fetchLiveStatus();
     fetchHistory();
@@ -758,10 +707,7 @@ class StudentScreenTimeController extends GetxController with WidgetsBindingObse
 
   /// Return back to all students directory list
   void clearSelectedStudent() {
-    _resolvedId = null;
     selectedStudent.value = null;
-    targetedAadhar.value = '';
-    _pendingTargetStudent = null;
     openedWithDirectTarget.value = false;
     _resetDetail();
     searchFilterController.clear();
@@ -788,51 +734,14 @@ class StudentScreenTimeController extends GetxController with WidgetsBindingObse
     appSearchController.clear();
   }
 
-  List<String> _getCandidateIdentifiers() {
-    final resolved = _resolvedId;
-    if (resolved != null && resolved.isNotEmpty) return [resolved];
-    final s = selectedStudent.value;
-    final list = <String>[];
-    if (s is Map) {
-      final id = (s['_id'] ?? s['id'] ?? '').toString().trim();
-      final aadhar = (s['aadhar'] ?? '').toString().trim();
-      final studentId = (s['studentId'] ?? s['student_id'] ?? '').toString().trim();
-      final studentCode = (s['studentCode'] ?? s['bankCode'] ?? '').toString().trim();
-
-      if (id.isNotEmpty) list.add(id);
-      if (aadhar.isNotEmpty && !list.contains(aadhar)) list.add(aadhar);
-      if (studentId.isNotEmpty && !list.contains(studentId)) list.add(studentId);
-      if (studentCode.isNotEmpty && !list.contains(studentCode)) list.add(studentCode);
-    }
-    if (targetedAadhar.value.isNotEmpty && !list.contains(targetedAadhar.value)) {
-      list.add(targetedAadhar.value);
-    }
-    return list;
-  }
-
-  /// Fetch live status from real API (for self or targeted student)
+  /// Fetch live status of the selected student (by student id) from the real API
   Future<void> fetchLiveStatus() async {
-    final candidates = _getCandidateIdentifiers();
+    final id = _studentId;
+    if (id.isEmpty) return;
     isLoading.value = true;
     try {
-      if (candidates.isEmpty) {
-        final response = await _apiClient.dio.get('/screen-time/live');
-        _applyLiveStatusResponse(response.data);
-        return;
-      }
-
-      for (final cand in candidates) {
-        try {
-          final response = await _apiClient.dio.get('/screen-time/live/$cand');
-          if (response.statusCode == 200 && response.data != null) {
-            _resolvedId = cand;
-            _applyLiveStatusResponse(response.data);
-            break;
-          }
-        } catch (e) {
-          debugPrint('[ScreenTime] live endpoint with $cand failed: $e');
-        }
-      }
+      final response = await _apiClient.dio.get('/screen-time/live/$id');
+      if (id == _studentId) _applyLiveStatusResponse(response.data);
     } catch (e) {
       debugPrint('[ScreenTime] fetchLiveStatus error: $e');
     } finally {
@@ -952,20 +861,17 @@ class StudentScreenTimeController extends GetxController with WidgetsBindingObse
     appBreakdown.assignAll(updated);
   }
 
-  /// Fetch full policy, blocked list, and installed apps for a student
+  /// Fetch full policy, blocked list, and installed apps for the selected student (by student id)
   Future<void> fetchStudentPolicies() async {
-    for (final cand in _getCandidateIdentifiers()) {
-      try {
-        final response = await _apiClient.dio.get('/screen-time/policies/$cand');
-        final policy = ScreenTimePolicy.tryParse(response.data, current: currentPolicy);
-        if (policy != null) {
-          _resolvedId = cand;
-          _applyPolicy(policy);
-          break;
-        }
-      } catch (e) {
-        debugPrint('[ScreenTime] policies endpoint with $cand failed: $e');
-      }
+    final id = _studentId;
+    if (id.isEmpty) return;
+    try {
+      final response = await _apiClient.dio.get('/screen-time/policies/$id');
+      if (id != _studentId) return; // another student was selected meanwhile
+      final policy = ScreenTimePolicy.tryParse(response.data, current: currentPolicy);
+      if (policy != null) _applyPolicy(policy);
+    } catch (e) {
+      debugPrint('[ScreenTime] fetchStudentPolicies error: $e');
     }
   }
 
@@ -974,9 +880,9 @@ class StudentScreenTimeController extends GetxController with WidgetsBindingObse
   /// can't overwrite the student's other rules. Throws on failure so callers
   /// can roll back their optimistic UI change.
   Future<void> _putPolicy(Map<String, dynamic> fields) async {
-    final target = _targetId;
-    if (target.isEmpty) throw StateError('No student selected');
-    await _apiClient.dio.put('/screen-time/policies/$target', data: fields);
+    final id = _studentId;
+    if (id.isEmpty) throw StateError('No student selected');
+    await _apiClient.dio.put('/screen-time/policies/$id', data: fields);
     policyVersion.value = DateTime.now().toIso8601String();
   }
 
@@ -995,11 +901,11 @@ class StudentScreenTimeController extends GetxController with WidgetsBindingObse
     // Optimistic update; rolled back below if the API rejects it.
     _applyPolicy(updated);
     try {
-      final target = _targetId;
-      if (target.isEmpty) throw StateError('No student selected');
+      final id = _studentId;
+      if (id.isEmpty) throw StateError('No student selected');
       // One app at a time, so the rest of the student's block list is untouched.
       await _apiClient.dio.post('/screen-time/apps/rule', data: {
-        'student_id': target,
+        'student_id': id,
         'package_name': packageName,
         'app_name': appName,
         'is_blocked': block,
@@ -1223,30 +1129,13 @@ class StudentScreenTimeController extends GetxController with WidgetsBindingObse
     {'name': 'Netflix', 'pkg': 'com.netflix.mediaclient', 'icon': '🍿'},
   ];
 
-  /// Fetch history logs from real API
+  /// Fetch history logs of the selected student (by student id) from the real API
   Future<void> fetchHistory() async {
-    final candidates = _getCandidateIdentifiers();
+    final id = _studentId;
+    if (id.isEmpty) return;
     try {
-      if (candidates.isEmpty) {
-        final response = await _apiClient.dio.get('/screen-time/history');
-        _applyHistoryResponse(response.data);
-        return;
-      }
-
-      for (final cand in candidates) {
-        try {
-          final endpoint = '/screen-time/history/$cand';
-          debugPrint('[ScreenTime] Trying history endpoint: $endpoint');
-          final response = await _apiClient.dio.get(endpoint);
-          if (response.statusCode == 200 && response.data != null) {
-            _resolvedId = cand;
-            _applyHistoryResponse(response.data);
-            break;
-          }
-        } catch (e) {
-          debugPrint('[ScreenTime] history endpoint with $cand failed: $e');
-        }
-      }
+      final response = await _apiClient.dio.get('/screen-time/history/$id');
+      if (id == _studentId) _applyHistoryResponse(response.data);
     } catch (e) {
       debugPrint('[ScreenTime] fetchHistory error: $e');
     }

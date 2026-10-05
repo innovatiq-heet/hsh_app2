@@ -292,11 +292,13 @@ class PhonebookScreen extends GetView<PhonebookController> {
                   child: ElevatedButton.icon(
                     onPressed: () {
                       Navigator.pop(ctx);
+                      // Phonebook records have no `students.id`, so Screen Time
+                      // opens its directory searched by name and the warden
+                      // picks the student. Never pass the bank code: the API
+                      // would read "0768" as student #768.
                       Get.toNamed(
                         Routes.studentScreenTime,
                         arguments: {
-                          'studentId': student.studentId,
-                          'aadhar': student.studentId.replaceFirst('HSH-', ''),
                           'name': student.name,
                           'room': student.room ?? '',
                         },

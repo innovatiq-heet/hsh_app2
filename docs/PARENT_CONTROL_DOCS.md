@@ -1,267 +1,303 @@
-# HSH Parental Control & Device Screen Time System Documentation
+# Parental Control & Screen Time
 
-## 1. System Overview
-
-The **Parental Control & Screen Time Monitoring System** in HSH (`hsh_app2`) is an enterprise-grade mobile device management and digital wellbeing platform tailored for student hostel environments. It allows Hostel Wardens and Parents to supervise student smartphone usage, eliminate digital distractions during study/curfew hours, and ensure student safety through automated location geofencing.
-
-### Core Capabilities
-1. **Instant Remote Device Lock:** Wardens can immediately lock a student's device remotely with a single tap.
-2. **Automated Bedtime Curfew:** Enforces scheduled overnight device lockouts (e.g., 23:00 to 05:00) with midnight wrap-around support.
-3. **Daily Screen Time Allowance:** Sets daily quotas (e.g., 2 hours/day); non-essential apps are automatically restrained once quota is reached.
-4. **Targeted App Blacklisting:** Granular restriction of distracting packages (Instagram, YouTube, BGMI, etc.) while keeping educational and communication tools usable.
-5. **Geofence Curfew & Campus Perimeter Enforcement:** Evaluates physical student coordinates against campus boundary polygons; auto-locks phones if a student is outside campus during curfew hours without an active gate pass.
-6. **Live Telemetry & Heartbeat:** Reports active foreground app, screen-on state, battery percentage, network status, and last-seen timestamp.
-7. **Anti-Tampering Compliance Auditing:** Monitors Android system permissions (Usage Access, Accessibility, Battery Optimizations) and alerts administrators if a student attempts to disable monitoring.
-8. **Emergency & Safety Guarantees:** Keyboards, phone dialers, emergency calling, and system settings are strictly protected and never blocked.
+> **Last updated:** 2026-10-06 · **Repos:** `hsh_app2` (Flutter + native Android) and `hsh_api` (Node/Express/MySQL)
+>
+> Paths starting with `lib/` or `android/` are in this repo; paths starting with `hsh_api/` are in the backend repo. Location tracking and curfew breaches are documented separately in [GEOFENCING_DOCS.md](GEOFENCING_DOCS.md).
 
 ---
 
-## 2. Architectural Blueprint
+## 1. What this feature does
+
+Wardens (the operator console / platform admins) control and monitor each student's Android phone:
+
+| Rule / feature | Behaviour on the student's phone |
+| :--- | :--- |
+| **Remote lock** | Every app except calls, keyboards, the launcher, Settings and this app is blocked until the warden unlocks. |
+| **Blocked apps** | Individual apps (e.g. Instagram) are blocked. Takes effect immediately, **even if the app is already open**. |
+| **Bedtime** | Apps are blocked inside a nightly window (e.g. 23:00–05:00). Off when no bedtime is set. |
+| **Daily limit** | Apps are blocked once today's total screen time reaches the limit. 0 = no limit. |
+| **Usage dashboard** | Today's total, per-app breakdown, 30-day history, online / screen-on / current app. |
+
+All rules are enforced **on the phone**, so they keep working offline and with the app closed. Policy changes reach the phone **within about a second while its screen is on** (see section 4).
+
+The curfew geofence **does not lock phones**; remote lock is the only lock wardens have.
+
+---
+
+## 2. Architecture
 
 ```mermaid
 graph TD
-    subgraph AdminConsole["Hostel Admin / Parent Dashboard (Flutter / GetX)"]
-        SSTC["StudentScreenTimeController"]
-        AGC["AdminGeofenceController"]
-        SSTS["StudentScreenTimeScreen"]
-        DSS["DeviceSetupScreen (Student Onboarding)"]
-        STS["ScreenTimeService<br/>(MethodChannel 'hsh/screen_time')"]
+    subgraph Warden["Warden app (Flutter / GetX)"]
+        SSTC["StudentScreenTimeController + StudentScreenTimeScreen"]
     end
 
-    subgraph BackendAPI["HSH Cloud Backend"]
-        P_API["/screen-time/policies/:id"]
-        L_API["/screen-time/live"]
-        PING_API["/screen-time/ping"]
-        GEO_API["/geofence/policy & /breaches"]
+    subgraph API["hsh_api (Express)"]
+        RULE["POST /screen-time/apps/rule"]
+        PUT["PUT /screen-time/policies/:id"]
+        ME["GET /screen-time/policies/me?wait&since (long-poll)"]
+        PING["POST /screen-time/ping"]
+        LIVE["GET /screen-time/live, /history, /students"]
+        EVT["policyEvents.ts (change signal)"]
     end
 
-    subgraph NativeStudent["Student Device Native Subsystem (Android Kotlin)"]
-        PPS["PolicyPollService<br/>(Foreground Service 30s)"]
-        ABAS["AppBlockerAccessibilityService<br/>(Accessibility Window Listener)"]
-        BAA["BlockedAppActivity<br/>(Fullscreen Lock Overlay)"]
-        PE["PolicyEvaluator<br/>(Offline Rule Engine)"]
-        UC["UsageCollector<br/>(UsageStatsManager)"]
-        STS_NAT["ScreenTimeSync<br/>(WorkManager 5m Tick / 15m Watchdog)"]
-        GE["GeofenceEvaluator & LocationSampler<br/>(Point-in-Polygon Engine)"]
-        PStore["PolicyStore<br/>(Native SharedPreferences)"]
-        BPR["BootPolicyReceiver<br/>(BOOT_COMPLETED)"]
+    subgraph DB["MySQL"]
+        PP[("parental_policies (policy_version)")]
+        AR[("parental_app_rules")]
+        UL[("parental_usage_logs")]
+        DAY[("student_screen_time_daily")]
     end
 
-    %% Admin mutations
-    SSTC -->|PUT Policy| P_API
-    AGC -->|PUT Curfew / Geofence| GEO_API
-    SSTC -->|GET Telemetry & Directory| L_API
+    subgraph Phone["Student phone (Android, native Kotlin)"]
+        PPS["PolicyPollService (sync loop + tick)"]
+        PST["PolicyStore (version-ordered apply)"]
+        ABS["AppBlockerAccessibilityService"]
+        PE["PolicyEvaluator"]
+        BAA["BlockedAppActivity"]
+        STS["ScreenTimeSync (5-min ping)"]
+        UC["UsageCollector"]
+    end
 
-    %% Native background sync
-    PPS -->|Polls every 30s| P_API
-    PPS -->|Stores Active Policy| PStore
-    STS_NAT -->|POST usage deltas & icons| PING_API
-    STS_NAT -->|Collects Events| UC
+    SSTC --> RULE
+    SSTC --> PUT
+    SSTC --> LIVE
+    RULE --> AR
+    RULE --> PP
+    PUT --> PP
+    PUT --> AR
+    RULE -->|after commit| EVT
+    PUT -->|after commit| EVT
+    EVT -->|answers waiting request| ME
 
-    %% Native Enforcement
-    UserApp["Student Launches App"] --> ABAS
-    ABAS -->|Evaluate Rules| PE
-    PE -->|Read Config| PStore
-    PE -->|Check Boundary| GE
-    PE -->|Check Usage & Quota| UC
-    ABAS -->|If Forbidden: GLOBAL_ACTION_HOME| UserApp
-    ABAS -->|Show Lock Screen| BAA
-    BAA -->|Auto-dismiss when allowed| PE
+    PPS -->|holds request open| ME
+    ME -->|policy + blockedPackages + geofence| PST
+    PST -->|listener: policy changed| ABS
+    ABS -->|re-check app on screen| PE
+    ABS -->|block| BAA
+    BAA -->|auto-close when allowed| PE
 
-    %% Onboarding / Channel
-    DSS <-->|Configure / Permissions| STS
-    STS <==>|MethodChannel| NativeStudent
-    BPR -->|Restarts Monitoring on Boot| PPS
+    STS --> UC
+    STS -->|usage deltas + geofenceEvents| PING
+    PING --> UL
+    PING --> DAY
+    LIVE --> DAY
+    LIVE --> UL
 ```
 
 ---
 
-## 3. Directory Structure & File Map
+## 3. File map
 
-### 3.1 Flutter Layer (`lib/features/screentime/` & `lib/features/geofence/`)
+### Flutter (`lib/`)
 
-| File Path | Component | Purpose |
+| File | Role |
+| :--- | :--- |
+| [screen_time_policy.dart](../lib/features/screentime/models/screen_time_policy.dart) | Policy model (`isLocked`, `blockedPackages`, `dailyLimitMinutes`, `bedtimeStart`, `bedtimeEnd`, `version`). `tryParse()` accepts snake_case and camelCase; an explicit `null` bedtime means "off"; `23:00:00` is shown as `23:00`. |
+| [screen_time_service.dart](../lib/core/services/screen_time_service.dart) | `hsh/screen_time` MethodChannel: permissions, start/stop monitoring, `syncNow`, `refreshPolicy`, `getPolicy`, `getCompliance`. |
+| [student_screen_time_controller.dart](../lib/features/screentime/controllers/student_screen_time_controller.dart) | Warden dashboard: student directory and filters, live status, history, and policy actions. |
+| [student_screen_time_screen.dart](../lib/features/screentime/views/student_screen_time_screen.dart) | Warden dashboard UI. Route `Routes.studentScreenTime`. |
+| [parental_controls_card.dart](../lib/features/screentime/widgets/parental_controls_card.dart) | Lock/unlock, curfew, daily limit and blocked-apps tiles; shows "Off" when no bedtime is set. |
+| [restrict_app_sheet.dart](../lib/features/screentime/widgets/restrict_app_sheet.dart), [curfew_settings_sheet.dart](../lib/features/screentime/widgets/curfew_settings_sheet.dart) | Block an app; set bedtime and daily limit. |
+| [device_setup_screen.dart](../lib/features/screentime/views/device_setup_screen.dart) | Student onboarding: Usage access, App blocker (Accessibility), Location "all the time", Battery exemption. |
+| [home_controller.dart](../lib/features/home/controllers/home_controller.dart) | On student login/resume: sends the student to setup if a required permission is missing, then calls `syncNow()` and `refreshPolicy()`. |
+| [session_store.dart](../lib/core/storage/session_store.dart) | Starts monitoring for student/leader sessions; stops it on logout. |
+
+### Native Android (`android/app/src/main/kotlin/com/example/hsh_app2/screentime/`)
+
+| File | Role |
+| :--- | :--- |
+| [PolicyPollService.kt](../android/app/src/main/kotlin/com/example/hsh_app2/screentime/PolicyPollService.kt) | Foreground service. **Sync loop:** long-polls the policy (section 4). **Tick** (30 s screen on / 60 s off): geofence work and a re-check of the app on screen for time-based rules. |
+| [ScreenTimeSync.kt](../android/app/src/main/kotlin/com/example/hsh_app2/screentime/ScreenTimeSync.kt) | Usage delta ping every 5 minutes (WorkManager tick + 15-min watchdog); `fetchAndSavePolicy()`, the single native policy fetch. |
+| [PolicyStore.kt](../android/app/src/main/kotlin/com/example/hsh_app2/screentime/PolicyStore.kt) | Encrypted storage of the session token, policy and backend `policy_version`. `applyPolicyJson()` discards responses older than the applied version and notifies listeners on change. |
+| [AppBlockerAccessibilityService.kt](../android/app/src/main/kotlin/com/example/hsh_app2/screentime/AppBlockerAccessibilityService.kt) | Blocks apps when they are opened **and** re-checks the app already on screen whenever the policy changes. |
+| [PolicyEvaluator.kt](../android/app/src/main/kotlin/com/example/hsh_app2/screentime/PolicyEvaluator.kt) | The rule engine (`BlockReason`: device locked, app blocked, bedtime, daily limit) and the always-allowed packages. |
+| [BlockedAppActivity.kt](../android/app/src/main/kotlin/com/example/hsh_app2/screentime/BlockedAppActivity.kt) | Full-screen block screen; closes itself as soon as the app is allowed again. |
+| [UsageCollector.kt](../android/app/src/main/kotlin/com/example/hsh_app2/screentime/UsageCollector.kt) | Per-app foreground time from usage events; current foreground package. |
+| [ScreenTimeWorker.kt](../android/app/src/main/kotlin/com/example/hsh_app2/screentime/ScreenTimeWorker.kt) | WorkManager job: runs the ping and restarts `PolicyPollService` if the OS killed it. |
+| [BootPolicyReceiver.kt](../android/app/src/main/kotlin/com/example/hsh_app2/screentime/BootPolicyReceiver.kt) | Restarts sync and the poll service after reboot or app update. |
+
+### Backend (`hsh_api/src/`)
+
+| File | Role |
+| :--- | :--- |
+| `modules/screentime/screentime.routes.ts` | All `/screen-time/*` endpoints, access rules, long-poll, transactional writes. |
+| `services/policyEvents.ts` | In-process signal: `notifyPolicyChanged(studentId)` after a commit answers that student's waiting long-poll. |
+| `modules/geofence/geofence.service.ts` | `findStudentId()` (numeric `students.id` **only**; bank codes / `student_code` are never matched) and the geofence payload included in `/policies/me`. |
+| `config/db.ts` | Startup migrations for the parental tables. |
+
+---
+
+## 4. How a policy change reaches the phone
+
+1. **Warden action.**
+   - Blocking/unblocking one app → `POST /screen-time/apps/rule`.
+   - Lock/unlock → `PUT /policies/:id` with `{is_locked}` only.
+   - Bedtime and limit → `PUT` with just those fields.
+2. **Backend commit.** `policy_version` is bumped in the **same transaction** as the change (the bump comes first and row-locks the policy, so concurrent edits get strictly ordered versions). After the commit `notifyPolicyChanged(studentId)` fires.
+3. **Delivery.** With the screen on, the phone keeps `GET /screen-time/policies/me?wait=25&since=<version>` open:
+   - if the stored version is already newer than `since`, the server answers at once;
+   - otherwise it holds the request until the signal fires (answers in about a round-trip) or 25 s pass, then returns the current policy;
+   - the response carries `longPoll: true`, and the phone immediately opens the next request.
+4. **Apply.** `PolicyStore.applyPolicyJson()` ignores a response whose `policy_version` is older than the one already applied (concurrent fetches can land out of order). A lower version is accepted again after 2 minutes, covering a genuine server-side reset.
+5. **Enforce.** On a real change, listeners fire. `AppBlockerAccessibilityService` re-checks the app currently on screen; if it is now blocked, the student is sent home and the block screen appears. If an app is unblocked, an open block screen closes.
+
+**Other cadences:**
+
+| Situation | Behaviour |
+| :--- | :--- |
+| Screen off | Plain fetch every 120 s; the screen-on broadcast wakes the loop and triggers an immediate fetch and re-check. |
+| Offline / server error | Retry with backoff 5 s → 60 s. The last good policy keeps being enforced. |
+| Server without long-poll support | Plain fetch every 30 s (detected by the missing `longPoll` flag). |
+| Student opens the app | `ScreenTimeService.refreshPolicy()` wakes the loop for an immediate fetch. |
+| Every ping (5 min) | The response echoes the policy (same consistent snapshot); stale echoes are discarded by the version check. |
+
+**Single writer:** only the native side writes the enforced policy. Flutter no longer pushes policies to native (`syncPolicyToNative` was removed), which eliminated an unversioned overwrite race.
+
+**Consistent reads:** `GET /policies/me` and the ping echo read the policy and app rules in one `REPEATABLE READ` snapshot, so a version always matches the rules returned with it. A student without a policy row is version 0.
+
+---
+
+## 5. Enforcement on the phone
+
+### 5.1 Rule order (`PolicyEvaluator.evaluate`)
+
+1. This app itself and protected packages → always allowed.
+2. `isLocked` → `DEVICE_LOCKED`.
+3. Package in `blockedPackages` → `APP_BLOCKED`.
+4. Inside the bedtime window (overnight wrap supported) → `BEDTIME`.
+5. Daily limit set and today's minutes ≥ limit → `DAILY_LIMIT`.
+
+**Protected packages (never blocked):** dialers, in-call UI, emergency, system UI, Settings (incl. Samsung), permission controller, package installer, Google Play services, plus every enabled keyboard, home launcher and dialer discovered at runtime.
+
+### 5.2 When the check runs
+
+| Trigger | What is checked |
+| :--- | :--- |
+| App opened or switched to (`TYPE_WINDOW_STATE_CHANGED`) | That app |
+| Policy changed (listener) | The app on screen |
+| Accessibility service (re)connects | The app on screen |
+| Every poll tick (30 s screen on) | The app on screen, so bedtime starting or the daily limit being reached mid-use takes effect |
+| Screen turns on | The app on screen |
+
+"App on screen" is the last activity window the accessibility service saw; dialogs, keyboards and the notification shade are ignored. If nothing has been seen yet (service just connected), Android usage events are used. A check that raced an app switch is dropped, so it can never block an app the student has already left.
+
+### 5.3 Block screen
+
+`BlockedAppActivity` shows the app icon, reason and package. "Return to Home Screen" and Back go to the launcher; "Open HSH Seva" opens this app. It closes itself when the policy changes to allow the app, re-checking every 3 s while visible.
+
+---
+
+## 6. Usage telemetry
+
+- `UsageCollector` rebuilds per-app foreground time from raw usage events (RESUMED/PAUSED pairs, closed by screen-off, keyguard or shutdown), clamped to local midnight.
+- `ScreenTimeSync` sends **only new whole minutes** per app (leftover seconds carry over), so the backend can add deltas without double-counting. After midnight it first flushes the tail of the previous day.
+- Each ping writes everything in **one transaction**. The phone only advances its "already reported" counters and drops its geofence-event queue after a 2xx, so a failed or retried ping never double-counts or loses data.
+- "Online" on the dashboard means a ping within the last 10 minutes.
+
+---
+
+## 7. Warden dashboard
+
+Operator home → **Screen Time**. Allowed app roles: `canViewScreenTime` (admin, warden); allowed backend roles: operator, platform-admin.
+
+**Students are identified only by their numeric `students.id`** (the `id` of a directory entry). Every request for the selected student uses it; there is no fallback to bank codes or names. Another screen can open a student directly by passing `{id}` (or a numeric `studentId`) as route arguments. The phonebook has no `students.id`, so it passes `{name, room}` and the directory opens searched by that name; the warden then taps the student. The directory search box is sent to the server, so it searches every student, not just the 100 shown unfiltered.
+
+- **Directory:** all students with today's minutes, online, screen-on, current app and locked state. Filters: All, Online, Locked, Restricted, Night, Attention.
+- **Student detail:**
+  - live status and usage hero (today vs limit);
+  - per-app list with categories (Social Media, Entertainment, Gaming, Study & Tools, Other) and a Restrict button;
+  - 30-day history;
+  - parental controls card: lock/unlock (with confirmation), curfew & daily limit sheet, restrict-app sheet.
+- Each action is applied optimistically and rolled back with an error message if the server rejects it.
+
+---
+
+## 8. API reference
+
+Mounted at both `/api/screen-time/...` and `/screen-time/...`; all require a Bearer token. "Self" means a student reading their own data (no id, `me`, or their own id). A student identifier is always a numeric `students.id` without leading zeros; anything else (a bank code like `0768`, `HSH-…`) returns 404. Responses use `{ success, message?, data? }`.
+
+| Method & path | Who | Notes |
 | :--- | :--- | :--- |
-| [screen_time_policy.dart](file:///c:/Users/kruta/Desktop/hsh_seva/hsh_app2/lib/features/screentime/models/screen_time_policy.dart) | **Model** | Data entity for device policy: `isLocked`, `blockedPackages`, `dailyLimitMinutes`, `bedtimeStart`, `bedtimeEnd`, and `version`. |
-| [screen_time_service.dart](file:///c:/Users/kruta/Desktop/hsh_seva/hsh_app2/lib/core/services/screen_time_service.dart) | **Bridge Service** | MethodChannel (`hsh/screen_time`) handling Android permissions, monitoring start/stop, and immediate policy pushing. |
-| [student_screen_time_controller.dart](file:///c:/Users/kruta/Desktop/hsh_seva/hsh_app2/lib/features/screentime/controllers/student_screen_time_controller.dart) | **Controller** | Primary GetX controller for directory filters (`All`, `Online`, `Locked`, `Restricted`, `Night`, `Attention`), real-time telemetry polling, and policy updates. |
-| [student_screen_time_screen.dart](file:///c:/Users/kruta/Desktop/hsh_seva/hsh_app2/lib/features/screentime/views/student_screen_time_screen.dart) | **View** | Admin / parent screen time dashboard with usage gauges, category bars, live status, and app lists. |
-| [device_setup_screen.dart](file:///c:/Users/kruta/Desktop/hsh_seva/hsh_app2/lib/features/screentime/views/device_setup_screen.dart) | **View** | 4-step student device onboarding wizard (Usage Stats, Accessibility, Battery Optimizations, Location). |
-| [parental_controls_card.dart](file:///c:/Users/kruta/Desktop/hsh_seva/hsh_app2/lib/features/screentime/widgets/parental_controls_card.dart) | **Widget** | Toggle controls for Remote Lock, Bedtime hours, and quick restrictions. |
-| [live_status_card.dart](file:///c:/Users/kruta/Desktop/hsh_seva/hsh_app2/lib/features/screentime/widgets/live_status_card.dart) | **Widget** | Live heartbeat widget showing online badge, battery level, active app, and last seen. |
-| [usage_hero_card.dart](file:///c:/Users/kruta/Desktop/hsh_seva/hsh_app2/lib/features/screentime/widgets/usage_hero_card.dart) | **Widget** | Hero radial / progress gauge comparing today's usage against daily limit allowance. |
-| [app_usage_card.dart](file:///c:/Users/kruta/Desktop/hsh_seva/hsh_app2/lib/features/screentime/widgets/app_usage_card.dart) | **Widget** | App item with launcher icon, usage duration, category badge, and quick Restrict button. |
-| [restrict_app_sheet.dart](file:///c:/Users/kruta/Desktop/hsh_seva/hsh_app2/lib/features/screentime/widgets/restrict_app_sheet.dart) | **Widget** | Modal sheet to blacklist packages or adjust restrictions. |
-| [curfew_settings_sheet.dart](file:///c:/Users/kruta/Desktop/hsh_seva/hsh_app2/lib/features/screentime/widgets/curfew_settings_sheet.dart) | **Widget** | Time picker sheet for Bedtime curfew start/end and daily limit sliders. |
-| [student_directory_view.dart](file:///c:/Users/kruta/Desktop/hsh_seva/hsh_app2/lib/features/screentime/widgets/student_directory_view.dart) | **Widget** | Directory view listing all students with real-time status pills. |
-| [admin_geofence_controller.dart](file:///c:/Users/kruta/Desktop/hsh_seva/hsh_app2/lib/features/geofence/controllers/admin_geofence_controller.dart) | **Controller** | Manages campus geofence perimeter coordinates, curfew hours, and breach audit logs. |
-| [admin_geofence_screen.dart](file:///c:/Users/kruta/Desktop/hsh_seva/hsh_app2/lib/features/geofence/views/admin_geofence_screen.dart) | **View** | Map and audit interface to manage campus geofence perimeters. |
+| `POST /ping` | Student's own phone (supervisor may pass `student_id`) | Body: `date`, `totalScreenTimeMinutes`, `isScreenOn`, `currentApp`, `appUsageBreakdown[]`, `geofenceEvents[]`, `deviceUuid?`. Response echoes `policy` (with `policy_version`) and `blockedPackages`. |
+| `POST /inventory` | Student's own phone | `{ apps: [{packageName, appName}] }` |
+| `GET /live/:id?` | Self or supervisor | Today's status, `appUsageBreakdown`, `policy`, `blockedPackages`, `lastPing` |
+| `GET /history/:id?` | Self or supervisor | Last 30 days |
+| `GET /students?search=` | Supervisor | Directory (max 100) |
+| `GET /policies/:id?` | Self or supervisor | `{ policy, apps, blockedPackages, geofence }`. Long-poll with `?wait=<s ≤ 25>&since=<version>` (self only); response has `longPoll`. |
+| `PUT /policies/:id` | Supervisor | **Partial:** any of `is_locked`, `daily_limit_minutes` (0–1440), `bedtime_start`/`bedtime_end` (`HH:mm`, or `''`/`null` to clear both), `blockedPackages` (complete set). camelCase accepted. |
+| `POST /apps/rule` | Supervisor | `{ student_id, package_name, app_name?, is_blocked, daily_limit_minutes? }`. One app; version bump + rule in one transaction. |
+
+**Supervisor** = `requireRole('operator')`: the operator console token and platform-admin staff. Students can no longer change their own policy (previously a student could unlock themselves).
 
 ---
 
-### 3.2 Native Android Subsystem (`android/app/src/main/kotlin/com/example/hsh_app2/screentime/`)
+## 9. Database (created by `hsh_api/src/config/db.ts`)
 
-| File Path | Component | Purpose |
-| :--- | :--- | :--- |
-| [AppBlockerAccessibilityService.kt](file:///c:/Users/kruta/Desktop/hsh_seva/hsh_app2/android/app/src/main/kotlin/com/example/hsh_app2/screentime/AppBlockerAccessibilityService.kt) | **Accessibility** | Window state listener (`TYPE_WINDOW_STATE_CHANGED`) that detects foreground app launches and triggers instant blocking. |
-| [BlockedAppActivity.kt](file:///c:/Users/kruta/Desktop/hsh_seva/hsh_app2/android/app/src/main/kotlin/com/example/hsh_app2/screentime/BlockedAppActivity.kt) | **Activity** | Fullscreen lock overlay (`FLAG_SHOW_WHEN_LOCKED`, `FLAG_DISMISS_KEYGUARD`). Auto-dismisses when policy changes. |
-| [PolicyEvaluator.kt](file:///c:/Users/kruta/Desktop/hsh_seva/hsh_app2/android/app/src/main/kotlin/com/example/hsh_app2/screentime/PolicyEvaluator.kt) | **Rule Engine** | Offline evaluation engine checking Remote Lock, Bedtime Curfew, Daily Limit, App Blocklist, and Geofence Breaches. |
-| [PolicyPollService.kt](file:///c:/Users/kruta/Desktop/hsh_seva/hsh_app2/android/app/src/main/kotlin/com/example/hsh_app2/screentime/PolicyPollService.kt) | **Foreground Service** | Maintains active polling (30s active / 120s idle) with notification to survive OEM process kills and execute lock commands in real time. |
-| [PolicyStore.kt](file:///c:/Users/kruta/Desktop/hsh_seva/hsh_app2/android/app/src/main/kotlin/com/example/hsh_app2/screentime/PolicyStore.kt) | **Persistence** | Thread-safe native SharedPreferences store for session tokens, policies, and breach logs. |
-| [UsageCollector.kt](file:///c:/Users/kruta/Desktop/hsh_seva/hsh_app2/android/app/src/main/kotlin/com/example/hsh_app2/screentime/UsageCollector.kt) | **Usage Telemetry** | Reads raw `UsageEvents` from Android's `UsageStatsManager`, matching RESUMED/PAUSED event pairs aligned with local midnight. |
-| [ScreenTimeSync.kt](file:///c:/Users/kruta/Desktop/hsh_seva/hsh_app2/android/app/src/main/kotlin/com/example/hsh_app2/screentime/ScreenTimeSync.kt) | **Telemetry Reporter** | WorkManager scheduled engine pushing minute usage deltas, battery, compliance, and launcher icons to the backend. |
-| [ScreenTimeWorker.kt](file:///c:/Users/kruta/Desktop/hsh_seva/hsh_app2/android/app/src/main/kotlin/com/example/hsh_app2/screentime/ScreenTimeWorker.kt) | **WorkManager** | 15-minute periodic watchdog and 5-minute recurring tick worker. |
-| [GeofenceEvaluator.kt](file:///c:/Users/kruta/Desktop/hsh_seva/hsh_app2/android/app/src/main/kotlin/com/example/hsh_app2/screentime/GeofenceEvaluator.kt) | **Geofence Engine** | Implements ray-casting point-in-polygon algorithm to check if GPS fixes fall within campus boundaries during curfew. |
-| [LocationSampler.kt](file:///c:/Users/kruta/Desktop/hsh_seva/hsh_app2/android/app/src/main/kotlin/com/example/hsh_app2/screentime/LocationSampler.kt) | **Location Provider** | Battery-efficient location sampler using Fused / GPS / Network providers. |
-| [BootPolicyReceiver.kt](file:///c:/Users/kruta/Desktop/hsh_seva/hsh_app2/android/app/src/main/kotlin/com/example/hsh_app2/screentime/BootPolicyReceiver.kt) | **Broadcast Receiver** | Listens for `BOOT_COMPLETED` and `MY_PACKAGE_REPLACED` to immediately restart the poller and WorkManager tasks. |
+| Table | Purpose |
+| :--- | :--- |
+| `parental_policies` | One row per student: `policy_version`, `daily_limit_minutes`, `bedtime_start`, `bedtime_end`, `is_locked`, `updated_at` |
+| `parental_app_rules` | Per student and package: `app_name`, `is_blocked`, `daily_limit_minutes` |
+| `parental_usage_logs` | Per student, date and package: `usage_minutes` |
+| `student_screen_time_daily` | Per student and date: totals, `is_screen_on`, `current_app`, `last_ping` |
+| `student_devices` | Device UUID → student (moves to the new student when a phone is re-used) |
 
 ---
 
-## 4. In-Depth Technical Implementation
+## 10. MethodChannel `hsh/screen_time`
 
-### 4.1 Policy Enforcement & Blocking Mechanism
-
-1. **Window Interception:**
-   When the student opens an application, Android dispatches an `AccessibilityEvent.TYPE_WINDOW_STATE_CHANGED` to [AppBlockerAccessibilityService.kt](file:///c:/Users/kruta/Desktop/hsh_seva/hsh_app2/android/app/src/main/kotlin/com/example/hsh_app2/screentime/AppBlockerAccessibilityService.kt#L41-L61).
-2. **Offline Rule Evaluation:**
-   [PolicyEvaluator.evaluate()](file:///c:/Users/kruta/Desktop/hsh_seva/hsh_app2/android/app/src/main/kotlin/com/example/hsh_app2/screentime/PolicyEvaluator.kt#L79-L92) is executed immediately on-device:
-   ```kotlin
-   if (policy.isLocked) return BlockReason.DEVICE_LOCKED
-   if (GeofenceEvaluator.shouldLock(context)) return BlockReason.OUT_OF_CAMPUS
-   if (packageName in policy.blockedPackages) return BlockReason.APP_BLOCKED
-   if (policy.hasBedtime && isInBedtime(policy)) return BlockReason.BEDTIME
-   if (policy.dailyLimitMinutes > 0 && todayMinutes(context) >= policy.dailyLimitMinutes) {
-       return BlockReason.DAILY_LIMIT
-   }
-   ```
-3. **App Dismissal & Replacement:**
-   If a violation is found:
-   - The service executes `performGlobalAction(GLOBAL_ACTION_HOME)` to immediately minimize the restricted application.
-   - It launches [BlockedAppActivity](file:///c:/Users/kruta/Desktop/hsh_seva/hsh_app2/android/app/src/main/kotlin/com/example/hsh_app2/screentime/BlockedAppActivity.kt#L26-L32) with flags `FLAG_ACTIVITY_NEW_TASK | FLAG_ACTIVITY_CLEAR_TOP`.
-4. **Self-Releasing Lock Screen:**
-   [BlockedAppActivity](file:///c:/Users/kruta/Desktop/hsh_seva/hsh_app2/android/app/src/main/kotlin/com/example/hsh_app2/screentime/BlockedAppActivity.kt#L40-L50) registers a 3-second recurring runnable checking `PolicyEvaluator.evaluate()`. As soon as the warden unlocks the device, the curfew expires, or the student enters campus, the lock screen self-dismisses back to the home launcher without requiring user action.
+| Method | Description |
+| :--- | :--- |
+| `hasUsagePermission` / `openUsageSettings` | Usage access check / Settings page |
+| `hasAccessibilityPermission` / `openAccessibilitySettings` | App blocker check / Settings page |
+| `isBatteryOptimizationIgnored` / `requestIgnoreBatteryOptimizations` | Battery exemption |
+| `startMonitoring` `{token, baseUrl}` | Saves the session natively, schedules the ping, starts `PolicyPollService` |
+| `stopMonitoring` | Cancels work, clears the session, resets the policy and all per-student state |
+| `syncNow` | Immediate ping → `ok` / `no_permission` / `no_session` / `unauthorized` / `error` |
+| `refreshPolicy` | Wakes the native sync loop for an immediate policy fetch |
+| `getPolicy` / `getBlockedPackages` / `getCompliance` | Read what the phone currently enforces / reports |
 
 ---
 
-### 4.2 Protected System Safeties (Anti-Brick Protection)
+## 11. Permissions
 
-Under no circumstances should parental control render a smartphone unusable for emergencies. [PolicyEvaluator.kt](file:///c:/Users/kruta/Desktop/hsh_seva/hsh_app2/android/app/src/main/kotlin/com/example/hsh_app2/screentime/PolicyEvaluator.kt#L51-L70) explicitly protects:
-- **Phone Dialers & Emergency Services:** `com.android.dialer`, `com.google.android.dialer`, `com.samsung.android.dialer`, `com.android.emergency`, `com.android.incallui`, and intent `android.intent.action.DIAL_EMERGENCY`.
-- **Keyboards / Input Methods:** Dynamically discovers all active IMEs via `InputMethodManager.enabledInputMethodList` so students can type in emergency chats or the HSH app.
-- **Home Launchers:** System home launchers are discovered at runtime (`Intent.CATEGORY_HOME`).
-- **Core System Services:** `android`, `com.android.systemui`, `com.android.settings`, `com.android.permissioncontroller`, `com.google.android.gms`.
-- **The HSH Host App itself.**
+`PACKAGE_USAGE_STATS` (granted in Settings → Usage access), the Accessibility service `AppBlockerAccessibilityService` (`BIND_ACCESSIBILITY_SERVICE`, listens to `typeWindowStateChanged`), `RECEIVE_BOOT_COMPLETED`, `FOREGROUND_SERVICE` + `FOREGROUND_SERVICE_SPECIAL_USE` (+ `_LOCATION`), `REQUEST_IGNORE_BATTERY_OPTIMIZATIONS`, `POST_NOTIFICATIONS`. `BlockedAppActivity` is `singleTask`, excluded from recents, full-screen.
 
 ---
 
-### 4.3 High-Precision Usage Stats Aggregation
+## 12. Testing
 
-Standard Android `UsageStatsManager.queryUsageStats()` produces inaccurate aggregate buckets that drift from local midnight. To solve this, [UsageCollector.kt](file:///c:/Users/kruta/Desktop/hsh_seva/hsh_app2/android/app/src/main/kotlin/com/example/hsh_app2/screentime/UsageCollector.kt#L87-L140):
-1. Queries raw events using `UsageStatsManager.queryEvents(dayStart - 6_HOURS, now)`.
-2. Reconstructs state by pairing `ACTIVITY_RESUMED` (1) with `ACTIVITY_PAUSED` (2), `SCREEN_NON_INTERACTIVE` (16), `KEYGUARD_SHOWN` (17), or `DEVICE_SHUTDOWN` (26).
-3. Clamps intervals strictly within `[dayStart, now)` so only today's usage counts toward the daily limit.
-4. Categorizes applications automatically based on package names into **Productive**, **Social**, **Entertainment**, **Gaming**, and **Utility**.
+**Backend (run 2026-10-05/06 against a local MySQL with throwaway students, via ad-hoc `tsx` scripts that are not committed):**
 
----
+- a restriction reaches a waiting long-poll about 0.5 s after the warden's request starts;
+- "behind" phones are answered immediately and an idle request is held until its wait expires;
+- multiple apps, unblock-one-keeps-others, 13 concurrent toggles → version +13 and the last change wins, with no response pairing a version with the wrong rules;
+- lock and gate pass also wake the phone; aborted connections are handled; wardens can't long-poll another student;
+- access rules (students can't read others or unlock themselves); partial PUT keeps other fields; bedtime clearing;
+- student ids only (2026-10-06): a bank code equal to another student's id (`0<id>`) is rejected for reads, locks and app blocks, while the numeric id targets exactly that student.
 
-### 4.4 Delta Sync Protocol & Background Resilience
+All checks passed. Native code compiles; `flutter analyze` is clean.
 
-- **Delta Accumulation:** Devices track previously reported usage minutes per app in SharedPreferences (`key_reported_minutes_YYYY-MM-DD`). Only the delta (new minutes) is sent to `POST /screen-time/ping`.
-- **Zero Loss / No Double-Counting:** Leftover seconds under 60 carry over to the next tick.
-- **Foreground Service ([PolicyPollService](file:///c:/Users/kruta/Desktop/hsh_seva/hsh_app2/android/app/src/main/kotlin/com/example/hsh_app2/screentime/PolicyPollService.kt)):** Runs as a persistent foreground service with `FOREGROUND_SERVICE_TYPE_SPECIAL_USE` and `FOREGROUND_SERVICE_TYPE_LOCATION`. Polls `/screen-time/policies/me` every 30 seconds while screen is on, and every 120 seconds when screen is idle.
-- **WorkManager Watchdog:** A periodic 15-minute `PeriodicWorkRequest` coupled with a self-chaining 5-minute `OneTimeWorkRequest` guarantees that telemetry pings continue even if battery saver or task killers kill background threads.
+**On a real student phone (not yet run):**
 
----
-
-### 4.5 Campus Geofencing & Curfew Point-in-Polygon Engine
-
-- **Boundary Polygon:** Defined in [GeofenceEvaluator.kt](file:///c:/Users/kruta/Desktop/hsh_seva/hsh_app2/android/app/src/main/kotlin/com/example/hsh_app2/screentime/GeofenceEvaluator.kt#L120-L160) as a series of (Latitude, Longitude) coordinates enclosing the hostel campus.
-- **Ray-Casting Algorithm:** [GeofenceEvaluator.contains()](file:///c:/Users/kruta/Desktop/hsh_seva/hsh_app2/android/app/src/main/kotlin/com/example/hsh_app2/screentime/GeofenceEvaluator.kt#L230-L260) casts a ray eastward from the student's GPS coordinate and counts intersections with boundary polygon edges. Odd count = inside campus; even count = outside campus.
-- **Curfew Window Check:** Evaluates if local time falls within configured start/end times (`22:00` to `06:00`).
-- **Gate Pass Exemption:** If the student holds an active digital gate pass (`exemptUntil > System.currentTimeMillis()`), breach penalties and auto-locks are bypassed.
-- **Breach Actions:** If `lockOnBreach` is enabled and student is outside without pass:
-  - Phone automatically locks with reason `BlockReason.OUT_OF_CAMPUS`.
-  - Breach event with location, accuracy, and timestamp is queued and dispatched to `POST /geofence/breach`.
+- [ ] Student using App A → warden blocks App A → App A is closed and the block screen appears within about a second.
+- [ ] Warden blocks App B while the student uses App A → opening App B is blocked immediately.
+- [ ] Warden unblocks App A → the block screen closes and App A opens without a restart.
+- [ ] Block several apps; toggle one repeatedly; the final state always wins.
+- [ ] Remote lock and unlock apply within about a second (screen on).
+- [ ] Bedtime starting while an app is open blocks it within 30 s.
+- [ ] Turn on airplane mode, change rules, reconnect → the latest rules apply and nothing older overrides them.
+- [ ] Reboot → monitoring resumes without opening the app.
+- [ ] Calls, emergency dialer and keyboard still work while locked.
 
 ---
 
-## 5. MethodChannel Specifications (`hsh/screen_time`)
+## 13. Known limitations
 
-| Method Name | Parameters | Return Type | Description |
-| :--- | :--- | :--- | :--- |
-| `hasUsagePermission` | None | `bool` | Checks if `PACKAGE_USAGE_STATS` is granted. |
-| `openUsageSettings` | None | `void` | Directs user to Settings > Usage Access page. |
-| `hasAccessibilityPermission` | None | `bool` | Checks if `AppBlockerAccessibilityService` is active. |
-| `openAccessibilitySettings` | None | `void` | Directs user to Settings > Accessibility page. |
-| `isBatteryOptimizationIgnored`| None | `bool` | Checks if app is whitelisted from battery restrictions. |
-| `requestIgnoreBatteryOptimizations`| None | `bool` | Prompts OS dialog for battery optimization exemption. |
-| `startMonitoring` | `token`, `baseUrl` | `void` | Saves auth session natively and boots `PolicyPollService` & `ScreenTimeSync`. |
-| `stopMonitoring` | None | `void` | Clears credentials, cancels WorkManager, resets policy. |
-| `syncNow` | None | `String` | Forces immediate usage calculation and HTTP sync (`ok`, `no_permission`, etc.). |
-| `syncPolicyToNative` | `ScreenTimePolicy` map | `bool` | Pushes policy directly into local `PolicyStore` for immediate offline enforcement. |
-| `getPolicy` | None | `Map<String, dynamic>` | Returns currently active device policy. |
-| `getCompliance` | None | `Map<String, dynamic>` | Returns health flags (`usageAccess`, `accessibilityEnabled`, `batteryOptimized`). |
-
----
-
-## 6. Android Manifest & Permission Declarations
-
-In `android/app/src/main/AndroidManifest.xml`:
-
-```xml
-<!-- Core Telemetry & Remote Enforcement -->
-<uses-permission android:name="android.permission.PACKAGE_USAGE_STATS" tools:ignore="ProtectedPermissions" />
-<uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
-<uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
-<uses-permission android:name="android.permission.FOREGROUND_SERVICE_SPECIAL_USE" />
-<uses-permission android:name="android.permission.FOREGROUND_SERVICE_LOCATION" />
-<uses-permission android:name="android.permission.ACCESS_BACKGROUND_LOCATION" />
-<uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" />
-<uses-permission android:name="android.permission.REQUEST_IGNORE_BATTERY_OPTIMIZATIONS" />
-<uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
-
-<!-- Blocker Accessibility Service Declaration -->
-<service
-    android:name=".screentime.AppBlockerAccessibilityService"
-    android:permission="android.permission.BIND_ACCESSIBILITY_SERVICE"
-    android:exported="false"
-    android:label="@string/accessibility_service_label">
-    <intent-filter>
-        <action android:name="android.accessibilityservice.AccessibilityService" />
-    </intent-filter>
-    <meta-data
-        android:name="android.accessibilityservice"
-        android:resource="@xml/accessibility_service_config" />
-</service>
-
-<!-- Background Policy Poll Service -->
-<service
-    android:name=".screentime.PolicyPollService"
-    android:exported="false"
-    android:foregroundServiceType="specialUse|location">
-    <property
-        android:name="android.app.PROPERTY_SPECIAL_USE_FGS_SUBTYPE"
-        android:value="Hostel parental-control policy enforcement: keeps remote lock and app restrictions in sync" />
-</service>
-
-<!-- Fullscreen Lock Screen -->
-<activity
-    android:name=".screentime.BlockedAppActivity"
-    android:exported="false"
-    android:launchMode="singleTask"
-    android:theme="@android:style/Theme.NoTitleBar.Fullscreen"
-    android:excludeFromRecents="true" />
-```
-
----
-
-## 7. Verification & Operational Testing Checklist
-
-- [x] **Student Device Onboarding:** Verified all 4 steps in `DeviceSetupScreen` (Usage Stats, Accessibility, Battery Exemption, Location).
-- [x] **Remote Device Lock:** Triggered `toggleDeviceLock(true)` from Admin console -> student phone displays `BlockedAppActivity` within < 30 seconds.
-- [x] **Self-Releasing Unlock:** Triggered `toggleDeviceLock(false)` -> student phone dismisses lock screen automatically within 3 seconds.
-- [x] **Bedtime Curfew:** Simulated clock at 23:30 with curfew `23:00 - 05:00` -> phone locks with `BlockReason.BEDTIME`.
-- [x] **App Blacklisting:** Restricted package (e.g. `com.instagram.android`) -> launching Instagram triggers `GLOBAL_ACTION_HOME` and lock screen within 20ms.
-- [x] **Dialer & Emergency Safety:** Tested launching Phone dialer and Emergency calling during Device Lock -> Dialer operates uninterrupted.
-- [x] **Geofence Curfew Breach:** Simulated GPS coordinate outside campus boundary during curfew hours without gate pass -> Phone locks with `BlockReason.OUT_OF_CAMPUS`.
-- [x] **Device Reboot Survival:** Simulated device reboot -> `BootPolicyReceiver` starts `PolicyPollService` and WorkManager jobs automatically.
+- **Telemetry the backend ignores:** the ping carries `compliance` (usage access, accessibility, battery exemption, app version…), `blockEvents`, app icons, `deviceTime` and `currentPackage`, but the backend doesn't store them. The dashboard's **Attention** (tamper) filter therefore never matches.
+- **Night minutes:** the phone never sends `nightScreenTimeMinutes`, so night minutes stay 0 and the **Night** filter shows nobody.
+- **Old app builds and bank codes:** a warden phone still on a build from before 2026-10-06 sends the bank code when opening Screen Time from the phonebook. Codes with a leading zero (`0001`–`0999`) are now rejected (nothing opens). Codes `1000` and up are plain numbers, so the backend reads them as a student id and can still open the wrong student until that phone updates.
+- **Single backend process for instant delivery.** The change signal is in-process. With several API processes, changes still arrive, but up to 25 s later.
+- **Screen off:** changes arrive within 120 s, or immediately when the screen turns on.
+- **Missed app switch:** if Android never reports that the student left an app, the re-check falls back to usage events. If those are unavailable too, nothing is blocked until the next switch (it fails open rather than blocking the wrong app).
+- **Old app builds** still push the policy from Flutter without a version and don't re-check the open app; the new backend still serves them correctly.
+- **Android only:** iOS student phones are not monitored.

@@ -48,4 +48,4 @@ On your iPhone:
 1. Open **Settings → Phone → Call Blocking & Identification**.
 2. Turn ON the toggle for **`Hsh App2`** / **`HSH Caller ID`**.
 
-See [CALLER_ID_HANDOFF.md](file:///Users/apple/StudioProjects/hsh_app2/ios/CALLER_ID_HANDOFF.md) for full architecture and troubleshooting details.
+See [CALLER_ID_HANDOFF.md](CALLER_ID_HANDOFF.md) for the full architecture and troubleshooting, and [docs/PHONEBOOK_DOCS.md](../docs/PHONEBOOK_DOCS.md) for how the phonebook and caller ID work on both platforms.

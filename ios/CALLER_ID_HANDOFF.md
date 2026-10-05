@@ -10,7 +10,7 @@ Instead, Apple provides **CallKit's Call Directory Extension (`CXCallDirectoryPr
 ```
 ┌─────────────────────────────────────────────────────────────┐
 │                       Flutter App                           │
-│  • Contacts/Staff/Student phone numbers fetched             │
+│  • Builds entries from the phonebook SQLite cache           │
 │  • MethodChannel `hsh/caller_id`                            │
 └──────────────────────────────┬──────────────────────────────┘
                                │ (exportDirectory)
@@ -35,8 +35,8 @@ Instead, Apple provides **CallKit's Call Directory Extension (`CXCallDirectoryPr
 ┌─────────────────────────────────────────────────────────────┐
 │                    iOS Native Phone UI                      │
 │  • Incoming call & Recents display:                         │
-│    "HSH · Rohan Sharma · Room B-204 · Father"               │
-└──────────────────────────────┘
+│    "Rohan Sharma · Rm 204 (Param) · Father"                 │
+└─────────────────────────────────────────────────────────────┘
 ```
 
 ---
@@ -50,7 +50,21 @@ Instead, Apple provides **CallKit's Call Directory Extension (`CXCallDirectoryPr
 | **App Group** | `group.in.innovatiq.hshApp2` | Shared container between app and extension |
 | **Method Channel** | `hsh/caller_id` | Flutter ↔ Native bridge |
 | **Directory File** | `callerid-directory.json` | Shared JSON database in App Group |
-| **Development Team** | `INNOVATIQ SYSTEMS PRIVATE LIMITED` | Paid Apple Developer Team |
+| **Development Team** | `INNOVATIQ SYSTEMS PRIVATE LIMITED` (Team ID `K3FAYYRWH6`) | Paid Apple Developer Team |
+
+### When the directory is exported
+
+`CallerIdService.syncDirectory()` (Dart) rebuilds and exports the full directory:
+
+- after every successful phonebook sync;
+- when the warden taps **Open Settings** to enable caller ID;
+- every time the phonebook screen opens while caller ID is enabled.
+
+`setActive(false)` (Turn off, logout, or a non-admin/warden login) deletes `callerid-directory.json` and reloads the extension, so labels disappear.
+
+**Label format** (built in `CallerIdService.buildDirectoryEntries()`): `<who> · <place> · <relation>`, e.g. `Rohan Sharma · Rm 204 (Param) · Father`. The relation is omitted for the student's own number; siblings sharing a number are merged (`Rohan Sharma & Meet Sharma`, `Rohan Sharma +2`); labels over 60 characters are truncated. There is **no** `HSH ·` prefix, even though the in-app "Caller ID is on" card still says so.
+
+Full feature documentation (Android and iOS): [docs/PHONEBOOK_DOCS.md](../docs/PHONEBOOK_DOCS.md).
 
 ---
 
@@ -130,13 +144,20 @@ Open `ios/Runner.xcworkspace` and update the targets:
 
 ### Native iOS Files:
 1. `ios/Runner/CallerIdPlugin.swift`
-   - Handles Flutter method calls: `getStatus`, `requestEnable`, `exportDirectory`, `setActive`.
+   - Handles Flutter method calls:
+     - `getStatus` → `{supported, enabled, overlayGranted: true, active, iosState}`;
+     - `requestEnable` → opens Settings → Phone → Call Blocking & Identification (directly on iOS 13.4+);
+     - `requestOverlay` → always `false` (Android-only concept);
+     - `setActive` → stores the flag; `false` deletes the directory file and reloads the extension;
+     - `exportDirectory` → writes the directory (and sets active);
+     - `consumeLaunchTarget` → always `nil` (no tap-to-open on iOS).
    - Formats, de-duplicates, and sorts `(Int64 phone, String label)` pairs defensively in ascending order.
    - Saves `callerid-directory.json` into `FileManager.default.containerURL(forSecurityApplicationGroupIdentifier: appGroup)`.
    - Signals `CXCallDirectoryManager.sharedInstance.reloadExtension(withIdentifier: extensionIdentifier)`.
 
 2. `ios/Runner/AppDelegate.swift`
-   - Registers `CallerIdPlugin.register(with: self.registrar(forPlugin: "CallerIdPlugin")!)`.
+   - Registers the plugin in `didInitializeImplicitFlutterEngine(_:)`, right after `GeneratedPluginRegistrant`:
+     `CallerIdPlugin.register(with: engineBridge.pluginRegistry.registrar(forPlugin: "CallerIdPlugin")!)`.
 
 3. `ios/CallDirectoryExtension/CallDirectoryHandler.swift`
    - Subclasses `CXCallDirectoryProvider`.

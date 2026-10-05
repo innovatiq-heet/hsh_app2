@@ -163,7 +163,9 @@ class _DeviceSetupScreenState extends State<DeviceSetupScreen> with WidgetsBindi
                         index: 3,
                         icon: Icons.my_location_rounded,
                         title: 'Location — allow all the time',
-                        description: 'Checks you are on campus during curfew hours only.',
+                        description: 'Your location is collected every few minutes, all day, even when the app '
+                            'is closed. Hostel staff see where you are and get alerted if you leave campus '
+                            'during curfew.',
                         hint: 'Choose "While using the app" first, then on the next screen pick "Allow all the time".',
                         done: _location,
                         checking: _checking,

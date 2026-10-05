@@ -1,239 +1,349 @@
-# HSH Campus Geofencing & Curfew Enforcement Documentation
+# Campus Geofence, Curfew Monitoring & Student Locations
 
-## 1. System Overview
-
-The **Campus Geofencing & Curfew Enforcement Platform** in HSH (`hsh_app2`) is an automated perimeter security and resident tracking system. Designed specifically for student hostels, it tracks whether residents stay within campus boundaries during curfew hours, logs perimeter breach incidents, and automatically enforces device locks if a student breaches curfew without an authorized gate pass.
-
-### Core Capabilities
-1. **High-Precision Perimeter Monitoring:** Defines a multi-vertex boundary polygon corresponding to the physical perimeter of Hari Saurabh Hostel.
-2. **Curfew Time Window Scheduling:** Supports configurable start/end curfew hours (e.g., 22:00 to 06:00) with overnight midnight wrap-around and recurring day filters.
-3. **Automated Phone Lock on Breach:** When enabled, a student phone outside campus during curfew is automatically locked with reason `BlockReason.OUT_OF_CAMPUS`. The phone unlocks automatically the moment the student returns to campus.
-4. **Digital Gate Pass Exemption:** Wardens can grant temporary gate passes (`exemptUntil`), allowing permitted leaves without triggering curfew alarms or device lockouts.
-5. **Anti-Spoofing & Mock Location Detection:** Automatically detects GPS spoofing apps (`Location.isMock` / `isFromMockProvider`), flags the incident as `mock_location`, and invalidates fake coordinates.
-6. **Battery-Optimized Periodic Sampling:** Uses Android's Fused Location Provider, caches fixes younger than 60 seconds, and limits GPS active duty cycles.
-7. **Administrative Dashboard & Real-Time Map:** Interactive Flutter UI with campus polygon map visualization, active student location pins, breach history logs, and instant warden intervention tools (Call Student, Call Parent, Remote Lock, Gate Pass).
+> **Last updated:** 2026-10-06 · **Repos:** `hsh_app2` (Flutter + native Android) and `hsh_api` (Node/Express/MySQL)
+>
+> Paths starting with `lib/` or `android/` are in this repo; paths starting with `hsh_api/` are in the backend repo.
 
 ---
 
-## 2. Architectural Blueprint
+## 1. What this feature does
+
+| Capability | Summary |
+| :--- | :--- |
+| **Curfew monitoring** | During the configured curfew window, every student phone checks whether it is inside the hostel boundary and reports breaches to the backend. |
+| **Breach console** | Wardens see active breaches and can call the student, call a parent, push a curfew warning, or grant a temporary gate pass. |
+| **Student Locations** | Every student's last reported location, all day (not only during curfew), with inside/outside status and an "Open in Maps" link. |
+| **Location update interval** | Wardens choose how often phones report (1, 2, 5 or 10 minutes; default 2) from the Campus Geofence screen. |
+
+**The geofence never locks phones.** It only observes and reports. Phone locking exists only in Screen Time (see [PARENT_CONTROL_DOCS.md](PARENT_CONTROL_DOCS.md)). The old "auto-lock when outside" option and the "Lock Phone" breach action were removed on 2026-10-05.
+
+**Platforms:** student-side monitoring runs on **Android only** (`GeofenceDeviceService.isSupported => Platform.isAndroid`). The warden screens work on any platform the app runs on.
+
+---
+
+## 2. Architecture
 
 ```mermaid
 graph TD
-    subgraph AdminConsole["Hostel Admin Console (Flutter / GetX)"]
-        AGC["AdminGeofenceController"]
-        AGS["AdminGeofenceScreen (Map & Audit Logs)"]
-        CGS["CampusGeofenceService (Dart Math Engine)"]
-        GDS["GeofenceDeviceService (MethodChannel 'hsh/geofence')"]
+    subgraph Warden["Warden app (Flutter / GetX)"]
+        AGS["AdminGeofenceScreen + AdminGeofenceController"]
+        SLS["StudentLocationsScreen + StudentLocationsController"]
+        REPO["GeofenceRepository"]
     end
 
-    subgraph BackendInfrastructure["HSH Cloud Infrastructure"]
-        G_POL["/geofence/policy (GET / PUT)"]
-        G_LOGS["/geofence/breaches (GET)"]
-        G_BREACH["/geofence/breach (POST from native)"]
-        G_PASS["/geofence/gate-pass (POST)"]
+    subgraph API["hsh_api (Express)"]
+        GR["geofence.routes.ts"]
+        GS["geofence.service.ts"]
+        PING["POST /screen-time/ping"]
+        POLL["GET /screen-time/policies/me (long-poll)"]
+        EVT["policyEvents.ts (change signal)"]
     end
 
-    subgraph AndroidStudent["Student Device Native Subsystem (Android Kotlin)"]
-        PPS["PolicyPollService<br/>(Foreground Service with Location Type)"]
-        LS["LocationSampler<br/>(Fused / GPS / Network Provider)"]
-        GE["GeofenceEvaluator<br/>(Point-in-Polygon Engine & State Machine)"]
-        PStore["PolicyStore<br/>(Native SharedPreferences)"]
-        PE["PolicyEvaluator<br/>(Curfew Phone Lock Evaluation)"]
-        BAA["BlockedAppActivity<br/>(Out of Campus Lock Screen)"]
+    subgraph DB["MySQL"]
+        T1[("geofence_curfew_policy")]
+        T2[("geofence_breach_logs")]
+        T3[("geofence_gate_passes")]
+        T4[("student_locations")]
     end
 
-    %% Admin flow
-    AGC -->|Manage Policy| G_POL
-    AGC -->|Fetch Audit Logs| G_LOGS
-    AGC -->|Issue Pass / Actions| G_PASS
-    AGC -->|Render Map & Distance| CGS
+    subgraph Phone["Student phone (Android, native Kotlin)"]
+        PPS["PolicyPollService (foreground service tick)"]
+        LS["LocationSampler"]
+        GE["GeofenceEvaluator (curfew state machine)"]
+        PST["PolicyStore (encrypted prefs + event queue)"]
+        STS["ScreenTimeSync (5-min ping)"]
+    end
 
-    %% Native polling & sampling flow
-    PPS -->|Fetches Geofence Policy| G_POL
-    PPS -->|Triggers Periodic Sample| LS
-    LS -->|Fresh GPS Fix| GE
-    GE -->|Evaluate Point-in-Polygon| PStore
-    GE -->|Post Breach Event| G_BREACH
+    AGS --> REPO
+    SLS --> REPO
+    REPO -->|policy, breaches, admin-action, locations| GR
+    GR --> GS
+    GS --> T1
+    GS --> T2
+    GS --> T3
+    GS --> T4
+    GR -->|curfew change / gate pass| EVT
+    EVT -->|wakes waiting phone| POLL
 
-    %% Enforcement flow
-    GE -->|Sets State: OUTSIDE| PStore
-    PE -->|Reads Geofence State| PStore
-    PE -->|If shouldLock: Trigger Overlay| BAA
-
-    %% Flutter Channel
-    GDS <==>|MethodChannel 'hsh/geofence'| PPS
+    PPS --> LS
+    LS -->|fix| GE
+    GE -->|exit / heartbeat / enter / mock / location_off| PST
+    PST -->|queued geofenceEvents| STS
+    STS --> PING
+    PING -->|recordGeofenceEvents| GS
+    PPS -->|POST /geofence/location| GR
+    PPS -->|GET /geofence/policy every 10 min| GR
+    POLL -->|data.geofence: curfew + exemptUntil| PST
 ```
 
 ---
 
-## 3. Directory Structure & File Map
+## 3. File map
 
-### 3.1 Flutter Layer (`lib/features/geofence/` & `lib/core/`)
+### Flutter (`lib/`)
 
-| File Path | Component | Purpose |
+| File | Role |
+| :--- | :--- |
+| [geofence_policy_model.dart](../lib/core/models/geofence/geofence_policy_model.dart) | Curfew policy: `startTime`, `endTime`, `isActive`, `checkIntervalMinutes` (location interval), `repeatDays`, `exemptUntil`. `isWithinCurfew()` handles overnight windows. |
+| [geofence_breach_event.dart](../lib/core/models/geofence/geofence_breach_event.dart) | Breach record. Event types `exit`, `heartbeat`, `enter`, `mockLocation`, `locationOff`; actions `BreachActionStatus`. Distance badge shows "Back on campus", "Location turned off" and "Fake GPS detected". |
+| [student_location.dart](../lib/core/models/geofence/student_location.dart) | `StudentLocation` + `LocationFix` (lat/lng, accuracy, mocked, insideCampus, distance, fixTime) and `LocationStatus` (outside / inside / unknownArea / noData). |
+| [geofence_repository.dart](../lib/core/network/repository/geofence/geofence_repository.dart) | HTTP calls: policy, breaches, admin actions, student locations. All methods throw on failure. |
+| [geofence_service.dart](../lib/core/services/geofence_service.dart) | Dart copy of the campus polygon and point-in-polygon maths (used by the warden UI). |
+| [geofence_device_service.dart](../lib/core/services/geofence_device_service.dart) | Student-side bridge to the `hsh/geofence` MethodChannel: permission level, status snapshot, sample-now; two-step "Allow all the time" request. |
+| [admin_geofence_controller.dart](../lib/features/geofence/controllers/admin_geofence_controller.dart) / [admin_geofence_screen.dart](../lib/features/geofence/views/admin_geofence_screen.dart) | Campus Geofence screen: curfew schedule, location interval, breach cards and actions. Route `Routes.operatorGeofence`. |
+| [student_locations_controller.dart](../lib/features/geofence/controllers/student_locations_controller.dart) / [student_locations_screen.dart](../lib/features/geofence/views/student_locations_screen.dart) | Student Locations list. Route `Routes.operatorStudentLocations`. |
+| [device_setup_screen.dart](../lib/features/screentime/views/device_setup_screen.dart) | Student onboarding; step 3 requests location "Allow all the time" and discloses that location is collected every few minutes, all day, even with the app closed, and shown to hostel staff (the in-app disclosure Google Play requires before the permission prompt). |
+| [home_controller.dart](../lib/features/home/controllers/home_controller.dart) | Sends a student back to setup if location "always" (or another required permission) is revoked. |
+
+### Native Android (`android/app/src/main/kotlin/com/example/hsh_app2/screentime/`)
+
+| File | Role |
+| :--- | :--- |
+| [GeofenceEvaluator.kt](../android/app/src/main/kotlin/com/example/hsh_app2/screentime/GeofenceEvaluator.kt) | Campus polygon, curfew window, point-in-polygon, distance to fence edge, the inside/outside state machine, location-unavailable reporting, stale-state reset. |
+| [LocationSampler.kt](../android/app/src/main/kotlin/com/example/hsh_app2/screentime/LocationSampler.kt) | One fresh, trustworthy fix (or null): permission level, location switch, cached-fix reuse, provider choice, timeout, mock detection. |
+| [PolicyPollService.kt](../android/app/src/main/kotlin/com/example/hsh_app2/screentime/PolicyPollService.kt) | Foreground service. Its tick drives curfew sampling, all-day location sampling, location upload and the 10-minute geofence policy refresh; its sync loop long-polls the policy (which also carries the geofence policy). |
+| [PolicyStore.kt](../android/app/src/main/kotlin/com/example/hsh_app2/screentime/PolicyStore.kt) | Encrypted storage: geofence policy, state, streak, last fix, event queue (max 300), throttle timestamps, last reported fix. `clearStudentState()` on logout. |
+| [ScreenTimeSync.kt](../android/app/src/main/kotlin/com/example/hsh_app2/screentime/ScreenTimeSync.kt) | Sends queued `geofenceEvents` with each `POST /screen-time/ping` and drops them only after a 2xx. |
+| [MainActivity.kt](../android/app/src/main/kotlin/com/example/hsh_app2/MainActivity.kt) | `hsh/geofence` MethodChannel handler. |
+
+### Backend (`hsh_api/src/`)
+
+| File | Role |
+| :--- | :--- |
+| `modules/geofence/geofence.routes.ts` | All `/geofence/*` endpoints and their role guards. |
+| `modules/geofence/geofence.service.ts` | Curfew policy read/merge/save, gate passes, event ingestion (`recordGeofenceEvents`), location storage/listing, breach JSON shape. |
+| `modules/screentime/screentime.routes.ts` | `POST /screen-time/ping` stores `geofenceEvents` in the same transaction as usage; `GET /screen-time/policies/me` returns `data.geofence`. |
+| `services/policyEvents.ts` | In-process "policy changed" signal that answers a phone's long-poll immediately. |
+| `config/db.ts` | Startup migrations for all geofence tables. |
+
+---
+
+## 4. Roles and access
+
+Warden endpoints use `requireRole('operator')`, which admits the **operator console** token and **platform-admin** staff. Leaders and wing-leaders are not admitted.
+
+| Endpoint | Who |
+| :--- | :--- |
+| `GET /geofence/policy` | Any logged-in user. Students also receive their own `exemptUntil`. |
+| `POST /geofence/policy` | Operator, platform-admin |
+| `GET /geofence/breaches` | Operator, platform-admin |
+| `POST /geofence/admin-action` | Operator, platform-admin |
+| `GET /geofence/locations` | Operator, platform-admin |
+| `POST /geofence/location` | The student's own phone (student token only) |
+| `POST /geofence/breach` | The student's own phone, or a supervisor on a student's behalf |
+
+---
+
+## 5. Student phone behaviour
+
+### 5.1 When the phone takes a fix
+
+`PolicyPollService` runs a tick every **30 s with the screen on** and every **60 s with the screen off**. On each tick it decides whether a fix is due:
+
+| Situation | Fix taken when | Purpose |
 | :--- | :--- | :--- |
-| [geofence_policy_model.dart](file:///c:/Users/kruta/Desktop/hsh_seva/hsh_app2/lib/core/models/geofence/geofence_policy_model.dart) | **Model** | Data entity for curfew rules: `startTime`, `endTime`, `isActive`, `enforcePhoneLock`, `checkIntervalMinutes`, `repeatDays`, `exemptUntil`. |
-| [geofence_breach_event.dart](file:///c:/Users/kruta/Desktop/hsh_seva/hsh_app2/lib/core/models/geofence/geofence_breach_event.dart) | **Model** | Telemetry breach record: coordinates, distance outside, accuracy, `isMocked`, event types (`exit`, `heartbeat`, `enter`, `mockLocation`), and resolution actions. |
-| [geofence_repository.dart](file:///c:/Users/kruta/Desktop/hsh_seva/hsh_app2/lib/core/network/repository/geofence/geofence_repository.dart) | **Repository** | HTTP communication with backend geofence endpoints. |
-| [geofence_service.dart](file:///c:/Users/kruta/Desktop/hsh_seva/hsh_app2/lib/core/services/geofence_service.dart) | **Geometry Engine** | Dart implementation of Ray-Casting Point-in-Polygon, orthogonal distance to perimeter edges, and campus center coordinates. |
-| [geofence_device_service.dart](file:///c:/Users/kruta/Desktop/hsh_seva/hsh_app2/lib/core/services/geofence_device_service.dart) | **Bridge Service** | MethodChannel (`hsh/geofence`) handling two-step location permission requests, native status checks, and on-demand GPS sampling. |
-| [admin_geofence_controller.dart](file:///c:/Users/kruta/Desktop/hsh_seva/hsh_app2/lib/features/geofence/controllers/admin_geofence_controller.dart) | **Controller** | Manages policy changes, active breach filtering, calling actions, and gate pass assignments. |
-| [admin_geofence_screen.dart](file:///c:/Users/kruta/Desktop/hsh_seva/hsh_app2/lib/features/geofence/views/admin_geofence_screen.dart) | **View** | Interactive administrative console with map visualization, live curfew status, and breach cards. |
+| Curfew enforced (active, inside the window, no gate pass) | `checkIntervalMinutes` since the last attempt, or **60 s** while confirming an exit | Breach detection |
+| Outside curfew, or on a gate pass | `checkIntervalMinutes` since the last attempt | Student Locations only, never a breach |
+| Location permission denied or location switched off (curfew) | — | Queues a `location_off` event instead (see 5.3) |
+
+`checkIntervalMinutes` is the warden's **Location updates** setting (1, 2, 5 or 10 minutes; default 2). Each tick ends by uploading the latest fix if the backend hasn't accepted it yet (see 5.5).
+
+`LocationSampler.sample()`:
+
+- reuses a cached GPS/network fix if it is **≤ 60 s old** and **≤ 75 m** accurate (no extra GPS wake-up);
+- otherwise asks the Fused provider (Android 12+), then GPS, then Network, with a **25 s timeout**;
+- returns null (no event) when permission is missing, location is off, or the timeout hits;
+- flags `mocked` from `Location.isMock` / `isFromMockProvider`.
+
+### 5.2 Curfew window
+
+- `startTime`/`endTime` are `HH:mm` in the **phone's local time**. Overnight windows wrap (22:00–06:00).
+- `repeatDays` is `["Daily"]` or weekday names, matched against the day the curfew **starts** (01:30 on Tuesday belongs to Monday's curfew).
+- A gate pass (`exemptUntil` in the future) stops enforcement for that student.
+
+### 5.3 State machine (`GeofenceEvaluator.process`)
+
+1. Not enforcing → the inside/outside state is reset (so yesterday's OUTSIDE can't carry into tonight), and no event is raised.
+2. Mocked fix → `mock_location` event (at most once per 10 minutes); coordinates are not trusted.
+3. Accuracy worse than **75 m** → ignored.
+4. **Clearly outside** = outside the polygon **and** the distance to the fence edge exceeds the fix's accuracy.
+5. Two consecutive clearly-outside fixes (`EXIT_STREAK = 2`) → state OUTSIDE, `exit` event.
+6. While OUTSIDE → a `heartbeat` event every `checkIntervalMinutes` with the current position.
+7. Back inside (or too close to the wall to tell) after OUTSIDE → `enter` event.
+8. During curfew with location unavailable → `location_off` event (`reason: permission_denied | location_disabled`), at most once per `max(10 min, interval)`.
+
+The polygon is 12 vertices around Hari Saurabh Hostel (~22.556° N, 72.918° E), defined identically in `GeofenceEvaluator.CAMPUS_POLYGON` and `CampusGeofenceService.campusPolygon`. The backend may send a `polygon` in the policy to override it (not used today).
+
+### 5.4 Event upload
+
+- Events are queued in `PolicyStore` (newest 300 kept while offline).
+- They ride on `POST /screen-time/ping` as `geofenceEvents`: every 5 minutes (WorkManager), and immediately after an `exit`, `enter`, `mock_location` or `location_off`.
+- The queue is cleared **only after a 2xx**. The backend writes usage and events in one transaction, so a retry can't double-count usage or lose events.
+
+### 5.5 Location upload (Student Locations)
+
+- Each tick, if the latest fix is newer than the last one the backend accepted, the phone sends `POST /geofence/location` with `latitude`, `longitude`, `accuracyMeters`, `time` (fix epoch ms), `mocked`, `insideCampus` and `distanceMeters` (both computed on the phone against the polygon).
+- 2xx → marked reported. 400 (invalid or stale) → also marked, so it isn't retried forever. A network error → retried on the next tick.
+
+### 5.6 Receiving policy and gate-pass changes
+
+- `GET /screen-time/policies/me` (the long-poll described in PARENT_CONTROL_DOCS) includes `data.geofence`: the curfew policy plus this student's `exemptUntil`. With the screen on, a curfew change, interval change or gate pass reaches the phone within seconds.
+- `GET /geofence/policy` is also fetched every 10 minutes as a fallback.
+- `exemptUntil: null` clears a previously granted pass.
+
+### 5.7 Logout and account switching
+
+`ScreenTimeSync.stop()` → `PolicyStore.clearStudentState()` wipes the geofence policy (including the gate pass), state, last fix, event queue, throttles and last-reported marker, so the next student on that phone never uploads the previous student's data.
 
 ---
 
-### 3.2 Native Android Subsystem (`android/app/src/main/kotlin/com/example/hsh_app2/screentime/`)
+## 6. Backend processing
 
-| File Path | Component | Purpose |
+### 6.1 Turning events into breaches (`recordGeofenceEvents`)
+
+| Event | Effect |
+| :--- | :--- |
+| `exit`, `mock_location`, `location_off` | Opens a breach of that type, or refreshes the student's open, unresolved breach of the same type. |
+| `heartbeat` | Refreshes the open `exit` breach with the latest position; opens one if the `exit` was lost. |
+| `enter` | Sets `returned_at` on the open `exit` breach (the card then shows "Back on campus"). |
+
+- **Idempotent:** a unique key on `(student_id, event_type, device_event_at)` makes a retried upload a no-op.
+- **Ordered:** updates only move forward in time, so a delayed upload can't overwrite a newer position.
+- **Device time:** each event keeps the phone's timestamp (queued offline events keep their real time). Future times are clamped to now.
+- Malformed events (unknown type, missing coordinates where required) are skipped; the rest of the ping still succeeds.
+
+### 6.2 Warden actions (`POST /geofence/admin-action`)
+
+| `action` | Effect | Closes the breach? |
 | :--- | :--- | :--- |
-| [GeofenceEvaluator.kt](file:///c:/Users/kruta/Desktop/hsh_seva/hsh_app2/android/app/src/main/kotlin/com/example/hsh_app2/screentime/GeofenceEvaluator.kt) | **Algorithm & State Machine** | Native 12-vertex campus polygon, Ray-Casting PIP algorithm, orthogonal edge distance projection, noise hysteresis, and breach queue. |
-| [LocationSampler.kt](file:///c:/Users/kruta/Desktop/hsh_seva/hsh_app2/android/app/src/main/kotlin/com/example/hsh_app2/screentime/LocationSampler.kt) | **Location Provider** | Manages `LocationManager` / Fused provider, 25-second countdown timeout, 60-second fresh fix cache, and spoofed location detection. |
-| [PolicyPollService.kt](file:///c:/Users/kruta/Desktop/hsh_seva/hsh_app2/android/app/src/main/kotlin/com/example/hsh_app2/screentime/PolicyPollService.kt) | **Execution Driver** | Foreground service declaring `FOREGROUND_SERVICE_TYPE_LOCATION`, polling curfew policy, and driving periodic GPS fixes off the main thread. |
-| [PolicyEvaluator.kt](file:///c:/Users/kruta/Desktop/hsh_seva/hsh_app2/android/app/src/main/kotlin/com/example/hsh_app2/screentime/PolicyEvaluator.kt) | **Lock Evaluator** | Queries `GeofenceEvaluator.shouldLock()` and halts forbidden apps with `BlockReason.OUT_OF_CAMPUS`. |
-| [PolicyStore.kt](file:///c:/Users/kruta/Desktop/hsh_seva/hsh_app2/android/app/src/main/kotlin/com/example/hsh_app2/screentime/PolicyStore.kt) | **Native Store** | Stores geofence policy, current state (`INSIDE`/`OUTSIDE`), streak count, and queued breach events. |
+| `calledStudent`, `calledParent` | Recorded with who acted and when | No |
+| `warningSent` | Push notification to the student's FCM token; the response's `notified` says whether it was delivered | No |
+| `gatePassGranted` | Stores a pass for `gatePassHours` (1–24, server clock), wakes the phone | Yes |
+| `dismissed`, `resolved` | Recorded | Yes |
+| `phoneLocked`, `remoteLockPhone` | **Rejected (400):** phone lock was removed from the geofence | — |
+
+### 6.3 Curfew policy (`POST /geofence/policy`)
+
+- Partial update: omitted fields keep their value.
+- Validation: `startTime`/`endTime` are `HH:mm`, and must differ; `checkIntervalMinutes` is a whole number 1–120; `repeatDays` is `Daily` or weekday names.
+- `enforcePhoneLock`/`lockOnBreach` from older clients are ignored. Every policy payload sends `lockOnBreach: false` and `enforcePhoneLock: false`, which turns the lock off on phones running older builds.
+- After saving, every connected phone is woken to pick up the change.
+
+### 6.4 Student locations
+
+- `student_locations` keeps one row per student; a fix only replaces the stored one if it is newer (`fix_time_ms`).
+- Rejected: out-of-range coordinates, exactly `0,0`, fixes older than 24 hours. Future fix times are clamped to now.
+- `GET /geofence/locations` returns every **active** student (up to 2000) with `location: null` if none has been reported yet.
 
 ---
 
-## 4. Algorithmic Foundation & Mathematics
+## 7. Warden UI
 
-### 4.1 Campus Boundary Polygon
-The campus perimeter is represented as an ordered sequence of 12 (Latitude, Longitude) coordinates enclosing the property:
+### 7.1 Campus Geofence (`Routes.operatorGeofence`, operator home → "Campus Geofence")
 
-```
-Point 01: (22.5589641, 72.9191224)    Point 07: (22.5555341, 72.9177298)
-Point 02: (22.5586057, 72.9178013)    Point 08: (22.5556267, 72.9182108)
-Point 03: (22.5581892, 72.9178726)    Point 09: (22.5539632, 72.9185129)
-Point 04: (22.5580415, 72.9173926)    Point 10: (22.5540037, 72.9189525)
-Point 05: (22.5560909, 72.9180614)    Point 11: (22.5561810, 72.9193936)
-Point 06: (22.5559969, 72.9176296)    Point 12: (22.5571341, 72.9192936)
-```
+- **Status banner:** paused, curfew active now, or daytime (evaluated in the warden phone's local time).
+- **Curfew Schedule card:** on/off switch, start and end time pickers, **Location updates** chips (1, 2, 5, 10 min).
+- **Student Locations card** → opens the location list.
+- **Active breaches**, one card each: name, room, ID, distance/status badge and time, with actions **Call Student**, **Call Parent** (only if a parent number exists), **Send Warning** (warns if the push couldn't be delivered), **Allow Gate Pass** (1 hour).
+- **Resolved Movement History:** the last 5 resolved breaches with the action taken.
 
-Both [CampusGeofenceService.dart](file:///c:/Users/kruta/Desktop/hsh_seva/hsh_app2/lib/core/services/geofence_service.dart#L25-L38) and [GeofenceEvaluator.kt](file:///c:/Users/kruta/Desktop/hsh_seva/hsh_app2/android/app/src/main/kotlin/com/example/hsh_app2/screentime/GeofenceEvaluator.kt#L144-L157) share this exact definition.
+### 7.2 Student Locations (`Routes.operatorStudentLocations`, operator home → "Student Locations")
 
----
-
-### 4.2 Point-in-Polygon (Ray-Casting Algorithm)
-
-To determine whether coordinate $(lat, lng)$ is inside the boundary:
-1. Cast a horizontal ray eastward starting at $(lat, lng)$ toward $(lat, +\infty)$.
-2. For each polygon segment connecting vertex $i$ and vertex $j$:
-   - Check if the latitude of the ray crosses the vertical span of the segment: $(y_i > lat) \neq (y_j > lat)$.
-   - Calculate the longitude of the intersection point:
-     $$x_{intersect} = (x_j - x_i) \cdot \frac{lat - y_i}{y_j - y_i} + x_i$$
-   - If $lng < x_{intersect}$, the ray crosses the edge.
-3. Toggle the boolean `inside` flag for each crossing.
-4. **Result:** An odd number of crossings means the student is **INSIDE**; an even number means the student is **OUTSIDE**.
-
-```kotlin
-fun isInside(polygon: List<Pair<Double, Double>>, lat: Double, lng: Double): Boolean {
-    var inside = false
-    var j = polygon.size - 1
-    for (i in polygon.indices) {
-        val (yi, xi) = polygon[i]
-        val (yj, xj) = polygon[j]
-        if ((yi > lat) != (yj > lat) && lng < (xj - xi) * (lat - yi) / (yj - yi) + xi) {
-            inside = !inside
-        }
-        j = i
-    }
-    return inside
-}
-```
+- Search by name, room, ID or phone; filter chips **All / Outside / Inside / No location** with counts.
+- Outside-campus students are listed first, then by name.
+- Each card shows the status badge, coordinates, "Updated N min ago", accuracy, distance from campus when outside, and a fake-GPS warning. Actions: **Open in Maps** (Google Maps, external app) and **Call Student**.
+- Refreshes every 60 s while open; pull-to-refresh is supported.
 
 ---
 
-### 4.3 Orthogonal Distance to Fence Edge
+## 8. API reference
 
-Rather than measuring distance to the nearest polygon *corner* (which overestimates distance by up to half the length of an edge), the system calculates the shortest perpendicular distance to the nearest polygon *segment*:
+All paths are mounted at both `/api/geofence/...` and `/geofence/...`. Responses use `{ status: 'success' | 'error', data?, message? }`.
 
-1. **Local Flat Cartesian Projection:**
-   $$mPerDegLat = 110540.0 \text{ meters/degree}$$
-   $$mPerDegLng = 111320.0 \cdot \cos(lat \cdot \frac{\pi}{180}) \text{ meters/degree}$$
-2. Vector $\vec{AB} = B - A$ for segment ends $A$ and $B$, translated so the fix point is at the origin $(0,0)$.
-3. The projection parameter $t$ along the segment is:
-   $$t = \text{clamp}\left(0.0, 1.0, \frac{-(\vec{A} \cdot \vec{AB})}{|\vec{AB}|^2}\right)$$
-4. The closest point on the segment is $\vec{C} = \vec{A} + t \cdot \vec{AB}$.
-5. The distance is $|\vec{C}| = \sqrt{C_x^2 + C_y^2}$.
-6. Minimum distance across all 12 segments gives the precise distance in meters to the campus wall.
+| Method & path | Body / query | Response `data` |
+| :--- | :--- | :--- |
+| `GET /policy` | — | `{ id, name, startTime, endTime, isActive, checkIntervalMinutes, repeatDays, updatedAt, version, lockOnBreach: false, enforcePhoneLock: false, exemptUntil }` |
+| `POST /policy` | Any of `startTime`, `endTime`, `isActive`, `checkIntervalMinutes`, `repeatDays` | The saved policy |
+| `GET /breaches` | `?status=open` (optional), `?limit=` (1–500, default 200) | Array of breaches (below) |
+| `POST /admin-action` | `{ breachId, studentId?, action, gatePassHours? }` | `{ action, exemptUntil, notified }` |
+| `POST /breach` | One event `{ type?, latitude, longitude, ... }` (legacy direct report) | The breach row |
+| `POST /location` | `{ latitude, longitude, accuracyMeters, time, mocked, insideCampus, distanceMeters }` | — |
+| `GET /locations` | `?search=` (optional) | `[{ studentId, studentCode, name, room, phone, parentPhone, location: { latitude, longitude, accuracyMeters, mocked, insideCampus, distanceMeters, fixTime, receivedAt } \| null }]` |
 
----
-
-### 4.4 GPS Noise Shielding & Hysteresis State Machine
-
-To eliminate false alarms caused by GPS drift near hostel walls, [GeofenceEvaluator.kt](file:///c:/Users/kruta/Desktop/hsh_seva/hsh_app2/android/app/src/main/kotlin/com/example/hsh_app2/screentime/GeofenceEvaluator.kt#L274-L317) enforces:
-
-1. **Accuracy Threshold:** Fixes with `accuracyMeters > 75m` are rejected as too coarse to determine building exit.
-2. **Error Circle Clearance:** A point is only considered `clearlyOutside` when:
-   $$\neg inside \quad \land \quad \text{edgeDistance} > \text{accuracyMeters}$$
-   The entire uncertainty circle of the GPS fix must lie outside the wall.
-3. **Streak Requirement (`EXIT_STREAK = 2`):** Requires two consecutive valid outside fixes before transitioning from `INSIDE` to `OUTSIDE`. A single momentary GPS bounce will never trigger a curfew breach.
-4. **Heartbeat Throttling:** Once confirmed outside, recurring `heartbeat` events are throttled according to `checkIntervalMinutes` (default: 10 minutes).
-5. **Auto-Resolution on Return (`enter`):** When the student re-enters campus, the state machine logs an `enter` event and immediately clears device lock restrictions.
+**Breach object:** `id, studentId, studentCode, studentName, room, phone, parentPhone, latitude, longitude, distanceMeters, accuracyMeters, mocked, type, actionTaken, isResolved, actedBy, timestamp, lastSeenAt, returnedAt`. All times are **epoch milliseconds**.
 
 ---
 
-## 5. Curfew Scheduling & Gate Pass Exemption
+## 9. Database (created by `hsh_api/src/config/db.ts` on startup)
 
-### 5.1 Overnight Window Evaluation
-Curfews commonly span past midnight (e.g., 22:00 PM to 06:00 AM). [GeofencePolicyModel.isWithinCurfew()](file:///c:/Users/kruta/Desktop/hsh_seva/hsh_app2/lib/core/models/geofence/geofence_policy_model.dart#L42-L56) handles this:
-```dart
-final overnight = start > end;
-final inWindow = overnight
-    ? (cur >= start || cur < end)
-    : (cur >= start && cur < end);
+| Table | Key columns |
+| :--- | :--- |
+| `geofence_curfew_policy` | `id` ('default_curfew'), `start_time`, `end_time`, `is_active`, `check_interval_minutes` (default 2), `repeat_days`, `updated_at`. `enforce_phone_lock` is kept for compatibility and always false. |
+| `geofence_breach_logs` | `id`, `student_id` (students.id as string), `student_name`, `room`, `phone`, `latitude`, `longitude`, `distance_meters`, `accuracy_meters`, `is_mocked`, `event_type`, `device_event_at`, `action_taken`, `is_resolved`, `acted_by`, `acted_at`, `created_at`, `last_seen_at`, `returned_at`. Unique key `uniq_device_event (student_id, event_type, device_event_at)`. |
+| `geofence_gate_passes` | `student_id` (PK, FK students), `exempt_until_ms`, `granted_by`, `breach_id` |
+| `student_locations` | `student_id` (PK, FK students), `latitude`, `longitude`, `accuracy_meters`, `is_mocked`, `inside_campus`, `distance_meters`, `fix_time_ms`, `updated_at` |
 
-// If it's 01:30 AM in an overnight window, the active curfew started yesterday
-final day = overnight && cur < end
-    ? dateTime.subtract(const Duration(days: 1))
-    : dateTime;
-```
-
-### 5.2 Gate Pass Bypassing
-- When a student holds an approved gate pass (`exemptUntil > now`), `GeofenceEvaluator.isEnforcing()` evaluates to `false`.
-- The streak counter resets to 0.
-- No breach events are recorded, and no auto-locks occur during the approved leave window.
+One-time migrations: `enforce_phone_lock` is set to false; the interval default moved from 10 to 2 minutes (it runs only while the column default is still 10, so it never overrides a warden's later choice).
 
 ---
 
-## 6. Location Sampling & Battery Conservation
+## 10. MethodChannel `hsh/geofence` (Android)
 
-[LocationSampler.kt](file:///c:/Users/kruta/Desktop/hsh_seva/hsh_app2/android/app/src/main/kotlin/com/example/hsh_app2/screentime/LocationSampler.kt#L47-L91) enforces high efficiency:
-1. **Recent Fix Reuse (`FRESH_MS = 60,000ms`):** If an accurate GPS fix was recorded in the last 60 seconds by any app, it is reused immediately without waking up hardware satellite radios.
-2. **Fused Location Provider:** On Android 12+ (API 31+), prioritizes `LocationManager.FUSED_PROVIDER` combining Wi-Fi, cellular towers, and GNSS satellites.
-3. **Strict Sampling Timeout (`TIMEOUT_MS = 25,000ms`):** Prevents background threads from holding wake locks indefinitely if the student is in a basement with no signal.
-4. **Two-Step Permission Flow:** Android 10+ requires separate background location permission (`ACCESS_BACKGROUND_LOCATION`). Handled through [GeofenceDeviceService.requestLocationAlways()](file:///c:/Users/kruta/Desktop/hsh_seva/hsh_app2/lib/core/services/geofence_device_service.dart#L31-L39).
-
----
-
-## 7. MethodChannel Specifications (`hsh/geofence`)
-
-| Method Name | Parameters | Return Type | Description |
-| :--- | :--- | :--- | :--- |
-| `locationPermission` | None | `String` | Returns permission level: `'always'`, `'foreground'`, or `'denied'`. |
-| `getStatus` | None | `Map<String, dynamic>` | Returns snapshot: `{state, inCurfew, exempt, enforcing, lastFix, policy}`. |
-| `sampleNow` | None | `Map<String, dynamic>` | Forces an immediate GPS fix and evaluation (used for testing or onboarding). |
+| Method | Returns | Use |
+| :--- | :--- | :--- |
+| `locationPermission` | `'always'` / `'foreground'` / `'denied'` | Setup screen and home permission check |
+| `getStatus` | `{ state, inCurfew, exempt, enforcing, lastSampleAt, policy, lastFix }` | Diagnostics |
+| `sampleNow` | Same snapshot, after forcing one fix and evaluation | Testing / after setup |
 
 ---
 
-## 8. Administrative Interventions & Audit Workflow
+## 11. Permissions
 
-When a breach is reported on [AdminGeofenceScreen](file:///c:/Users/kruta/Desktop/hsh_seva/hsh_app2/lib/features/geofence/views/admin_geofence_screen.dart#L1-L250), the warden has five direct intervention actions:
-
-1. **🔒 Remote Lock Student Phone:** Instantly locks the phone via `PUT /screen-time/policies/:id` with `isLocked = true`.
-2. **📞 Call Student:** One-tap cellular dialer launch to the student's mobile number.
-3. **👪 Call Parent:** One-tap cellular dialer launch to the father or mother contact.
-4. **🎫 Grant Gate Pass:** Opens a time picker to set `exemptUntil` (e.g. extending leave until 23:00), which clears the breach and unlocks the device.
-5. **Dismiss:** Marks the breach event as acknowledged/resolved.
+In `android/app/src/main/AndroidManifest.xml`: `ACCESS_FINE_LOCATION`, `ACCESS_COARSE_LOCATION`, `ACCESS_BACKGROUND_LOCATION`, `FOREGROUND_SERVICE`, `FOREGROUND_SERVICE_LOCATION`, `FOREGROUND_SERVICE_SPECIAL_USE`, `POST_NOTIFICATIONS`, `REQUEST_IGNORE_BATTERY_OPTIMIZATIONS`. `PolicyPollService` is declared with `foregroundServiceType="specialUse|location"`; it only claims the location type at runtime if location permission is granted (claiming it without permission crashes on Android 14+).
 
 ---
 
-## 9. Verification & Testing Checklist
+## 12. Tunable constants
 
-- [x] **Point-in-Polygon Accuracy:** Tested GPS fixes inside hostel courtyard -> evaluated as `INSIDE`.
-- [x] **Point-in-Polygon Boundary Exit:** Tested GPS fixes 150m outside campus -> evaluated as `OUTSIDE` with accurate distance in meters.
-- [x] **Hysteresis Noise Filter:** Tested noisy GPS fixes (`accuracyMeters = 80m`) -> discarded without false alarms.
-- [x] **Curfew Window Timing:** Tested overnight curfews (22:00 to 06:00) at 23:30 and 02:00 -> evaluated as active curfew.
-- [x] **Auto-Lock on Breach:** Verified device displays `BlockedAppActivity` with `BlockReason.OUT_OF_CAMPUS` when confirmed outside during curfew.
-- [x] **Auto-Unlock on Entry:** Returned to campus -> device lock dismisses automatically without administrative intervention.
-- [x] **Mock Location Detection:** Tested mock GPS location provider app -> logged as `mock_location` and rejected.
-- [x] **Gate Pass Exemption:** Issued gate pass -> student moves outside campus -> 0 breaches triggered and phone remains unlocked.
+| Constant | Value | Where |
+| :--- | :--- | :--- |
+| Location / check interval | warden setting, default 2 min (backend allows 1–120) | `checkIntervalMinutes` |
+| Tick | 30 s screen on, 60 s screen off | `PolicyPollService.POLL_ACTIVE_MS`, `TICK_IDLE_MS` |
+| Max usable accuracy | 75 m | `GeofenceEvaluator.MAX_ACCURACY_M` |
+| Exit confirmation | 2 consecutive fixes | `GeofenceEvaluator.EXIT_STREAK` |
+| Mock event throttle | 10 min | `GeofenceEvaluator.MOCK_EVENT_THROTTLE_MS` |
+| Cached-fix reuse / sample timeout | 60 s / 25 s | `LocationSampler.FRESH_MS`, `TIMEOUT_MS` |
+| Geofence policy refresh (fallback) | 10 min | `PolicyPollService.GEO_POLICY_TTL_MS` |
+| Offline event queue | 300 events | `PolicyStore.MAX_GEO_EVENTS` |
+| Gate pass length | 1–24 h (UI grants 1 h) | `MAX_GATE_PASS_HOURS` |
+| Max accepted fix age | 24 h | `MAX_LOCATION_AGE_MS` |
+| Student Locations auto-refresh | 60 s | `StudentLocationsController` |
+
+---
+
+## 13. Testing
+
+**Backend (run 2026-10-05/06 against a local MySQL with throwaway students, via ad-hoc `tsx` scripts that are not committed):** event ingestion and de-duplication, enter/returned, location_off de-duplication, gate pass round-trip, warning without an FCM token, role guards, phone-lock removal (flags ignored, `phoneLocked` rejected, DB flag off), location validation and newest-fix-wins, interval migration and persistence. All checks passed.
+
+**On a real student phone (not yet run):**
+
+- [ ] Setup grants "Allow all the time"; `getStatus` shows a recent `lastSampleAt`.
+- [ ] Outside curfew: the student appears on Student Locations within one interval, with the right inside/outside status.
+- [ ] Changing the interval in the warden app takes effect within seconds (screen on).
+- [ ] During curfew, walking out of campus raises an `exit` breach after two fixes; walking back marks it "Back on campus".
+- [ ] A fake-GPS app produces a `mock_location` breach and a "Fake GPS" warning on the location card.
+- [ ] Turning location off during curfew produces a "Location turned off" breach.
+- [ ] Granting a gate pass stops new breaches until it expires.
+- [ ] The phone is never locked by any geofence event.
+- [ ] Logging out and in as another student shows no data from the previous student.
+
+---
+
+## 14. Known limitations
+
+- **Breaches can only be closed by a gate pass in the UI.** `AdminGeofenceController.dismissBreach()` exists but no button calls it.
+- **Curfew ending while a student is still outside** leaves the breach open without a "returned" time; the phone sends no `enter` once curfew is over.
+- **Deep sleep:** in Doze (phone idle, screen off for a long time) ticks pause, so fixes can be further apart than the interval until the phone wakes.
+- **Battery:** a 1–2 minute interval uses noticeably more battery than 10 minutes.
+- **No in-app map:** locations open in Google Maps; there is no "locate now" button.
+- **iOS students are not tracked.**

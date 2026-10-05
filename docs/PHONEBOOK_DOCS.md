@@ -1,227 +1,275 @@
-# HSH Student Phonebook & Native Caller ID System Documentation
+# Student Phonebook & Caller ID
 
-## 1. System Overview
-
-The **Student Phonebook & Caller ID System** is an enterprise-grade administrative feature designed for Hostel Administrators and Wardens in the HSH ecosystem. It serves two interconnected purposes:
-
-1. **In-App Student Directory (`PhonebookScreen`):**
-   - High-speed local search and filtering of all hostel residents by Name, Room number, Student/Enrollment ID, or Phone number.
-   - Group-based filtering across hostel wings (`Param`, `Pavitra`, `Pulkit`, `Paramanand`).
-   - Multi-number aggregation per student (Student Mobile, Father Contact, Mother Contact, WhatsApp).
-   - One-tap actions: Direct Cellular Call, WhatsApp chat launcher, and Clipboard copy.
-   - Cross-feature navigation to individual Student Screen Time monitoring.
-
-2. **Native Real-Time Caller ID (Truecaller-style for Wardens):**
-   - **Android 10+ (API 29+):** System Call Screening service (`CallerIdScreeningService`) intercepts incoming rings, queries the local SQLite cache in real time, and renders a floating `WindowManager` overlay card with student details and relation tags (e.g., *"Father of Rohan Sharma • Room B-204"*).
-   - **System Notification Fallback:** Posts a high-priority heads-up notification with action buttons ("Call back", "Open phonebook").
-   - **Tap-to-Inspect Deep Linking:** Tapping the caller ID card opens the app directly focused on that student.
-   - **iOS:** CallKit Call Directory Extension provisioning (`CXCallDirectoryExtension`) mapping sorted E.164 phone numbers to formatted labels.
+> **Last updated:** 2026-10-06 · **Repo:** `hsh_app2` (Flutter, native Android, native iOS). The phonebook does not use `hsh_api`; it reads the AVD VVN directory API directly.
+>
+> iOS signing and Xcode setup for caller ID: [ios/CALLER_ID_SETUP.md](../ios/CALLER_ID_SETUP.md) (quick reference) and [ios/CALLER_ID_HANDOFF.md](../ios/CALLER_ID_HANDOFF.md) (full guide).
 
 ---
 
-## 2. Architectural Blueprint
+## 1. What this feature does
+
+| Part | Summary |
+| :--- | :--- |
+| **Student Phonebook** | Offline, searchable directory of every hostel resident with the student's and parents' numbers. Filter by group (Param, Pavitra, Pulkit, Paramanand); call, WhatsApp or copy any number; jump to the student's screen time. |
+| **Caller ID (Android 10+)** | When a student or parent calls the warden's phone, a card pops up over the incoming-call screen ("Father of Rohan Sharma · Param • Room 204") and a notification is posted. |
+| **Caller ID (iOS)** | iOS never shows apps the caller's number, so the whole directory is exported to a CallKit Call Directory extension; iOS prints the label on the call screen and in Recents. |
+
+**Who can use it:** sessions whose role passes `UserRole.canOperate` (admin or warden). The operator console signs in with the admin role. Caller ID is switched off automatically for any other role and on logout.
+
+---
+
+## 2. Architecture
 
 ```mermaid
 graph TD
-    subgraph Remote["Cloud Infrastructure"]
-        API["AVD VVN Directory API<br/>(getStudentBasicDetails)"]
+    API["AVD VVN directory API<br/>GET getStudentBasicDetails<br/>(x-hsh-auth-token header)"]
+
+    subgraph Flutter["Flutter (GetX)"]
+        SYNC["PhonebookSyncService"]
+        NORM["PhoneNumberNormalizer"]
+        DBS["PhonebookDatabaseService (sqflite)"]
+        CTRL["PhonebookController"]
+        UI["PhonebookScreen + CallerIdCard"]
+        CIS["CallerIdService<br/>(MethodChannel hsh/caller_id)"]
     end
 
-    subgraph FlutterCore["Flutter Core & State Layer (GetX)"]
-        PSS["PhonebookSyncService"]
-        PDS["PhonebookDatabaseService<br/>(sqflite)"]
-        PNN["PhoneNumberNormalizer"]
-        PC["PhonebookController"]
-        PV["PhonebookScreen"]
-        CIS["CallerIdService<br/>(MethodChannel 'hsh/caller_id')"]
+    DB[("student_phonebook_cache.db<br/>table student_cache")]
+
+    subgraph Android["Android (Kotlin)"]
+        MA["MainActivity"]
+        SCR["CallerIdScreeningService"]
+        STORE["CallerIdStore (read-only SQLite)"]
+        OVL["CallerIdOverlay"]
+        NOTI["CallerIdNotifier"]
     end
 
-    subgraph LocalStorage["Local SQLite Engine"]
-        DB[("student_phonebook_cache.db<br/>TABLE student_cache")]
+    subgraph iOS["iOS (Swift)"]
+        PLG["CallerIdPlugin"]
+        JSON[("App Group:<br/>callerid-directory.json")]
+        EXT["CallDirectoryExtension"]
     end
 
-    subgraph AndroidNative["Android Native Layer (Kotlin)"]
-        MA["MainActivity.kt"]
-        CS["CallerIdScreeningService<br/>(android.telecom.CallScreeningService)"]
-        CStore["CallerIdStore.kt<br/>(Direct SQLite Read)"]
-        COverlay["CallerIdOverlay.kt<br/>(TYPE_APPLICATION_OVERLAY)"]
-        CNotif["CallerIdNotifier.kt<br/>(High Priority Notification)"]
-    end
+    API --> SYNC
+    SYNC --> NORM
+    SYNC -->|full replace in one transaction| DBS
+    DBS --> DB
+    DBS --> CTRL
+    CTRL --> UI
+    CTRL <--> CIS
 
-    %% Sync flow
-    API -->|JSON with x-hsh-auth-token| PSS
-    PSS -->|Clean & Normalize| PNN
-    PSS -->|Batch Upsert Transaction| PDS
-    PDS -->|Write / Query| DB
+    CIS <-->|hsh/caller_id| MA
+    CALL["Incoming call"] --> SCR
+    SCR --> STORE
+    STORE -->|same file, read-only| DB
+    SCR --> NOTI
+    SCR --> OVL
+    OVL -->|tap: launch intent| MA
+    NOTI -->|tap: launch intent| MA
 
-    %% Search & UI flow
-    PDS -->|Aggregated Student Models| PC
-    PC -->|Reactive State Obx| PV
-    PC <-->|Status / Enable / Sync| CIS
-
-    %% Native Channel
-    CIS <==>|MethodChannel 'hsh/caller_id'| MA
-
-    %% Caller ID Flow
-    IncomingCall["Incoming Phone Ring"] --> CS
-    CS -->|Zero-copy Fast Query| CStore
-    CStore -->|Read-only direct access| DB
-    CS -->|Display popup| COverlay
-    CS -->|Post heads-up alert| CNotif
-    COverlay -->|Intent with EXTRA_TARGET| MA
-    CNotif -->|PendingIntent| MA
-    MA -->|consumeLaunchTarget| CIS
-    CIS -->|Deep Link Focus| PC
+    CIS -->|exportDirectory| PLG
+    PLG --> JSON
+    PLG -->|reloadExtension| EXT
+    EXT --> JSON
 ```
 
 ---
 
-## 3. Directory Structure & File Map
+## 3. File map
 
-| Component | File Path | Purpose |
+| Component | File | Role |
 | :--- | :--- | :--- |
-| **Model** | [phonebook_models.dart](file:///c:/Users/kruta/Desktop/hsh_seva/hsh_app2/lib/features/phonebook/models/phonebook_models.dart) | Data transfer objects (`PhonebookStudent`, `PhonebookContact`, `PhonebookSyncResult`). |
-| **Normalizer** | [phone_number_normalizer.dart](file:///c:/Users/kruta/Desktop/hsh_seva/hsh_app2/lib/features/phonebook/services/phone_number_normalizer.dart) | Country code stripping, 10-digit standardisation, E.164 conversion, pretty printing. |
-| **Database** | [phonebook_database_service.dart](file:///c:/Users/kruta/Desktop/hsh_seva/hsh_app2/lib/features/phonebook/services/phonebook_database_service.dart) | SQLite database lifecycle, schema migrations (v1->v2), multi-number grouping search queries. |
-| **Sync Engine** | [phonebook_sync_service.dart](file:///c:/Users/kruta/Desktop/hsh_seva/hsh_app2/lib/features/phonebook/services/phonebook_sync_service.dart) | Live HTTP sync, parsing family phone contacts, full replacement transactions, timestamp metadata. |
-| **Caller ID Bridge**| [caller_id_service.dart](file:///c:/Users/kruta/Desktop/hsh_seva/hsh_app2/lib/features/phonebook/services/caller_id_service.dart) | MethodChannel interface (`hsh/caller_id`) to native role management, overlay permissions, and iOS export. |
-| **Controller** | [phonebook_controller.dart](file:///c:/Users/kruta/Desktop/hsh_seva/hsh_app2/lib/features/phonebook/controllers/phonebook_controller.dart) | Reactive GetX controller handling search debouncing, group filter chips, dialer launch, WhatsApp intent, role checks. |
-| **UI Screen** | [phonebook_screen.dart](file:///c:/Users/kruta/Desktop/hsh_seva/hsh_app2/lib/features/phonebook/views/phonebook_screen.dart) | Custom Sliver gradient header, search bar, contact details bottom sheet, quick call buttons. |
-| **UI Widget** | [caller_id_card.dart](file:///c:/Users/kruta/Desktop/hsh_seva/hsh_app2/lib/features/phonebook/widgets/caller_id_card.dart) | Status banner in the phonebook showing Caller ID enablement and direct action trigger. |
-| **Android Service**| [CallerIdScreeningService.kt](file:///c:/Users/kruta/Desktop/hsh_seva/hsh_app2/android/app/src/main/kotlin/com/example/hsh_app2/callerid/CallerIdScreeningService.kt) | Native Android `CallScreeningService` that intercepts calls prior to ring. |
-| **Android Store** | [CallerIdStore.kt](file:///c:/Users/kruta/Desktop/hsh_seva/hsh_app2/android/app/src/main/kotlin/com/example/hsh_app2/callerid/CallerIdStore.kt) | Direct SQLite reader accessing `student_phonebook_cache.db` with identical number normalization. |
-| **Android Overlay**| [CallerIdOverlay.kt](file:///c:/Users/kruta/Desktop/hsh_seva/hsh_app2/android/app/src/main/kotlin/com/example/hsh_app2/callerid/CallerIdOverlay.kt) | Floating `TYPE_APPLICATION_OVERLAY` view with auto-dismiss on call answer/hangup. |
-| **Android Notifier**| [CallerIdNotifier.kt](file:///c:/Users/kruta/Desktop/hsh_seva/hsh_app2/android/app/src/main/kotlin/com/example/hsh_app2/callerid/CallerIdNotifier.kt) | High priority call channel notification with "Call back" and "Open phonebook" intents. |
-| **Android Host** | [MainActivity.kt](file:///c:/Users/kruta/Desktop/hsh_seva/hsh_app2/android/app/src/main/kotlin/com/example/hsh_app2/MainActivity.kt) | RoleManager intents, permission handlers, and deep-link intent routing. |
+| Models | [phonebook_models.dart](../lib/features/phonebook/models/phonebook_models.dart) | `PhonebookStudent`, `PhonebookContact`, `PhonebookSyncResult`. Derives room and group from `department`. |
+| Normalizer | [phone_number_normalizer.dart](../lib/features/phonebook/services/phone_number_normalizer.dart) | 10-digit Indian numbers, E.164 integers for CallKit, display formatting. |
+| Database | [phonebook_database_service.dart](../lib/features/phonebook/services/phonebook_database_service.dart) | SQLite schema v2, v1→v2 migration, bulk sync, grouped search, caller-ID rows. |
+| Sync | [phonebook_sync_service.dart](../lib/features/phonebook/services/phonebook_sync_service.dart) | Downloads the directory and maps each student into up to four phone rows. |
+| Caller ID bridge | [caller_id_service.dart](../lib/features/phonebook/services/caller_id_service.dart) | `hsh/caller_id` calls; builds the iOS directory entries. |
+| Controller | [phonebook_controller.dart](../lib/features/phonebook/controllers/phonebook_controller.dart) | Access check, search debounce, group filter, sync, caller ID on/off, dialer/WhatsApp/clipboard. |
+| Screen | [phonebook_screen.dart](../lib/features/phonebook/views/phonebook_screen.dart) | Header with sync, caller-ID card, search, group chips, student cards, detail sheet. Route `Routes.operatorDirectory`. |
+| Caller ID card | [caller_id_card.dart](../lib/features/phonebook/widgets/caller_id_card.dart) | Status and enable/turn-off button, with platform-specific copy. |
+| Session hooks | [session_store.dart](../lib/core/storage/session_store.dart) | Turns caller ID off for non-admin/warden sessions and on logout. |
+| Launch handling | [splash_controller.dart](../lib/features/splash/controllers/splash_controller.dart) | Opens the phonebook on the calling student when the app was launched from the card or notification. |
+| Android | [CallerIdScreeningService.kt](../android/app/src/main/kotlin/com/example/hsh_app2/callerid/CallerIdScreeningService.kt) | `CallScreeningService`: identifies (never blocks) incoming calls. |
+| Android | [CallerIdStore.kt](../android/app/src/main/kotlin/com/example/hsh_app2/callerid/CallerIdStore.kt) | Reads the phonebook SQLite file read-only; the `active` switch; number normalization (same rules as Dart). |
+| Android | [CallerIdOverlay.kt](../android/app/src/main/kotlin/com/example/hsh_app2/callerid/CallerIdOverlay.kt) | The popup card, its dismissal, and the launch intent. |
+| Android | [CallerIdNotifier.kt](../android/app/src/main/kotlin/com/example/hsh_app2/callerid/CallerIdNotifier.kt) | High-priority notification with "Call back" and "Open phonebook". |
+| Android | [MainActivity.kt](../android/app/src/main/kotlin/com/example/hsh_app2/MainActivity.kt) | `hsh/caller_id` handler, Call Screening role request, launch-target capture. |
+| iOS | [CallerIdPlugin.swift](../ios/Runner/CallerIdPlugin.swift) | `hsh/caller_id` handler: status, Settings, export, clear. |
+| iOS | [CallDirectoryHandler.swift](../ios/CallDirectoryExtension/CallDirectoryHandler.swift) | Feeds the exported entries to iOS. |
+
+`lib/features/operator/views/operator_directory_screen.dart` (`OperatorDirectoryScreen`) is not registered as a route and is unused; the "Student Phonebook" tile opens `PhonebookScreen`.
 
 ---
 
-## 4. Key Implementation Details
+## 4. Data pipeline
 
-### 4.1 Data Pipeline & Synchronization
+### 4.1 Source and sync
 
-1. **API Ingestion:**
-   `PhonebookSyncService.syncDirectory()` queries `https://api.avdvvn.org/public/getStudentBasicDetails` using Dio with custom authentication headers (`x-hsh-auth-token`).
-2. **Contact Disaggregation:**
-   A single student record in the API payload can contain multiple phone records. The parser decomposes each student into up to 4 distinct phone records:
-   - **Student Mobile:** Primary contact (`is_primary = 1`).
-   - **Father Phone:** With father's middle name if available (e.g. `Father (Rameshbhai)`).
-   - **Mother Phone:** Dedicated mother contact.
-   - **WhatsApp Number:** If different from personal and parent numbers.
-3. **Number Normalization:**
-   `PhoneNumberNormalizer.normalize()` strips all non-digit characters and standardises Indian mobile variations:
-   - Removes international prefixes `0091`, `+91`, country code `91`, and domestic trunk prefix `0`.
-   - Validates that exactly 10 digits remain.
-   - Stores normalized 10-digit format in `phone_normalized` for index-backed matching.
-4. **Database Storage & Schema:**
-   The SQLite cache (`student_phonebook_cache.db`) stores flat records:
-   ```sql
-   CREATE TABLE student_cache (
-     id TEXT PRIMARY KEY,
-     student_id TEXT NOT NULL,
-     name TEXT NOT NULL,
-     enrollment_number TEXT NOT NULL,
-     department TEXT NOT NULL,
-     batch TEXT NOT NULL,
-     email TEXT,
-     phone TEXT NOT NULL,
-     phone_normalized TEXT NOT NULL,
-     is_primary INTEGER DEFAULT 1,
-     phone_label TEXT DEFAULT 'Mobile',
-     updated_at TEXT
-   );
-   CREATE INDEX idx_phone ON student_cache (phone);
-   CREATE INDEX idx_phone_norm ON student_cache (phone_normalized);
-   CREATE INDEX idx_student_name ON student_cache (name);
-   CREATE INDEX idx_student_id ON student_cache (student_id);
-   ```
-5. **Grouping on Query:**
-   When searching, `PhonebookDatabaseService.searchStudents()` groups multiple flat phone rows back into a single `PhonebookStudent` model containing a `List<PhonebookContact>`.
+- **Source:** `GET https://api.avdvvn.org/public/getStudentBasicDetails` with header `x-hsh-auth-token`. The token is a constant in `PhonebookSyncService.liveAuthToken` (also in `AppConfig`).
+- **When it runs:** when a warden taps **Sync Directory**, and silently when the phonebook is opened with an empty cache. There is no background or periodic sync.
+- **How:** the whole cache is replaced in one SQLite transaction (`fullReplace: true`). The last sync time and student count are kept in secure storage and shown in the header.
+- After every successful sync the iOS caller-ID directory is rebuilt (no-op on Android, which reads the cache live).
 
-### 4.2 Security & Role-Based Access Control
+### 4.2 How one API record becomes cache rows
 
-- Phonebook data contains sensitive contact information of students and parents.
-- `PhonebookController._checkAdminAccess()` verifies:
-  ```dart
-  final role = await Get.find<SessionStore>().role;
-  if (!role.canOperate) {
-    Get.back();
-    AppSnackbar.error('Access Denied', 'The Phonebook is restricted to Hostel Administrators and Wardens only.');
-    return;
-  }
-  ```
-- Non-admin/warden accounts are kicked out immediately.
+| Cache field | Built from |
+| :--- | :--- |
+| `name` | `firstName middleName lastName` |
+| `student_id` | `HSH-<bankCode>`; fallback `HSH-<last 4 of aadhar>`, then `HSH-<index>` |
+| `enrollment_number` | `bankCode`; fallback `Room <room>`, last 6 of aadhar, then `AVD-<index>` |
+| `department` | `<Group> • Room <room>`. Group is normalised to Param / Pavitra / Pulkit / Paramanand (`parmanand` is accepted); otherwise `Room <room>` or `HSH Resident`. |
+| `batch` | `status`, uppercased |
 
-### 4.3 Native Android Caller ID Architecture
+Each student produces **up to four rows**, one per distinct number:
 
-#### Zero-Copy Local Database Sharing
-Instead of syncing SQLite data to native memory or Shared Preferences, `CallerIdStore.kt` opens the SQLite database written by Flutter (`databases/student_phonebook_cache.db`) directly in read-only mode (`SQLiteDatabase.OPEN_READONLY`):
-```kotlin
-val file = context.getDatabasePath("student_phonebook_cache.db")
-db = SQLiteDatabase.openDatabase(file.path, null, SQLiteDatabase.OPEN_READONLY)
-db.rawQuery(
-    "SELECT student_id, name, department, phone_label, phone_normalized, phone " +
-    "FROM student_cache WHERE phone_normalized = ? OR phone LIKE ? " +
-    "ORDER BY is_primary DESC LIMIT 5",
-    arrayOf(normalized, "%$normalized")
-)
+| `phone_label` | API field | `is_primary` | Skipped when |
+| :--- | :--- | :--- | :--- |
+| `Student Mobile` | `phone` | 1 | empty |
+| `Father (<middleName>)` or `Father Contact` | `fatherPhone` | 0 | empty or same as the student's |
+| `Mother Contact` | `motherPhone` | 0 | empty or same as an earlier number |
+| `WhatsApp` | `whatsAppNumber` | 0 | empty or same as an earlier number |
+
+### 4.3 Number normalization (identical in Dart and Kotlin)
+
+Strip non-digits; then, only while more than 10 digits remain, drop a leading `00`, then `91`, then `0`. Exactly 10 digits must be left, otherwise the number is not normalizable. Examples: `+91-79849-07753`, `079849 07753` and `917984907753` all become `7984907753`.
+
+The cache stores the raw number in `phone` and the 10-digit form in `phone_normalized` (the raw value if it can't be normalized).
+
+### 4.4 SQLite schema (`student_phonebook_cache.db`, version 2)
+
+```sql
+CREATE TABLE student_cache (
+  id TEXT PRIMARY KEY,              -- '<student_id>_<phone>_<label>'
+  student_id TEXT NOT NULL,         -- 'HSH-<bankCode>'
+  name TEXT NOT NULL,
+  enrollment_number TEXT NOT NULL,
+  department TEXT NOT NULL,         -- 'Param • Room 204'
+  batch TEXT NOT NULL,
+  email TEXT,
+  phone TEXT NOT NULL,              -- as received
+  phone_normalized TEXT NOT NULL,   -- 10 digits
+  is_primary INTEGER DEFAULT 1,
+  phone_label TEXT DEFAULT 'Mobile',
+  updated_at TEXT
+);
+CREATE INDEX idx_phone ON student_cache (phone);
+CREATE INDEX idx_phone_norm ON student_cache (phone_normalized);
+CREATE INDEX idx_student_name ON student_cache (name);
+CREATE INDEX idx_student_id ON student_cache (student_id);
 ```
-- **Instant updates:** As soon as Flutter completes a directory sync, the native caller ID lookup is instantly updated with zero IPC overhead.
-- **Latency < 5ms:** Essential because Android requires `CallScreeningService` to respond immediately.
 
-#### System Role & Overlay Permissions
-1. **Screening Role (`RoleManager.ROLE_CALL_SCREENING`):**
-   Android 10+ requires apps to hold this role to receive incoming call events. `MainActivity` launches `RoleManager.createRequestRoleIntent()`.
-2. **Floating Overlay (`Settings.ACTION_MANAGE_OVERLAY_PERMISSION`):**
-   Allows `CallerIdOverlay` to add a floating `TYPE_APPLICATION_OVERLAY` view directly above the system incall screen.
-3. **Call Lifecycle Monitoring:**
-   `CallerIdOverlay.watchCallState()` registers a `TelephonyCallback` (API 31+) or `PhoneStateListener` to automatically dismiss the card as soon as the call transitions to `CALL_STATE_OFFHOOK` (answered) or `CALL_STATE_IDLE` (call ended), or after a 60-second safety timeout.
+**v1 → v2 migration:** v1 stored the raw string in `phone_normalized`, so caller-ID lookups never matched. The upgrade re-normalizes every row.
 
-#### Caller Identification Semantics
-- If the calling number is registered under a parent: displays `"Father of Rohan Sharma"` or `"Mother of Rohan Sharma"`.
-- If siblings share the parent's phone: displays `"Father of Rohan & Meet"`.
-- Displays hostel wing/room and student ID.
+### 4.5 Search
 
-### 4.4 Tap-to-Inspect Deep Linking
-
-1. Tapping either the native floating card or the notification invokes `CallerIdOverlay.launchIntent()` with extras:
-   - `EXTRA_TARGET = "phonebook"`
-   - `EXTRA_STUDENT_ID = m.studentId`
-   - `EXTRA_QUERY = m.studentId.ifBlank { m.name }`
-2. `MainActivity.captureLaunchTarget()` saves this state.
-3. Upon launch, Flutter retrieves the intent via `CallerIdService.consumeLaunchTarget()`.
-4. `SplashController` or `PhonebookController` receives the query, fills the search field, and filters directly to the caller student.
-
-### 4.5 iOS CallKit Integration Path
-
-iOS does not allow third-party apps to inspect incoming phone numbers at ring time. Instead:
-- `CallerIdService.buildDirectoryEntries()` compiles all phone numbers into integer E.164 format (`917984907753`).
-- Sorts and deduplicates all entries (CallKit requires strict ascending order).
-- Labels are formatted as `"HSH · Rohan Sharma · Room B-204 · Father"`.
-- The dataset is exported via App Group storage into a CallKit `CXCallDirectoryExtension`.
+- Typing is debounced by 300 ms.
+- If the query contains **3 or more digits**, it matches `phone`, `phone_normalized` (digits only), `name`, `student_id`, `enrollment_number` and `department`; otherwise only the text fields.
+- Room search works through `department` ("Room 204").
+- Group chips filter on `department`; **Param** excludes Paramanand.
+- Up to 500 rows (ordered by name) are grouped back into one `PhonebookStudent` per `student_id`.
 
 ---
 
-## 5. MethodChannel Specifications (`hsh/caller_id`)
+## 5. Phonebook UI
 
-| Method Name | Direction | Arguments | Return Type | Description |
-| :--- | :--- | :--- | :--- | :--- |
-| `getStatus` | Flutter -> Native | None | `Map<String, dynamic>` | Returns `{supported, enabled, overlayGranted, active}`. |
-| `requestEnable` | Flutter -> Native | None | `bool` | Launches `RoleManager.ROLE_CALL_SCREENING` system request dialog. |
-| `requestOverlay`| Flutter -> Native | None | `bool` | Directs user to Settings for `SYSTEM_ALERT_WINDOW` permission. |
-| `setActive` | Flutter -> Native | `{"active": bool}` | `void` | Enables or disables native caller ID lookup flag in SharedPreferences. |
-| `consumeLaunchTarget` | Flutter -> Native | None | `Map<String, String>?` | Consumes the deep-link query if opened from an overlay/notification. |
-| `lookup` | Flutter -> Native | `{"number": String}` | `List<Map>` | Allows testing contact lookup directly without receiving a live call. |
-| `exportDirectory` | Flutter -> iOS Native | `{"entries": [[number, label]]}` | `void` | Syncs directory entries to CallKit Call Directory Extension. |
+Operator home → **Student Phonebook** (`Routes.operatorDirectory`).
+
+- **Access check:** if the role isn't admin or warden, the screen closes with "Access Denied".
+- **Header:** title, back, **Sync Directory** button, "N Students Cached" and last-sync chips.
+- **Caller ID card:** see sections 6.1 and 7.
+- **Search bar** and **group chips** (All, Param, Pavitra, Pulkit, Paramanand).
+- **Student cards:** name, group, room, primary number, quick **Call** and **WhatsApp** buttons.
+- **Detail sheet** (tap a card): every number with copy, WhatsApp and call; email with copy; **View Individual Screen Time**, which opens `Routes.studentScreenTime` with `{name, room}` only. Phonebook records have no `students.id` (they come from the directory API), and Screen Time identifies students by that id alone, so it opens its directory searched by the student's name and the warden taps the right student. The bank code is never sent; the API would read `0768` as student #768.
+- Call uses `tel:`; WhatsApp opens `https://wa.me/91XXXXXXXXXX` in the external app.
 
 ---
 
-## 6. Permissions & Manifest Declarations
+## 6. Caller ID on Android (10+)
 
-In `android/app/src/main/AndroidManifest.xml`:
+### 6.1 Turning it on
+
+1. The warden taps **Enable** on the caller-ID card.
+2. `requestEnable` shows the system sheet "Set HSH App as your caller ID & spam app?" (`RoleManager.ROLE_CALL_SCREENING`). If the role is granted, the native `active` flag is set to true.
+3. If "Display over other apps" isn't granted yet, the app opens that Settings page (`requestOverlay`). Without it there is no popup, only the notification.
+
+Card states: **Know who's calling** + Enable (not set up or turned off), **Caller ID is on** + Turn off (with a hint if the overlay is blocked), **Caller ID not available** (Android 9 or older).
+
+### 6.2 The `active` switch
+
+Stored in SharedPreferences (`hsh_caller_id` → `active`) so the screening service can check it without Flutter running.
+
+| Set to | When |
+| :--- | :--- |
+| `true` | The role is granted through `requestEnable` (or was already held) |
+| `false` | **Turn off** on the card; logout; any login whose role isn't admin or warden |
+
+### 6.3 What happens when a call arrives
+
+1. `CallerIdScreeningService.onScreenCall()` **always allows the call** (identification only; nothing is ever blocked).
+2. It stops if `active` is false or the call isn't incoming.
+3. `CallerIdStore.lookup()` normalizes the number and opens the phonebook SQLite file **read-only** (the same file Flutter writes, so it's as fresh as the last sync):
+
+   ```sql
+   SELECT student_id, name, department, phone_label, phone_normalized, phone
+   FROM student_cache
+   WHERE phone_normalized = ? OR phone LIKE '%<10 digits>'
+   ORDER BY is_primary DESC LIMIT 5
+   ```
+
+   Results are de-duplicated by student and relation.
+4. With at least one match it posts the **notification** and, if the overlay permission is granted, shows the **popup card**.
+
+### 6.4 What the warden sees
+
+- **Relation** from `phone_label`: contains "father" → Father, "mother" → Mother, "whatsapp" → WhatsApp, "guardian"/"parent" → Guardian, anything else → Student.
+- **Headline:** `Rohan Sharma` for the student; `Father of Rohan Sharma` for a parent; `Father of Rohan & Meet` when siblings share the number (first names).
+- **Card second line:** department, `ID HSH-0768`, `+91 79849 07753`. Top label: `HSH Phonebook · Father`.
+- **Notification:** same headline; body `<department> · <number>`; actions **Call back** (opens the dialer) and **Open phonebook**; channel "Caller ID" (high importance).
+
+### 6.5 Card lifecycle
+
+The card sits near the top of the screen above the call UI. It closes when the call is answered or ends (only if `READ_PHONE_STATE` was granted; it is requested on the login screen), when the warden taps ✕ or the card, or after 60 seconds.
+
+### 6.6 Tap to open the student
+
+Tapping the card or the notification launches the app with extras `hsh_target = "phonebook"`, `hsh_student_id` and `hsh_query` (the student ID, or the name if there's no ID). `MainActivity` stores them; on startup the splash controller reads them once through `consumeLaunchTarget` and, for admin or warden sessions, opens the phonebook with the search pre-filled. This works on a **cold start only** (see section 10).
+
+---
+
+## 7. Caller ID on iOS
+
+1. **Enable** opens Settings → Phone → Call Blocking & Identification (directly on iOS 13.4+), where the user switches on HSH. iOS has no in-app prompt.
+2. `CallerIdService.syncDirectory()` builds the directory from the cache after each sync, when enabling, and every time the phonebook opens while enabled:
+   - one entry per number, as an E.164 integer (`917984907753`);
+   - names are shortened to first + last name; siblings sharing a number are merged (`Rohan Sharma & Meet Sharma`, or `Rohan Sharma +2` for three or more);
+   - label `<who> · <place> · <relation>`, e.g. `Rohan Sharma · Rm 204 (Param) · Father`. The relation is left out for the student's own number and the place when it isn't known. Labels longer than 60 characters are cut with "…";
+   - sorted ascending with no duplicates (CallKit rejects the whole batch otherwise).
+3. `CallerIdPlugin` re-sorts and de-duplicates defensively, writes `callerid-directory.json` to the App Group `group.in.innovatiq.hshApp2`, and asks CallKit to reload `in.innovatiq.hshApp2.CallDirectoryExtension`.
+4. `CallDirectoryHandler` reads the file and adds every entry (on incremental reloads it clears and resends everything).
+5. `setActive(false)` (Turn off, logout, non-admin login) deletes the file and reloads, so labels disappear.
+
+There is no tap-to-open on iOS (`consumeLaunchTarget` returns nil).
+
+---
+
+## 8. MethodChannel `hsh/caller_id`
+
+| Method | Arguments | Android | iOS |
+| :--- | :--- | :--- | :--- |
+| `getStatus` | — | `{supported (API 29+), enabled (role held), overlayGranted, active}` | `{supported: true, enabled, overlayGranted: true, active, iosState: enabled/disabled/unknown}` |
+| `requestEnable` | — | Role request sheet → `bool` | Opens Settings → `bool` |
+| `requestOverlay` | — | Opens "Display over other apps" → `bool` (already granted) | `false` |
+| `setActive` | `{active: bool}` | Saves the flag; hides the card when false | Saves the flag; false also clears the directory |
+| `consumeLaunchTarget` | — | `{target, studentId, query}` once, else null | `nil` |
+| `lookup` | `{number}` | Test lookup without a real call → list of matches | not implemented |
+| `exportDirectory` | `{entries: [[number, label], ...]}` | not implemented | Writes the directory and reloads the extension |
+
+---
+
+## 9. Permissions and configuration
+
+**Android** (`android/app/src/main/AndroidManifest.xml`): `READ_PHONE_STATE`, `READ_PHONE_NUMBERS`, `SYSTEM_ALERT_WINDOW`, `POST_NOTIFICATIONS`, plus:
 
 ```xml
-<!-- Telecom Screening Service -->
 <service
     android:name=".callerid.CallerIdScreeningService"
     android:exported="true"
@@ -230,21 +278,32 @@ In `android/app/src/main/AndroidManifest.xml`:
         <action android:name="android.telecom.CallScreeningService" />
     </intent-filter>
 </service>
-
-<!-- Overlay & Telephony State -->
-<uses-permission android:name="android.permission.SYSTEM_ALERT_WINDOW" />
-<uses-permission android:name="android.permission.READ_PHONE_STATE" />
-<uses-permission android:name="android.permission.READ_PHONE_NUMBERS" />
-<uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
 ```
+
+**iOS:** App Group `group.in.innovatiq.hshApp2` on both the Runner and CallDirectoryExtension targets; extension bundle ID `in.innovatiq.hshApp2.CallDirectoryExtension`; a paid Apple Developer team is required. Details in [ios/CALLER_ID_HANDOFF.md](../ios/CALLER_ID_HANDOFF.md).
 
 ---
 
-## 7. Verification & Testing Checklist
+## 10. Known issues and limitations
 
-- [x] **Database Initialization & Migration:** Opens `student_phonebook_cache.db` at version 2, upgrades legacy normalized numbers.
-- [x] **Sync Flow:** Connects to AVD VVN directory API, normalizes numbers, atomically upserts records.
-- [x] **Search Performance:** Indexed substring matching on name, student ID, room, department, raw phone, and 10-digit normalized phone.
-- [x] **Filter Handling:** Tested group isolation for `Param`, `Pavitra`, `Pulkit`, and `Paramanand`.
-- [x] **Native Android Lookup:** Validated zero-copy SQLite query from `CallerIdStore.kt`.
-- [x] **Deep Linking:** Confirmed `MainActivity` intent extraction and navigation to `PhonebookScreen`.
+- **"View Individual Screen Time" needs one extra tap:** it opens the Screen Time directory searched by name rather than the student directly, because the phonebook has no `students.id`. (This replaced passing the bank code, which opened the wrong student: 1,186 of 1,204 local bank codes equal another student's id.)
+- **Tap-to-open works on cold start only.** If the app is already running, tapping the card or notification brings it to the front but doesn't open the student; only the splash screen consumes the launch target.
+- **iOS card copy:** "Caller ID is on" says labels look like `HSH · Name · Room · Relation`, but labels have no `HSH ·` prefix (actual format in section 7).
+- **Notification permission:** `POST_NOTIFICATIONS` is never requested at runtime, so on Android 13+ the caller-ID notification may not appear; the popup card still works.
+- **Directory API token is shipped in the app** (`PhonebookSyncService`, `AppConfig`). Anyone with the APK can read it. Proxying the directory through `hsh_api` would keep it server-side.
+- **No automatic refresh:** the cache only updates on a manual sync (or when it's empty).
+- **Different identifiers:** phonebook IDs (`HSH-<bankCode>`) are not `hsh_api`'s `students.id`.
+- **Android 9 and older** cannot use caller ID.
+
+---
+
+## 11. Manual test checklist
+
+- [ ] An admin/warden opens the phonebook; a student or leader account is turned away.
+- [ ] **Sync Directory** completes and the cached count and last-sync time update.
+- [ ] Search by name, room, `HSH-` ID and by 3+ digits of a parent's number; group chips filter correctly (Param excludes Paramanand).
+- [ ] Android: Enable → role sheet → overlay permission; the card shows "Caller ID is on".
+- [ ] A call from a stored parent number shows the popup and the notification with the right relation; the popup closes on answer or hang-up.
+- [ ] Tapping the popup on a cold start opens the phonebook filtered to that student.
+- [ ] **Turn off**, logout, or logging in as a non-admin stops all caller-ID popups.
+- [ ] iOS: enable in Settings, sync, then an incoming call from a stored number shows the label.

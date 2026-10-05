@@ -12,7 +12,6 @@ import android.provider.Settings
 import com.example.hsh_app2.callerid.CallerIdOverlay
 import com.example.hsh_app2.callerid.CallerIdStore
 import com.example.hsh_app2.screentime.AppBlockerAccessibilityService
-import com.example.hsh_app2.screentime.DevicePolicy
 import com.example.hsh_app2.screentime.GeofenceEvaluator
 import com.example.hsh_app2.screentime.LocationSampler
 import com.example.hsh_app2.screentime.PolicyPollService
@@ -121,21 +120,12 @@ class MainActivity : FlutterActivity() {
                     }
 
                     // ---- policy ----
-                    "syncPolicyToNative" -> {
-                        val current = PolicyStore.policy(applicationContext)
-                        val blocked = call.argument<List<String>>("blockedPackages")?.toSet() ?: current.blockedPackages
-                        PolicyStore.savePolicy(
-                            applicationContext,
-                            DevicePolicy(
-                                isLocked = call.argument<Boolean>("isLocked") ?: current.isLocked,
-                                blockedPackages = blocked,
-                                dailyLimitMinutes = call.argument<Int>("dailyLimitMinutes") ?: current.dailyLimitMinutes,
-                                bedtimeStart = call.argument<String>("bedtimeStart") ?: current.bedtimeStart,
-                                bedtimeEnd = call.argument<String>("bedtimeEnd") ?: current.bedtimeEnd,
-                                version = call.argument<String>("version") ?: current.version,
-                            ),
-                        )
-                        result.success(true)
+                    // Ask the native sync loop to fetch the policy now. Flutter never
+                    // writes the policy itself: a single, version-ordered writer means
+                    // an older response can't overwrite a newer warden change.
+                    "refreshPolicy" -> {
+                        PolicyPollService.requestRefresh(applicationContext)
+                        result.success(null)
                     }
                     "getPolicy" -> {
                         val p = PolicyStore.policy(applicationContext)

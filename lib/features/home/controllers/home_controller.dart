@@ -3,17 +3,15 @@ import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import '../../../core/constants/app_routes.dart';
 import '../../../core/enums/user_role.dart';
-import '../../../core/network/api_client.dart';
+import '../../../core/services/geofence_device_service.dart';
 import '../../../core/services/screen_time_service.dart';
 import '../../../core/storage/session_store.dart';
-import '../../screentime/models/screen_time_policy.dart';
 
 class HomeController extends GetxController with WidgetsBindingObserver {
   final tabIndex = 0.obs;
 
   bool _setupOpen = false;
   bool _batteryAsked = false;
-  Timer? _policyTimer;
 
   void changeTab(int index) => tabIndex.value = index;
 
@@ -27,7 +25,6 @@ class HomeController extends GetxController with WidgetsBindingObserver {
   @override
   void onClose() {
     WidgetsBinding.instance.removeObserver(this);
-    _policyTimer?.cancel();
     super.onClose();
   }
 
@@ -48,8 +45,11 @@ class HomeController extends GetxController with WidgetsBindingObserver {
     final usage = await ScreenTimeService.hasUsagePermission();
     final blocker = await ScreenTimeService.hasAccessibilityPermission();
     final battery = await ScreenTimeService.isBatteryOptimizationIgnored();
+    // The curfew geofence needs "Allow all the time"; a student who revokes it
+    // later is sent back to setup instead of silently going untracked.
+    final location = await GeofenceDeviceService.locationPermission() == 'always';
 
-    if (!usage || !blocker || (!battery && !_batteryAsked)) {
+    if (!usage || !blocker || !location || (!battery && !_batteryAsked)) {
       _batteryAsked = true;
       _setupOpen = true;
       await Get.toNamed(Routes.deviceSetup);
@@ -58,20 +58,8 @@ class HomeController extends GetxController with WidgetsBindingObserver {
     }
 
     ScreenTimeService.syncNow();
-    _fetchAndApplyPolicy();
-    _policyTimer?.cancel();
-    _policyTimer = Timer.periodic(const Duration(seconds: 30), (_) => _fetchAndApplyPolicy());
-  }
-
-  /// Fetch the student's own policy and hand the whole thing to the native
-  /// blocker, so lock / blocked apps / curfew / daily limit apply immediately.
-  Future<void> _fetchAndApplyPolicy() async {
-    try {
-      final response = await Get.find<ApiClient>().dio.get('/screen-time/policies/me');
-      final policy = ScreenTimePolicy.tryParse(response.data);
-      if (policy != null) await ScreenTimeService.syncPolicyToNative(policy);
-    } catch (e) {
-      debugPrint('[Home] policy fetch failed: $e');
-    }
+    // The native service keeps the policy in sync in real time (long-poll),
+    // app open or not; opening the app just asks it to refresh right away.
+    ScreenTimeService.refreshPolicy();
   }
 }

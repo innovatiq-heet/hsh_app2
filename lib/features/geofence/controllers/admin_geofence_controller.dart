@@ -68,12 +68,16 @@ class AdminGeofenceController extends GetxController {
             : ('Geofencing Paused', 'Perimeter monitoring is off until re-enabled.'),
       );
 
-  Future<void> toggleLockOnBreach(bool enabled) => _savePolicy(
-        policy.value.copyWith(enforcePhoneLock: enabled),
-        success: enabled
-            ? ('Auto-lock On', 'Phones lock automatically while outside campus during curfew.')
-            : ('Auto-lock Off', 'Breaches are reported but phones stay usable.'),
-      );
+  /// Options offered for how often student phones take a location fix.
+  static const locationIntervalOptions = [1, 2, 5, 10];
+
+  Future<void> updateLocationInterval(int minutes) async {
+    if (minutes == policy.value.checkIntervalMinutes) return;
+    await _savePolicy(
+      policy.value.copyWith(checkIntervalMinutes: minutes),
+      success: ('Location Updates', 'Student phones now report their location every $minutes min.'),
+    );
+  }
 
   Future<void> _savePolicy(GeofencePolicyModel updated, {required (String, String) success}) async {
     final previous = policy.value;
@@ -93,15 +97,6 @@ class AdminGeofenceController extends GetxController {
 
   // ---------- Breach actions ----------
 
-  /// 🔒 Remote-lock the student's phone (keeps their other screen-time rules).
-  Future<void> remoteLockStudentPhone(GeofenceBreachEvent breach) => _act(
-        breach,
-        BreachActionStatus.phoneLocked,
-        resolves: true,
-        before: () => _repository.lockStudentPhone(breach.studentId),
-        success: ('Device Locked', '${breach.studentName}\'s phone locks within about 30 seconds.'),
-      );
-
   /// 📞 Call the student.
   Future<void> callStudent(GeofenceBreachEvent breach) =>
       _call(breach, breach.phone, BreachActionStatus.calledStudent, 'Student mobile number is not available.');
@@ -117,7 +112,8 @@ class AdminGeofenceController extends GetxController {
         success: ('Warning Sent', 'Curfew warning queued for ${breach.studentName}.'),
       );
 
-  /// 🟢 Gate pass: backend sets `exemptUntil` so the phone stops reporting.
+  /// 🟢 Gate pass: backend stores the pass; the phone picks it up on its next
+  /// policy poll (~30 s), stops enforcing the curfew and releases a breach lock.
   Future<void> grantTemporaryGatePass(GeofenceBreachEvent breach, int hours) => _act(
         breach,
         BreachActionStatus.gatePassGranted,
@@ -151,7 +147,6 @@ class AdminGeofenceController extends GetxController {
     BreachActionStatus action, {
     bool resolves = false,
     int? gatePassHours,
-    Future<void> Function()? before,
     (String, String)? success,
   }) async {
     final prevAction = breach.actionTaken;
@@ -161,14 +156,20 @@ class AdminGeofenceController extends GetxController {
     breachLogs.refresh();
 
     try {
-      if (before != null) await before();
-      await _repository.recordAdminAction(
+      final result = await _repository.recordAdminAction(
         breachId: breach.id,
         studentId: breach.studentId,
         action: action,
         gatePassHours: gatePassHours,
       );
-      if (success != null) AppSnackbar.success(success.$1, success.$2);
+      if (action == BreachActionStatus.warningSent && result['notified'] != true) {
+        AppSnackbar.warning(
+          'Warning Not Delivered',
+          '${breach.studentName}\'s phone isn\'t registered for notifications. Please call instead.',
+        );
+      } else if (success != null) {
+        AppSnackbar.success(success.$1, success.$2);
+      }
       loadData();
     } catch (e) {
       breach.actionTaken = prevAction;

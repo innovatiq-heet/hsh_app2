@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:intl/intl.dart';
 import '../../../core/constants/app_colors.dart';
+import '../../../core/constants/app_routes.dart';
 import '../../../core/constants/app_text_styles.dart';
 import '../../../core/models/geofence/geofence_breach_event.dart';
 import '../../../core/services/geofence_service.dart';
@@ -59,6 +60,9 @@ class AdminGeofenceScreen extends StatelessWidget {
 
                     // 2. Curfew Schedule & Configuration Card
                     _buildCurfewConfigCard(context, controller, policy),
+                    const SizedBox(height: 14),
+
+                    _buildStudentLocationsCard(),
                     const SizedBox(height: 18),
 
                     // 3. Active Breaches (Students Outside Campus)
@@ -248,31 +252,69 @@ class AdminGeofenceScreen extends StatelessWidget {
             ],
           ),
           const Divider(height: 24),
-          // Enforcement: lock the phone while outside (self-releasing on return)
+          // How often student phones take a location fix (day and curfew).
           Row(
             children: [
-              const Icon(Icons.phonelink_lock_rounded, color: AppColors.cancelledRed, size: 20),
+              const Icon(Icons.my_location_rounded, color: AppColors.primary, size: 20),
               const SizedBox(width: 10),
               Expanded(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text('Auto-lock phone when outside', style: AppTextStyles.bodyMd.copyWith(fontWeight: FontWeight.w600)),
+                    Text('Location updates', style: AppTextStyles.bodyMd.copyWith(fontWeight: FontWeight.w600)),
                     Text(
-                      'Locks on the student phone during a breach and unlocks when they return.',
+                      'How often each student phone reports where it is',
                       style: AppTextStyles.caption.copyWith(color: AppColors.textSecondary),
                     ),
                   ],
                 ),
               ),
-              Switch(
-                value: policy.enforcePhoneLock,
-                activeThumbColor: AppColors.cancelledRed,
-                onChanged: policy.isActive ? controller.toggleLockOnBreach : null,
-              ),
+            ],
+          ),
+          const SizedBox(height: 10),
+          Wrap(
+            spacing: 8,
+            children: [
+              for (final minutes in AdminGeofenceController.locationIntervalOptions)
+                ChoiceChip(
+                  label: Text('$minutes min'),
+                  selected: policy.checkIntervalMinutes == minutes,
+                  onSelected: controller.isSaving.value ? null : (_) => controller.updateLocationInterval(minutes),
+                  selectedColor: AppColors.primary.withValues(alpha: 0.15),
+                  labelStyle: TextStyle(
+                    fontSize: 12,
+                    fontWeight: policy.checkIntervalMinutes == minutes ? FontWeight.bold : FontWeight.w500,
+                    color: policy.checkIntervalMinutes == minutes ? AppColors.primary : AppColors.textSecondary,
+                  ),
+                ),
             ],
           ),
         ],
+      ),
+    );
+  }
+
+  /// Entry to the live list of every student's last reported location.
+  Widget _buildStudentLocationsCard() {
+    return AppCard(
+      padding: EdgeInsets.zero,
+      child: ListTile(
+        contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 4),
+        leading: Container(
+          padding: const EdgeInsets.all(8),
+          decoration: BoxDecoration(
+            color: AppColors.primary.withValues(alpha: 0.1),
+            borderRadius: BorderRadius.circular(10),
+          ),
+          child: const Icon(Icons.people_alt_rounded, color: AppColors.primary, size: 20),
+        ),
+        title: Text('Student Locations', style: AppTextStyles.title),
+        subtitle: Text(
+          'Every student\'s current location, inside or outside campus',
+          style: AppTextStyles.caption.copyWith(color: AppColors.textSecondary),
+        ),
+        trailing: const Icon(Icons.chevron_right_rounded),
+        onTap: () => Get.toNamed(Routes.operatorStudentLocations),
       ),
     );
   }
@@ -446,21 +488,7 @@ class AdminGeofenceScreen extends StatelessWidget {
             spacing: 8,
             runSpacing: 8,
             children: [
-              // 1. Remote Lock Button
-              ElevatedButton.icon(
-                onPressed: () => controller.remoteLockStudentPhone(breach),
-                icon: const Icon(Icons.lock_rounded, size: 14),
-                label: const Text('Lock Phone', style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold)),
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: AppColors.cancelledRed,
-                  foregroundColor: Colors.white,
-                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
-                  minimumSize: Size.zero,
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
-                ),
-              ),
-
-              // 2. Call Student Button
+              // 1. Call Student Button
               OutlinedButton.icon(
                 onPressed: () => controller.callStudent(breach),
                 icon: const Icon(Icons.phone_rounded, size: 14, color: AppColors.primary),
@@ -472,7 +500,7 @@ class AdminGeofenceScreen extends StatelessWidget {
                 ),
               ),
 
-              // 3. Call Parent Button
+              // 2. Call Parent Button
               if (breach.parentPhone.isNotEmpty)
                 OutlinedButton.icon(
                   onPressed: () => controller.callParent(breach),
@@ -485,7 +513,7 @@ class AdminGeofenceScreen extends StatelessWidget {
                   ),
                 ),
 
-              // 4. Send Warning Popup
+              // 3. Send Warning Popup
               OutlinedButton.icon(
                 onPressed: () => controller.sendCurfewWarning(breach),
                 icon: const Icon(Icons.notification_important_rounded, size: 14, color: Colors.orange),
@@ -497,7 +525,7 @@ class AdminGeofenceScreen extends StatelessWidget {
                 ),
               ),
 
-              // 5. Grant Gate Pass
+              // 4. Grant Gate Pass
               TextButton(
                 onPressed: () => controller.grantTemporaryGatePass(breach, 1),
                 child: const Text('Allow Gate Pass', style: TextStyle(fontSize: 11, color: Colors.green)),
@@ -542,7 +570,7 @@ class AdminGeofenceScreen extends StatelessWidget {
     Color actionColor = Colors.grey;
 
     switch (event.actionTaken) {
-      case BreachActionStatus.phoneLocked:
+      case BreachActionStatus.phoneLocked: // records from before phone lock was removed
         actionLabel = 'Phone Locked 🔒';
         actionColor = AppColors.cancelledRed;
         break;

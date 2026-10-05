@@ -21,8 +21,8 @@ class ScreenTimePolicy {
     this.isLocked = false,
     this.blockedPackages = const {},
     this.dailyLimitMinutes = 0,
-    this.bedtimeStart = '23:00',
-    this.bedtimeEnd = '05:00',
+    this.bedtimeStart = '',
+    this.bedtimeEnd = '',
     this.version = '',
   });
 
@@ -41,24 +41,37 @@ class ScreenTimePolicy {
     final limit = _pick(pol, ['daily_limit_minutes', 'dailyLimitMinutes']);
     final start = _pick(pol, ['bedtime_start', 'bedtimeStart']);
     final end = _pick(pol, ['bedtime_end', 'bedtimeEnd']);
-    final version = _pick(pol, ['updatedAt', 'updated_at', 'version', 'policyVersion']);
+    final version = _pick(pol, ['updatedAt', 'updated_at', 'version', 'policyVersion', 'policy_version']);
+    // The backend sends `bedtime_start: null` when the curfew is off; that must
+    // clear it, not fall back to a previous/default value.
+    final hasBedtime = _hasAny(pol, ['bedtime_start', 'bedtimeStart', 'bedtime_end', 'bedtimeEnd']);
 
-    if (blocked == null && locked == null && limit == null && start == null && end == null) {
+    if (blocked == null && locked == null && limit == null && !hasBedtime) {
       return null;
     }
 
     final base = current ?? const ScreenTimePolicy();
+    final bedtimeOff = hasBedtime && (start == null || end == null);
     return ScreenTimePolicy(
       isLocked: _toBool(locked) ?? base.isLocked,
       blockedPackages: blocked is List
           ? blocked.map((e) => e.toString()).where((e) => e.isNotEmpty).toSet()
           : base.blockedPackages,
       dailyLimitMinutes: _toInt(limit) ?? base.dailyLimitMinutes,
-      bedtimeStart: start?.toString() ?? base.bedtimeStart,
-      bedtimeEnd: end?.toString() ?? base.bedtimeEnd,
+      bedtimeStart: bedtimeOff ? '' : (start == null ? base.bedtimeStart : _hhmm(start)),
+      bedtimeEnd: bedtimeOff ? '' : (end == null ? base.bedtimeEnd : _hhmm(end)),
       version: version?.toString() ?? base.version,
     );
   }
+
+  /// MySQL `TIME` comes back as `23:00:00`; the app and the phone use `HH:mm`.
+  static String _hhmm(dynamic v) {
+    final s = v.toString().trim();
+    final m = RegExp(r'^(\d{1,2}):(\d{2})').firstMatch(s);
+    return m == null ? s : '${m.group(1)!.padLeft(2, '0')}:${m.group(2)}';
+  }
+
+  static bool _hasAny(Map m, List<String> keys) => keys.any(m.containsKey);
 
   /// Strict variant for payloads known to be a policy (e.g. the native side).
   factory ScreenTimePolicy.fromJson(Map<dynamic, dynamic> json) =>

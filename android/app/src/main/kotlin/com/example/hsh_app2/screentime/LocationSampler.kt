@@ -40,6 +40,12 @@ object LocationSampler {
 
     fun hasAnyPermission(context: Context) = permission(context) != Permission.DENIED
 
+    /** Whether the system location switch is on. */
+    fun isLocationEnabled(context: Context): Boolean {
+        val lm = context.getSystemService(Context.LOCATION_SERVICE) as? LocationManager ?: return false
+        return LocationManagerCompat.isLocationEnabled(lm)
+    }
+
     private fun granted(context: Context, perm: String) =
         ContextCompat.checkSelfPermission(context, perm) == PackageManager.PERMISSION_GRANTED
 

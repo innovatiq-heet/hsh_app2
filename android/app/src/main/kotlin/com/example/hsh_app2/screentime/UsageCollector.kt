@@ -83,6 +83,29 @@ object UsageCollector {
         timeInMillis
     }
 
+    /**
+     * Package whose activity is resumed right now, from usage events. Null
+     * without Usage Access, with the screen off, or when nothing was resumed
+     * within [lookbackMs] (callers fall back to their own tracking).
+     */
+    fun foregroundPackage(context: Context, lookbackMs: Long = 3 * 60 * 60 * 1000L): String? {
+        if (!isScreenOn(context) || !hasPermission(context)) return null
+        val now = System.currentTimeMillis()
+        val usm = context.getSystemService(Context.USAGE_STATS_SERVICE) as UsageStatsManager
+        val events = runCatching { usm.queryEvents(now - lookbackMs, now) }.getOrNull() ?: return null
+        val event = UsageEvents.Event()
+        var fg: String? = null
+        while (events.hasNextEvent()) {
+            events.getNextEvent(event)
+            when (event.eventType) {
+                ACTIVITY_RESUMED -> fg = event.packageName
+                ACTIVITY_PAUSED -> if (fg == event.packageName) fg = null
+                SCREEN_NON_INTERACTIVE, KEYGUARD_SHOWN, DEVICE_SHUTDOWN -> fg = null
+            }
+        }
+        return fg
+    }
+
     /** Collects usage for [dayStart, min(dayEnd, now)). */
     fun collect(context: Context, dayStart: Long, dayEnd: Long): UsageSnapshot {
         val now = System.currentTimeMillis()

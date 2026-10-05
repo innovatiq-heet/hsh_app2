@@ -18,9 +18,8 @@ data class GeofencePolicy(
     val end: String = "06:00",
     /** "Daily" or weekday names ("Mon", "Tue", …): the day the curfew *starts*. */
     val repeatDays: List<String> = listOf("Daily"),
-    val intervalMinutes: Int = 10,
-    /** Lock the phone while outside campus during curfew (self-releasing). */
-    val lockOnBreach: Boolean = false,
+    /** Minutes between location fixes (day and curfew), set by the warden. */
+    val intervalMinutes: Int = 2,
     /** Gate pass: epoch millis until which this student may be outside. */
     val exemptUntil: Long = 0L,
     /** Fence as (lat, lng) pairs; falls back to the built-in campus outline. */
@@ -34,7 +33,7 @@ data class GeofencePolicy(
             val data = root.optJSONObject("data") ?: root
             val pol = data.optJSONObject("policy") ?: data.optJSONObject("geofence") ?: data
             val known = listOf("isActive", "is_active", "startTime", "start_time", "endTime", "end_time",
-                "enforcePhoneLock", "lockOnBreach", "exemptUntil", "exempt_until", "polygon")
+                "exemptUntil", "exempt_until", "polygon")
             if (known.none { pol.has(it) }) return null
 
             val days = pol.optJSONArray("repeatDays") ?: pol.optJSONArray("repeat_days")
@@ -52,7 +51,8 @@ data class GeofencePolicy(
                     }
                 }.takeIf { it.size >= 3 }
             }
-            val exempt = pol.opt("exemptUntil") ?: pol.opt("exempt_until")
+            val exemptKey = listOf("exemptUntil", "exempt_until").firstOrNull { pol.has(it) }
+            val exempt = exemptKey?.let { pol.opt(it) }
 
             return GeofencePolicy(
                 active = optBool(pol, "isActive", "is_active") ?: current.active,
@@ -60,10 +60,12 @@ data class GeofencePolicy(
                 end = optStr(pol, "endTime", "end_time") ?: current.end,
                 repeatDays = days?.let { d -> (0 until d.length()).map { d.optString(it) } } ?: current.repeatDays,
                 intervalMinutes = optInt(pol, "checkIntervalMinutes", "check_interval_minutes") ?: current.intervalMinutes,
-                lockOnBreach = optBool(pol, "lockOnBreach", "lock_on_breach") ?: optBool(pol, "enforcePhoneLock", "enforce_phone_lock") ?: current.lockOnBreach,
-                exemptUntil = when (exempt) {
-                    is Number -> exempt.toLong().let { if (it < 1e12) it * 1000 else it }
-                    is String -> parseIso(exempt) ?: current.exemptUntil
+                exemptUntil = when {
+                    exemptKey == null -> current.exemptUntil
+                    // Explicit null: no active gate pass (expired or revoked on the server).
+                    pol.isNull(exemptKey) -> 0L
+                    exempt is Number -> exempt.toLong().let { if (it < 1e12) it * 1000 else it }
+                    exempt is String -> parseIso(exempt) ?: current.exemptUntil
                     else -> current.exemptUntil
                 },
                 polygon = poly ?: current.polygon,
@@ -108,7 +110,6 @@ data class GeofencePolicy(
         .put("endTime", end)
         .put("repeatDays", JSONArray(repeatDays))
         .put("checkIntervalMinutes", intervalMinutes)
-        .put("lockOnBreach", lockOnBreach)
         .put("exemptUntil", exemptUntil)
         .put("polygon", JSONArray(polygon.map { JSONObject().put("latitude", it.first).put("longitude", it.second) }))
         .put("version", version)
@@ -196,12 +197,35 @@ object GeofenceEvaluator {
         return policy.active && !policy.isExempt(now) && isInCurfew(policy)
     }
 
-    /** Used by [PolicyEvaluator]: block apps while confirmed outside during curfew. */
-    fun shouldLock(context: Context): Boolean {
+    /**
+     * Outside curfew (or on a gate pass) the last inside/outside verdict goes
+     * stale. Forget it, otherwise yesterday's OUTSIDE would be taken as the
+     * starting state when the next curfew begins, before any fresh fix.
+     */
+    fun clearStaleState(context: Context) {
+        if (PolicyStore.geofenceState(context) != GeofenceState.UNKNOWN || PolicyStore.geofenceStreak(context) != 0) {
+            PolicyStore.saveGeofenceState(context, GeofenceState.UNKNOWN, streak = 0)
+        }
+    }
+
+    /**
+     * During curfew a phone with location switched off or permission revoked
+     * can't be checked at all. Report that (at most once per check interval)
+     * instead of going silent. Returns true when an event was queued.
+     */
+    fun reportLocationUnavailable(context: Context, reason: String): Boolean {
+        val now = System.currentTimeMillis()
+        if (!isEnforcing(context, now)) return false
         val policy = PolicyStore.geofencePolicy(context)
-        if (!policy.lockOnBreach) return false
-        if (!isEnforcing(context)) return false
-        return PolicyStore.geofenceState(context) == GeofenceState.OUTSIDE
+        val throttle = max(MOCK_EVENT_THROTTLE_MS, policy.intervalMinutes.coerceAtLeast(1) * 60_000L)
+        if (now - PolicyStore.lastUnavailableEventAt(context) < throttle) return false
+        PolicyStore.markUnavailableEvent(context, now)
+        PolicyStore.recordGeofenceEvent(
+            context,
+            JSONObject().put("type", "location_off").put("reason", reason).put("at", now),
+        )
+        Log.w(TAG, "location unavailable during curfew: $reason")
+        return true
     }
 
     // ---------- Geometry ----------

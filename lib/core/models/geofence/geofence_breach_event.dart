@@ -9,8 +9,9 @@ enum BreachActionStatus {
 }
 
 /// What the device reported: a confirmed exit, a periodic heartbeat while
-/// still outside, a return to campus, or a spoofed-location attempt.
-enum BreachEventType { exit, heartbeat, enter, mockLocation, unknown }
+/// still outside, a return to campus, a spoofed-location attempt, or location
+/// switched off / permission revoked during curfew.
+enum BreachEventType { exit, heartbeat, enter, mockLocation, locationOff, unknown }
 
 /// A curfew breach as the backend records it from device geofence events.
 class GeofenceBreachEvent {
@@ -54,6 +55,8 @@ class GeofenceBreachEvent {
 
   String get formattedDistance {
     if (isMocked) return 'Fake GPS detected';
+    if (eventType == BreachEventType.locationOff) return 'Location turned off';
+    if (returnedAt != null) return 'Back on campus';
     if (distanceMeters < 1000) return '${distanceMeters.round()}m outside';
     return '${(distanceMeters / 1000).toStringAsFixed(1)}km outside';
   }
@@ -73,7 +76,11 @@ class GeofenceBreachEvent {
         'distanceMeters': distanceMeters,
         'accuracyMeters': accuracyMeters,
         'mocked': isMocked,
-        'type': eventType.name,
+        'type': switch (eventType) {
+          BreachEventType.mockLocation => 'mock_location',
+          BreachEventType.locationOff => 'location_off',
+          _ => eventType.name,
+        },
         'timestamp': timestamp.toIso8601String(),
         'returnedAt': returnedAt?.toIso8601String(),
         'actionTaken': actionTaken.name,
@@ -116,6 +123,9 @@ class GeofenceBreachEvent {
       case 'mock_location':
       case 'mockLocation':
         return BreachEventType.mockLocation;
+      case 'location_off':
+      case 'locationOff':
+        return BreachEventType.locationOff;
       default:
         return v == null ? BreachEventType.exit : BreachEventType.unknown;
     }

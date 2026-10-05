@@ -5,15 +5,12 @@
 class AppConfig {
   AppConfig._();
 
-  static const String host = 'https://yellow-gaur-484396.hostingersite.com';
-  static const String baseUrl =
-      'https://yellow-gaur-484396.hostingersite.com/api';
-  static const String healthUrl =
-      'https://yellow-gaur-484396.hostingersite.com/';
+  static const String host = 'https://hsh-api.onrender.com';
+  static const String baseUrl = '$host/api';
+  static const String healthUrl = '$host/';
 
   /// Live hosted attendance schedule endpoint.
-  static const String attendanceScheduleUrl =
-      'https://attendentsnews.hpys.in/api/attendance/schedule';
+  static const String attendanceScheduleUrl = '$baseUrl/attendance/schedule';
 
   /// External student basic-details endpoint.
   static const String studentBasicDetailsUrl =

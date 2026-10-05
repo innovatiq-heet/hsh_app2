@@ -66,8 +66,10 @@ object ScreenTimeSync {
         wm.cancelUniqueWork(TICK_WORK)
         wm.cancelUniqueWork(WATCHDOG_WORK)
         PolicyStore.clearSession(context)
-        // A logged-out phone must not keep enforcing the previous student's rules.
+        // A logged-out phone must not keep enforcing the previous student's rules,
+        // nor hand their queued breaches / gate pass to the next login.
         PolicyStore.savePolicy(context, DevicePolicy())
+        PolicyStore.clearStudentState(context)
     }
 
     fun isConfigured(context: Context): Boolean = PolicyStore.hasSession(context)
@@ -246,12 +248,13 @@ object ScreenTimeSync {
                 PolicyStore.markIconsSent(context, iconsInThisPing)
                 PolicyStore.dropBlockEvents(context, blockEvents.length())
                 PolicyStore.dropGeofenceEvents(context, geofenceEvents.length())
-                // The ping response may echo the current policy; otherwise fetch it.
-                val applied = runCatching {
-                    val respStr = conn.inputStream.bufferedReader().use { it.readText() }
-                    PolicyStore.applyPolicyJson(context, JSONObject(respStr))
+                // The ping response echoes the current policy (older servers don't:
+                // fetch it then). A stale echo is discarded inside applyPolicyJson.
+                val resp = runCatching {
+                    JSONObject(conn.inputStream.bufferedReader().use { it.readText() })
                 }.getOrNull()
-                if (applied == null) fetchAndSavePolicy(context, baseUrl, token)
+                if (resp != null && resp.has("policy")) PolicyStore.applyPolicyJson(context, resp)
+                else fetchAndSavePolicy(context)
             }
             code
         } catch (e: Exception) {
@@ -282,22 +285,49 @@ object ScreenTimeSync {
             .put("manufacturer", android.os.Build.MANUFACTURER)
     }
 
-    fun fetchAndSavePolicy(context: Context, baseUrl: String, token: String) {
+    /** Outcome of one `GET /screen-time/policies/me`. [code] is -1 on a network error. */
+    data class PolicyFetch(
+        val code: Int,
+        /** The server held the request until a change/timeout (supports long-poll). */
+        val longPolled: Boolean = false,
+        /** The response carried the curfew geofence (gate pass etc.) and it was applied. */
+        val geofenceApplied: Boolean = false,
+    )
+
+    /**
+     * Fetches the student's policy and applies it. With [waitSeconds] > 0 the
+     * server holds the request until a warden changes something (or the wait
+     * ends) — the near-real-time channel driven by [PolicyPollService].
+     * Responses older than what's already applied are discarded by
+     * [PolicyStore.applyPolicyJson], so concurrent fetches can't regress state.
+     */
+    fun fetchAndSavePolicy(context: Context, waitSeconds: Int = 0): PolicyFetch {
+        val token = PolicyStore.token(context)
+        val baseUrl = PolicyStore.baseUrl(context)
+        if (token.isNullOrEmpty() || baseUrl.isNullOrEmpty()) return PolicyFetch(401)
+
+        val query = if (waitSeconds > 0) "?wait=$waitSeconds&since=${PolicyStore.policyVersionNumber(context)}" else ""
         var conn: HttpURLConnection? = null
-        try {
-            conn = (URL("$baseUrl/screen-time/policies/me").openConnection() as HttpURLConnection).apply {
+        return try {
+            conn = (URL("$baseUrl/screen-time/policies/me$query").openConnection() as HttpURLConnection).apply {
                 requestMethod = "GET"
                 connectTimeout = 10_000
-                readTimeout = 10_000
+                readTimeout = waitSeconds * 1000 + 15_000
                 setRequestProperty("Accept", "application/json")
                 setRequestProperty("Authorization", "Bearer $token")
             }
-            if (conn.responseCode in 200..299) {
-                val respStr = conn.inputStream.bufferedReader().use { it.readText() }
-                PolicyStore.applyPolicyJson(context, JSONObject(respStr))
-            }
+            val code = conn.responseCode
+            if (code !in 200..299) return PolicyFetch(code)
+
+            val json = JSONObject(conn.inputStream.bufferedReader().use { it.readText() })
+            PolicyStore.applyPolicyJson(context, json)
+            // Gate pass / curfew changes ride along on the same channel.
+            val geofenceApplied = json.optJSONObject("data")?.optJSONObject("geofence")
+                ?.let { PolicyStore.applyGeofencePolicyJson(context, it) != null } ?: false
+            PolicyFetch(code, longPolled = json.optBoolean("longPoll", false), geofenceApplied = geofenceApplied)
         } catch (e: Exception) {
             Log.d(TAG, "fetchAndSavePolicy error: ${e.message}")
+            PolicyFetch(-1)
         } finally {
             conn?.disconnect()
         }

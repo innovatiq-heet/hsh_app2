@@ -19,6 +19,15 @@ class DateFormatting {
   static String dayOfWeek(DateTime dt) =>
       DateFormat('EEE').format(utcToIst(dt));
 
+  /// "just now", "4 min ago", "3 h ago", "2 d ago".
+  static String relativeTime(DateTime t) {
+    final d = DateTime.now().difference(t);
+    if (d.inSeconds < 60) return 'just now';
+    if (d.inMinutes < 60) return '${d.inMinutes} min ago';
+    if (d.inHours < 24) return '${d.inHours} h ago';
+    return '${d.inDays} d ago';
+  }
+
   static bool isToday(DateTime dt) {
     final ist = utcToIst(dt);
     final now = utcToIst(DateTime.now().toUtc());

@@ -10,9 +10,7 @@ class GeofencePolicyModel {
   final TimeOfDay startTime; // e.g. 22:00 (10:00 PM)
   final TimeOfDay endTime; // e.g. 06:00 (06:00 AM)
   final bool isActive;
-
-  /// Lock the phone while the student is outside campus during curfew.
-  final bool enforcePhoneLock;
+  /// Minutes between student phone location fixes (day and curfew).
   final int checkIntervalMinutes;
 
   /// ['Daily'] or weekday names ('Mon', 'Tue', …) — the day the curfew starts.
@@ -28,8 +26,7 @@ class GeofencePolicyModel {
     this.startTime = const TimeOfDay(hour: 22, minute: 0),
     this.endTime = const TimeOfDay(hour: 6, minute: 0),
     this.isActive = true,
-    this.enforcePhoneLock = false,
-    this.checkIntervalMinutes = 10,
+    this.checkIntervalMinutes = 2,
     this.repeatDays = const ['Daily'],
     this.exemptUntil,
     this.version = '',
@@ -85,7 +82,6 @@ class GeofencePolicyModel {
     TimeOfDay? startTime,
     TimeOfDay? endTime,
     bool? isActive,
-    bool? enforcePhoneLock,
     int? checkIntervalMinutes,
     List<String>? repeatDays,
     DateTime? exemptUntil,
@@ -97,7 +93,6 @@ class GeofencePolicyModel {
       startTime: startTime ?? this.startTime,
       endTime: endTime ?? this.endTime,
       isActive: isActive ?? this.isActive,
-      enforcePhoneLock: enforcePhoneLock ?? this.enforcePhoneLock,
       checkIntervalMinutes: checkIntervalMinutes ?? this.checkIntervalMinutes,
       repeatDays: repeatDays ?? this.repeatDays,
       exemptUntil: exemptUntil ?? this.exemptUntil,
@@ -111,8 +106,6 @@ class GeofencePolicyModel {
         'startTime': _hhmm(startTime),
         'endTime': _hhmm(endTime),
         'isActive': isActive,
-        'enforcePhoneLock': enforcePhoneLock,
-        'lockOnBreach': enforcePhoneLock,
         'checkIntervalMinutes': checkIntervalMinutes,
         'repeatDays': repeatDays,
       };
@@ -147,8 +140,7 @@ class GeofencePolicyModel {
       startTime: parseTime(json['startTime'] ?? json['start_time'], const TimeOfDay(hour: 22, minute: 0)),
       endTime: parseTime(json['endTime'] ?? json['end_time'], const TimeOfDay(hour: 6, minute: 0)),
       isActive: _toBool(json['isActive'] ?? json['is_active']) ?? true,
-      enforcePhoneLock: _toBool(json['lockOnBreach'] ?? json['lock_on_breach'] ?? json['enforcePhoneLock'] ?? json['enforce_phone_lock']) ?? false,
-      checkIntervalMinutes: _toInt(json['checkIntervalMinutes'] ?? json['check_interval_minutes']) ?? 10,
+      checkIntervalMinutes: _toInt(json['checkIntervalMinutes'] ?? json['check_interval_minutes']) ?? 2,
       repeatDays: days is List ? days.map((e) => e.toString()).toList() : const ['Daily'],
       exemptUntil: parseDate(json['exemptUntil'] ?? json['exempt_until']),
       version: (json['updatedAt'] ?? json['updated_at'] ?? json['version'] ?? '').toString(),

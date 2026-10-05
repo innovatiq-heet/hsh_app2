@@ -7,6 +7,7 @@ import '../../../core/network/api_client.dart';
 import '../../../core/services/screen_time_service.dart';
 import '../../../core/storage/session_store.dart';
 import '../../../core/utils/app_snackbar.dart';
+import '../../../core/utils/date_formatting.dart';
 import '../models/screen_time_policy.dart';
 import '../services/app_icon_cache.dart';
 
@@ -109,13 +110,7 @@ class StudentScreenTimeController extends GetxController with WidgetsBindingObse
   }
 
   /// "just now", "4 min ago", "3 h ago", "2 d ago".
-  static String relativeTime(DateTime t) {
-    final d = DateTime.now().difference(t);
-    if (d.inSeconds < 60) return 'just now';
-    if (d.inMinutes < 60) return '${d.inMinutes} min ago';
-    if (d.inHours < 24) return '${d.inHours} h ago';
-    return '${d.inDays} d ago';
-  }
+  static String relativeTime(DateTime t) => DateFormatting.relativeTime(t);
 
   static String formatMinutes(int mins) {
     final h = mins ~/ 60;
@@ -463,8 +458,9 @@ class StudentScreenTimeController extends GetxController with WidgetsBindingObse
   final RxList<String> blockedPackages = <String>[].obs;
   final RxBool isDeviceLocked = false.obs;
   final RxInt dailyLimitMinutes = 0.obs;
-  final RxString bedtimeStart = '23:00'.obs;
-  final RxString bedtimeEnd = '05:00'.obs;
+  /// "HH:mm"; both empty = no bedtime curfew for this student.
+  final RxString bedtimeStart = ''.obs;
+  final RxString bedtimeEnd = ''.obs;
   final RxString policyVersion = ''.obs;
 
   /// The selected student's policy as currently shown in the UI.
@@ -730,11 +726,13 @@ class StudentScreenTimeController extends GetxController with WidgetsBindingObse
     }
 
     if (student['policy'] is Map) {
-      final pol = student['policy'] as Map;
-      isDeviceLocked.value = pol['is_locked'] == true || pol['is_locked'] == 1 || pol['isLocked'] == true;
-      dailyLimitMinutes.value = toInt(pol['daily_limit_minutes'] ?? pol['dailyLimitMinutes']);
-      bedtimeStart.value = (pol['bedtime_start'] ?? pol['bedtimeStart'] ?? '23:00').toString();
-      bedtimeEnd.value = (pol['bedtime_end'] ?? pol['bedtimeEnd'] ?? '05:00').toString();
+      final pol = ScreenTimePolicy.tryParse({'policy': student['policy']});
+      if (pol != null) {
+        isDeviceLocked.value = pol.isLocked;
+        dailyLimitMinutes.value = pol.dailyLimitMinutes;
+        bedtimeStart.value = pol.bedtimeStart;
+        bedtimeEnd.value = pol.bedtimeEnd;
+      }
     }
 
     final directApps = _extractAppsList(student);
@@ -783,8 +781,8 @@ class StudentScreenTimeController extends GetxController with WidgetsBindingObse
     blockedPackages.clear();
     isDeviceLocked.value = false;
     dailyLimitMinutes.value = 0;
-    bedtimeStart.value = '23:00';
-    bedtimeEnd.value = '05:00';
+    bedtimeStart.value = '';
+    bedtimeEnd.value = '';
     selectedAppFilter.value = 'All';
     appSearchQuery.value = '';
     appSearchController.clear();
@@ -971,12 +969,14 @@ class StudentScreenTimeController extends GetxController with WidgetsBindingObse
     }
   }
 
-  /// Saves [policy] for the selected student. Throws on failure so callers can
-  /// roll back their optimistic UI change.
-  Future<void> _putPolicy(ScreenTimePolicy policy) async {
+  /// Saves only the given policy [fields] for the selected student (the PUT is
+  /// a partial update), so a change made before the policy finished loading
+  /// can't overwrite the student's other rules. Throws on failure so callers
+  /// can roll back their optimistic UI change.
+  Future<void> _putPolicy(Map<String, dynamic> fields) async {
     final target = _targetId;
     if (target.isEmpty) throw StateError('No student selected');
-    await _apiClient.dio.put('/screen-time/policies/$target', data: policy.toJson());
+    await _apiClient.dio.put('/screen-time/policies/$target', data: fields);
     policyVersion.value = DateTime.now().toIso8601String();
   }
 
@@ -995,7 +995,16 @@ class StudentScreenTimeController extends GetxController with WidgetsBindingObse
     // Optimistic update; rolled back below if the API rejects it.
     _applyPolicy(updated);
     try {
-      await _putPolicy(updated);
+      final target = _targetId;
+      if (target.isEmpty) throw StateError('No student selected');
+      // One app at a time, so the rest of the student's block list is untouched.
+      await _apiClient.dio.post('/screen-time/apps/rule', data: {
+        'student_id': target,
+        'package_name': packageName,
+        'app_name': appName,
+        'is_blocked': block,
+      });
+      policyVersion.value = DateTime.now().toIso8601String();
       if (block) {
         AppSnackbar.warning('App Restricted', '$appName is now restricted for $studentName.');
       } else {
@@ -1028,7 +1037,7 @@ class StudentScreenTimeController extends GetxController with WidgetsBindingObse
 
     _applyPolicy(previous.copyWith(isLocked: lock));
     try {
-      await _putPolicy(currentPolicy);
+      await _putPolicy({'is_locked': lock});
       if (lock) {
         AppSnackbar.warning(
           'Device Locked',
@@ -1064,7 +1073,11 @@ class StudentScreenTimeController extends GetxController with WidgetsBindingObse
     ));
 
     try {
-      await _putPolicy(currentPolicy);
+      await _putPolicy({
+        'daily_limit_minutes': limitMinutes,
+        'bedtime_start': startBedtime,
+        'bedtime_end': endBedtime,
+      });
       AppSnackbar.success(
         'Policy Saved',
         'Curfew ($startBedtime - $endBedtime) & daily limit updated.',

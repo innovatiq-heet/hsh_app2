@@ -1,7 +1,7 @@
 import 'package:get/get.dart';
 import '../../../models/geofence/geofence_breach_event.dart';
 import '../../../models/geofence/geofence_policy_model.dart';
-import '../../../../features/screentime/models/screen_time_policy.dart';
+import '../../../models/geofence/student_location.dart';
 import '../../api_client.dart';
 
 /// Warden-side API for the curfew geofence.
@@ -39,41 +39,37 @@ class GeofenceRepository {
     return items;
   }
 
-  /// Record what the warden did about a breach.
+  /// Every active student with the last location their phone reported.
+  Future<List<StudentLocation>> fetchStudentLocations({String? search}) async {
+    final response = await _apiClient.dio.get('/geofence/locations', queryParameters: {
+      if (search != null && search.trim().isNotEmpty) 'search': search.trim(),
+    });
+    final raw = response.data;
+    final list = raw is Map ? raw['data'] : raw;
+    if (list is! List) return const [];
+    return list.whereType<Map>().map(StudentLocation.fromJson).toList();
+  }
+
+  /// Record what the warden did about a breach. The backend carries out the
+  /// side effects so they can't half-apply:
+  ///  - [BreachActionStatus.gatePassGranted] stores a pass for [gatePassHours]
+  ///    — the phone stops enforcing the curfew until it expires;
+  ///  - [BreachActionStatus.warningSent] pushes a warning to the student.
   ///
-  /// [gatePassHours] is sent with [BreachActionStatus.gatePassGranted] so the
-  /// backend can set `exemptUntil` on that student's geofence policy — the
-  /// phone then stops reporting until the pass expires.
-  Future<void> recordAdminAction({
+  /// Returns the server's result (`exemptUntil`, `notified`).
+  Future<Map<String, dynamic>> recordAdminAction({
     required String breachId,
     required String studentId,
     required BreachActionStatus action,
     int? gatePassHours,
   }) async {
-    await _apiClient.dio.post('/geofence/admin-action', data: {
+    final response = await _apiClient.dio.post('/geofence/admin-action', data: {
       'breachId': breachId,
       'studentId': studentId,
       'action': action.name,
       'gatePassHours': ?gatePassHours,
-      if (gatePassHours != null)
-        'exemptUntil': DateTime.now().add(Duration(hours: gatePassHours)).toUtc().toIso8601String(),
-      'timestamp': DateTime.now().toUtc().toIso8601String(),
     });
-  }
-
-  /// Remote-lock through the normal screen-time policy, preserving the
-  /// student's blocked apps, curfew and daily limit.
-  Future<void> lockStudentPhone(String studentId) async {
-    ScreenTimePolicy current = const ScreenTimePolicy();
-    try {
-      final res = await _apiClient.dio.get('/screen-time/policies/$studentId');
-      current = ScreenTimePolicy.tryParse(res.data) ?? current;
-    } catch (_) {
-      // No existing policy yet — locking a fresh one is fine.
-    }
-    await _apiClient.dio.put(
-      '/screen-time/policies/$studentId',
-      data: current.copyWith(isLocked: true).toJson(),
-    );
+    final data = response.data is Map ? response.data['data'] : null;
+    return data is Map ? Map<String, dynamic>.from(data) : const {};
   }
 }

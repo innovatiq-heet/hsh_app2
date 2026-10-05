@@ -126,8 +126,8 @@ class UsageHeroCard extends GetView<StudentScreenTimeController> {
                     const SizedBox(width: 8),
                     Expanded(
                       child: Text(
-                        '${StudentScreenTimeController.formatMinutes(night)} used during curfew '
-                        '(${controller.bedtimeStart.value}–${controller.bedtimeEnd.value})',
+                        '${StudentScreenTimeController.formatMinutes(night)} used during curfew'
+                        '${controller.bedtimeStart.value.isEmpty ? '' : ' (${controller.bedtimeStart.value}–${controller.bedtimeEnd.value})'}',
                         style: AppTextStyles.bodySm.copyWith(color: Colors.white),
                       ),
                     ),

@@ -54,6 +54,8 @@ import '../../features/student_profile/views/edit_profile_screen.dart';
 import '../../features/vehicle/views/vehicle_redirect_screen.dart';
 import '../../features/geofence/bindings/admin_geofence_binding.dart';
 import '../../features/geofence/views/admin_geofence_screen.dart';
+import '../../features/geofence/bindings/student_locations_binding.dart';
+import '../../features/geofence/views/student_locations_screen.dart';
 import '../../features/shared/screens/no_internet_screen.dart';
 import 'app_routes.dart';
 
@@ -258,6 +260,11 @@ class AppPages {
       name: Routes.operatorGeofence,
       page: () => const AdminGeofenceScreen(),
       binding: AdminGeofenceBinding(),
+    ),
+    GetPage(
+      name: Routes.operatorStudentLocations,
+      page: () => const StudentLocationsScreen(),
+      binding: StudentLocationsBinding(),
     ),
 
     // â”€â”€ Utility â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€

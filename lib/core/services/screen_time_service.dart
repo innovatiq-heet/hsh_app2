@@ -65,19 +65,12 @@ class ScreenTimeService {
 
   // ---------- Policy ----------
 
-  /// Stores the full policy natively so the blocker enforces it immediately,
-  /// without waiting for the next poll.
-  static Future<void> syncPolicyToNative(ScreenTimePolicy policy) => _invoke(
-        'syncPolicyToNative',
-        {
-          'blockedPackages': policy.blockedPackages.toList(),
-          'isLocked': policy.isLocked,
-          'dailyLimitMinutes': policy.dailyLimitMinutes,
-          'bedtimeStart': policy.bedtimeStart,
-          'bedtimeEnd': policy.bedtimeEnd,
-          'version': policy.version,
-        },
-      );
+  /// Asks the native policy sync to fetch the latest policy now (e.g. when the
+  /// app comes to the foreground). The native side is the only writer of the
+  /// enforced policy and applies responses in version order, so the latest
+  /// warden change always wins; it also stays in sync on its own (long-poll)
+  /// while the app is closed.
+  static Future<void> refreshPolicy() => _invoke('refreshPolicy');
 
   /// The policy currently enforced on this device.
   static Future<ScreenTimePolicy?> getNativePolicy() async {

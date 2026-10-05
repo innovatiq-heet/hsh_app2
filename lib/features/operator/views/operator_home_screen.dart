@@ -64,6 +64,13 @@ class OperatorHomeScreen extends StatelessWidget {
         Color(0xFFE65100),
         Routes.operatorGeofence,
       ),
+      _OperatorAction(
+        'Student Locations',
+        'Every student\'s current location on the map',
+        Icons.share_location_rounded,
+        Color(0xFF00796B),
+        Routes.operatorStudentLocations,
+      ),
     ]),
   ];
 

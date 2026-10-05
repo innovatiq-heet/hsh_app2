@@ -5,8 +5,10 @@ import android.app.NotificationChannel
 import android.app.NotificationManager
 import android.app.PendingIntent
 import android.app.Service
+import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
+import android.content.IntentFilter
 import android.content.pm.ServiceInfo
 import android.os.Build
 import android.os.Handler
@@ -21,10 +23,25 @@ import org.json.JSONObject
 import java.net.HttpURLConnection
 import java.net.URL
 import java.util.concurrent.Executors
+import java.util.concurrent.LinkedBlockingQueue
+import java.util.concurrent.TimeUnit
 
 /**
- * Foreground service that polls `/screen-time/policies/me` so a remote lock or
- * block lands on the device within seconds, with the app closed.
+ * Foreground service that keeps the device policy in sync with the backend so
+ * a remote lock or app block lands on the device within seconds, with the app
+ * closed.
+ *
+ * Policy sync runs on its own thread as a long-poll: while the screen is on
+ * the server holds `GET /screen-time/policies/me?wait=…` open and answers the
+ * moment a warden changes something, then the next request goes out at once.
+ * With the screen off it falls back to a plain fetch every [POLL_IDLE_MS]
+ * (woken early by screen-on or [requestRefresh]); against a server without
+ * long-poll it fetches every [POLL_ACTIVE_MS]; offline it backs off.
+ * Every applied change notifies [PolicyStore] listeners, which is what makes
+ * [AppBlockerAccessibilityService] re-check the app currently on screen.
+ *
+ * A separate tick handles the curfew geofence and re-checks the foreground
+ * app for time-based rules (bedtime start, daily limit reached mid-use).
  *
  * It must be a *foreground* service: since Android 8 a plain background
  * service is killed about a minute after the app leaves the screen, and
@@ -38,11 +55,23 @@ class PolicyPollService : Service() {
         private const val CHANNEL_ID = "hsh_monitoring"
         private const val NOTIFICATION_ID = 7101
 
-        /** Fast while the student is actually using the phone, relaxed when the screen is off. */
+        /** Tick / fallback poll: fast while the phone is in use, relaxed when the screen is off. */
         private const val POLL_ACTIVE_MS = 30_000L
         private const val POLL_IDLE_MS = 120_000L
+        /** How long the server may hold a policy request open (server caps it at 25 s). */
+        private const val LONG_POLL_SECONDS = 25
+        /** Offline / server error backoff for the policy sync. */
+        private const val RETRY_MIN_MS = 5_000L
+        private const val RETRY_MAX_MS = 60_000L
+        /**
+         * Tick cadence with the screen off. Short so a 1-minute location
+         * interval is honoured; a tick does no work unless something is due.
+         */
+        private const val TICK_IDLE_MS = 60_000L
         /** Curfew rules change rarely; the lock/block policy is what needs to be fast. */
         private const val GEO_POLICY_TTL_MS = 10 * 60 * 1000L
+
+        @Volatile private var instance: PolicyPollService? = null
 
         fun start(context: Context) {
             if (!PolicyStore.hasSession(context)) return
@@ -56,23 +85,42 @@ class PolicyPollService : Service() {
         fun stop(context: Context) {
             runCatching { context.stopService(Intent(context, PolicyPollService::class.java)) }
         }
+
+        /** Fetch the policy now (app opened, setup finished…); starts the service if it isn't running. */
+        fun requestRefresh(context: Context) {
+            instance?.wakeSync() ?: start(context)
+        }
     }
 
     private val handler = Handler(Looper.getMainLooper())
     private val executor = Executors.newSingleThreadExecutor()
-    private var running = false
+    private val syncExecutor = Executors.newSingleThreadExecutor()
+    /** Interruptible sleep for the sync loop: anything offered here wakes it early. */
+    private val syncWakeups = LinkedBlockingQueue<Unit>()
+    @Volatile private var running = false
     @Volatile private var geoPolicyFetchedAt = 0L
+
+    private val screenOnReceiver = object : BroadcastReceiver() {
+        override fun onReceive(context: Context, intent: Intent) {
+            // Leave the idle interval at once and resume the real-time channel.
+            wakeSync()
+            AppBlockerAccessibilityService.recheckForeground()
+        }
+    }
 
     private val pollRunnable = object : Runnable {
         override fun run() {
             if (!running) return
             executor.execute {
-                fetchPolicy()
                 fetchGeofencePolicyIfStale()
                 sampleGeofenceIfDue()
+                reportLocationIfNew()
             }
+            // Time-based rules (bedtime starting, daily limit reached) can begin
+            // while an app is already open; there is no window event for that.
+            AppBlockerAccessibilityService.recheckForeground()
             val pm = getSystemService(Context.POWER_SERVICE) as PowerManager
-            handler.postDelayed(this, if (pm.isInteractive) POLL_ACTIVE_MS else POLL_IDLE_MS)
+            handler.postDelayed(this, if (pm.isInteractive) POLL_ACTIVE_MS else TICK_IDLE_MS)
         }
     }
 
@@ -106,51 +154,75 @@ class PolicyPollService : Service() {
         }
         if (!running) {
             running = true
+            instance = this
+            ContextCompat.registerReceiver(
+                this, screenOnReceiver, IntentFilter(Intent.ACTION_SCREEN_ON), ContextCompat.RECEIVER_NOT_EXPORTED,
+            )
             handler.post(pollRunnable)
+            syncExecutor.execute { syncLoop() }
             Log.d(TAG, "started")
+        } else {
+            wakeSync()
         }
         return START_STICKY
     }
 
     override fun onDestroy() {
         running = false
+        if (instance === this) instance = null
+        runCatching { unregisterReceiver(screenOnReceiver) }
         handler.removeCallbacks(pollRunnable)
         executor.shutdownNow()
+        syncExecutor.shutdownNow() // interrupts the loop's sleep / in-flight wait
         super.onDestroy()
     }
 
-    private fun fetchPolicy() {
-        val token = PolicyStore.token(this)
-        val baseUrl = PolicyStore.baseUrl(this)
-        if (token.isNullOrEmpty() || baseUrl.isNullOrEmpty()) {
-            handler.post { stopSelf() }
-            return
-        }
+    private fun wakeSync() {
+        syncWakeups.offer(Unit)
+    }
 
-        var conn: HttpURLConnection? = null
-        try {
-            conn = (URL("$baseUrl/screen-time/policies/me").openConnection() as HttpURLConnection).apply {
-                requestMethod = "GET"
-                connectTimeout = 10_000
-                readTimeout = 10_000
-                setRequestProperty("Accept", "application/json")
-                setRequestProperty("Authorization", "Bearer $token")
+    /** Sleeps up to [ms], returning early when [wakeSync] is called. False when interrupted (shutting down). */
+    private fun sleepUntilWoken(ms: Long): Boolean = try {
+        syncWakeups.poll(ms, TimeUnit.MILLISECONDS)
+        syncWakeups.clear()
+        true
+    } catch (_: InterruptedException) {
+        false
+    }
+
+    /** Keeps the device policy current; see the class comment for the cadence. */
+    private fun syncLoop() {
+        var retryMs = RETRY_MIN_MS
+        while (running) {
+            if (!PolicyStore.hasSession(this)) {
+                handler.post { stopSelf() }
+                return
             }
-            when (conn.responseCode) {
-                in 200..299 -> {
-                    val body = conn.inputStream.bufferedReader().use { it.readText() }
-                    PolicyStore.applyPolicyJson(this, JSONObject(body))
-                }
-                401 -> {
+            val interactive = (getSystemService(Context.POWER_SERVICE) as PowerManager).isInteractive
+            val result = ScreenTimeSync.fetchAndSavePolicy(this, if (interactive) LONG_POLL_SECONDS else 0)
+            if (!running) return
+            if (result.geofenceApplied) geoPolicyFetchedAt = System.currentTimeMillis()
+
+            val pause = when {
+                result.code == 401 -> {
                     // Session is dead; stop until the app hands us a fresh token.
                     PolicyStore.clearToken(this)
                     handler.post { stopSelf() }
+                    return
                 }
+                result.code in 200..299 -> {
+                    retryMs = RETRY_MIN_MS
+                    when {
+                        // The server already waited for a change: ask again right away.
+                        result.longPolled -> 0L
+                        interactive -> POLL_ACTIVE_MS
+                        else -> POLL_IDLE_MS
+                    }
+                }
+                // Offline or server error: retry with backoff, keep the last good policy.
+                else -> retryMs.also { retryMs = (retryMs * 2).coerceAtMost(RETRY_MAX_MS) }
             }
-        } catch (e: Exception) {
-            Log.d(TAG, "poll failed: ${e.message}")
-        } finally {
-            conn?.disconnect()
+            if (pause > 0 && !sleepUntilWoken(pause)) return
         }
     }
 
@@ -186,8 +258,21 @@ class PolicyPollService : Service() {
      * An exit or spoofing event is pushed to the backend straight away.
      */
     private fun sampleGeofenceIfDue() {
-        if (!GeofenceEvaluator.isEnforcing(this)) return
-        if (!LocationSampler.hasAnyPermission(this)) return
+        if (!GeofenceEvaluator.isEnforcing(this)) {
+            GeofenceEvaluator.clearStaleState(this)
+            sampleLocationIfDue()
+            return
+        }
+        val unavailable = when {
+            !LocationSampler.hasAnyPermission(this) -> "permission_denied"
+            !LocationSampler.isLocationEnabled(this) -> "location_disabled"
+            else -> null
+        }
+        if (unavailable != null) {
+            // Can't check the fence at all — tell the warden instead of going silent.
+            if (GeofenceEvaluator.reportLocationUnavailable(this, unavailable)) ScreenTimeSync.syncNow(this)
+            return
+        }
         val policy = PolicyStore.geofencePolicy(this)
         val now = System.currentTimeMillis()
         val deciding = PolicyStore.geofenceStreak(this) > 0
@@ -198,6 +283,59 @@ class PolicyPollService : Service() {
         val fix = LocationSampler.sample(this) ?: return
         when (GeofenceEvaluator.process(this, fix)) {
             "exit", "mock_location", "enter" -> ScreenTimeSync.syncNow(this)
+        }
+    }
+
+    /**
+     * Outside curfew: keep the warden's location list current with one fix
+     * per warden-configured interval (`checkIntervalMinutes`, the same one the
+     * curfew check above uses). Nothing is evaluated or reported as a breach here.
+     */
+    private fun sampleLocationIfDue() {
+        if (!LocationSampler.hasAnyPermission(this) || !LocationSampler.isLocationEnabled(this)) return
+        val interval = PolicyStore.geofencePolicy(this).intervalMinutes.coerceAtLeast(1) * 60_000L
+        if (System.currentTimeMillis() - PolicyStore.lastSampleAt(this) < interval) return
+        PolicyStore.markSampleAttempt(this)
+        LocationSampler.sample(this)?.let { PolicyStore.saveLastFix(this, it) }
+    }
+
+    /** Uploads the latest fix if the backend hasn't accepted it yet (retried next tick when offline). */
+    private fun reportLocationIfNew() {
+        val fix = PolicyStore.lastFix(this) ?: return
+        if (fix.timeMillis <= PolicyStore.lastReportedFixAt(this)) return
+        val token = PolicyStore.token(this) ?: return
+        val baseUrl = PolicyStore.baseUrl(this) ?: return
+        val polygon = PolicyStore.geofencePolicy(this).polygon
+        val body = JSONObject()
+            .put("latitude", fix.latitude)
+            .put("longitude", fix.longitude)
+            .put("accuracyMeters", fix.accuracyMeters.toDouble())
+            .put("time", fix.timeMillis)
+            .put("mocked", fix.mocked)
+            .put("insideCampus", GeofenceEvaluator.isInside(polygon, fix.latitude, fix.longitude))
+            .put("distanceMeters", GeofenceEvaluator.distanceToEdgeMeters(polygon, fix.latitude, fix.longitude))
+
+        var conn: HttpURLConnection? = null
+        try {
+            conn = (URL("$baseUrl/geofence/location").openConnection() as HttpURLConnection).apply {
+                requestMethod = "POST"
+                connectTimeout = 10_000
+                readTimeout = 10_000
+                doOutput = true
+                setRequestProperty("Content-Type", "application/json")
+                setRequestProperty("Accept", "application/json")
+                setRequestProperty("Authorization", "Bearer $token")
+            }
+            conn.outputStream.use { it.write(body.toString().toByteArray(Charsets.UTF_8)) }
+            when (conn.responseCode) {
+                in 200..299 -> PolicyStore.markFixReported(this, fix.timeMillis)
+                // Rejected as invalid/stale: don't retry this fix forever.
+                400 -> PolicyStore.markFixReported(this, fix.timeMillis)
+            }
+        } catch (e: Exception) {
+            Log.d(TAG, "location report failed: ${e.message}")
+        } finally {
+            conn?.disconnect()
         }
     }
 

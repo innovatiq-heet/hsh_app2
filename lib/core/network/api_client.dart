@@ -28,8 +28,9 @@ class ApiClient {
     final dio = Dio(
       BaseOptions(
         baseUrl: AppConfig.baseUrl,
-        connectTimeout: const Duration(seconds: 30),
-        receiveTimeout: const Duration(seconds: 30),
+        // Render's free tier can take ~50s to wake from idle.
+        connectTimeout: const Duration(seconds: 60),
+        receiveTimeout: const Duration(seconds: 60),
         sendTimeout: const Duration(seconds: 30),
         contentType: 'application/json',
         headers: const {'Accept': 'application/json'},

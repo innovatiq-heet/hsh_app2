@@ -79,7 +79,7 @@ class ParentalControlsCard extends GetView<StudentScreenTimeController> {
                       _RuleTile(
                         icon: Icons.nightlight_round,
                         label: 'Curfew',
-                        value: '$start–$end',
+                        value: start.isEmpty || end.isEmpty ? 'Off' : '$start–$end',
                         color: AppColors.secondary,
                         onTap: () => CurfewSettingsSheet.show(context),
                       ),
@@ -146,9 +146,9 @@ class ParentalControlsCard extends GetView<StudentScreenTimeController> {
     final parts = <String>[
       if (blocked > 0) '$blocked app${blocked == 1 ? '' : 's'} blocked',
       if (limit > 0) '${StudentScreenTimeController.formatMinutes(limit)} per day',
-      'curfew $start–$end',
+      if (start.isNotEmpty && end.isNotEmpty) 'curfew $start–$end',
     ];
-    return parts.join(' • ');
+    return parts.isEmpty ? 'No restrictions' : parts.join(' • ');
   }
 
   Future<void> _confirmLock(BuildContext context, bool lock) async {

@@ -53,6 +53,8 @@ object PolicyStore {
     private const val KEY_GEO_LAST_FIX = "geofence_last_fix"
     private const val KEY_GEO_LAST_SAMPLE_AT = "geofence_last_sample_at"
     private const val KEY_GEO_LAST_MOCK_AT = "geofence_last_mock_at"
+    private const val KEY_GEO_LAST_UNAVAILABLE_AT = "geofence_last_unavailable_at"
+    private const val KEY_GEO_LAST_REPORTED_FIX_AT = "geofence_last_reported_fix_at"
     private const val KEY_GEO_EVENTS = "geofence_events"
     private const val MAX_GEO_EVENTS = 300
 
@@ -63,6 +65,9 @@ object PolicyStore {
     private const val KEY_BEDTIME_END = "bedtime_end"
     private const val KEY_POLICY_VERSION = "policy_version"
     private const val KEY_POLICY_APPLIED_AT = "policy_applied_at"
+    private const val KEY_POLICY_VERSION_NUM = "policy_version_num"
+    /** Longer than any policy request can be in flight (long-poll 25 s + timeouts). */
+    private const val STALE_WINDOW_MS = 2 * 60 * 1000L
 
     private const val MAX_BLOCK_EVENTS = 200
 
@@ -158,7 +163,10 @@ object PolicyStore {
 
     fun policyAppliedAt(context: Context): Long = prefs(context).getLong(KEY_POLICY_APPLIED_AT, 0L)
 
-    fun savePolicy(context: Context, policy: DevicePolicy) {
+    /** Backend `policy_version` of the stored policy (0 = none yet). Monotonic per student. */
+    fun policyVersionNumber(context: Context): Int = prefs(context).getInt(KEY_POLICY_VERSION_NUM, 0)
+
+    fun savePolicy(context: Context, policy: DevicePolicy, versionNumber: Int? = null) {
         val old = policy(context)
         prefs(context).edit()
             .putBoolean(KEY_IS_LOCKED, policy.isLocked)
@@ -168,6 +176,7 @@ object PolicyStore {
             .putString(KEY_BEDTIME_END, policy.bedtimeEnd)
             .putString(KEY_POLICY_VERSION, policy.version)
             .putLong(KEY_POLICY_APPLIED_AT, System.currentTimeMillis())
+            .also { if (versionNumber != null) it.putInt(KEY_POLICY_VERSION_NUM, versionNumber) }
             .apply()
         policyCache = policy
         if (old != policy) {
@@ -181,7 +190,14 @@ object PolicyStore {
      * inside the ping response) and persists it. Accepts both snake_case and
      * camelCase, nested under `data` and/or `policy`, because the API currently
      * emits both.
+     *
+     * Several paths fetch the policy concurrently (the long-poll loop, the
+     * ping echo), so responses can land out of order. A response carrying an
+     * older `policy_version` than the one already applied is discarded — the
+     * latest warden change always wins. Synchronized so the version check and
+     * the write can't interleave between threads.
      */
+    @Synchronized
     fun applyPolicyJson(context: Context, root: JSONObject): DevicePolicy? {
         val data = root.optJSONObject("data") ?: root
         val pol = data.optJSONObject("policy") ?: data
@@ -192,6 +208,18 @@ object PolicyStore {
         ).any { pol.has(it) || data.has(it) }
         if (!hasAny) return null
 
+        val incomingVersion = optInt(pol, "policy_version", "policyVersion")
+        if (incomingVersion != null) {
+            val applied = policyVersionNumber(context)
+            // Reordering only spans a single request's lifetime; a lower version
+            // that persists beyond that is a genuine server-side reset.
+            val recent = System.currentTimeMillis() - policyAppliedAt(context) < STALE_WINDOW_MS
+            if (incomingVersion < applied && recent) {
+                Log.d(TAG, "Ignoring stale policy v$incomingVersion (applied v$applied)")
+                return null
+            }
+        }
+
         val current = policy(context)
         val blockedArr = data.optJSONArray("blockedPackages")
             ?: data.optJSONArray("blocked_packages")
@@ -201,15 +229,23 @@ object PolicyStore {
             (0 until arr.length()).mapNotNull { arr.optString(it).takeIf { s -> s.isNotBlank() } }.toSet()
         } ?: current.blockedPackages
 
+        // The backend sends `bedtime_start: null` when the warden turns bedtime
+        // off; that must clear it rather than keep the old window.
+        val bedtimeKeys = listOf("bedtime_start", "bedtimeStart", "bedtime_end", "bedtimeEnd")
+        val bedtimeSent = bedtimeKeys.any { pol.has(it) }
+        val start = optStr(pol, "bedtime_start", "bedtimeStart")
+        val end = optStr(pol, "bedtime_end", "bedtimeEnd")
+        val bedtimeOff = bedtimeSent && (start == null || end == null)
+
         val updated = DevicePolicy(
             isLocked = optBool(pol, "is_locked", "isLocked") ?: optBool(data, "is_locked", "isLocked") ?: current.isLocked,
             blockedPackages = blocked,
             dailyLimitMinutes = optInt(pol, "daily_limit_minutes", "dailyLimitMinutes") ?: current.dailyLimitMinutes,
-            bedtimeStart = optStr(pol, "bedtime_start", "bedtimeStart") ?: current.bedtimeStart,
-            bedtimeEnd = optStr(pol, "bedtime_end", "bedtimeEnd") ?: current.bedtimeEnd,
+            bedtimeStart = if (bedtimeOff) "" else start ?: current.bedtimeStart,
+            bedtimeEnd = if (bedtimeOff) "" else end ?: current.bedtimeEnd,
             version = optStr(pol, "updatedAt", "updated_at") ?: optStr(pol, "version", "policyVersion") ?: current.version,
         )
-        savePolicy(context, updated)
+        savePolicy(context, updated, incomingVersion)
         return updated
     }
 
@@ -314,14 +350,11 @@ object PolicyStore {
     fun geofenceHeartbeatAt(context: Context): Long = prefs(context).getLong(KEY_GEO_HEARTBEAT_AT, 0L)
 
     fun saveGeofenceState(context: Context, state: GeofenceState, streak: Int, heartbeatAt: Long? = null) {
-        val old = geofenceState(context)
         prefs(context).edit().apply {
             putString(KEY_GEO_STATE, state.name)
             putInt(KEY_GEO_STREAK, streak)
             if (heartbeatAt != null) putLong(KEY_GEO_HEARTBEAT_AT, heartbeatAt)
         }.apply()
-        // The blocker may need to lock/unlock immediately on an exit/enter.
-        if (old != state) synchronized(listeners) { listeners.toList() }.forEach { runCatching { it() } }
     }
 
     fun lastFix(context: Context): LocationFix? {
@@ -352,8 +385,40 @@ object PolicyStore {
     fun lastSampleAt(context: Context): Long = prefs(context).getLong(KEY_GEO_LAST_SAMPLE_AT, 0L)
     fun markSampleAttempt(context: Context) = prefs(context).edit().putLong(KEY_GEO_LAST_SAMPLE_AT, System.currentTimeMillis()).apply()
 
+    /** Fix time (epoch millis) of the last location the backend accepted. */
+    fun lastReportedFixAt(context: Context): Long = prefs(context).getLong(KEY_GEO_LAST_REPORTED_FIX_AT, 0L)
+    fun markFixReported(context: Context, fixTime: Long) =
+        prefs(context).edit().putLong(KEY_GEO_LAST_REPORTED_FIX_AT, fixTime).apply()
+
     fun lastMockEventAt(context: Context): Long = prefs(context).getLong(KEY_GEO_LAST_MOCK_AT, 0L)
     fun markMockEvent(context: Context, at: Long) = prefs(context).edit().putLong(KEY_GEO_LAST_MOCK_AT, at).apply()
+
+    fun lastUnavailableEventAt(context: Context): Long = prefs(context).getLong(KEY_GEO_LAST_UNAVAILABLE_AT, 0L)
+    fun markUnavailableEvent(context: Context, at: Long) = prefs(context).edit().putLong(KEY_GEO_LAST_UNAVAILABLE_AT, at).apply()
+
+    /**
+     * Forgets everything tied to the logged-out student: their gate pass,
+     * inside/outside state, last fix and any events not yet uploaded. Without
+     * this the next student to log in on this phone would upload (and be
+     * blamed for) the previous student's breaches and block events.
+     */
+    fun clearStudentState(context: Context) {
+        prefs(context).edit()
+            .remove(KEY_GEO_POLICY)
+            .remove(KEY_GEO_STATE)
+            .remove(KEY_GEO_STREAK)
+            .remove(KEY_GEO_HEARTBEAT_AT)
+            .remove(KEY_GEO_LAST_FIX)
+            .remove(KEY_GEO_LAST_SAMPLE_AT)
+            .remove(KEY_GEO_LAST_MOCK_AT)
+            .remove(KEY_GEO_LAST_UNAVAILABLE_AT)
+            .remove(KEY_GEO_LAST_REPORTED_FIX_AT)
+            .remove(KEY_GEO_EVENTS)
+            .remove(KEY_BLOCK_EVENTS)
+            .remove(KEY_POLICY_VERSION_NUM)
+            .apply()
+        geoPolicyCache = null
+    }
 
     fun recordGeofenceEvent(context: Context, event: JSONObject) {
         val p = prefs(context)

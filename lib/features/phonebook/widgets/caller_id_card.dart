@@ -20,6 +20,24 @@ class CallerIdCard extends GetView<PhonebookController> {
       final isIOS = GetPlatform.isIOS;
 
       if (!s.supported) {
+        if (isIOS) {
+          // On iOS, "not supported" usually means the App Group / extension
+          // isn't wired up yet — show a helpful message instead of the
+          // Android-only copy.
+          return _shell(
+            icon: Icons.phone_in_talk_rounded,
+            color: AppColors.primary,
+            title: 'Know who\'s calling',
+            body: 'See which student or parent is calling, right on the call screen.',
+            trailing: AppButton(
+              label: 'Open Settings',
+              icon: Icons.settings_rounded,
+              expand: false,
+              isLoading: busy,
+              onPressed: controller.enableCallerId,
+            ),
+          );
+        }
         return _shell(
           icon: Icons.phone_disabled_rounded,
           color: AppColors.textMuted,

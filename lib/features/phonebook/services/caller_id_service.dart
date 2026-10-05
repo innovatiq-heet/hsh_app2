@@ -57,8 +57,6 @@ class CallerIdService {
   CallerIdService._();
 
   static const _channel = MethodChannel('hsh/caller_id');
-  static const _appName = 'HSH';
-
   static bool get isSupported => Platform.isAndroid || Platform.isIOS;
 
   static Future<CallerIdStatus> status() async {
@@ -132,12 +130,32 @@ class CallerIdService {
           : names.length == 2
               ? '${names[0]} & ${names[1]}'
               : '${names.first} +${names.length - 1}';
-      final place = a.places.length == 1 ? a.places.first : '';
-      final label = [_appName, who, if (place.isNotEmpty) place, relation].join(' · ');
+      final place = a.places.length == 1 ? _formatPlace(a.places.first) : '';
+      
+      final parts = <String>[
+        who,
+        if (place.isNotEmpty) place,
+        if (relation != 'Student') relation,
+      ];
+      final label = parts.join(' · ');
       return DirectoryEntry(e.key, label.length > 60 ? '${label.substring(0, 57)}…' : label);
     }).toList()
       ..sort((a, b) => a.number.compareTo(b.number));
     return entries;
+  }
+
+  static String _formatPlace(String rawPlace) {
+    if (rawPlace.isEmpty || rawPlace == 'HSH Resident') return '';
+    final roomMatch = RegExp(r'Room\s*([A-Za-z0-9_-]+)', caseSensitive: false).firstMatch(rawPlace);
+    if (roomMatch != null) {
+      final roomNum = roomMatch.group(1)!;
+      final groupOnly = rawPlace.replaceAll(RegExp(r'[•·-]?\s*Room\s*[A-Za-z0-9_-]+', caseSensitive: false), '').trim();
+      if (groupOnly.isNotEmpty && groupOnly != 'HSH Resident') {
+        return 'Rm $roomNum ($groupOnly)';
+      }
+      return 'Rm $roomNum';
+    }
+    return rawPlace;
   }
 
   /// `Student Mobile` → `Student`, `Father Contact` → `Father`, …

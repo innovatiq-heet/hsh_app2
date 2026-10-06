@@ -1,4 +1,9 @@
-﻿import 'package:flutter_test/flutter_test.dart';
+﻿// Calls the live attendance API; results change with real data. CI skips it
+// (`flutter test --exclude-tags live`).
+@Tags(['live'])
+library;
+
+import 'package:flutter_test/flutter_test.dart';
 import 'package:hsh_app2/core/network/repository/attendance/attendance_repository.dart';
 import 'package:hsh_app2/core/network/api_client.dart';
 import 'package:get/get.dart';

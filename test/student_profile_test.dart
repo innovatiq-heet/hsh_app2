@@ -1,4 +1,9 @@
-﻿import 'package:flutter_test/flutter_test.dart';
+﻿// Calls the live AVD VVN student API; results change with real data. CI skips
+// it (`flutter test --exclude-tags live`).
+@Tags(['live'])
+library;
+
+import 'package:flutter_test/flutter_test.dart';
 import 'package:get/get.dart';
 import 'package:hsh_app2/core/enums/admission_status.dart';
 import 'package:hsh_app2/core/models/student_profile/student_profile_model.dart';

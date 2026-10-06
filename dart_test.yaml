@@ -1,0 +1,5 @@
+# Test tags. Run everything offline with:  flutter test --exclude-tags live
+tags:
+  live:
+    # Calls real external APIs (AVD VVN directory, hosted attendance API).
+    # Results change with live data, so CI and scripts/check.sh skip them.

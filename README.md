@@ -22,19 +22,21 @@ The backend is a separate repo, **`hsh_api`** (Node.js + Express + MySQL). The a
 
 ## Getting started
 
-**Requirements:** Flutter stable 3.41.x (Dart SDK `^3.11.4`, see `pubspec.yaml`), Android Studio / Android SDK, and Xcode on macOS for iOS builds.
+**Requirements:** Flutter stable **3.44 or newer**. The committed `pubspec.lock` requires Flutter ≥ 3.44 / Dart ≥ 3.12; an older Flutter will silently downgrade packages in `pubspec.lock`, so don't commit that. You also need Android Studio / Android SDK, and Xcode on macOS for iOS builds.
 
 ```bash
 flutter pub get
-flutter run            # pick a connected device
-flutter analyze        # static checks
-flutter test           # unit/widget tests
+flutter run                                  # pick a connected device
+bash scripts/check.sh                        # analyze + offline tests (same as CI)
+bash scripts/check.sh --android --api ../hsh_api   # + native Android compile + backend e2e
 ```
+
+Rules for contributors and AI agents, including feature invariants that must not break, are in [AGENTS.md](AGENTS.md). CI ([.github/workflows/ci.yml](.github/workflows/ci.yml)) runs the same checks on every push and pull request.
 
 - **Backend URL:** change `AppConfig.host` to point at a local or staging `hsh_api`. The phone's background services receive the same base URL when monitoring starts.
 - **Student monitoring needs a real Android phone.** Usage access, the Accessibility app blocker, background location and the foreground service can't be exercised on an emulator in a meaningful way. Students are walked through these permissions on the device-setup screen after login.
 - **iOS caller ID** requires a paid Apple Developer team and the App Group described in [ios/CALLER_ID_SETUP.md](ios/CALLER_ID_SETUP.md).
-- **Tests that call live services:** `test/attendance_schedule_test.dart` and `test/student_profile_test.dart` hit real APIs and can fail when that data changes.
+- **Tests that call live services:** `test/attendance_schedule_test.dart` and `test/student_profile_test.dart` hit real APIs, so they are tagged `live` and skipped by `scripts/check.sh` and CI. Run them with `flutter test --tags live`.
 - **Over-the-air updates:** the app uses Shorebird code push (`shorebird.yaml`, `shorebird_code_push`). Release builds should be made with `shorebird release`; plain `flutter build` binaries don't receive patches.
 
 ## Project structure

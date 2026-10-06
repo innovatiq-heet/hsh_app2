@@ -1,0 +1,128 @@
+# Checks the app and the hsh_api backend it depends on.
+#
+#   app      flutter analyze + offline tests (scripts/check.sh)
+#   android  compiles the native Android code (screen time, geofence, caller ID)
+#   backend  hsh_api typecheck, JS-mirror check and end-to-end tests against MySQL
+#
+# One-time setup for the backend job (it is skipped with a warning until done):
+#   Settings → Secrets and variables → Actions
+#     secret   HSH_API_TOKEN       token with read access to the hsh_api repo
+#     variable HSH_API_REPOSITORY  optional, default AVDAPPLICATIONS/hsh_api
+#     variable HSH_API_REF         optional branch to test, default dev
+name: CI
+
+on:
+  push:
+    branches: [master, 'MVP-*']
+  pull_request:
+  workflow_dispatch:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+env:
+  # pubspec.lock requires Flutter >= 3.44 (Dart >= 3.12); CI resolves it with
+  # --enforce-lockfile, so an older Flutter would fail instead of downgrading.
+  FLUTTER_VERSION: 3.44.x
+
+jobs:
+  app:
+    name: Flutter analyze & tests
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: subosito/flutter-action@v2
+        with:
+          flutter-version: ${{ env.FLUTTER_VERSION }}
+          channel: stable
+          cache: true
+
+      - name: Analyze and run offline tests
+        run: bash scripts/check.sh
+
+  android:
+    name: Android native compile
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - uses: subosito/flutter-action@v2
+        with:
+          flutter-version: ${{ env.FLUTTER_VERSION }}
+          channel: stable
+          cache: true
+
+      - run: flutter pub get --enforce-lockfile
+
+      - name: Point Gradle at the Flutter SDK
+        run: echo "flutter.sdk=$FLUTTER_ROOT" > android/local.properties
+
+      - name: Compile Kotlin
+        working-directory: android
+        run: ./gradlew :app:compileDebugKotlin --console=plain --no-daemon
+
+  backend:
+    name: Backend typecheck & e2e (hsh_api)
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    env:
+      HSH_API_TOKEN: ${{ secrets.HSH_API_TOKEN }}
+    services:
+      mysql:
+        image: mysql:8.0
+        env:
+          MYSQL_ROOT_PASSWORD: root
+          MYSQL_DATABASE: hsh_ci
+        ports:
+          - 3306:3306
+        options: >-
+          --health-cmd="mysqladmin ping -h 127.0.0.1 -proot"
+          --health-interval=5s
+          --health-timeout=5s
+          --health-retries=20
+    steps:
+      - name: Backend repo not configured
+        if: env.HSH_API_TOKEN == ''
+        run: echo "::warning title=Backend not checked::Add the HSH_API_TOKEN repository secret (read access to hsh_api) to run the backend checks."
+
+      - name: Check out hsh_api
+        if: env.HSH_API_TOKEN != ''
+        uses: actions/checkout@v4
+        with:
+          repository: ${{ vars.HSH_API_REPOSITORY || 'AVDAPPLICATIONS/hsh_api' }}
+          ref: ${{ vars.HSH_API_REF || 'dev' }}
+          token: ${{ secrets.HSH_API_TOKEN }}
+          path: hsh_api
+
+      - uses: actions/setup-node@v4
+        if: env.HSH_API_TOKEN != ''
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: hsh_api/package-lock.json
+
+      - name: Install dependencies
+        if: env.HSH_API_TOKEN != ''
+        working-directory: hsh_api
+        run: npm ci
+
+      - name: Typecheck, JS mirrors, e2e tests
+        if: env.HSH_API_TOKEN != ''
+        working-directory: hsh_api
+        env:
+          DB_HOST: 127.0.0.1
+          DB_PORT: 3306
+          DB_USER: root
+          DB_PASSWORD: root
+          DB_NAME: hsh_ci
+          JWT_SECRET: ci-only-secret
+        run: npm run check

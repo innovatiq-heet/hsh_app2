@@ -86,6 +86,15 @@ class SessionStore extends GetxService {
   StudentProfileModel? get currentStudentProfile =>
       _cachedStudentProfile ?? _cachedSession?.studentProfile;
 
+  /// Synchronous check if current session is an alumni / former resident.
+  bool get isAlumni => _cachedSession?.isAlumni ?? false;
+
+  /// Asynchronous check if active user session is an alumni / former resident.
+  Future<bool> get isAlumniUser async {
+    final session = await userSession;
+    return session?.isAlumni ?? false;
+  }
+
   // ---------- Session lifecycle ----------
 
   /// Persists the authenticated session and student data using clean OOP models.

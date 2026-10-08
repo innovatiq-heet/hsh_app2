@@ -47,13 +47,19 @@ class SplashController extends GetxController {
       }
     }
 
-    // Re-arm background screen-time sync on every launch for students
-    if (role.isStudentOrLeader) {
+    // Re-arm background screen-time sync on every launch for active hostel students
+    final isAlumni = session?.isAlumni ?? false;
+    if (role.isStudentOrLeader && !isAlumni) {
       await ScreenTimeService.startMonitoring(token);
+    } else {
+      await ScreenTimeService.stopMonitoring();
     }
 
-    // Directly route to student profile / home screen
-    _routeByRole(role == UserRole.unknown ? UserRole.student : role);
+    // Directly route to student profile / home screen (or AlumniHub for alumni)
+    _routeByRole(
+      role == UserRole.unknown ? UserRole.student : role,
+      isAlumni: isAlumni,
+    );
   }
 
   /// Launched by tapping a caller-ID popup: land on the phonebook with that student.
@@ -68,12 +74,16 @@ class SplashController extends GetxController {
     });
   }
 
-  void _routeByRole(UserRole role) {
+  void _routeByRole(UserRole role, {bool isAlumni = false}) {
     _openCallerIdTargetIfAny(role);
     switch (role) {
       case UserRole.student:
       case UserRole.leader:
-        Get.offAllNamed(Routes.studentHome);
+        if (isAlumni) {
+          Get.offAllNamed(Routes.alumniHub);
+        } else {
+          Get.offAllNamed(Routes.studentHome);
+        }
         break;
       case UserRole.admin:
       case UserRole.warden:

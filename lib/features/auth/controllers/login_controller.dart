@@ -12,6 +12,7 @@ import '../../../core/network/repository/authentication/auth_repository.dart';
 import '../../../core/network/repository/student_profile/student_profile_repository.dart';
 import '../../../core/network/request/authentication/login_request.dart';
 import '../../../core/network/responses/authentication/auth_session_response.dart';
+import '../../../core/models/auth/user_session.dart';
 import '../../../core/models/student_profile/student_profile_model.dart';
 import '../../../core/storage/session_store.dart';
 import '../../../core/utils/app_snackbar.dart';
@@ -24,7 +25,7 @@ class LoginController extends GetxController {
   final SessionStore _session = Get.find();
 
   final formKey = GlobalKey<FormState>();
-  late final TextEditingController studentIdController;
+  final TextEditingController studentIdController = TextEditingController();
 
   final isLoading = false.obs;
   final errorMessage = ''.obs;
@@ -32,7 +33,7 @@ class LoginController extends GetxController {
   @override
   void onInit() {
     super.onInit();
-    studentIdController = TextEditingController();
+    studentIdController.removeListener(_clearError);
     studentIdController.addListener(_clearError);
 
     _attemptAutoLogin();
@@ -47,7 +48,6 @@ class LoginController extends GetxController {
   @override
   void onClose() {
     studentIdController.removeListener(_clearError);
-    studentIdController.dispose();
     super.onClose();
   }
 
@@ -202,7 +202,7 @@ class LoginController extends GetxController {
           room: session.room,
         );
       }
-      _routeByRole(session.role);
+      _routeByRole(session.role, isAlumni: session.isAlumni);
     } catch (_) {
       Get.find<ApiClient>().setAuthToken(null);
       // Gracefully fall back to the manual login form.
@@ -375,8 +375,17 @@ class LoginController extends GetxController {
         studentProfile: verifiedProfile,
       );
 
-      // Step 5: Route to appropriate destination
-      _routeByRole(session.role);
+      // Step 5: Route to appropriate destination (Alumni / N/A room students route to AlumniHub)
+      final isAlumni = session.isAlumni ||
+          UserSession.isAlumniRoomOrId(
+            room: session.room.isNotEmpty ? session.room : (verifiedProfile?.room ?? ''),
+            profileRoom: verifiedProfile?.room,
+            studentCode: session.studentCode.isNotEmpty
+                ? session.studentCode
+                : studentIdController.text.trim(),
+            id: session.id,
+          );
+      _routeByRole(session.role, isAlumni: isAlumni);
     } on ApiException catch (e) {
       Get.find<ApiClient>().setAuthToken(null);
       final friendly = _formatErrorMessage(e.message);
@@ -419,11 +428,15 @@ class LoginController extends GetxController {
     AppSnackbar.error('Login Failed', message);
   }
 
-  void _routeByRole(UserRole role) {
+  void _routeByRole(UserRole role, {bool isAlumni = false}) {
     switch (role) {
       case UserRole.student:
       case UserRole.leader:
-        Get.offAllNamed(Routes.studentHome);
+        if (isAlumni) {
+          Get.offAllNamed(Routes.alumniHub);
+        } else {
+          Get.offAllNamed(Routes.studentHome);
+        }
       case UserRole.admin:
       case UserRole.warden:
         Get.offAllNamed(Routes.operatorShell);

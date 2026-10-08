@@ -10,6 +10,7 @@ import '../../shared/widgets/async_state_view.dart';
 import '../../shared/widgets/gradient_header.dart';
 import '../../shared/widgets/icon_badge.dart';
 import '../../shared/widgets/section_header.dart';
+import '../../../core/storage/session_store.dart';
 import '../controllers/alumni_controller.dart';
 
 class AlumniHubScreen extends GetView<AlumniController> {
@@ -48,6 +49,14 @@ class AlumniHubScreen extends GetView<AlumniController> {
                         icon: Icons.person_pin_rounded,
                         tooltip: 'My Alumni Profile',
                         onPressed: () => Get.toNamed(Routes.alumniProfile),
+                      ),
+                      HeaderIconButton(
+                        icon: Icons.logout_rounded,
+                        tooltip: 'Logout',
+                        onPressed: () async {
+                          await Get.find<SessionStore>().logout();
+                          Get.offAllNamed(Routes.login);
+                        },
                       ),
                     ],
                     child: Row(

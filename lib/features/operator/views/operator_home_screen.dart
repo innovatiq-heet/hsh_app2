@@ -42,7 +42,7 @@ class OperatorHomeScreen extends StatelessWidget {
   const OperatorHomeScreen({super.key});
 
   static const _groups = [
-    _OperatorGroup('Student Management', [
+    _OperatorGroup('Student Management & Safety', [
       _OperatorAction(
         'Student Phonebook',
         'Campus contacts & caller directory',
@@ -71,9 +71,133 @@ class OperatorHomeScreen extends StatelessWidget {
         Color(0xFF00796B),
         Routes.operatorStudentLocations,
       ),
+      _OperatorAction(
+        'Admissions',
+        'Review and approve new student applications',
+        Icons.how_to_reg_rounded,
+        AppColors.successGreen,
+        Routes.operatorAdmissions,
+      ),
+      _OperatorAction(
+        'Room Swap',
+        'Manage and execute room exchange requests',
+        Icons.swap_horiz_rounded,
+        AppColors.secondary,
+        Routes.operatorRoomSwap,
+      ),
+      _OperatorAction(
+        'Mark Left',
+        'Checkout and archive departing students',
+        Icons.person_remove_rounded,
+        AppColors.cancelledRed,
+        Routes.operatorMarkLeft,
+      ),
+    ]),
+    _OperatorGroup('Alumni Network & Community', [
+      _OperatorAction(
+        'Alumni Hub',
+        'Main alumni network portal & community dashboard',
+        Icons.school_rounded,
+        Color(0xFF8B5CF6),
+        Routes.alumniHub,
+      ),
+      _OperatorAction(
+        'Alumni Directory',
+        'Search pass-out students by batch, company & city',
+        Icons.people_alt_rounded,
+        Color(0xFF6366F1),
+        Routes.alumniDirectory,
+      ),
+      _OperatorAction(
+        'Events & Reunions',
+        'Hostel reunions, annual sabhas & RSVP tracking',
+        Icons.event_available_rounded,
+        AppColors.warningOrange,
+        Routes.alumniEvents,
+      ),
+      _OperatorAction(
+        'Job Board & Referrals',
+        'Alumni career referrals, openings & internships',
+        Icons.work_outline_rounded,
+        AppColors.successGreen,
+        Routes.alumniJobs,
+      ),
+      _OperatorAction(
+        'Giving Back & News',
+        'Hostel announcements, news & contribution initiatives',
+        Icons.volunteer_activism_rounded,
+        Color(0xFFEC4899),
+        Routes.alumniNews,
+      ),
+    ]),
+    _OperatorGroup('Approvals & Services', [
+      _OperatorAction(
+        'Leave Requests',
+        'Review & approve gate passes and leave slips',
+        Icons.event_note_rounded,
+        AppColors.warningOrange,
+        Routes.operatorLeaveApprovals,
+      ),
+      _OperatorAction(
+        'Fee Approvals',
+        'Verify bank receipts & fee payment slips',
+        Icons.fact_check_rounded,
+        Color(0xFF0284C7),
+        Routes.operatorFeeApprovals,
+      ),
+      _OperatorAction(
+        'Complaints Desk',
+        'Inspect, assign & resolve student complaints',
+        Icons.handyman_rounded,
+        Color(0xFF7C3AED),
+        Routes.complainSolverModule,
+      ),
+      _OperatorAction(
+        'Laundry Desk',
+        'Manage wash cycles, batches & student balances',
+        Icons.local_laundry_service_rounded,
+        Color(0xFF0EA5E9),
+        Routes.laundryModule,
+      ),
+    ]),
+    _OperatorGroup('Attendance, Events & Finance', [
+      _OperatorAction(
+        'Attendance on Behalf',
+        'Manual check-in and attendance override',
+        Icons.edit_calendar_rounded,
+        Color(0xFF0D9488),
+        Routes.operatorAttendanceOnBehalf,
+      ),
+      _OperatorAction(
+        'Dynamic QR Code',
+        'Display rotating QR code for roll call',
+        Icons.qr_code_2_rounded,
+        AppColors.primary,
+        Routes.operatorAttendanceQrDisplay,
+      ),
+      _OperatorAction(
+        'Attendance History',
+        'Review daily logs & attendance records',
+        Icons.history_rounded,
+        Color(0xFFF59E0B),
+        Routes.attendanceHistory,
+      ),
+      _OperatorAction(
+        'Sabha Management',
+        'Schedule spiritual sabhas & track participation',
+        Icons.event_rounded,
+        Color(0xFF6366F1),
+        Routes.operatorSabha,
+      ),
+      _OperatorAction(
+        'Deposits & Debits',
+        'Post wallet ledger transactions & adjustments',
+        Icons.account_balance_wallet_rounded,
+        AppColors.successGreen,
+        Routes.operatorDepositDebit,
+      ),
     ]),
   ];
-
 
   Future<void> _logout() async {
     await Get.find<SessionStore>().clear();
@@ -110,35 +234,35 @@ class OperatorHomeScreen extends StatelessWidget {
                 AppDimens.screenPadding,
                 AppDimens.gapXxl,
               ),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                for (final group in _groups) ...[
-                  SectionHeader(title: group.title),
-                  GridView.count(
-                    crossAxisCount: 2,
-                    shrinkWrap: true,
-                    physics: const NeverScrollableScrollPhysics(),
-                    mainAxisSpacing: AppDimens.gapMd,
-                    crossAxisSpacing: AppDimens.gapMd,
-                    childAspectRatio: 1.25,
-                    children: [
-                      for (int i = 0; i < group.actions.length; i++)
-                        StaggeredSlideFade(
-                          index: i,
-                          child: _ActionTile(action: group.actions[i]),
-                        ),
-                    ],
-                  ),
-                  const SizedBox(height: AppDimens.gapXl),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  for (final group in _groups) ...[
+                    SectionHeader(title: group.title),
+                    GridView.count(
+                      crossAxisCount: 2,
+                      shrinkWrap: true,
+                      physics: const NeverScrollableScrollPhysics(),
+                      mainAxisSpacing: AppDimens.gapMd,
+                      crossAxisSpacing: AppDimens.gapMd,
+                      childAspectRatio: 1.25,
+                      children: [
+                        for (int i = 0; i < group.actions.length; i++)
+                          StaggeredSlideFade(
+                            index: i,
+                            child: _ActionTile(action: group.actions[i]),
+                          ),
+                      ],
+                    ),
+                    const SizedBox(height: AppDimens.gapXl),
+                  ],
                 ],
-              ],
+              ),
             ),
           ),
-        ),
-      ],
-    ),
-  );
+        ],
+      ),
+    );
   }
 }
 

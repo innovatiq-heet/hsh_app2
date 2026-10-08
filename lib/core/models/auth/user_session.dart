@@ -30,6 +30,43 @@ class UserSession {
   bool get isAuthenticated => token.isNotEmpty;
   bool get isStudentOrLeader => role.isStudentOrLeader;
 
+  /// True if user is an alumni / former resident (e.g. room is N/A, empty, or ID is 345).
+  bool get isAlumni {
+    if (!isStudentOrLeader) return false;
+    return isAlumniRoomOrId(
+      room: room,
+      profileRoom: studentProfile?.room,
+      studentCode: studentCode,
+      id: id,
+    );
+  }
+
+  /// Pure static utility to determine if a room / student identifier indicates alumni status.
+  static bool isAlumniRoomOrId({
+    String? room,
+    String? profileRoom,
+    String? studentCode,
+    String? id,
+  }) {
+    final cleanCode = (studentCode ?? '').trim().replaceFirst(RegExp(r'^0+'), '');
+    final cleanId = (id ?? '').trim().replaceFirst(RegExp(r'^0+'), '');
+    if (cleanCode == '345' || cleanId == '345') return true;
+
+    final r1 = (room ?? '').trim().toLowerCase();
+    final r2 = (profileRoom ?? '').trim().toLowerCase();
+    final effectiveRoom = r1.isNotEmpty ? r1 : r2;
+
+    return effectiveRoom.isEmpty ||
+        effectiveRoom == 'n/a' ||
+        effectiveRoom == 'na' ||
+        effectiveRoom == 'none' ||
+        effectiveRoom == '0' ||
+        effectiveRoom == 'null' ||
+        effectiveRoom == '-' ||
+        effectiveRoom == 'not assigned' ||
+        effectiveRoom == 'unassigned';
+  }
+
   UserSession copyWith({
     String? token,
     UserRole? role,

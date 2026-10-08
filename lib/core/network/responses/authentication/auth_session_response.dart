@@ -1,4 +1,5 @@
-﻿import '../../../enums/user_role.dart';
+import '../../../enums/user_role.dart';
+import '../../../models/auth/user_session.dart';
 
 /// Shape of the JWT-derived session the API returns on login/register/session-check:
 /// { id, email, role, token }.
@@ -22,6 +23,15 @@ class AuthSessionResponse {
     this.studentCode = '',
     this.room = '',
   });
+
+  /// True if user is an alumni / former resident (e.g. room is N/A, empty, or ID is 345).
+  bool get isAlumni =>
+      (role == UserRole.student || role == UserRole.leader) &&
+      UserSession.isAlumniRoomOrId(
+        room: room,
+        studentCode: studentCode,
+        id: id,
+      );
 
   /// [json] is the API's `user` object (e.g. `data.user` from the login/me
   /// response) — the backend sends `id` as an integer, so it's coerced to a

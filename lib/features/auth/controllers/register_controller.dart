@@ -18,13 +18,6 @@ class RegisterController extends GetxController {
 
   final isLoading = false.obs;
 
-  @override
-  void onClose() {
-    nameController.dispose();
-    emailController.dispose();
-    passwordController.dispose();
-    super.onClose();
-  }
 
   String? validateRequired(String? value) => Validators.required(value);
 
@@ -49,7 +42,11 @@ class RegisterController extends GetxController {
         email: session.email,
         name: session.name,
       );
-      Get.offAllNamed(Routes.studentHome);
+      if (session.isAlumni) {
+        Get.offAllNamed(Routes.alumniHub);
+      } else {
+        Get.offAllNamed(Routes.studentHome);
+      }
     } on ApiException catch (e) {
       _showError(
         e.statusCode == 409

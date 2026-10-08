@@ -22,10 +22,18 @@ class SectionHeader extends StatelessWidget {
     return Padding(
       padding: const EdgeInsets.only(bottom: AppDimens.gapMd),
       child: Row(
+        mainAxisAlignment: MainAxisAlignment.spaceBetween,
         children: [
-          Expanded(child: Text(title, style: AppTextStyles.title)),
+          Expanded(
+            child: Text(
+              title,
+              style: AppTextStyles.title,
+              overflow: TextOverflow.ellipsis,
+            ),
+          ),
           ?trailing,
-          if (actionLabel != null && onAction != null)
+          if (actionLabel != null && onAction != null) ...[
+            const SizedBox(width: AppDimens.gapSm),
             GestureDetector(
               onTap: onAction,
               child: Text(
@@ -33,6 +41,7 @@ class SectionHeader extends StatelessWidget {
                 style: AppTextStyles.label.copyWith(color: AppColors.primary),
               ),
             ),
+          ],
         ],
       ),
     );

@@ -153,21 +153,18 @@ class _AlumniAdminHubScreenState extends State<AlumniAdminHubScreen>
         return ListView(
           padding: const EdgeInsets.all(AppDimens.screenPadding),
           children: [
-            Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
-                const SectionHeader(title: 'Reunions & Scheduled Events'),
-                ElevatedButton.icon(
-                  icon: const Icon(Icons.add_rounded, size: 18),
-                  label: const Text('New Event'),
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: AppColors.primary,
-                    foregroundColor: Colors.white,
-                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
-                  ),
-                  onPressed: () => _showCreateEventDialog(context),
+            SectionHeader(
+              title: 'Reunions & Scheduled Events',
+              trailing: ElevatedButton.icon(
+                icon: const Icon(Icons.add_rounded, size: 18),
+                label: const Text('New Event'),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: AppColors.primary,
+                  foregroundColor: Colors.white,
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
                 ),
-              ],
+                onPressed: () => _showCreateEventDialog(context),
+              ),
             ),
             const SizedBox(height: AppDimens.gapMd),
             if (events.isEmpty)
@@ -293,21 +290,18 @@ class _AlumniAdminHubScreenState extends State<AlumniAdminHubScreen>
         return ListView(
           padding: const EdgeInsets.all(AppDimens.screenPadding),
           children: [
-            Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
-                const SectionHeader(title: 'News & Voluntary Initiatives'),
-                ElevatedButton.icon(
-                  icon: const Icon(Icons.add_rounded, size: 18),
-                  label: const Text('New Post'),
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: const Color(0xFFEC4899),
-                    foregroundColor: Colors.white,
-                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
-                  ),
-                  onPressed: () => _showCreateNewsDialog(context),
+            SectionHeader(
+              title: 'News & Voluntary Initiatives',
+              trailing: ElevatedButton.icon(
+                icon: const Icon(Icons.add_rounded, size: 18),
+                label: const Text('New Post'),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: const Color(0xFFEC4899),
+                  foregroundColor: Colors.white,
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
                 ),
-              ],
+                onPressed: () => _showCreateNewsDialog(context),
+              ),
             ),
             const SizedBox(height: AppDimens.gapMd),
             if (newsList.isEmpty)

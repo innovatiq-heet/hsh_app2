@@ -284,4 +284,156 @@ class AlumniRepository extends BaseRepository {
       throw errorMessage(e);
     }
   }
+
+  // ==========================================================================
+  // ADMIN ALUMNI OPERATIONS (Operator / Warden / Admin)
+  // ==========================================================================
+
+  /// Admin overview statistics
+  Future<AlumniAdminStatsModel> fetchAdminStats() async {
+    try {
+      final response = await _dio.get('/alumni/admin/stats');
+      if (response.data != null && response.data['data'] != null) {
+        return AlumniAdminStatsModel.fromJson(response.data['data']);
+      }
+      return const AlumniAdminStatsModel();
+    } on DioException catch (e) {
+      developer.log('AlumniRepository.fetchAdminStats error: ${errorMessage(e)}', name: 'AlumniRepo');
+      throw errorMessage(e);
+    }
+  }
+
+  /// Admin creates a new event
+  Future<int> createEvent(Map<String, dynamic> data) async {
+    try {
+      final response = await _dio.post('/alumni/events', data: data);
+      return int.tryParse(response.data?['data']?['id']?.toString() ?? '0') ?? 0;
+    } on DioException catch (e) {
+      developer.log('AlumniRepository.createEvent error: ${errorMessage(e)}', name: 'AlumniRepo');
+      throw errorMessage(e);
+    }
+  }
+
+  /// Admin updates an event
+  Future<void> updateEvent(int eventId, Map<String, dynamic> data) async {
+    try {
+      await _dio.put('/alumni/events/$eventId', data: data);
+    } on DioException catch (e) {
+      developer.log('AlumniRepository.updateEvent error: ${errorMessage(e)}', name: 'AlumniRepo');
+      throw errorMessage(e);
+    }
+  }
+
+  /// Admin deletes an event
+  Future<void> deleteEvent(int eventId) async {
+    try {
+      await _dio.delete('/alumni/events/$eventId');
+    } on DioException catch (e) {
+      developer.log('AlumniRepository.deleteEvent error: ${errorMessage(e)}', name: 'AlumniRepo');
+      throw errorMessage(e);
+    }
+  }
+
+  /// Admin fetches attendee RSVP list for an event
+  Future<List<AlumniRsvpAttendeeModel>> fetchEventRsvps(int eventId) async {
+    try {
+      final response = await _dio.get('/alumni/events/$eventId/rsvps');
+      if (response.data != null && response.data['data'] is List) {
+        return (response.data['data'] as List)
+            .map((item) => AlumniRsvpAttendeeModel.fromJson(item))
+            .toList();
+      }
+      return [];
+    } on DioException catch (e) {
+      developer.log('AlumniRepository.fetchEventRsvps error: ${errorMessage(e)}', name: 'AlumniRepo');
+      throw errorMessage(e);
+    }
+  }
+
+  /// Admin posts a news item or initiative
+  Future<int> createNews(Map<String, dynamic> data) async {
+    try {
+      final response = await _dio.post('/alumni/news', data: data);
+      return int.tryParse(response.data?['data']?['id']?.toString() ?? '0') ?? 0;
+    } on DioException catch (e) {
+      developer.log('AlumniRepository.createNews error: ${errorMessage(e)}', name: 'AlumniRepo');
+      throw errorMessage(e);
+    }
+  }
+
+  /// Admin updates a news item or initiative
+  Future<void> updateNews(int newsId, Map<String, dynamic> data) async {
+    try {
+      await _dio.put('/alumni/news/$newsId', data: data);
+    } on DioException catch (e) {
+      developer.log('AlumniRepository.updateNews error: ${errorMessage(e)}', name: 'AlumniRepo');
+      throw errorMessage(e);
+    }
+  }
+
+  /// Admin deletes a news item
+  Future<void> deleteNews(int newsId) async {
+    try {
+      await _dio.delete('/alumni/news/$newsId');
+    } on DioException catch (e) {
+      developer.log('AlumniRepository.deleteNews error: ${errorMessage(e)}', name: 'AlumniRepo');
+      throw errorMessage(e);
+    }
+  }
+
+  /// Admin lists all alumni profiles (including unverified & drafts)
+  Future<List<AlumniProfileModel>> fetchAdminProfiles({
+    String? search,
+    int? graduationYear,
+    bool? isVerified,
+    bool? isMentor,
+  }) async {
+    try {
+      final queryParams = <String, dynamic>{};
+      if (search != null && search.trim().isNotEmpty) queryParams['search'] = search.trim();
+      if (graduationYear != null) queryParams['graduation_year'] = graduationYear;
+      if (isVerified != null) queryParams['is_verified'] = isVerified ? 'true' : 'false';
+      if (isMentor != null) queryParams['is_mentor'] = isMentor ? 'true' : 'false';
+
+      final response = await _dio.get('/alumni/admin/profiles', queryParameters: queryParams);
+      if (response.data != null && response.data['data'] is List) {
+        return (response.data['data'] as List)
+            .map((item) => AlumniProfileModel.fromJson(item))
+            .toList();
+      }
+      return [];
+    } on DioException catch (e) {
+      developer.log('AlumniRepository.fetchAdminProfiles error: ${errorMessage(e)}', name: 'AlumniRepo');
+      throw errorMessage(e);
+    }
+  }
+
+  /// Admin updates profile verification and mentor status
+  Future<void> updateProfileVerification(
+    int studentId, {
+    bool? isVerified,
+    bool? isMentor,
+  }) async {
+    try {
+      final data = <String, dynamic>{};
+      if (isVerified != null) data['is_verified'] = isVerified;
+      if (isMentor != null) data['is_mentor'] = isMentor;
+      await _dio.patch('/alumni/admin/profiles/$studentId/verify', data: data);
+    } on DioException catch (e) {
+      developer.log('AlumniRepository.updateProfileVerification error: ${errorMessage(e)}', name: 'AlumniRepo');
+      throw errorMessage(e);
+    }
+  }
+
+  /// Admin toggles active status for a job opening
+  Future<void> toggleJobStatus(int jobId, {bool? isActive}) async {
+    try {
+      final data = <String, dynamic>{};
+      if (isActive != null) data['is_active'] = isActive;
+      await _dio.patch('/alumni/admin/jobs/$jobId/toggle', data: data);
+    } on DioException catch (e) {
+      developer.log('AlumniRepository.toggleJobStatus error: ${errorMessage(e)}', name: 'AlumniRepo');
+      throw errorMessage(e);
+    }
+  }
 }

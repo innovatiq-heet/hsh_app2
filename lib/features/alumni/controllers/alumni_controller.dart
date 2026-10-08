@@ -1,3 +1,5 @@
+import '../../../core/storage/session_store.dart';
+import '../../../core/enums/user_role.dart';
 import 'dart:developer' as developer;
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
@@ -330,4 +332,168 @@ class AlumniController extends GetxController {
       isNewsLoading.value = false;
     }
   }
+
+  // ---------- Admin Observables ----------
+  final Rx<AlumniAdminStatsModel> adminStats = const AlumniAdminStatsModel().obs;
+  final RxList<AlumniProfileModel> adminProfiles = <AlumniProfileModel>[].obs;
+  final RxList<AlumniRsvpAttendeeModel> currentEventRsvps = <AlumniRsvpAttendeeModel>[].obs;
+  final RxBool isAdminStatsLoading = false.obs;
+  final RxBool isAdminProfilesLoading = false.obs;
+  final RxBool isRsvpsLoading = false.obs;
+
+  bool get isOperatorOrAdmin {
+    final role = Get.find<SessionStore>().currentSession?.role;
+    return role != null && role.canOperate;
+  }
+
+  Future<void> loadAdminStats() async {
+    isAdminStatsLoading.value = true;
+    try {
+      final stats = await _repository.fetchAdminStats();
+      adminStats.value = stats;
+    } catch (e) {
+      developer.log('Failed to load admin stats: $e', name: 'AlumniCtrl');
+    } finally {
+      isAdminStatsLoading.value = false;
+    }
+  }
+
+  Future<void> loadAdminProfiles({String? search, int? graduationYear, bool? isVerified, bool? isMentor}) async {
+    isAdminProfilesLoading.value = true;
+    try {
+      final list = await _repository.fetchAdminProfiles(
+        search: search,
+        graduationYear: graduationYear,
+        isVerified: isVerified,
+        isMentor: isMentor,
+      );
+      adminProfiles.assignAll(list);
+    } catch (e) {
+      developer.log('Failed to load admin profiles: $e', name: 'AlumniCtrl');
+    } finally {
+      isAdminProfilesLoading.value = false;
+    }
+  }
+
+  Future<void> loadEventRsvps(int eventId) async {
+    isRsvpsLoading.value = true;
+    try {
+      final list = await _repository.fetchEventRsvps(eventId);
+      currentEventRsvps.assignAll(list);
+    } catch (e) {
+      developer.log('Failed to load event RSVPs: $e', name: 'AlumniCtrl');
+    } finally {
+      isRsvpsLoading.value = false;
+    }
+  }
+
+  Future<bool> adminCreateEvent(Map<String, dynamic> data) async {
+    try {
+      await _repository.createEvent(data);
+      Get.snackbar('Success', 'Event created successfully', snackPosition: SnackPosition.BOTTOM);
+      await loadEvents();
+      await loadAdminStats();
+      return true;
+    } catch (e) {
+      Get.snackbar('Error', 'Failed to create event: $e', snackPosition: SnackPosition.BOTTOM);
+      return false;
+    }
+  }
+
+  Future<bool> adminUpdateEvent(int eventId, Map<String, dynamic> data) async {
+    try {
+      await _repository.updateEvent(eventId, data);
+      Get.snackbar('Success', 'Event updated successfully', snackPosition: SnackPosition.BOTTOM);
+      await loadEvents();
+      return true;
+    } catch (e) {
+      Get.snackbar('Error', 'Failed to update event: $e', snackPosition: SnackPosition.BOTTOM);
+      return false;
+    }
+  }
+
+  Future<bool> adminDeleteEvent(int eventId) async {
+    try {
+      await _repository.deleteEvent(eventId);
+      Get.snackbar('Deleted', 'Event deleted successfully', snackPosition: SnackPosition.BOTTOM);
+      await loadEvents();
+      await loadAdminStats();
+      return true;
+    } catch (e) {
+      Get.snackbar('Error', 'Failed to delete event: $e', snackPosition: SnackPosition.BOTTOM);
+      return false;
+    }
+  }
+
+  Future<bool> adminCreateNews(Map<String, dynamic> data) async {
+    try {
+      await _repository.createNews(data);
+      Get.snackbar('Success', 'News / Initiative published', snackPosition: SnackPosition.BOTTOM);
+      await loadNews();
+      await loadAdminStats();
+      return true;
+    } catch (e) {
+      Get.snackbar('Error', 'Failed to publish news: $e', snackPosition: SnackPosition.BOTTOM);
+      return false;
+    }
+  }
+
+  Future<bool> adminUpdateNews(int newsId, Map<String, dynamic> data) async {
+    try {
+      await _repository.updateNews(newsId, data);
+      Get.snackbar('Success', 'News / Initiative updated', snackPosition: SnackPosition.BOTTOM);
+      await loadNews();
+      return true;
+    } catch (e) {
+      Get.snackbar('Error', 'Failed to update news: $e', snackPosition: SnackPosition.BOTTOM);
+      return false;
+    }
+  }
+
+  Future<bool> adminDeleteNews(int newsId) async {
+    try {
+      await _repository.deleteNews(newsId);
+      Get.snackbar('Deleted', 'News item removed', snackPosition: SnackPosition.BOTTOM);
+      await loadNews();
+      await loadAdminStats();
+      return true;
+    } catch (e) {
+      Get.snackbar('Error', 'Failed to delete news: $e', snackPosition: SnackPosition.BOTTOM);
+      return false;
+    }
+  }
+
+  Future<void> adminToggleVerification(int studentId, bool newStatus) async {
+    try {
+      await _repository.updateProfileVerification(studentId, isVerified: newStatus);
+      Get.snackbar('Updated', 'Alumnus verification updated', snackPosition: SnackPosition.BOTTOM);
+      await loadAdminProfiles();
+      await loadAdminStats();
+    } catch (e) {
+      Get.snackbar('Error', 'Failed to update verification: $e', snackPosition: SnackPosition.BOTTOM);
+    }
+  }
+
+  Future<void> adminToggleMentor(int studentId, bool newStatus) async {
+    try {
+      await _repository.updateProfileVerification(studentId, isMentor: newStatus);
+      Get.snackbar('Updated', 'Mentor status updated', snackPosition: SnackPosition.BOTTOM);
+      await loadAdminProfiles();
+      await loadAdminStats();
+    } catch (e) {
+      Get.snackbar('Error', 'Failed to update mentor: $e', snackPosition: SnackPosition.BOTTOM);
+    }
+  }
+
+  Future<void> adminToggleJob(int jobId) async {
+    try {
+      await _repository.toggleJobStatus(jobId);
+      Get.snackbar('Updated', 'Job posting visibility toggled', snackPosition: SnackPosition.BOTTOM);
+      await loadJobs();
+      await loadAdminStats();
+    } catch (e) {
+      Get.snackbar('Error', 'Failed to toggle job: $e', snackPosition: SnackPosition.BOTTOM);
+    }
+  }
+
 }

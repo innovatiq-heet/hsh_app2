@@ -52,6 +52,7 @@ class Routes {
   static const operatorAttendanceQrDisplay = '/operator/attendance/qr-display';
   static const operatorGeofence = '/operator/geofence';
   static const operatorStudentLocations = '/operator/geofence/locations';
+  static const operatorAlumni = '/operator/alumni';
 
   static const noInternet = '/no-internet';
 }

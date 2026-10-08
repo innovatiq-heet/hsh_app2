@@ -411,3 +411,117 @@ class HostelNewsModel {
     );
   }
 }
+
+
+class AlumniRsvpAttendeeModel {
+  final int id;
+  final int eventId;
+  final int studentId;
+  final String status;
+  final int guestsCount;
+  final String notes;
+  final String studentName;
+  final String studentCode;
+  final String roomNumber;
+  final String phoneNumber;
+  final String currentCompany;
+  final String currentDesignation;
+  final int? graduationYear;
+  final DateTime createdAt;
+
+  const AlumniRsvpAttendeeModel({
+    required this.id,
+    required this.eventId,
+    required this.studentId,
+    required this.status,
+    required this.guestsCount,
+    required this.notes,
+    required this.studentName,
+    required this.studentCode,
+    required this.roomNumber,
+    required this.phoneNumber,
+    required this.currentCompany,
+    required this.currentDesignation,
+    this.graduationYear,
+    required this.createdAt,
+  });
+
+  String get statusDisplay {
+    switch (status.toLowerCase()) {
+      case 'attending':
+        return 'Going';
+      case 'tentative':
+        return 'Maybe';
+      case 'declined':
+        return 'Can\'t Go';
+      default:
+        return status;
+    }
+  }
+
+  factory AlumniRsvpAttendeeModel.fromJson(Map<String, dynamic> json) {
+    DateTime created = DateTime.now();
+    if (json['created_at'] != null) {
+      try {
+        created = DateTime.parse(json['created_at'].toString());
+      } catch (_) {}
+    }
+
+    return AlumniRsvpAttendeeModel(
+      id: int.tryParse(json['id']?.toString() ?? '0') ?? 0,
+      eventId: int.tryParse(json['event_id']?.toString() ?? '0') ?? 0,
+      studentId: int.tryParse(json['student_id']?.toString() ?? '0') ?? 0,
+      status: json['status']?.toString() ?? 'attending',
+      guestsCount: int.tryParse(json['guests_count']?.toString() ?? '0') ?? 0,
+      notes: json['notes']?.toString() ?? '',
+      studentName: json['student_name']?.toString() ?? 'Alumnus',
+      studentCode: json['student_code']?.toString() ?? '',
+      roomNumber: json['room_number']?.toString() ?? '',
+      phoneNumber: json['phone_number']?.toString() ?? '',
+      currentCompany: json['current_company']?.toString() ?? '',
+      currentDesignation: json['current_designation']?.toString() ?? '',
+      graduationYear: json['graduation_year'] != null
+          ? int.tryParse(json['graduation_year'].toString())
+          : null,
+      createdAt: created,
+    );
+  }
+}
+
+class AlumniAdminStatsModel {
+  final int totalAlumni;
+  final int verifiedAlumni;
+  final int activeMentors;
+  final int upcomingEvents;
+  final int totalRsvps;
+  final int activeJobs;
+  final int activeInitiatives;
+  final double totalRaised;
+  final int totalMentorshipRequests;
+
+  const AlumniAdminStatsModel({
+    this.totalAlumni = 0,
+    this.verifiedAlumni = 0,
+    this.activeMentors = 0,
+    this.upcomingEvents = 0,
+    this.totalRsvps = 0,
+    this.activeJobs = 0,
+    this.activeInitiatives = 0,
+    this.totalRaised = 0.0,
+    this.totalMentorshipRequests = 0,
+  });
+
+  factory AlumniAdminStatsModel.fromJson(Map<String, dynamic> json) {
+    return AlumniAdminStatsModel(
+      totalAlumni: int.tryParse(json['total_alumni']?.toString() ?? '0') ?? 0,
+      verifiedAlumni: int.tryParse(json['verified_alumni']?.toString() ?? '0') ?? 0,
+      activeMentors: int.tryParse(json['active_mentors']?.toString() ?? '0') ?? 0,
+      upcomingEvents: int.tryParse(json['upcoming_events']?.toString() ?? '0') ?? 0,
+      totalRsvps: int.tryParse(json['total_rsvps']?.toString() ?? '0') ?? 0,
+      activeJobs: int.tryParse(json['active_jobs']?.toString() ?? '0') ?? 0,
+      activeInitiatives: int.tryParse(json['active_initiatives']?.toString() ?? '0') ?? 0,
+      totalRaised: double.tryParse(json['total_raised']?.toString() ?? '0') ?? 0.0,
+      totalMentorshipRequests: int.tryParse(json['total_mentorship_requests']?.toString() ?? '0') ?? 0,
+    );
+  }
+}

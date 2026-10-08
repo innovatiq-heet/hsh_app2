@@ -1,5 +1,6 @@
 import '../../features/alumni/bindings/alumni_binding.dart';
 import '../../features/alumni/views/alumni_hub_screen.dart';
+import '../../features/alumni/views/alumni_admin_hub_screen.dart';
 import '../../features/alumni/views/alumni_directory_screen.dart';
 import '../../features/alumni/views/alumni_profile_screen.dart';
 import '../../features/alumni/views/alumni_profile_edit_screen.dart';
@@ -175,6 +176,11 @@ class AppPages {
     ),
     GetPage(name: Routes.chat, page: () => const ChatScreen()),
     GetPage(name: Routes.services, page: () => const ServicesScreen()),
+    GetPage(
+      name: Routes.operatorAlumni,
+      page: () => const AlumniAdminHubScreen(),
+      binding: AlumniBinding(),
+    ),
     GetPage(
       name: Routes.alumniHub,
       page: () => const AlumniHubScreen(),

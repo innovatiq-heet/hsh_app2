@@ -1,3 +1,4 @@
+import '../../../core/constants/app_routes.dart';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:url_launcher/url_launcher.dart';
@@ -40,6 +41,15 @@ class _AlumniNewsScreenState extends State<AlumniNewsScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: AppColors.mainBackground,
+      floatingActionButton: controller.isOperatorOrAdmin
+          ? FloatingActionButton.extended(
+              backgroundColor: const Color(0xFFEC4899),
+              foregroundColor: Colors.white,
+              icon: const Icon(Icons.add_rounded),
+              label: const Text('New Post'),
+              onPressed: () => Get.toNamed(Routes.operatorAlumni),
+            )
+          : null,
       body: CustomScrollView(
         slivers: [
           SliverGradientHeader(

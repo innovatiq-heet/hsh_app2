@@ -5,7 +5,7 @@
 class AppConfig {
   AppConfig._();
 
-  static const String host = 'https://hsh-api.onrender.com';
+  static const String host = 'https://lightcoral-eel-306042.hostingersite.com';
   static const String baseUrl = '$host/api';
   static const String healthUrl = '$host/';
 

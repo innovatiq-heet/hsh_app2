@@ -1,4 +1,4 @@
-﻿// Calls the live AVD VVN student API; results change with real data. CI skips
+// Calls the live AVD VVN student API; results change with real data. CI skips
 // it (`flutter test --exclude-tags live`).
 @Tags(['live'])
 library;
@@ -10,8 +10,13 @@ import 'package:hsh_app2/core/models/student_profile/student_profile_model.dart'
 import 'package:hsh_app2/core/network/api_client.dart';
 import 'package:hsh_app2/core/network/repository/student_profile/student_profile_repository.dart';
 
+import 'package:hsh_app2/core/storage/session_store.dart';
+import 'package:shared_preferences/shared_preferences.dart';
+
 void main() {
   setUp(() {
+    SharedPreferences.setMockInitialValues({});
+    Get.put(SessionStore());
     Get.put(ApiClient.create());
   });
 

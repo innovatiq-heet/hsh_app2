@@ -1,4 +1,4 @@
-﻿import 'dart:developer' as developer;
+import 'dart:developer' as developer;
 import 'package:dio/dio.dart';
 import 'package:get/get.dart';
 import 'package:intl/intl.dart';
@@ -137,6 +137,13 @@ class AttendanceRepository {
       'defaultEnd': '23:05',
     },
     {
+      'key': 'weekly_assembly',
+      'name': 'Weekly Assembly',
+      'icon': 'groups',
+      'defaultStart': '20:45',
+      'defaultEnd': '21:10',
+    },
+    {
       'key': 'sabha',
       'name': 'Sabha Attendance',
       'icon': 'groups',
@@ -227,6 +234,8 @@ class AttendanceRepository {
           String end = cfg['defaultEnd']!;
           bool hasValidApiTiming = false;
 
+          String? lateTime;
+
           try {
             final res = await dio.get(
               AppConfig.attendanceScheduleUrl,
@@ -237,6 +246,7 @@ class AttendanceRepository {
               final data = res.data['data'] as Map;
               final sTime = data['start_time']?.toString();
               final eTime = data['end_time']?.toString();
+              final lTime = data['late_time']?.toString();
 
               if (sTime != null && sTime.isNotEmpty && sTime != '00:00' && sTime != '00:00:00') {
                 start = sTime.length >= 5 ? sTime.substring(0, 5) : sTime;
@@ -245,6 +255,9 @@ class AttendanceRepository {
               if (eTime != null && eTime.isNotEmpty && eTime != '00:00' && eTime != '00:00:00') {
                 end = eTime.length >= 5 ? eTime.substring(0, 5) : eTime;
                 hasValidApiTiming = true;
+              }
+              if (lTime != null && lTime.isNotEmpty && lTime != '00:00' && lTime != '00:00:00') {
+                lateTime = lTime.length >= 5 ? lTime.substring(0, 5) : lTime;
               }
             }
           } catch (_) {}
@@ -259,6 +272,7 @@ class AttendanceRepository {
             iconName: icon,
             startTime: start,
             endTime: end,
+            lateTime: lateTime,
           );
         }),
       );

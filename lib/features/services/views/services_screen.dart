@@ -80,6 +80,44 @@ class ServicesScreen extends StatelessWidget {
           },
         ),
       ],
+            'Alumni & Community': [
+        _ServiceItem(
+          'Alumni Hub',
+          Icons.school_rounded,
+          AppColors.primary,
+          () => Get.toNamed(Routes.alumniHub),
+        ),
+        _ServiceItem(
+          'Directory',
+          Icons.people_alt_rounded,
+          AppColors.secondary,
+          () => Get.toNamed(Routes.alumniDirectory),
+        ),
+        _ServiceItem(
+          'Mentorship',
+          Icons.psychology_rounded,
+          const Color(0xFF8B5CF6),
+          () => Get.toNamed(Routes.alumniMentorship),
+        ),
+        _ServiceItem(
+          'Events & RSVP',
+          Icons.event_available_rounded,
+          AppColors.warningOrange,
+          () => Get.toNamed(Routes.alumniEvents),
+        ),
+        _ServiceItem(
+          'Job Board',
+          Icons.work_outline_rounded,
+          AppColors.successGreen,
+          () => Get.toNamed(Routes.alumniJobs),
+        ),
+        _ServiceItem(
+          'Giving Back',
+          Icons.volunteer_activism_outlined,
+          const Color(0xFFEC4899),
+          () => Get.toNamed(Routes.alumniNews),
+        ),
+      ],
       'Personal': [
         _ServiceItem(
           'Profile',

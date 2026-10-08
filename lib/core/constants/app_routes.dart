@@ -25,6 +25,15 @@ class Routes {
   static const setting = '/student/setting';
   static const vehicle = '/student/vehicle';
 
+  static const alumniHub = '/student/alumni';
+  static const alumniDirectory = '/student/alumni/directory';
+  static const alumniProfile = '/student/alumni/profile';
+  static const alumniEditProfile = '/student/alumni/profile/edit';
+  static const alumniEvents = '/student/alumni/events';
+  static const alumniMentorship = '/student/alumni/mentorship';
+  static const alumniJobs = '/student/alumni/jobs';
+  static const alumniNews = '/student/alumni/news';
+
   static const laundryModule = '/laundry_module';
 
   static const complainSolverModule = '/complain_module';

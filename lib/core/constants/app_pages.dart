@@ -1,3 +1,12 @@
+import '../../features/alumni/bindings/alumni_binding.dart';
+import '../../features/alumni/views/alumni_hub_screen.dart';
+import '../../features/alumni/views/alumni_directory_screen.dart';
+import '../../features/alumni/views/alumni_profile_screen.dart';
+import '../../features/alumni/views/alumni_profile_edit_screen.dart';
+import '../../features/alumni/views/alumni_events_screen.dart';
+import '../../features/alumni/views/alumni_mentorship_screen.dart';
+import '../../features/alumni/views/alumni_jobs_screen.dart';
+import '../../features/alumni/views/alumni_news_screen.dart';
 import 'package:get/get.dart';
 import '../../features/screentime/bindings/student_screen_time_binding.dart';
 import '../../features/screentime/views/student_screen_time_screen.dart';
@@ -166,6 +175,47 @@ class AppPages {
     ),
     GetPage(name: Routes.chat, page: () => const ChatScreen()),
     GetPage(name: Routes.services, page: () => const ServicesScreen()),
+    GetPage(
+      name: Routes.alumniHub,
+      page: () => const AlumniHubScreen(),
+      binding: AlumniBinding(),
+    ),
+    GetPage(
+      name: Routes.alumniDirectory,
+      page: () => const AlumniDirectoryScreen(),
+      binding: AlumniBinding(),
+    ),
+    GetPage(
+      name: Routes.alumniProfile,
+      page: () => const AlumniProfileScreen(),
+      binding: AlumniBinding(),
+    ),
+    GetPage(
+      name: Routes.alumniEditProfile,
+      page: () => const AlumniProfileEditScreen(),
+      binding: AlumniBinding(),
+    ),
+    GetPage(
+      name: Routes.alumniEvents,
+      page: () => const AlumniEventsScreen(),
+      binding: AlumniBinding(),
+    ),
+    GetPage(
+      name: Routes.alumniMentorship,
+      page: () => const AlumniMentorshipScreen(),
+      binding: AlumniBinding(),
+    ),
+    GetPage(
+      name: Routes.alumniJobs,
+      page: () => const AlumniJobsScreen(),
+      binding: AlumniBinding(),
+    ),
+    GetPage(
+      name: Routes.alumniNews,
+      page: () => const AlumniNewsScreen(),
+      binding: AlumniBinding(),
+    ),
+
     GetPage(name: Routes.setting, page: () => const SettingScreen()),
     GetPage(name: Routes.vehicle, page: () => const VehicleRedirectScreen()),
     GetPage(

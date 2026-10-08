@@ -13,6 +13,9 @@ import '../../shared/widgets/gradient_header.dart';
 import '../../shared/widgets/icon_badge.dart';
 import '../../shared/widgets/section_header.dart';
 import '../../shared/widgets/section_list_tile.dart';
+import '../../../core/constants/app_config.dart';
+import '../../../core/services/shorebird_service.dart';
+import '../../../core/utils/app_snackbar.dart';
 import '../../student_profile/controllers/student_profile_controller.dart';
 
 class SettingScreen extends StatelessWidget {
@@ -170,9 +173,17 @@ class SettingScreen extends StatelessWidget {
               const SizedBox(height: AppDimens.gapLg),
               Text(AppStrings.appName, style: AppTextStyles.headline),
               const SizedBox(height: 4),
-              Text(
-                'Version 1.0.0 (Build 100)',
-                style: AppTextStyles.bodySm.copyWith(color: AppColors.primary),
+              FutureBuilder<String>(
+                future: ShorebirdService.instance.getFullVersionInfo(),
+                builder: (context, snapshot) {
+                  return Text(
+                    snapshot.data ?? AppConfig.appVersionDisplay,
+                    style: AppTextStyles.bodySm.copyWith(
+                      color: AppColors.primary,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  );
+                },
               ),
               const SizedBox(height: AppDimens.gapLg),
               Text(
@@ -370,6 +381,22 @@ class SettingScreen extends StatelessWidget {
                       onTap: () => _showLanguageSheet(context),
                     ),
                     SectionListTile(
+                      icon: Icons.system_update_rounded,
+                      title: 'App Version & Updates',
+                      subtitle: 'Check for Shorebird OTA patches',
+                      iconColor: AppColors.primary,
+                      onTap: () async {
+                        AppSnackbar.info('Checking for Updates', 'Checking Shorebird servers for OTA patches...');
+                        final updated = await ShorebirdService.instance.checkForUpdatesAndDownload();
+                        if (updated) {
+                          AppSnackbar.success('Update Downloaded', 'New patch downloaded! Please restart the app to apply it.');
+                        } else {
+                          final patch = await ShorebirdService.instance.getPatchLabel();
+                          AppSnackbar.info('App Up to Date', 'Current version: ${AppConfig.appVersionDisplay} ($patch).');
+                        }
+                      },
+                    ),
+                    SectionListTile(
                       icon: Icons.info_outline_rounded,
                       title: 'About',
                       subtitle: AppStrings.appName,
@@ -417,11 +444,17 @@ class SettingScreen extends StatelessWidget {
                         ),
                       ),
                       const SizedBox(height: 2),
-                      Text(
-                        'Version 1.0.0 • Designed for Residents',
-                        style: AppTextStyles.caption.copyWith(
-                          color: AppColors.textMuted,
-                        ),
+                      FutureBuilder<String>(
+                        future: ShorebirdService.instance.getFullVersionInfo(),
+                        builder: (context, snapshot) {
+                          final info = snapshot.data ?? AppConfig.appVersionDisplay;
+                          return Text(
+                            '$info • Designed for Residents',
+                            style: AppTextStyles.caption.copyWith(
+                              color: AppColors.textMuted,
+                            ),
+                          );
+                        },
                       ),
                     ],
                   ),

@@ -5,6 +5,8 @@ import '../../../core/constants/app_colors.dart';
 import '../../../core/constants/app_dimens.dart';
 import '../../../core/constants/app_routes.dart';
 import '../../../core/constants/app_text_styles.dart';
+import '../../../core/constants/app_config.dart';
+import '../../../core/services/shorebird_service.dart';
 import '../../../core/storage/session_store.dart';
 import '../../shared/widgets/app_card.dart';
 import '../../shared/widgets/gradient_header.dart';
@@ -267,6 +269,22 @@ class OperatorHomeScreen extends StatelessWidget {
                     ),
                     const SizedBox(height: AppDimens.gapXl),
                   ],
+                  const SizedBox(height: AppDimens.gapMd),
+                  Center(
+                    child: FutureBuilder<String>(
+                      future: ShorebirdService.instance.getFullVersionInfo(),
+                      builder: (context, snapshot) {
+                        final info = snapshot.data ?? AppConfig.appVersionDisplay;
+                        return Text(
+                          'Hostel Admin Console • $info',
+                          style: AppTextStyles.caption.copyWith(
+                            color: AppColors.textMuted,
+                            fontWeight: FontWeight.w500,
+                          ),
+                        );
+                      },
+                    ),
+                  ),
                 ],
               ),
             ),

@@ -131,6 +131,30 @@ class StudentProfileModel {
     );
   }
 
+  /// Creates a fallback profile from basic session or lookup information
+  /// (e.g. for alumni or newly admitted students prior to room allocation).
+  factory StudentProfileModel.fallback({
+    required String name,
+    required String bankCode,
+    required String phone,
+    required String email,
+    String room = '',
+    String aadhar = '',
+  }) {
+    final parts = name.trim().split(RegExp(r'\s+'));
+    final first = parts.isNotEmpty ? parts.first : '';
+    final last = parts.length > 1 ? parts.sublist(1).join(' ') : '';
+    return StudentProfileModel(
+      aadhar: aadhar,
+      firstName: first,
+      lastName: last,
+      phone: phone,
+      email: email,
+      room: room,
+      bankCode: bankCode,
+    );
+  }
+
   static AdmissionStatus statusFromApi(String? value) {
     final lower = value?.toLowerCase().trim();
     switch (lower) {

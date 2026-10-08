@@ -1,4 +1,4 @@
-﻿import 'package:dio/dio.dart';
+import 'package:dio/dio.dart';
 import 'package:get/get.dart';
 import '../../constants/app_routes.dart';
 import '../../storage/session_store.dart';
@@ -45,7 +45,16 @@ class AuthInterceptor extends Interceptor {
         path.contains('/auth/register') ||
         path.contains('/auth/me');
 
-    if (err.response?.statusCode == 401 && !isAuthCall) {
+    final isInactiveAccountResponse = err.response?.data is Map &&
+        (err.response!.data['message']
+                ?.toString()
+                .toLowerCase()
+                .contains('not found or inactive') ==
+            true);
+
+    if (err.response?.statusCode == 401 &&
+        !isAuthCall &&
+        !isInactiveAccountResponse) {
       if (Get.currentRoute != Routes.login) {
         _session.clear();
         Get.offAllNamed(Routes.login);

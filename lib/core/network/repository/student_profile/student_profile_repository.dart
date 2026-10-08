@@ -192,9 +192,15 @@ class StudentProfileRepository {
             : (studentCode ?? 'me'));
 
     try {
-      final response = await _dio.get('/students/$lookupId');
+      final response = await _dio.get(
+        '/students/$lookupId',
+        options: Options(
+          validateStatus: (status) => status != null && status < 500,
+        ),
+      );
       final data = response.data;
-      if (data is Map<String, dynamic> &&
+      if (response.statusCode == 200 &&
+          data is Map<String, dynamic> &&
           data['data'] is Map<String, dynamic> &&
           data['data']['student'] is Map<String, dynamic>) {
         final student = data['data']['student'] as Map<String, dynamic>;
@@ -213,9 +219,13 @@ class StudentProfileRepository {
     } else if (backendModel != null) {
       finalModel = backendModel;
     } else {
-      throw ApiException(
-        'Student profile could not be loaded. Please verify your connection.',
-        statusCode: 404,
+      // Graceful fallback for alumni or unlinked student accounts
+      finalModel = StudentProfileModel.fallback(
+        name: name ?? '',
+        bankCode: studentCode ?? '',
+        phone: phone ?? '',
+        email: email ?? '',
+        aadhar: effectiveAadhar,
       );
     }
 

@@ -94,41 +94,26 @@ class AlumniHubScreen extends GetView<AlumniController> {
                           _buildFeatureGrid(),
                           const SizedBox(height: AppDimens.gapXl),
 
-                          Row(
-                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                            children: [
-                              const SectionHeader(title: 'Upcoming Events & Reunions'),
-                              TextButton(
-                                onPressed: () => Get.toNamed(Routes.alumniEvents),
-                                child: Text('View all', style: AppTextStyles.label.copyWith(color: AppColors.primary)),
-                              ),
-                            ],
+                          SectionHeader(
+                            title: 'Upcoming Events & Reunions',
+                            actionLabel: 'View all',
+                            onAction: () => Get.toNamed(Routes.alumniEvents),
                           ),
                           _buildEventsPreview(),
                           const SizedBox(height: AppDimens.gapXl),
 
-                          Row(
-                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                            children: [
-                              const SectionHeader(title: 'Alumni Job & Internship Referrals'),
-                              TextButton(
-                                onPressed: () => Get.toNamed(Routes.alumniJobs),
-                                child: Text('View all', style: AppTextStyles.label.copyWith(color: AppColors.primary)),
-                              ),
-                            ],
+                          SectionHeader(
+                            title: 'Alumni Job & Internship Referrals',
+                            actionLabel: 'View all',
+                            onAction: () => Get.toNamed(Routes.alumniJobs),
                           ),
                           _buildJobsPreview(),
                           const SizedBox(height: AppDimens.gapXl),
 
-                          Row(
-                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                            children: [
-                              const SectionHeader(title: 'Giving Back & Hostel News'),
-                              TextButton(
-                                onPressed: () => Get.toNamed(Routes.alumniNews),
-                                child: Text('View all', style: AppTextStyles.label.copyWith(color: AppColors.primary)),
-                              ),
-                            ],
+                          SectionHeader(
+                            title: 'Giving Back & Hostel News',
+                            actionLabel: 'View all',
+                            onAction: () => Get.toNamed(Routes.alumniNews),
                           ),
                           _buildNewsPreview(),
                         ],

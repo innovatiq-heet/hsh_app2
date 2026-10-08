@@ -1,5 +1,4 @@
 import 'dart:io';
-import 'package:dio/dio.dart';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:permission_handler/permission_handler.dart';
@@ -151,40 +150,32 @@ class LoginController extends GetxController {
       final apiClient = Get.find<ApiClient>();
       apiClient.setAuthToken(session.token);
 
-      // Verify student data exists on hostel backend before redirecting
+      // Retrieve student profile details gracefully
       if (session.role == UserRole.student || session.role == UserRole.leader) {
-        final studentCode = session.studentCode;
+        StudentProfileModel? profile;
         try {
-          final res = await apiClient.dio.get(
-            '/students/$studentCode',
-            options: Options(
-              headers: {'Authorization': 'Bearer ${session.token}'},
-            ),
+          final profileRepo = Get.find<StudentProfileRepository>();
+          profile = await profileRepo.fetchProfile(
+            phone: session.phone.isNotEmpty
+                ? session.phone
+                : simNumbers.firstOrNull,
+            email: session.email,
+            studentCode: session.studentCode,
+            name: session.name,
           );
-          if (res.data is Map && res.data['success'] == false) {
-            apiClient.setAuthToken(null);
-            return;
-          }
         } catch (_) {
-          apiClient.setAuthToken(null);
-          return;
+          // Graceful fallback for alumni or unlinked student accounts
         }
 
-        final profileRepo = Get.find<StudentProfileRepository>();
-        final profile = await profileRepo.fetchProfile(
+        profile ??= StudentProfileModel.fallback(
+          name: session.name,
+          bankCode: session.studentCode,
           phone: session.phone.isNotEmpty
               ? session.phone
-              : simNumbers.firstOrNull,
+              : (simNumbers.firstOrNull ?? ''),
           email: session.email,
-          studentCode: session.studentCode,
-          name: session.name,
+          room: session.room,
         );
-        if (profile.fullName.isEmpty &&
-            profile.bankCode.isEmpty &&
-            profile.aadhar.isEmpty) {
-          apiClient.setAuthToken(null);
-          return;
-        }
 
         await _session.saveSession(
           token: session.token,
@@ -328,40 +319,12 @@ class LoginController extends GetxController {
 
       StudentProfileModel? verifiedProfile;
 
-      // Step 2: For students & leaders, verify the account exists & is active on the backend BEFORE saving session or redirecting
+      // Step 2: Fetch student profile details (resilient fallback for alumni & unlinked accounts)
       if (session.role == UserRole.student || session.role == UserRole.leader) {
         final studentCode = session.studentCode.isNotEmpty
             ? session.studentCode
             : resolvedId;
 
-        try {
-          final res = await apiClient.dio.get(
-            '/students/$studentCode',
-            options: Options(
-              headers: {'Authorization': 'Bearer ${session.token}'},
-            ),
-          );
-          final resData = res.data;
-          if (resData is Map && resData['success'] == false) {
-            final msg =
-                resData['message']?.toString() ??
-                'Student account not found or inactive.';
-            throw ApiException(msg, statusCode: 401);
-          }
-        } on DioException catch (e) {
-          apiClient.setAuthToken(null);
-          final data = e.response?.data;
-          String msg =
-              'Student account not found or inactive. Please contact administration.';
-          if (data is Map &&
-              data['message'] is String &&
-              (data['message'] as String).trim().isNotEmpty) {
-            msg = data['message'];
-          }
-          throw ApiException(msg, statusCode: e.response?.statusCode ?? 401);
-        }
-
-        // Step 3: Fetch & verify student profile details
         final profileRepo = Get.find<StudentProfileRepository>();
         try {
           final profile = await profileRepo.fetchProfile(
@@ -371,24 +334,27 @@ class LoginController extends GetxController {
             name: session.name,
             forceRefresh: true,
           );
-          if (profile.fullName.isEmpty &&
-              profile.bankCode.isEmpty &&
-              profile.aadhar.isEmpty) {
-            apiClient.setAuthToken(null);
-            throw const ApiException(
-              'Student data is not available. Please contact administrator.',
-            );
+          if (profile.fullName.isNotEmpty ||
+              profile.bankCode.isNotEmpty ||
+              profile.aadhar.isNotEmpty) {
+            verifiedProfile = profile;
           }
-          verifiedProfile = profile;
-        } on ApiException {
-          apiClient.setAuthToken(null);
-          rethrow;
-        } catch (_) {
-          apiClient.setAuthToken(null);
-          throw const ApiException(
-            'Student data could not be verified. Please try again.',
-          );
+        } catch (e) {
+          debugPrint('[Login] Profile fetch non-fatal: $e');
         }
+
+        // If backend profile is inactive or external lookup fails, construct fallback profile
+        verifiedProfile ??= StudentProfileModel.fallback(
+          name: session.name,
+          bankCode: session.studentCode.isNotEmpty
+              ? session.studentCode
+              : studentCode,
+          phone: session.phone.isNotEmpty
+              ? session.phone
+              : (rawInput.length >= 10 ? rawInput : ''),
+          email: session.email,
+          room: session.room,
+        );
       }
 
       // Step 4: Verification successful! Now save session & student data via SharedPreferences & OOP model

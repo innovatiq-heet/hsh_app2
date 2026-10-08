@@ -14,6 +14,7 @@ extension UserRoleX on UserRole {
   static UserRole fromApi(String? value) {
     switch (value?.toLowerCase().trim()) {
       case 'student':
+      case 'alumni':
         return UserRole.student;
       case 'leader':
         return UserRole.leader;

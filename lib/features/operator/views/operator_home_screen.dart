@@ -71,35 +71,36 @@ class OperatorHomeScreen extends StatelessWidget {
         Color(0xFF00796B),
         Routes.operatorStudentLocations,
       ),
-      _OperatorAction(
-        'Admissions',
-        'Review and approve new student applications',
-        Icons.how_to_reg_rounded,
-        AppColors.successGreen,
-        Routes.operatorAdmissions,
-      ),
-      _OperatorAction(
-        'Room Swap',
-        'Manage and execute room exchange requests',
-        Icons.swap_horiz_rounded,
-        AppColors.secondary,
-        Routes.operatorRoomSwap,
-      ),
-      _OperatorAction(
-        'Mark Left',
-        'Checkout and archive departing students',
-        Icons.person_remove_rounded,
-        AppColors.cancelledRed,
-        Routes.operatorMarkLeft,
-      ),
+      // --- Temporarily disabled mock features ---
+      // _OperatorAction(
+      //   'Admissions',
+      //   'Review and approve new student applications',
+      //   Icons.how_to_reg_rounded,
+      //   AppColors.successGreen,
+      //   Routes.operatorAdmissions,
+      // ),
+      // _OperatorAction(
+      //   'Room Swap',
+      //   'Manage and execute room exchange requests',
+      //   Icons.swap_horiz_rounded,
+      //   AppColors.secondary,
+      //   Routes.operatorRoomSwap,
+      // ),
+      // _OperatorAction(
+      //   'Mark Left',
+      //   'Checkout and archive departing students',
+      //   Icons.person_remove_rounded,
+      //   AppColors.cancelledRed,
+      //   Routes.operatorMarkLeft,
+      // ),
     ]),
     _OperatorGroup('Alumni Network & Community', [
       _OperatorAction(
-        'Alumni Hub',
-        'Main alumni network portal & community dashboard',
-        Icons.school_rounded,
+        'Alumni Console (Admin)',
+        'Events, RSVPs, news, giving back & verifications',
+        Icons.admin_panel_settings_rounded,
         Color(0xFF8B5CF6),
-        Routes.alumniHub,
+        Routes.operatorAlumni,
       ),
       _OperatorAction(
         'Alumni Directory',
@@ -116,35 +117,29 @@ class OperatorHomeScreen extends StatelessWidget {
         Routes.alumniEvents,
       ),
       _OperatorAction(
-        'Job Board & Referrals',
-        'Alumni career referrals, openings & internships',
-        Icons.work_outline_rounded,
-        AppColors.successGreen,
-        Routes.alumniJobs,
-      ),
-      _OperatorAction(
         'Giving Back & News',
         'Hostel announcements, news & contribution initiatives',
         Icons.volunteer_activism_rounded,
         Color(0xFFEC4899),
         Routes.alumniNews,
       ),
+      // --- Redundant student-only links commented out ---
+      // _OperatorAction(
+      //   'Alumni Hub (Student View)',
+      //   'Main alumni network portal & community dashboard',
+      //   Icons.school_rounded,
+      //   Color(0xFF0EA5E9),
+      //   Routes.alumniHub,
+      // ),
+      // _OperatorAction(
+      //   'Job Board & Referrals',
+      //   'Alumni career referrals, openings & internships',
+      //   Icons.work_outline_rounded,
+      //   AppColors.successGreen,
+      //   Routes.alumniJobs,
+      // ),
     ]),
     _OperatorGroup('Approvals & Services', [
-      _OperatorAction(
-        'Leave Requests',
-        'Review & approve gate passes and leave slips',
-        Icons.event_note_rounded,
-        AppColors.warningOrange,
-        Routes.operatorLeaveApprovals,
-      ),
-      _OperatorAction(
-        'Fee Approvals',
-        'Verify bank receipts & fee payment slips',
-        Icons.fact_check_rounded,
-        Color(0xFF0284C7),
-        Routes.operatorFeeApprovals,
-      ),
       _OperatorAction(
         'Complaints Desk',
         'Inspect, assign & resolve student complaints',
@@ -159,15 +154,23 @@ class OperatorHomeScreen extends StatelessWidget {
         Color(0xFF0EA5E9),
         Routes.laundryModule,
       ),
+      // --- Temporarily disabled mock features ---
+      // _OperatorAction(
+      //   'Leave Requests',
+      //   'Review & approve gate passes and leave slips',
+      //   Icons.event_note_rounded,
+      //   AppColors.warningOrange,
+      //   Routes.operatorLeaveApprovals,
+      // ),
+      // _OperatorAction(
+      //   'Fee Approvals',
+      //   'Verify bank receipts & fee payment slips',
+      //   Icons.fact_check_rounded,
+      //   Color(0xFF0284C7),
+      //   Routes.operatorFeeApprovals,
+      // ),
     ]),
-    _OperatorGroup('Attendance, Events & Finance', [
-      _OperatorAction(
-        'Attendance on Behalf',
-        'Manual check-in and attendance override',
-        Icons.edit_calendar_rounded,
-        Color(0xFF0D9488),
-        Routes.operatorAttendanceOnBehalf,
-      ),
+    _OperatorGroup('Attendance & Roll Call', [
       _OperatorAction(
         'Dynamic QR Code',
         'Display rotating QR code for roll call',
@@ -182,20 +185,28 @@ class OperatorHomeScreen extends StatelessWidget {
         Color(0xFFF59E0B),
         Routes.attendanceHistory,
       ),
-      _OperatorAction(
-        'Sabha Management',
-        'Schedule spiritual sabhas & track participation',
-        Icons.event_rounded,
-        Color(0xFF6366F1),
-        Routes.operatorSabha,
-      ),
-      _OperatorAction(
-        'Deposits & Debits',
-        'Post wallet ledger transactions & adjustments',
-        Icons.account_balance_wallet_rounded,
-        AppColors.successGreen,
-        Routes.operatorDepositDebit,
-      ),
+      // --- Temporarily disabled mock features ---
+      // _OperatorAction(
+      //   'Attendance on Behalf',
+      //   'Manual check-in and attendance override',
+      //   Icons.edit_calendar_rounded,
+      //   Color(0xFF0D9488),
+      //   Routes.operatorAttendanceOnBehalf,
+      // ),
+      // _OperatorAction(
+      //   'Sabha Management',
+      //   'Schedule spiritual sabhas & track participation',
+      //   Icons.event_rounded,
+      //   Color(0xFF6366F1),
+      //   Routes.operatorSabha,
+      // ),
+      // _OperatorAction(
+      //   'Deposits & Debits',
+      //   'Post wallet ledger transactions & adjustments',
+      //   Icons.account_balance_wallet_rounded,
+      //   AppColors.successGreen,
+      //   Routes.operatorDepositDebit,
+      // ),
     ]),
   ];
 

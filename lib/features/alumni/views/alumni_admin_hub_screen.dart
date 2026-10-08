@@ -30,7 +30,7 @@ class _AlumniAdminHubScreenState extends State<AlumniAdminHubScreen>
   @override
   void initState() {
     super.initState();
-    _tabController = TabController(length: 4, vsync: this);
+    _tabController = TabController(length: 3, vsync: this);
     controller.loadAdminStats();
     controller.loadEvents();
     controller.loadNews();
@@ -122,7 +122,7 @@ class _AlumniAdminHubScreenState extends State<AlumniAdminHubScreen>
                     Tab(icon: Icon(Icons.event_note_rounded), text: 'Events & RSVPs'),
                     Tab(icon: Icon(Icons.volunteer_activism_rounded), text: 'Giving Back / News'),
                     Tab(icon: Icon(Icons.how_to_reg_rounded), text: 'Alumni Verification'),
-                    Tab(icon: Icon(Icons.work_outline_rounded), text: 'Job Moderation'),
+                    // Tab(icon: Icon(Icons.work_outline_rounded), text: 'Job Moderation'),
                   ],
                 ),
               ),
@@ -135,7 +135,7 @@ class _AlumniAdminHubScreenState extends State<AlumniAdminHubScreen>
             _buildEventsTab(),
             _buildNewsTab(),
             _buildVerificationTab(),
-            _buildJobsTab(),
+            // _buildJobsTab(),
           ],
         ),
       ),
@@ -533,8 +533,9 @@ class _AlumniAdminHubScreenState extends State<AlumniAdminHubScreen>
   }
 
   // ==========================================================================
-  // TAB 4: JOB MODERATION
+  // TAB 4: JOB MODERATION (Temporarily disabled)
   // ==========================================================================
+  /*
   Widget _buildJobsTab() {
     return AppRefreshIndicator(
       onRefresh: _refreshAll,
@@ -605,6 +606,7 @@ class _AlumniAdminHubScreenState extends State<AlumniAdminHubScreen>
       }),
     );
   }
+  */
 
   // ==========================================================================
   // DIALOGS & BOTTOM SHEETS

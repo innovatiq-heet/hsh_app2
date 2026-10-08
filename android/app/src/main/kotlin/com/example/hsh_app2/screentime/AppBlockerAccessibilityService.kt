@@ -131,12 +131,21 @@ class AppBlockerAccessibilityService : AccessibilityService() {
         Log.w(TAG, "Blocking $pkg (${reason.wireName})")
         PolicyStore.recordBlockEvent(this, pkg, appName, reason)
 
-        // Kick the restricted app out first, then explain why on top of the launcher.
-        runCatching { performGlobalAction(GLOBAL_ACTION_HOME) }
-            .onFailure { Log.e(TAG, "GLOBAL_ACTION_HOME failed: ${it.message}") }
-        runCatching {
+        // Launch BlockedAppActivity directly over the restricted application.
+        // It displays the restriction message (app name, reason, return home / HSH Seva buttons).
+        val launched = runCatching {
             startActivity(BlockedAppActivity.intent(this, pkg, appName, reason))
-        }.onFailure { Log.e(TAG, "BlockedAppActivity failed: ${it.message}") }
+            true
+        }.getOrElse { e ->
+            Log.e(TAG, "BlockedAppActivity failed to launch: ${e.message}")
+            false
+        }
+
+        // Fallback: If BlockedAppActivity could not start, minimize via GLOBAL_ACTION_HOME
+        // so the prohibited app cannot remain in use.
+        if (!launched) {
+            runCatching { performGlobalAction(GLOBAL_ACTION_HOME) }
+        }
     }
 
     /** Whether the window is a real activity of [pkg] (cached per component). */

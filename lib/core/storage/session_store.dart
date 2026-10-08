@@ -7,6 +7,7 @@ import '../models/auth/user_session.dart';
 import '../models/student_profile/student_profile_model.dart';
 import '../network/api_client.dart';
 import '../services/aadhar_service.dart';
+import '../services/push_notification_service.dart';
 import '../services/screen_time_service.dart';
 import '../../features/phonebook/services/caller_id_service.dart';
 
@@ -133,6 +134,11 @@ class SessionStore extends GetxService {
     // Set authorization on ApiClient
     if (Get.isRegistered<ApiClient>()) {
       Get.find<ApiClient>().setAuthToken(token);
+    }
+
+    // Sync FCM push notification token with backend
+    if (Get.isRegistered<PushNotificationService>()) {
+      PushNotificationService.to.syncTokenWithBackend();
     }
 
     // Screen time monitoring

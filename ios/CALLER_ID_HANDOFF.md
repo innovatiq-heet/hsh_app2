@@ -19,7 +19,7 @@ Instead, Apple provides **CallKit's Call Directory Extension (`CXCallDirectoryPr
 │                  Runner / AppDelegate.swift                 │
 │  • CallerIdPlugin.swift validates & sorts pairs             │
 │  • Writes JSON to shared App Group container                │
-│    `group.in.innovatiq.hshApp2/callerid-directory.json`     │
+│    `group.com.avdhsh.app/callerid-directory.json`     │
 │  • Calls CXCallDirectoryManager.reloadExtension()           │
 └──────────────────────────────┬──────────────────────────────┘
                                │ (Triggers background reload)
@@ -45,9 +45,9 @@ Instead, Apple provides **CallKit's Call Directory Extension (`CXCallDirectoryPr
 
 | Setting | Current Value | Description |
 |---|---|---|
-| **Main App Bundle ID** | `in.innovatiq.hshApp2` | Primary Flutter iOS app |
-| **Extension Bundle ID** | `in.innovatiq.hshApp2.CallDirectoryExtension` | Extension embedded in `Runner.app/PlugIns/` |
-| **App Group** | `group.in.innovatiq.hshApp2` | Shared container between app and extension |
+| **Main App Bundle ID** | `com.avdhsh.app` | Primary Flutter iOS app |
+| **Extension Bundle ID** | `com.avdhsh.app.CallDirectoryExtension` | Extension embedded in `Runner.app/PlugIns/` |
+| **App Group** | `group.com.avdhsh.app` | Shared container between app and extension |
 | **Method Channel** | `hsh/caller_id` | Flutter ↔ Native bridge |
 | **Directory File** | `callerid-directory.json` | Shared JSON database in App Group |
 | **Development Team** | `INNOVATIQ SYSTEMS PRIVATE LIMITED` (Team ID `K3FAYYRWH6`) | Paid Apple Developer Team |

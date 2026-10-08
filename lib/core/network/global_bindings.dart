@@ -12,6 +12,7 @@ import './repository/operator/operator_repository.dart';
 import './repository/student_profile/student_profile_repository.dart';
 import '../storage/session_store.dart';
 import '../services/aadhar_service.dart';
+import '../services/push_notification_service.dart';
 
 /// App-wide dependency registrations.
 ///
@@ -43,5 +44,6 @@ class GlobalBindings extends Bindings {
 
     // Services (depend on repositories above)
     Get.put(AadharService(), permanent: true);
+    Get.put(PushNotificationService(), permanent: true);
   }
 }

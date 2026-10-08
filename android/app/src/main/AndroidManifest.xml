@@ -45,6 +45,13 @@
         android:name="${applicationName}"
         android:icon="@mipmap/ic_launcher"
         android:usesCleartextTraffic="true">
+        <!-- Firebase Cloud Messaging default channel & icon -->
+        <meta-data
+            android:name="com.google.firebase.messaging.default_notification_channel_id"
+            android:value="hsh_high_importance_channel" />
+        <meta-data
+            android:name="com.google.firebase.messaging.default_notification_icon"
+            android:resource="@mipmap/ic_launcher" />
         <activity
             android:name=".MainActivity"
             android:exported="true"
@@ -78,6 +85,7 @@
             android:name=".screentime.BlockedAppActivity"
             android:exported="false"
             android:launchMode="singleTask"
+            android:taskAffinity="com.example.hsh_app2.blocker"
             android:theme="@android:style/Theme.NoTitleBar.Fullscreen"
             android:excludeFromRecents="true" />
 

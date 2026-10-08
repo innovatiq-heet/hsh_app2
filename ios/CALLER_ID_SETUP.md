@@ -1,9 +1,9 @@
 # iOS Caller ID Setup — Quick Reference
 
 ## Bundle Identifiers & App Group
-- **Main App**: `in.innovatiq.hshApp2`
-- **Call Directory Extension**: `in.innovatiq.hshApp2.CallDirectoryExtension`
-- **App Group**: `group.in.innovatiq.hshApp2`
+- **Main App**: `com.avdhsh.app`
+- **Call Directory Extension**: `com.avdhsh.app.CallDirectoryExtension`
+- **App Group**: `group.com.avdhsh.app`
 
 ---
 
@@ -19,11 +19,11 @@
 
 3. **Target `Runner`**:
    - **Signing & Capabilities** → Team: Select your paid Team
-   - **App Groups** → Check `group.in.innovatiq.hshApp2`
+   - **App Groups** → Check `group.com.avdhsh.app`
 
 4. **Target `CallDirectoryExtension`**:
    - **Signing & Capabilities** → Team: Select the same paid Team
-   - **App Groups** → Check `group.in.innovatiq.hshApp2`
+   - **App Groups** → Check `group.com.avdhsh.app`
 
 ---
 

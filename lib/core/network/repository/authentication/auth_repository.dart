@@ -97,4 +97,16 @@ class AuthRepository extends BaseRepository {
 
     return AuthSessionResponse.fromJson(user, token: token);
   }
+
+  /// Registers the device's FCM push notification token with the backend.
+  Future<void> updateFcmToken(String fcmToken) async {
+    try {
+      await _dio.post(
+        '/auth/fcm-token',
+        data: {'fcm_token': fcmToken},
+      );
+    } on DioException catch (e) {
+      throw ApiException(errorMessage(e), statusCode: e.response?.statusCode);
+    }
+  }
 }

@@ -6,6 +6,7 @@ import android.content.Intent
 import android.graphics.Color
 import android.graphics.Typeface
 import android.graphics.drawable.GradientDrawable
+import android.os.Build
 import android.os.Bundle
 import android.os.Handler
 import android.os.Looper
@@ -15,6 +16,7 @@ import android.view.WindowManager
 import android.widget.Button
 import android.widget.LinearLayout
 import android.widget.TextView
+import android.window.OnBackInvokedDispatcher
 
 class BlockedAppActivity : Activity() {
 
@@ -53,13 +55,38 @@ class BlockedAppActivity : Activity() {
         super.onCreate(savedInstanceState)
 
         // Lock screen flags — show even over lock screen, keep screen on
-        window.addFlags(
-            WindowManager.LayoutParams.FLAG_SHOW_WHEN_LOCKED or
-            WindowManager.LayoutParams.FLAG_DISMISS_KEYGUARD or
-            WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON or
-            WindowManager.LayoutParams.FLAG_TURN_SCREEN_ON
-        )
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O_MR1) {
+            setShowWhenLocked(true)
+            setTurnScreenOn(true)
+        } else {
+            @Suppress("DEPRECATION")
+            window.addFlags(
+                WindowManager.LayoutParams.FLAG_SHOW_WHEN_LOCKED or
+                WindowManager.LayoutParams.FLAG_DISMISS_KEYGUARD or
+                WindowManager.LayoutParams.FLAG_TURN_SCREEN_ON
+            )
+        }
+        window.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
 
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+            onBackInvokedDispatcher.registerOnBackInvokedCallback(
+                OnBackInvokedDispatcher.PRIORITY_DEFAULT
+            ) { goToHomeScreen() }
+        }
+
+        renderContent(intent)
+        PolicyStore.addPolicyListener(policyListener)
+    }
+
+    override fun onNewIntent(intent: Intent?) {
+        super.onNewIntent(intent)
+        setIntent(intent)
+        if (intent != null) {
+            renderContent(intent)
+        }
+    }
+
+    private fun renderContent(intent: Intent) {
         val pkgName = intent.getStringExtra(EXTRA_PACKAGE_NAME) ?: "Restricted Application"
         val appName = intent.getStringExtra(EXTRA_APP_NAME) ?: pkgName
         val blockReason = BlockReason.fromWire(intent.getStringExtra(EXTRA_REASON_CODE)) ?: BlockReason.APP_BLOCKED
@@ -280,8 +307,6 @@ class BlockedAppActivity : Activity() {
 
         rootLayout.addView(cardLayout)
         setContentView(rootLayout)
-
-        PolicyStore.addPolicyListener(policyListener)
     }
 
     override fun onResume() {

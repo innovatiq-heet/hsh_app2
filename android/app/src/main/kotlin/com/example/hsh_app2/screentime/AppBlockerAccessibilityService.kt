@@ -68,10 +68,31 @@ class AppBlockerAccessibilityService : AccessibilityService() {
     /** Policy / geofence-state changes arrive on whatever thread saved them. */
     private val policyListener: () -> Unit = { recheckForeground() }
 
+    private var lastWatchdogCheckAt = 0L
+
+    /**
+     * Self-healing watchdog: ensures PolicyPollService and ScreenTimeSync ticks
+     * remain alive even if background app refresh / data was toggled off and on,
+     * or if the OS killed the poller.
+     */
+    private fun ensureBackgroundSync() {
+        val now = System.currentTimeMillis()
+        if (now - lastWatchdogCheckAt < 15_000L) return
+        lastWatchdogCheckAt = now
+        if (PolicyStore.hasSession(this)) {
+            if (!PolicyPollService.isRunning()) {
+                Log.i(TAG, "Reviving PolicyPollService from accessibility watchdog")
+                PolicyPollService.start(this)
+            }
+            ScreenTimeSync.ensureTick(this)
+        }
+    }
+
     override fun onServiceConnected() {
         super.onServiceConnected()
         instance = this
         PolicyStore.addPolicyListener(policyListener)
+        ensureBackgroundSync()
         // The service can (re)connect while a restricted app is already open.
         enforceForeground()
     }
@@ -87,6 +108,7 @@ class AppBlockerAccessibilityService : AccessibilityService() {
     override fun onAccessibilityEvent(event: AccessibilityEvent?) {
         if (event?.eventType != AccessibilityEvent.TYPE_WINDOW_STATE_CHANGED) return
         val pkg = event.packageName?.toString() ?: return
+        ensureBackgroundSync()
         if (isActivityWindow(pkg, event.className?.toString()) && foregroundPkg != pkg) {
             foregroundPkg = pkg
             switchSeq++

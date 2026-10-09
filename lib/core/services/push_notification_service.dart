@@ -5,7 +5,9 @@ import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import 'package:get/get.dart';
+import 'package:permission_handler/permission_handler.dart';
 import '../constants/app_routes.dart';
+import '../network/api_client.dart';
 import '../network/repository/authentication/auth_repository.dart';
 import '../storage/session_store.dart';
 
@@ -125,22 +127,34 @@ class PushNotificationService extends GetxService {
 
   /// Requests user permission to display alerts, badges, and play sounds.
   Future<void> _requestPermissions() async {
-    final messaging = FirebaseMessaging.instance;
-    final settings = await messaging.requestPermission(
-      alert: true,
-      announcement: false,
-      badge: true,
-      carPlay: false,
-      criticalAlert: false,
-      provisional: false,
-      sound: true,
-    );
+    try {
+      final messaging = FirebaseMessaging.instance;
+      final settings = await messaging.requestPermission(
+        alert: true,
+        announcement: false,
+        badge: true,
+        carPlay: false,
+        criticalAlert: false,
+        provisional: false,
+        sound: true,
+      );
 
-    developer.log(
-      'Notification authorization status: ${settings.authorizationStatus}',
-      name: 'PushNotification',
-    );
+      developer.log(
+        'Notification authorization status: ${settings.authorizationStatus}',
+        name: 'PushNotification',
+      );
+
+      if (Platform.isAndroid) {
+        final status = await Permission.notification.request();
+        developer.log('Android notification permission: $status', name: 'PushNotification');
+      }
+    } catch (e) {
+      developer.log('Error requesting notification permissions: $e', name: 'PushNotification');
+    }
   }
+
+  /// Public accessor to re-request notification permissions (e.g. from setup or settings).
+  Future<void> requestPermissions() => _requestPermissions();
 
   /// Sets foreground notification presentation options for iOS.
   Future<void> _setupForegroundPresentation() async {
@@ -175,24 +189,35 @@ class PushNotificationService extends GetxService {
       developer.log('FCM Token refreshed: $newToken', name: 'PushNotification');
       syncTokenWithBackend(newToken);
     });
+
+    // 6. Reactive listener: whenever fcmToken gets a value, ensure it is synced
+    fcmToken.listen((token) {
+      if (token != null && token.isNotEmpty) {
+        syncTokenWithBackend(token);
+      }
+    });
   }
 
   /// Displays an in-app heads-up notification when a message arrives in foreground.
   Future<void> _handleForegroundMessage(RemoteMessage message) async {
+    final notification = message.notification;
+    final title = notification?.title ?? message.data['title'] ?? 'Hostel Alert';
+    final body = notification?.body ?? message.data['body'] ?? message.data['message'] ?? '';
+
     developer.log(
-      'Foreground push received: ${message.notification?.title}',
+      'Foreground push received: $title ($body)',
       name: 'PushNotification',
     );
 
-    final notification = message.notification;
-    if (notification == null) return;
+    // If both title and body are empty, nothing to display
+    if (title.isEmpty && body.isEmpty) return;
 
     final android = message.notification?.android;
 
     await _localNotifications.show(
-      id: notification.hashCode,
-      title: notification.title ?? 'Hostel Alert',
-      body: notification.body ?? '',
+      id: message.messageId?.hashCode ?? DateTime.now().millisecondsSinceEpoch ~/ 1000,
+      title: title,
+      body: body,
       notificationDetails: NotificationDetails(
         android: AndroidNotificationDetails(
           _channel.id,
@@ -269,6 +294,8 @@ class PushNotificationService extends GetxService {
       case 'geofence':
       case 'breach':
       case 'curfew':
+      case 'warning':
+      case 'curfew_warning':
         Get.toNamed(Routes.studentHome);
         break;
       case 'screentime':
@@ -298,7 +325,17 @@ class PushNotificationService extends GetxService {
   /// Sends the FCM token to the backend `/auth/fcm-token` endpoint if the user
   /// is currently logged in.
   Future<void> syncTokenWithBackend([String? tokenToSync]) async {
-    final token = tokenToSync ?? fcmToken.value;
+    var token = tokenToSync ?? fcmToken.value;
+    if (token == null || token.isEmpty) {
+      try {
+        token = await FirebaseMessaging.instance.getToken();
+        if (token != null && token.isNotEmpty) {
+          fcmToken.value = token;
+        }
+      } catch (e) {
+        developer.log('Could not fetch FCM token during sync: $e', name: 'PushNotification');
+      }
+    }
     if (token == null || token.isEmpty) return;
 
     if (!Get.isRegistered<SessionStore>()) return;
@@ -310,6 +347,11 @@ class PushNotificationService extends GetxService {
         name: 'PushNotification',
       );
       return;
+    }
+
+    // Ensure ApiClient has the Authorization header set
+    if (Get.isRegistered<ApiClient>()) {
+      Get.find<ApiClient>().setAuthToken(authToken);
     }
 
     if (!Get.isRegistered<AuthRepository>()) return;

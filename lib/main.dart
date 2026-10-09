@@ -1,3 +1,4 @@
+import 'package:firebase_core/firebase_core.dart';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'core/constants/app_pages.dart';
@@ -7,8 +8,13 @@ import 'core/constants/app_theme.dart';
 import 'core/network/global_bindings.dart';
 import 'features/shared/widgets/network_wrapper.dart';
 
-void main() {
+void main() async {
   WidgetsFlutterBinding.ensureInitialized();
+  try {
+    await Firebase.initializeApp();
+  } catch (e) {
+    debugPrint('Firebase initialization warning in main: $e');
+  }
   runApp(const HshApp());
 }
 

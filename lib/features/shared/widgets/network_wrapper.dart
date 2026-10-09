@@ -1,4 +1,4 @@
-﻿import 'package:flutter/material.dart';
+import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import '../../../core/constants/app_colors.dart';
 import '../../../core/constants/app_text_styles.dart';
@@ -26,23 +26,57 @@ class NetworkWrapper extends StatelessWidget {
 
     return Stack(
       children: [
-        // 1. Primary content or offline screen with smooth crossfade
+        // 1. Primary app content (keeps cached schedules accessible)
+        child,
+
+        // 2. Persistent non-intrusive offline banner using Warning Orange (#8A5A1F)
         Obx(() {
           final isOnline = controller.isConnected.value;
+          if (isOnline) return const SizedBox.shrink();
 
-          return AnimatedSwitcher(
-            duration: const Duration(milliseconds: 350),
-            switchInCurve: Curves.easeOutCubic,
-            switchOutCurve: Curves.easeInCubic,
-            child: isOnline
-                ? KeyedSubtree(
-                    key: const ValueKey('app_content'),
-                    child: child,
-                  )
-                : const KeyedSubtree(
-                    key: ValueKey('no_internet_screen'),
-                    child: NoInternetScreen(),
+          return Positioned(
+            top: 0,
+            left: 0,
+            right: 0,
+            child: Material(
+              color: Colors.transparent,
+              child: SafeArea(
+                bottom: false,
+                child: Container(
+                  width: double.infinity,
+                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                  decoration: BoxDecoration(
+                    color: AppColors.warningOrange,
+                    boxShadow: [
+                      BoxShadow(
+                        color: AppColors.warningOrange.withValues(alpha: 0.35),
+                        blurRadius: 8,
+                        offset: const Offset(0, 3),
+                      ),
+                    ],
                   ),
+                  child: Row(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      const Icon(
+                        Icons.wifi_off_rounded,
+                        color: Colors.white,
+                        size: 15,
+                      ),
+                      const SizedBox(width: 8),
+                      Text(
+                        'No Internet Connection • Running in offline mode',
+                        style: AppTextStyles.caption.copyWith(
+                          color: Colors.white,
+                          fontWeight: FontWeight.w700,
+                          fontSize: 12,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ),
           );
         }),
 

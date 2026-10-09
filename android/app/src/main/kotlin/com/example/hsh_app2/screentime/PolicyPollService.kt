@@ -10,6 +10,10 @@ import android.content.Context
 import android.content.Intent
 import android.content.IntentFilter
 import android.content.pm.ServiceInfo
+import android.net.ConnectivityManager
+import android.net.Network
+import android.net.NetworkCapabilities
+import android.net.NetworkRequest
 import android.os.Build
 import android.os.Handler
 import android.os.IBinder
@@ -73,6 +77,8 @@ class PolicyPollService : Service() {
 
         @Volatile private var instance: PolicyPollService? = null
 
+        fun isRunning(): Boolean = instance != null
+
         fun start(context: Context) {
             if (!PolicyStore.hasSession(context)) return
             try {
@@ -99,12 +105,47 @@ class PolicyPollService : Service() {
     private val syncWakeups = LinkedBlockingQueue<Unit>()
     @Volatile private var running = false
     @Volatile private var geoPolicyFetchedAt = 0L
+    @Volatile private var retryMs = RETRY_MIN_MS
 
     private val screenOnReceiver = object : BroadcastReceiver() {
         override fun onReceive(context: Context, intent: Intent) {
             // Leave the idle interval at once and resume the real-time channel.
             wakeSync()
             AppBlockerAccessibilityService.recheckForeground()
+        }
+    }
+
+    private val networkCallback = object : ConnectivityManager.NetworkCallback() {
+        override fun onAvailable(network: Network) {
+            Log.d(TAG, "network available, waking sync loop")
+            wakeSync()
+            ScreenTimeSync.ensureTick(this@PolicyPollService)
+        }
+
+        override fun onCapabilitiesChanged(network: Network, capabilities: NetworkCapabilities) {
+            if (capabilities.hasCapability(NetworkCapabilities.NET_CAPABILITY_VALIDATED) &&
+                capabilities.hasCapability(NetworkCapabilities.NET_CAPABILITY_INTERNET)) {
+                wakeSync()
+            }
+        }
+    }
+
+    private fun registerNetworkCallback() {
+        runCatching {
+            val cm = getSystemService(Context.CONNECTIVITY_SERVICE) as? ConnectivityManager ?: return
+            val request = NetworkRequest.Builder()
+                .addCapability(NetworkCapabilities.NET_CAPABILITY_INTERNET)
+                .build()
+            cm.registerNetworkCallback(request, networkCallback)
+        }.onFailure { e ->
+            Log.w(TAG, "registerNetworkCallback failed: ${e.message}")
+        }
+    }
+
+    private fun unregisterNetworkCallback() {
+        runCatching {
+            val cm = getSystemService(Context.CONNECTIVITY_SERVICE) as? ConnectivityManager ?: return
+            cm.unregisterNetworkCallback(networkCallback)
         }
     }
 
@@ -155,6 +196,7 @@ class PolicyPollService : Service() {
         if (!running) {
             running = true
             instance = this
+            registerNetworkCallback()
             ContextCompat.registerReceiver(
                 this, screenOnReceiver, IntentFilter(Intent.ACTION_SCREEN_ON), ContextCompat.RECEIVER_NOT_EXPORTED,
             )
@@ -170,6 +212,7 @@ class PolicyPollService : Service() {
     override fun onDestroy() {
         running = false
         if (instance === this) instance = null
+        unregisterNetworkCallback()
         runCatching { unregisterReceiver(screenOnReceiver) }
         handler.removeCallbacks(pollRunnable)
         executor.shutdownNow()
@@ -178,6 +221,7 @@ class PolicyPollService : Service() {
     }
 
     private fun wakeSync() {
+        retryMs = RETRY_MIN_MS
         syncWakeups.offer(Unit)
     }
 
@@ -192,7 +236,7 @@ class PolicyPollService : Service() {
 
     /** Keeps the device policy current; see the class comment for the cadence. */
     private fun syncLoop() {
-        var retryMs = RETRY_MIN_MS
+        retryMs = RETRY_MIN_MS
         while (running) {
             if (!PolicyStore.hasSession(this)) {
                 handler.post { stopSelf() }

@@ -14,7 +14,8 @@ class AppConfig {
   static const String appVersionDisplay = 'v1.0.1 (Build 2)';
 
   /// Live hosted attendance schedule endpoint.
-  static const String attendanceScheduleUrl = '$baseUrl/attendance/schedule';
+  static const String attendanceScheduleUrl =
+      'https://lightcoral-eel-306042.hostingersite.com/api/schedule-data';
 
   /// External student basic-details endpoint.
   static const String studentBasicDetailsUrl =

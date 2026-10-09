@@ -1,4 +1,4 @@
-﻿import '../../../enums/attendance_type.dart';
+import '../../../enums/attendance_type.dart';
 
 /// Single attendance record returned by the backend (spec v2.0.0).
 /// Supports both student self-scans and operator/admin manual entries.
@@ -89,6 +89,7 @@ class AttendanceScheduleItem {
   final String? lateTime;
   final bool isForAllStudents;
   final bool isActive;
+  final bool isScheduledToday;
 
   const AttendanceScheduleItem({
     this.id,
@@ -100,14 +101,73 @@ class AttendanceScheduleItem {
     this.lateTime,
     this.isForAllStudents = true,
     this.isActive = true,
+    this.isScheduledToday = true,
   });
 
   AttendanceType get attendanceType => AttendanceTypeX.fromApi(sessionKey);
 
   factory AttendanceScheduleItem.fromJson(Map<String, dynamic> json) {
-    final rawStart = (json['start_time'] ?? json['start'] ?? '00:00').toString();
-    final rawEnd = (json['end_time'] ?? json['end'] ?? '00:00').toString();
-    final rawLate = json['late_time']?.toString();
+    String rawStart = (json['start_time'] ?? json['start'] ?? '00:00').toString();
+    String rawEnd = (json['end_time'] ?? json['end'] ?? '00:00').toString();
+    String? rawLate = json['late_time']?.toString();
+
+    // Check day_schedules to pick today's specific timing slot
+    final daySchedules = json['day_schedules'];
+    bool isScheduledToday = true;
+    if (daySchedules is List && daySchedules.isNotEmpty) {
+      const weekdayNames = ['', 'mon', 'tue', 'wed', 'thu', 'fri', 'sat', 'sun'];
+      final todayWeekday = DateTime.now().weekday;
+      final todayName = (todayWeekday >= 1 && todayWeekday <= 7)
+          ? weekdayNames[todayWeekday]
+          : 'fri';
+      bool foundTodaySlot = false;
+
+      for (final slot in daySchedules) {
+        if (slot is Map) {
+          final days = slot['days'];
+          if (days is List &&
+              days.any((d) => d.toString().trim().toLowerCase() == todayName)) {
+            foundTodaySlot = true;
+            final sTime = slot['startTime'] ?? slot['start_time'];
+            final eTime = slot['endTime'] ?? slot['end_time'];
+            final lTime = slot['lateTime'] ?? slot['late_time'];
+
+            if (sTime != null && sTime.toString().isNotEmpty) {
+              rawStart = sTime.toString();
+            }
+            if (eTime != null && eTime.toString().isNotEmpty) {
+              rawEnd = eTime.toString();
+            }
+            if (lTime != null &&
+                lTime.toString().isNotEmpty &&
+                lTime.toString() != 'null') {
+              rawLate = lTime.toString();
+            } else {
+              rawLate = null;
+            }
+            break;
+          }
+        }
+      }
+
+      if (!foundTodaySlot) {
+        isScheduledToday = false;
+        // Fallback timing for display if top-level was unconfigured (00:00)
+        if (rawStart == '00:00' && rawEnd == '00:00') {
+          final firstSlot = daySchedules.first;
+          if (firstSlot is Map) {
+            final sTime = firstSlot['startTime'] ?? firstSlot['start_time'];
+            final eTime = firstSlot['endTime'] ?? firstSlot['end_time'];
+            if (sTime != null && sTime.toString().isNotEmpty) {
+              rawStart = sTime.toString();
+            }
+            if (eTime != null && eTime.toString().isNotEmpty) {
+              rawEnd = eTime.toString();
+            }
+          }
+        }
+      }
+    }
 
     return AttendanceScheduleItem(
       id: json['id'] is int
@@ -123,6 +183,7 @@ class AttendanceScheduleItem {
           : null,
       isForAllStudents: json['is_for_all_students'] as bool? ?? true,
       isActive: json['is_active'] as bool? ?? true,
+      isScheduledToday: isScheduledToday,
     );
   }
 

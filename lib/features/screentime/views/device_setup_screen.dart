@@ -191,7 +191,7 @@ class _DeviceSetupScreenState extends State<DeviceSetupScreen> with WidgetsBindi
                         icon: Icons.battery_saver_rounded,
                         title: 'Keep running in background',
                         description: 'Stops Android from pausing monitoring to save battery.',
-                        hint: 'Choose "Allow" or "Don\'t optimise".',
+                        hint: 'Choose "Allow" or "Don\'t optimise", and keep background data on.',
                         done: _battery,
                         skipped: _batterySkipped && !_battery,
                         checking: _checking,

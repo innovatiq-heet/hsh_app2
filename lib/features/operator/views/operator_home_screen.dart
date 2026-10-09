@@ -56,7 +56,7 @@ class OperatorHomeScreen extends StatelessWidget {
         'Screen Time',
         'Telemetry, app restrictions & usage analytics',
         Icons.phone_android_rounded,
-        Color(0xFF8B4513),
+        AppColors.secondaryDark,
         Routes.studentScreenTime,
       ),
       _OperatorAction(

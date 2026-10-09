@@ -248,7 +248,9 @@ class StudentScreenTimeScreen extends GetView<StudentScreenTimeController> {
   Widget _buildScreenTimeAnalyticsGraph(BuildContext context) {
     return Obx(() {
       final points = controller.trendGraphPoints;
-      if (points.isEmpty) return const SizedBox.shrink();
+      if (points.isEmpty) {
+        return const SizedBox.shrink();
+      }
 
       double maxHours = 0;
       for (final p in points) {
@@ -256,7 +258,9 @@ class StudentScreenTimeScreen extends GetView<StudentScreenTimeController> {
         final double h = (val is num)
             ? val.toDouble()
             : (double.tryParse(val?.toString() ?? '') ?? 0.0);
-        if (h > maxHours) maxHours = h;
+        if (h > maxHours) {
+          maxHours = h;
+        }
       }
       final chartMaxY = (maxHours <= 2.0 ? 3.0 : (maxHours + 1.5).ceilToDouble()).clamp(3.0, 24.0);
 
@@ -349,7 +353,9 @@ class StudentScreenTimeScreen extends GetView<StudentScreenTimeController> {
                         reservedSize: 30,
                         interval: chartMaxY > 6 ? 2 : 1,
                         getTitlesWidget: (value, meta) {
-                          if (value == 0) return const SizedBox.shrink();
+                          if (value == 0) {
+                            return const SizedBox.shrink();
+                          }
                           return Padding(
                             padding: const EdgeInsets.only(right: 6),
                             child: Text(
@@ -367,7 +373,9 @@ class StudentScreenTimeScreen extends GetView<StudentScreenTimeController> {
                         reservedSize: 34,
                         getTitlesWidget: (value, meta) {
                           final i = value.toInt();
-                          if (i < 0 || i >= points.length) return const SizedBox.shrink();
+                          if (i < 0 || i >= points.length) {
+                            return const SizedBox.shrink();
+                          }
                           final p = points[i];
                           final isSel = p['isSelected'] == true;
                           final isTod = p['isToday'] == true;

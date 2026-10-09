@@ -1,6 +1,8 @@
 package com.example.hsh_app2.screentime
 
 import android.content.Context
+import android.net.ConnectivityManager
+import android.os.Build
 import android.os.PowerManager
 import android.util.Log
 import androidx.work.Constraints
@@ -271,10 +273,17 @@ object ScreenTimeSync {
         val versionName = runCatching {
             context.packageManager.getPackageInfo(context.packageName, 0).versionName
         }.getOrNull() ?: ""
+        val cm = context.getSystemService(Context.CONNECTIVITY_SERVICE) as? ConnectivityManager
+        val bgDataRestricted = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N && cm != null) {
+            cm.restrictBackgroundStatus == ConnectivityManager.RESTRICT_BACKGROUND_STATUS_ENABLED
+        } else {
+            false
+        }
         return JSONObject()
             .put("usageAccess", UsageCollector.hasPermission(context))
             .put("accessibilityEnabled", AppBlockerAccessibilityService.isEnabled(context))
             .put("batteryOptimizationIgnored", pm.isIgnoringBatteryOptimizations(context.packageName))
+            .put("backgroundDataRestricted", bgDataRestricted)
             .put("policyVersion", policy.version)
             .put("policyAppliedAt", PolicyStore.policyAppliedAt(context))
             .put("appVersion", versionName)

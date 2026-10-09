@@ -360,11 +360,11 @@ class AttendanceRepository {
 
     return StudentAttendanceStatus(
       alreadyMarked: false,
-      attendanceActive: true,
-      activeSessionType: 'night',
-      sessionName: 'Night Attendance',
-      startTime: '22:30',
-      endTime: '23:05',
+      attendanceActive: false,
+      activeSessionType: null,
+      sessionName: '',
+      startTime: '',
+      endTime: '',
       allSchedules: fallbackSchedules,
     );
   }

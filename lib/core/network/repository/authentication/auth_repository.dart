@@ -1,4 +1,5 @@
 import 'dart:convert';
+import 'dart:io';
 import 'package:dio/dio.dart';
 import 'package:get/get.dart';
 import '../../api_client.dart';
@@ -107,7 +108,11 @@ class AuthRepository extends BaseRepository {
     try {
       await _dio.post(
         '/auth/fcm-token',
-        data: {'fcm_token': fcmToken},
+        data: {
+          'fcm_token': fcmToken,
+          'fcmToken': fcmToken,
+          'platform': Platform.isAndroid ? 'android' : (Platform.isIOS ? 'ios' : 'other'),
+        },
       );
     } on DioException catch (e) {
       throw ApiException(errorMessage(e), statusCode: e.response?.statusCode);

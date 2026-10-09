@@ -5,6 +5,7 @@ import '../../../core/constants/app_routes.dart';
 import '../../../core/network/api_client.dart';
 import '../../../core/services/screen_time_service.dart';
 import '../../../features/phonebook/services/caller_id_service.dart';
+import '../../../core/services/push_notification_service.dart';
 import '../../../core/services/shorebird_service.dart';
 import '../../../core/storage/session_store.dart';
 
@@ -32,6 +33,11 @@ class SplashController extends GetxController {
     // Configure ApiClient with the stored Bearer token
     if (Get.isRegistered<ApiClient>()) {
       Get.find<ApiClient>().setAuthToken(token);
+    }
+
+    // Sync FCM push notification token with backend now that ApiClient has the token
+    if (Get.isRegistered<PushNotificationService>()) {
+      PushNotificationService.to.syncTokenWithBackend();
     }
 
     // Resolve active session and role

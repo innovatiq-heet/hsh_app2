@@ -1,6 +1,6 @@
 # Parental Control & Screen Time
 
-> **Last updated:** 2026-10-06 · **Repos:** `hsh_app2` (Flutter + native Android) and `hsh_api` (Node/Express/MySQL)
+> **Last updated:** 2026-10-10 · **Repos:** `hsh_app2` (Flutter + native Android) and `hsh_api` (Node/Express/MySQL)
 >
 > Paths starting with `lib/` or `android/` are in this repo; paths starting with `hsh_api/` are in the backend repo. Location tracking and curfew breaches are documented separately in [GEOFENCING_DOCS.md](GEOFENCING_DOCS.md).
 
@@ -147,6 +147,7 @@ graph TD
 | :--- | :--- |
 | Screen off | Plain fetch every 120 s; the screen-on broadcast wakes the loop and triggers an immediate fetch and re-check. |
 | Offline / server error | Retry with backoff 5 s → 60 s. The last good policy keeps being enforced. |
+| Network restored / background data enabled | ConnectivityManager callback wakes the sync loop immediately, resets backoff, and ensures sync ticks are scheduled. |
 | Server without long-poll support | Plain fetch every 30 s (detected by the missing `longPoll` flag). |
 | Student opens the app | `ScreenTimeService.refreshPolicy()` wakes the loop for an immediate fetch. |
 | Every ping (5 min) | The response echoes the policy (same consistent snapshot); stale echoes are discarded by the version check. |
@@ -173,9 +174,9 @@ graph TD
 
 | Trigger | What is checked |
 | :--- | :--- |
-| App opened or switched to (`TYPE_WINDOW_STATE_CHANGED`) | That app |
+| App opened or switched to (`TYPE_WINDOW_STATE_CHANGED`) | That app; also triggers self-healing watchdog ensuring `PolicyPollService` and WorkManager sync are alive |
 | Policy changed (listener) | The app on screen |
-| Accessibility service (re)connects | The app on screen |
+| Accessibility service (re)connects | The app on screen; also revives `PolicyPollService` if stopped |
 | Every poll tick (30 s screen on) | The app on screen, so bedtime starting or the daily limit being reached mid-use takes effect |
 | Screen turns on | The app on screen |
 

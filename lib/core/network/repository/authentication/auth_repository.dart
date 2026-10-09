@@ -95,7 +95,11 @@ class AuthRepository extends BaseRepository {
       throw ApiException(msg?.toString() ?? 'User not found or invalid credentials.');
     }
 
-    return AuthSessionResponse.fromJson(user, token: token);
+    final isAlumni = (parsed is Map && parsed['is_alumni'] == true) ||
+        (data.isNotEmpty && data['is_alumni'] == true) ||
+        (user.isNotEmpty && (user['is_alumni'] == true || user['role']?.toString().toLowerCase().trim() == 'alumni'));
+
+    return AuthSessionResponse.fromJson(user, token: token, isAlumni: isAlumni);
   }
 
   /// Registers the device's FCM push notification token with the backend.

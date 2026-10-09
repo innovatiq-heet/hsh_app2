@@ -12,6 +12,7 @@ class AuthSessionResponse {
   final String phone;
   final String studentCode;
   final String room;
+  final bool isAlumniApi;
 
   const AuthSessionResponse({
     required this.id,
@@ -22,11 +23,12 @@ class AuthSessionResponse {
     this.phone = '',
     this.studentCode = '',
     this.room = '',
+    this.isAlumniApi = false,
   });
 
-  /// True if user is an alumni / former resident (e.g. room is N/A, empty, or ID is 345).
+  /// True if user is an alumni / former resident (e.g. room is N/A, empty, or isAlumniApi is true).
   bool get isAlumni =>
-      (role == UserRole.student || role == UserRole.leader) &&
+      isAlumniApi ||
       UserSession.isAlumniRoomOrId(
         room: room,
         studentCode: studentCode,
@@ -39,8 +41,15 @@ class AuthSessionResponse {
   factory AuthSessionResponse.fromJson(
     Map<String, dynamic> json, {
     String? token,
+    bool? isAlumni,
   }) {
     final rawId = json['id'] ?? json['student_id'];
+    final roomVal = json['room']?.toString() ?? json['room_number']?.toString() ?? '';
+    final isAlum = isAlumni == true ||
+        json['is_alumni'] == true ||
+        json['role']?.toString().toLowerCase().trim() == 'alumni' ||
+        UserSession.isAlumniRoomOrId(room: roomVal);
+
     return AuthSessionResponse(
       id: rawId == null ? '' : rawId.toString(),
       name: json['name'] as String? ?? '',
@@ -53,7 +62,8 @@ class AuthSessionResponse {
           json['bank_code']?.toString() ??
           json['bankCode']?.toString() ??
           '',
-      room: json['room']?.toString() ?? json['room_number']?.toString() ?? '',
+      room: isAlum && (roomVal.isEmpty || UserSession.isAlumniRoomOrId(room: roomVal)) ? 'N/A' : roomVal,
+      isAlumniApi: isAlum,
     );
   }
 }

@@ -14,6 +14,7 @@ class UserSession {
   final String studentCode;
   final String room;
   final StudentProfileModel? studentProfile;
+  final bool? isAlumniFlag;
 
   const UserSession({
     required this.token,
@@ -25,14 +26,16 @@ class UserSession {
     this.studentCode = '',
     this.room = '',
     this.studentProfile,
+    this.isAlumniFlag,
   });
 
   bool get isAuthenticated => token.isNotEmpty;
   bool get isStudentOrLeader => role.isStudentOrLeader;
 
-  /// True if user is an alumni / former resident (e.g. room is N/A, empty, or ID is 345).
+  /// True if user is an alumni / former resident (e.g. room is N/A, empty, or flag is true).
   bool get isAlumni {
-    if (!isStudentOrLeader) return false;
+    if (isAlumniFlag == true) return true;
+    if (!isStudentOrLeader && role != UserRole.unknown) return false;
     return isAlumniRoomOrId(
       room: room,
       profileRoom: studentProfile?.room,
@@ -62,9 +65,14 @@ class UserSession {
         effectiveRoom == 'none' ||
         effectiveRoom == '0' ||
         effectiveRoom == 'null' ||
+        effectiveRoom == 'undefined' ||
         effectiveRoom == '-' ||
+        effectiveRoom == '--' ||
+        effectiveRoom == 'nil' ||
         effectiveRoom == 'not assigned' ||
-        effectiveRoom == 'unassigned';
+        effectiveRoom == 'unassigned' ||
+        effectiveRoom.contains('n/a') ||
+        effectiveRoom.contains('passout');
   }
 
   UserSession copyWith({
@@ -77,6 +85,7 @@ class UserSession {
     String? studentCode,
     String? room,
     StudentProfileModel? studentProfile,
+    bool? isAlumniFlag,
   }) {
     return UserSession(
       token: token ?? this.token,
@@ -88,6 +97,7 @@ class UserSession {
       studentCode: studentCode ?? this.studentCode,
       room: room ?? this.room,
       studentProfile: studentProfile ?? this.studentProfile,
+      isAlumniFlag: isAlumniFlag ?? this.isAlumniFlag,
     );
   }
 
@@ -100,6 +110,7 @@ class UserSession {
     'phone': phone,
     'student_code': studentCode,
     'room': room,
+    'is_alumni': isAlumni,
     if (studentProfile != null) 'student_profile': studentProfile!.toJson(),
   };
 
@@ -123,6 +134,7 @@ class UserSession {
           '',
       room: json['room']?.toString() ?? '',
       studentProfile: profile,
+      isAlumniFlag: json['is_alumni'] == true || json['role']?.toString().toLowerCase().trim() == 'alumni',
     );
   }
 }

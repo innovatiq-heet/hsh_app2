@@ -362,20 +362,6 @@ class LoginController extends GetxController {
           ? session.phone
           : (lower == 'admin' ? '7778885383' : (rawInput.length >= 10 ? rawInput : ''));
 
-      await _session.saveSession(
-        token: session.token,
-        role: session.role,
-        email: session.email,
-        name: session.name,
-        phone: effectivePhone,
-        studentCode: session.studentCode.isNotEmpty
-            ? session.studentCode
-            : studentIdController.text.trim(),
-        room: session.room,
-        studentProfile: verifiedProfile,
-      );
-
-      // Step 5: Route to appropriate destination (Alumni / N/A room students route to AlumniHub)
       final isAlumni = session.isAlumni ||
           UserSession.isAlumniRoomOrId(
             room: session.room.isNotEmpty ? session.room : (verifiedProfile?.room ?? ''),
@@ -385,6 +371,21 @@ class LoginController extends GetxController {
                 : studentIdController.text.trim(),
             id: session.id,
           );
+
+      await _session.saveSession(
+        token: session.token,
+        role: session.role,
+        email: session.email,
+        name: session.name,
+        phone: effectivePhone,
+        studentCode: session.studentCode.isNotEmpty
+            ? session.studentCode
+            : studentIdController.text.trim(),
+        room: isAlumni ? 'N/A' : session.room,
+        studentProfile: verifiedProfile,
+        isAlumni: isAlumni,
+      );
+
       _routeByRole(session.role, isAlumni: isAlumni);
     } on ApiException catch (e) {
       Get.find<ApiClient>().setAuthToken(null);

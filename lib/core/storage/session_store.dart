@@ -108,6 +108,7 @@ class SessionStore extends GetxService {
     String? aadhar,
     String? room,
     StudentProfileModel? studentProfile,
+    bool? isAlumni,
   }) async {
     final effectiveProfile = studentProfile ?? _cachedStudentProfile;
 
@@ -118,8 +119,9 @@ class SessionStore extends GetxService {
       email: email,
       phone: phone ?? '',
       studentCode: studentCode ?? '',
-      room: room ?? '',
+      room: (isAlumni == true && (room == null || room.isEmpty || UserSession.isAlumniRoomOrId(room: room))) ? 'N/A' : (room ?? ''),
       studentProfile: effectiveProfile,
+      isAlumniFlag: isAlumni,
     );
 
     _cachedToken = token;

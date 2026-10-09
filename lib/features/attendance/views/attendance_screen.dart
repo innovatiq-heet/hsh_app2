@@ -1,10 +1,11 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_blue_plus/flutter_blue_plus.dart';
 import 'package:get/get.dart';
 import 'package:intl/intl.dart';
+import 'package:permission_handler/permission_handler.dart';
 import '../../../core/enums/attendance_type.dart';
 import '../../../core/constants/app_colors.dart';
 import '../../../core/constants/app_dimens.dart';
-import '../../../core/constants/app_routes.dart';
 import '../../../core/constants/app_text_styles.dart';
 import '../../../core/network/responses/attendance/attendance_models.dart';
 import '../../shared/widgets/app_button.dart';
@@ -13,10 +14,8 @@ import '../../shared/widgets/app_refresh_indicator.dart';
 import '../../shared/widgets/async_state_view.dart';
 import '../../shared/widgets/gradient_header.dart';
 import '../../shared/widgets/namedrop_attendance_overlay.dart';
-import '../../shared/widgets/radar_animation.dart';
 import '../../shared/widgets/skeleton_loader.dart';
 import '../controllers/attendance_controller.dart';
-import 'attendance_event_style.dart';
 
 class AttendanceScreen extends StatefulWidget {
   const AttendanceScreen({super.key});
@@ -25,9 +24,10 @@ class AttendanceScreen extends StatefulWidget {
   State<AttendanceScreen> createState() => _AttendanceScreenState();
 }
 
-class _AttendanceScreenState extends State<AttendanceScreen> with SingleTickerProviderStateMixin {
+class _AttendanceScreenState extends State<AttendanceScreen>
+    with SingleTickerProviderStateMixin {
   final AttendanceController controller = Get.find<AttendanceController>();
-  
+
   late AnimationController _animController;
   late Animation<double> _fadeAnimation;
 
@@ -35,7 +35,7 @@ class _AttendanceScreenState extends State<AttendanceScreen> with SingleTickerPr
   void initState() {
     super.initState();
     _animController = AnimationController(
-      duration: const Duration(milliseconds: 800),
+      duration: const Duration(milliseconds: 700),
       vsync: this,
     );
     _fadeAnimation = CurvedAnimation(
@@ -49,6 +49,71 @@ class _AttendanceScreenState extends State<AttendanceScreen> with SingleTickerPr
   void dispose() {
     _animController.dispose();
     super.dispose();
+  }
+
+  String _getInitials(String name) {
+    final parts = name
+        .trim()
+        .split(RegExp(r'\s+'))
+        .where((p) => p.isNotEmpty)
+        .toList();
+    if (parts.isEmpty) return 'HV';
+    if (parts.length == 1) return parts[0].substring(0, 1).toUpperCase();
+    return '${parts[0][0]}${parts[1][0]}'.toUpperCase();
+  }
+
+  IconData _resolveScheduleIcon(String? iconName, AttendanceType type) {
+    final lower = iconName?.toLowerCase() ?? '';
+    if (type == AttendanceType.night || lower.contains('moon')) {
+      return Icons.dark_mode_rounded;
+    }
+    if (lower.contains('bell')) {
+      return Icons.notifications_rounded;
+    }
+    if (lower.contains('sun') || lower.contains('morning')) {
+      return Icons.wb_sunny_rounded;
+    }
+    return Icons.groups_rounded;
+  }
+
+  bool _isTimingActiveNow(String startTime, String endTime) {
+    try {
+      if (startTime == '00:00' && endTime == '00:00') {
+        return false;
+      }
+      final now = DateTime.now();
+      final curMins = now.hour * 60 + now.minute;
+      final startParts = startTime
+          .split(':')
+          .map((e) => int.parse(e.trim()))
+          .toList();
+      final endParts = endTime
+          .split(':')
+          .map((e) => int.parse(e.trim()))
+          .toList();
+      if (startParts.length < 2 || endParts.length < 2) return false;
+
+      final startMins = startParts[0] * 60 + startParts[1];
+      int endMins = endParts[0] * 60 + endParts[1];
+
+      // If session ends at midnight (00:00), treat as 24:00 (1440 mins)
+      if (endMins == 0 && startMins > 0) {
+        endMins = 1440;
+      }
+
+      if (startMins == endMins) {
+        return false;
+      }
+
+      if (startMins < endMins) {
+        return curMins >= startMins && curMins <= endMins;
+      } else {
+        // Overnight window crossing past midnight (e.g. 23:00 to 02:00)
+        return curMins >= startMins || curMins <= endMins;
+      }
+    } catch (_) {
+      return false;
+    }
   }
 
   void _showResultDialog({
@@ -74,11 +139,17 @@ class _AttendanceScreenState extends State<AttendanceScreen> with SingleTickerPr
             child: Dialog(
               backgroundColor: Colors.transparent,
               elevation: 0,
-              insetPadding: const EdgeInsets.symmetric(horizontal: 24, vertical: 24),
+              insetPadding: const EdgeInsets.symmetric(
+                horizontal: 24,
+                vertical: 24,
+              ),
               child: ConstrainedBox(
                 constraints: const BoxConstraints(maxWidth: 400),
                 child: Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 28),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 24,
+                    vertical: 28,
+                  ),
                   decoration: BoxDecoration(
                     color: AppColors.surface,
                     borderRadius: BorderRadius.circular(AppDimens.radiusXl),
@@ -97,7 +168,6 @@ class _AttendanceScreenState extends State<AttendanceScreen> with SingleTickerPr
                   child: Column(
                     mainAxisSize: MainAxisSize.min,
                     children: [
-                      // Concentric Icon Badge
                       Container(
                         width: 68,
                         height: 68,
@@ -113,17 +183,11 @@ class _AttendanceScreenState extends State<AttendanceScreen> with SingleTickerPr
                               color: color.withValues(alpha: 0.15),
                               shape: BoxShape.circle,
                             ),
-                            child: Icon(
-                              icon,
-                              color: color,
-                              size: 26,
-                            ),
+                            child: Icon(icon, color: color, size: 26),
                           ),
                         ),
                       ),
                       const SizedBox(height: AppDimens.gapLg),
-
-                      // Title
                       Text(
                         title,
                         textAlign: TextAlign.center,
@@ -135,8 +199,6 @@ class _AttendanceScreenState extends State<AttendanceScreen> with SingleTickerPr
                         ),
                       ),
                       const SizedBox(height: AppDimens.gapSm),
-
-                      // Message
                       Text(
                         message,
                         textAlign: TextAlign.center,
@@ -147,8 +209,6 @@ class _AttendanceScreenState extends State<AttendanceScreen> with SingleTickerPr
                         ),
                       ),
                       const SizedBox(height: AppDimens.gapXl),
-
-                      // Action Button
                       SizedBox(
                         width: double.infinity,
                         child: AppButton(
@@ -168,11 +228,206 @@ class _AttendanceScreenState extends State<AttendanceScreen> with SingleTickerPr
     );
   }
 
-  Future<void> _performBleScan(AttendanceType type, {required bool isAttendanceOpen}) async {
+  void _showBluetoothRequiredDialog() {
+    showGeneralDialog(
+      context: context,
+      barrierDismissible: true,
+      barrierLabel: 'Dismiss',
+      barrierColor: Colors.black.withValues(alpha: 0.45),
+      pageBuilder: (ctx, anim1, anim2) => const SizedBox.shrink(),
+      transitionBuilder: (ctx, anim, secondaryAnim, child) {
+        return ScaleTransition(
+          scale: CurvedAnimation(parent: anim, curve: Curves.easeOutBack),
+          child: Dialog(
+            backgroundColor: Colors.transparent,
+            elevation: 0,
+            insetPadding: const EdgeInsets.symmetric(horizontal: 24),
+            child: Container(
+              padding: const EdgeInsets.all(24),
+              decoration: BoxDecoration(
+                color: AppColors.surface,
+                borderRadius: BorderRadius.circular(AppDimens.radiusXl),
+                border: Border.all(color: AppColors.borderLight),
+                boxShadow: [
+                  BoxShadow(
+                    color: AppColors.shadow.withValues(alpha: 0.14),
+                    blurRadius: 24,
+                    offset: const Offset(0, 8),
+                  ),
+                ],
+              ),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Container(
+                    width: 62,
+                    height: 62,
+                    decoration: BoxDecoration(
+                      color: AppColors.warningOrange.withValues(alpha: 0.12),
+                      shape: BoxShape.circle,
+                    ),
+                    child: const Icon(
+                      Icons.bluetooth_disabled_rounded,
+                      color: AppColors.warningOrange,
+                      size: 32,
+                    ),
+                  ),
+                  const SizedBox(height: 16),
+                  Text(
+                    'Bluetooth Required',
+                    style: AppTextStyles.headline.copyWith(
+                      fontSize: 18,
+                      fontWeight: FontWeight.w800,
+                    ),
+                  ),
+                  const SizedBox(height: 8),
+                  Text(
+                    'Bluetooth is required to detect the ESP-32 beacon on your floor and verify your presence in the hostel/classroom.',
+                    textAlign: TextAlign.center,
+                    style: AppTextStyles.bodyMd.copyWith(
+                      color: AppColors.textSecondary,
+                      height: 1.4,
+                    ),
+                  ),
+                  const SizedBox(height: 22),
+                  Row(
+                    children: [
+                      Expanded(
+                        child: OutlinedButton(
+                          onPressed: () => Navigator.of(ctx).pop(),
+                          child: const Text('Cancel'),
+                        ),
+                      ),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: ElevatedButton(
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: AppColors.primary,
+                            foregroundColor: Colors.white,
+                          ),
+                          onPressed: () async {
+                            Navigator.of(ctx).pop();
+                            try {
+                              await FlutterBluePlus.turnOn();
+                            } catch (_) {}
+                          },
+                          child: const Text('Turn On'),
+                        ),
+                      ),
+                    ],
+                  ),
+                ],
+              ),
+            ),
+          ),
+        );
+      },
+    );
+  }
+
+  void _showLocationRequiredDialog() {
+    showGeneralDialog(
+      context: context,
+      barrierDismissible: true,
+      barrierLabel: 'Dismiss',
+      barrierColor: Colors.black.withValues(alpha: 0.45),
+      pageBuilder: (ctx, anim1, anim2) => const SizedBox.shrink(),
+      transitionBuilder: (ctx, anim, secondaryAnim, child) {
+        return ScaleTransition(
+          scale: CurvedAnimation(parent: anim, curve: Curves.easeOutBack),
+          child: Dialog(
+            backgroundColor: Colors.transparent,
+            elevation: 0,
+            insetPadding: const EdgeInsets.symmetric(horizontal: 24),
+            child: Container(
+              padding: const EdgeInsets.all(24),
+              decoration: BoxDecoration(
+                color: AppColors.surface,
+                borderRadius: BorderRadius.circular(AppDimens.radiusXl),
+                border: Border.all(color: AppColors.borderLight),
+                boxShadow: [
+                  BoxShadow(
+                    color: AppColors.shadow.withValues(alpha: 0.14),
+                    blurRadius: 24,
+                    offset: const Offset(0, 8),
+                  ),
+                ],
+              ),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Container(
+                    width: 62,
+                    height: 62,
+                    decoration: BoxDecoration(
+                      color: AppColors.primarySoft,
+                      shape: BoxShape.circle,
+                    ),
+                    child: const Icon(
+                      Icons.location_on_outlined,
+                      color: AppColors.primary,
+                      size: 32,
+                    ),
+                  ),
+                  const SizedBox(height: 16),
+                  Text(
+                    'Location Services Required',
+                    style: AppTextStyles.headline.copyWith(
+                      fontSize: 18,
+                      fontWeight: FontWeight.w800,
+                    ),
+                  ),
+                  const SizedBox(height: 8),
+                  Text(
+                    'Android requires location permissions to discover nearby Bluetooth Low Energy (BLE) beacons. Your GPS coordinates are never recorded or stored.',
+                    textAlign: TextAlign.center,
+                    style: AppTextStyles.bodyMd.copyWith(
+                      color: AppColors.textSecondary,
+                      height: 1.4,
+                    ),
+                  ),
+                  const SizedBox(height: 22),
+                  Row(
+                    children: [
+                      Expanded(
+                        child: OutlinedButton(
+                          onPressed: () => Navigator.of(ctx).pop(),
+                          child: const Text('Cancel'),
+                        ),
+                      ),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: ElevatedButton(
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: AppColors.primary,
+                            foregroundColor: Colors.white,
+                          ),
+                          onPressed: () {
+                            Navigator.of(ctx).pop();
+                            openAppSettings();
+                          },
+                          child: const Text('Open Settings'),
+                        ),
+                      ),
+                    ],
+                  ),
+                ],
+              ),
+            ),
+          ),
+        );
+      },
+    );
+  }
+
+  Future<void> _performBleScan(
+    AttendanceType type, {
+    required bool isAttendanceOpen,
+  }) async {
     if (controller.alreadyMarked.value) {
       _showResultDialog(
         title: 'Already Marked',
-        message: 'Your attendance is already marked for today. Come back tomorrow!',
+        message: 'Your attendance is already marked for today.',
         icon: Icons.info_outline_rounded,
         color: AppColors.primary,
         buttonLabel: 'Understood',
@@ -183,7 +438,8 @@ class _AttendanceScreenState extends State<AttendanceScreen> with SingleTickerPr
     if (!isAttendanceOpen) {
       _showResultDialog(
         title: 'Attendance Closed',
-        message: 'Attendance is currently closed. Please check the schedule on your dashboard for the next available session.',
+        message:
+            'Attendance is currently closed. Please check the schedule for the next available session.',
         icon: Icons.schedule_rounded,
         color: AppColors.warningOrange,
         buttonLabel: 'Got it',
@@ -200,191 +456,343 @@ class _AttendanceScreenState extends State<AttendanceScreen> with SingleTickerPr
             title: 'Attendance Marked!',
             sessionName: type.label,
             eventType: type,
-            subtitle: 'Your attendance for ${type.label} has been recorded successfully. Have a great day!',
+            subtitle:
+                'Your attendance for ${type.label} has been recorded successfully.',
           );
         }
       }
     } catch (e) {
-      _showResultDialog(
-        title: 'Could Not Mark Attendance',
-        message: controller.friendlyError(e),
-        icon: Icons.error_outline_rounded,
-        color: AppColors.cancelledRed,
-        buttonLabel: 'Dismiss',
-      );
-    }
-  }
-
-  bool _isTimingActiveNow(String startTime, String endTime) {
-    try {
-      final now = DateTime.now();
-      final curMins = now.hour * 60 + now.minute;
-      final startParts = startTime.split(':').map((e) => int.parse(e.trim())).toList();
-      final endParts = endTime.split(':').map((e) => int.parse(e.trim())).toList();
-      final startMins = startParts[0] * 60 + startParts[1];
-      final endMins = endParts[0] * 60 + endParts[1];
-
-      if (startMins <= endMins) {
-        return curMins >= startMins && curMins <= endMins;
+      final err = e.toString().toLowerCase();
+      if (err.contains('bluetooth') ||
+          err.contains('adapter') ||
+          err.contains('turn on')) {
+        _showBluetoothRequiredDialog();
+      } else if (err.contains('permission') || err.contains('location')) {
+        _showLocationRequiredDialog();
       } else {
-        // Overnight session (e.g. 22:30 to 05:00)
-        return curMins >= startMins || curMins <= endMins;
+        _showResultDialog(
+          title: 'Could Not Mark Attendance',
+          message: controller.friendlyError(e),
+          icon: Icons.error_outline_rounded,
+          color: AppColors.cancelledRed,
+          buttonLabel: 'Dismiss',
+        );
       }
-    } catch (_) {
-      return false;
     }
   }
 
-  AttendanceScheduleItem? _findNextUpcomingSession(List<AttendanceScheduleItem> list) {
-    if (list.isEmpty) return null;
-    final now = DateTime.now();
-    final curMins = now.hour * 60 + now.minute;
-    AttendanceScheduleItem? best;
-    int minDiff = 24 * 60 + 1;
+  Widget _buildHeader() {
+    return Obx(() {
+      final sName = controller.studentName.value;
+      final sRoom = controller.studentRoom.value;
+      final sGroup = controller.studentGroup.value;
+      final sCode = controller.studentCode.value;
+      final initials = _getInitials(sName);
 
-    for (final s in list) {
-      try {
-        final startParts = s.startTime.split(':').map((e) => int.parse(e.trim())).toList();
-        final endParts = s.endTime.split(':').map((e) => int.parse(e.trim())).toList();
-        final startMins = startParts[0] * 60 + startParts[1];
-        final endMins = endParts[0] * 60 + endParts[1];
-        if (startMins == 0 && endMins == 0) continue;
-
-        int diff = startMins - curMins;
-        if (diff <= 0) {
-          diff += 24 * 60; // Next day
-        }
-        if (diff < minDiff) {
-          minDiff = diff;
-          best = s;
-        }
-      } catch (_) {}
-    }
-    return best ?? list.first;
+      return SliverGradientHeader(
+        expandedHeight: 185.0,
+        overline: DateFormat('EEEE, d MMMM')
+            .format(DateTime.now())
+            .toUpperCase(),
+        title: 'Attendance',
+        subtitle: sName.isNotEmpty
+            ? sName
+            : 'Daily routine & verification',
+        heroLeading: Container(
+          width: 60,
+          height: 60,
+          padding: const EdgeInsets.all(2.5),
+          decoration: BoxDecoration(
+            shape: BoxShape.circle,
+            border: Border.all(
+              color: Colors.white.withValues(alpha: 0.5),
+              width: 2,
+            ),
+          ),
+          child: CircleAvatar(
+            backgroundColor: Colors.white,
+            child: Text(
+              initials,
+              style: AppTextStyles.headline.copyWith(
+                color: AppColors.primary,
+                fontWeight: FontWeight.w800,
+                fontSize: 18,
+              ),
+            ),
+          ),
+        ),
+        actions: [
+          HeaderIconButton(
+            icon: Icons.refresh_rounded,
+            tooltip: 'Refresh',
+            onPressed: controller.load,
+          ),
+        ],
+        child: Builder(
+          builder: (context) {
+            final pills = [
+              if (sRoom.isNotEmpty)
+                HeaderPill(
+                  icon: Icons.meeting_room_outlined,
+                  label: sRoom.toLowerCase().contains('room')
+                      ? sRoom
+                      : 'Room $sRoom',
+                ),
+              if (sGroup.isNotEmpty)
+                HeaderPill(
+                  icon: Icons.groups_outlined,
+                  label: sGroup,
+                ),
+              if (sCode.isNotEmpty)
+                HeaderPill(
+                  icon: Icons.badge_outlined,
+                  label: 'ID: $sCode',
+                ),
+            ];
+            if (pills.isEmpty) return const SizedBox.shrink();
+            return Row(
+              children: [
+                for (int i = 0; i < pills.length; i++) ...[
+                  if (i > 0) const SizedBox(width: AppDimens.gapSm),
+                  Expanded(child: pills[i]),
+                ],
+              ],
+            );
+          },
+        ),
+      );
+    });
   }
 
-  IconData _resolveIcon(String? iconName, IconData defaultIcon) {
-    switch (iconName?.toLowerCase()) {
-      case 'bell':
-      case 'fire':
-      case 'flame':
-        return Icons.local_fire_department_rounded;
-      case 'sun':
-      case 'morning':
-        return Icons.wb_sunny_rounded;
-      case 'moon':
-      case 'night':
-        return Icons.bedtime_rounded;
-      case 'lunch':
-      case 'food':
-        return Icons.lunch_dining_rounded;
-      case 'dinner':
-        return Icons.dinner_dining_rounded;
-      case 'groups':
-      case 'users':
-      case 'sabha':
-        return Icons.groups_rounded;
-      case 'book':
-      case 'study':
-        return Icons.menu_book_rounded;
-      case 'coffee':
-        return Icons.local_cafe_rounded;
-      default:
-        return defaultIcon;
-    }
-  }
+  Widget _buildScheduleCard({
+    required AttendanceScheduleItem item,
+    required bool isMarked,
+    required bool isActiveNow,
+  }) {
+    final iconData = _resolveScheduleIcon(item.iconName, item.attendanceType);
 
-  Widget _buildSuccessBanner(String sessionName) {
     return Material(
       color: Colors.transparent,
       child: InkWell(
         borderRadius: BorderRadius.circular(20),
         onTap: () {
-          NamedropAttendanceOverlay.show(
-            context,
-            title: 'Attendance Marked!',
-            sessionName: sessionName,
-            subtitle: 'You have successfully marked attendance for $sessionName.',
-          );
+          if (isMarked) {
+            NamedropAttendanceOverlay.show(
+              context,
+              title: 'Attendance Marked!',
+              sessionName: item.sessionName,
+              eventType: item.attendanceType,
+              subtitle: 'Attendance verified for ${item.sessionName}.',
+            );
+          } else if (isActiveNow) {
+            _performBleScan(item.attendanceType, isAttendanceOpen: true);
+          } else if (!item.isScheduledToday) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(
+                content: Text(
+                  '${item.sessionName} is not scheduled for today.',
+                ),
+                duration: const Duration(seconds: 2),
+                backgroundColor: const Color(0xFF376682),
+                behavior: SnackBarBehavior.floating,
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(10),
+                ),
+              ),
+            );
+          } else {
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(
+                content: Text(
+                  '${item.sessionName} will be available between ${item.startTime} and ${item.endTime}.',
+                ),
+                duration: const Duration(seconds: 2),
+                backgroundColor: const Color(0xFF376682),
+                behavior: SnackBarBehavior.floating,
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(10),
+                ),
+              ),
+            );
+          }
         },
         child: Container(
-          width: double.infinity,
-          padding: const EdgeInsets.all(24),
+          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 10),
           decoration: BoxDecoration(
-            gradient: LinearGradient(
-              begin: Alignment.topLeft,
-              end: Alignment.bottomRight,
-              colors: [
-                AppColors.successGreen.withValues(alpha: 0.15),
-                AppColors.primary.withValues(alpha: 0.08),
-              ],
-            ),
+            color: Colors.white,
             borderRadius: BorderRadius.circular(20),
-            border: Border.all(color: AppColors.successGreen.withValues(alpha: 0.3)),
+            border: Border.all(
+              color: isActiveNow
+                  ? AppColors.primary.withValues(alpha: 0.35)
+                  : const Color(0xFFF3F1EC),
+              width: 1.0,
+            ),
+            boxShadow: [
+              BoxShadow(
+                color: isActiveNow
+                    ? AppColors.primary.withValues(alpha: 0.08)
+                    : Colors.black.withValues(alpha: 0.03),
+                blurRadius: 10,
+                offset: const Offset(0, 3),
+              ),
+            ],
           ),
-          child: Column(
+          child: Row(
+            crossAxisAlignment: CrossAxisAlignment.center,
             children: [
+              // Icon Box - soft squircle pastel background with teal-navy icon
               Container(
-                padding: const EdgeInsets.all(16),
+                width: 38,
+                height: 38,
                 decoration: BoxDecoration(
-                  shape: BoxShape.circle,
-                  color: AppColors.successGreen.withValues(alpha: 0.2),
+                  color: const Color(0xFFE5EDF2),
+                  borderRadius: BorderRadius.circular(12),
                 ),
-                child: const Icon(
-                  Icons.check_circle,
-                  color: AppColors.successGreen,
-                  size: 48,
-                ),
+                child: Icon(iconData, color: const Color(0xFF3B6B82), size: 19),
               ),
-              const SizedBox(height: 16),
-              const Text(
-                'Attendance Marked!',
-                style: TextStyle(
-                  fontSize: 20,
-                  fontWeight: FontWeight.w800,
-                  color: AppColors.successGreen,
-                ),
-              ),
-              const SizedBox(height: 8),
-              Text(
-                'You have successfully marked attendance for $sessionName.',
-                textAlign: TextAlign.center,
-                style: TextStyle(
-                  fontSize: 14,
-                  color: AppColors.successGreen.withValues(alpha: 0.8),
-                  height: 1.5,
-                ),
-              ),
-              const SizedBox(height: 14),
-              Container(
-                padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
-                decoration: BoxDecoration(
-                  color: AppColors.successGreen.withValues(alpha: 0.15),
-                  borderRadius: BorderRadius.circular(20),
-                  border: Border.all(
-                    color: AppColors.successGreen.withValues(alpha: 0.35),
-                  ),
-                ),
-                child: const Row(
+              const SizedBox(width: 8),
+              // Session Info (Title, Timing, Late Pill)
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
                   mainAxisSize: MainAxisSize.min,
                   children: [
-                    Icon(
-                      Icons.auto_awesome_rounded,
-                      size: 15,
-                      color: AppColors.successGreen,
-                    ),
-                    SizedBox(width: 6),
                     Text(
-                      'Tap to view NameDrop card ✨',
-                      style: TextStyle(
-                        fontSize: 11,
+                      item.sessionName,
+                      style: AppTextStyles.title.copyWith(
+                        fontSize: 15,
                         fontWeight: FontWeight.w700,
-                        color: AppColors.successGreen,
+                        color: const Color(0xFF1E2D38),
+                        letterSpacing: -0.2,
+                      ),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                    const SizedBox(height: 2),
+                    Text(
+                      '${item.startTime} – ${item.endTime}',
+                      maxLines: 1,
+                      softWrap: false,
+                      overflow: TextOverflow.ellipsis,
+                      style: AppTextStyles.caption.copyWith(
+                        fontSize: 12,
+                        color: const Color(0xFF9AA7B0),
+                        fontWeight: FontWeight.w400,
                       ),
                     ),
+                    if (item.lateTime != null &&
+                        item.lateTime!.trim().isNotEmpty) ...[
+                      const SizedBox(height: 4),
+                      Container(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 7,
+                          vertical: 2,
+                        ),
+                        decoration: BoxDecoration(
+                          color: const Color(0xFFFDEEE2),
+                          borderRadius: BorderRadius.circular(16),
+                        ),
+                        child: Text(
+                          'Late after ${item.lateTime}',
+                          maxLines: 1,
+                          softWrap: false,
+                          overflow: TextOverflow.ellipsis,
+                          style: AppTextStyles.caption.copyWith(
+                            color: const Color(0xFF8A5A1F),
+                            fontSize: 10.5,
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                      ),
+                    ],
                   ],
                 ),
               ),
+              const SizedBox(width: 6),
+              // Right Status Pill (Upcoming, Open Now, Done)
+              if (isMarked)
+                Container(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 9,
+                    vertical: 5.5,
+                  ),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFFE8F5E9),
+                    borderRadius: BorderRadius.circular(16),
+                  ),
+                  child: Text(
+                    'Done',
+                    style: AppTextStyles.caption.copyWith(
+                      color: const Color(0xFF2E7D32),
+                      fontSize: 12,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                )
+              else if (isActiveNow)
+                Container(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 9,
+                    vertical: 5.5,
+                  ),
+                  decoration: BoxDecoration(
+                    gradient: AppColors.heroGradient,
+                    borderRadius: BorderRadius.circular(16),
+                    boxShadow: [
+                      BoxShadow(
+                        color: AppColors.primary.withValues(alpha: 0.25),
+                        blurRadius: 8,
+                        offset: const Offset(0, 3),
+                      ),
+                    ],
+                  ),
+                  child: Text(
+                    'Open Now',
+                    style: AppTextStyles.caption.copyWith(
+                      color: Colors.white,
+                      fontSize: 12,
+                      fontWeight: FontWeight.w700,
+                    ),
+                  ),
+                )
+              else if (!item.isScheduledToday)
+                Container(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 9,
+                    vertical: 5.5,
+                  ),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFFF3F1EC),
+                    borderRadius: BorderRadius.circular(16),
+                  ),
+                  child: Text(
+                    'Not Today',
+                    style: AppTextStyles.caption.copyWith(
+                      color: const Color(0xFF8C9BA5),
+                      fontSize: 11.5,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                )
+              else
+                Container(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 9,
+                    vertical: 5.5,
+                  ),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFFEDF4F7),
+                    borderRadius: BorderRadius.circular(16),
+                  ),
+                  child: Text(
+                    'Upcoming',
+                    style: AppTextStyles.caption.copyWith(
+                      color: const Color(0xFF5E8A9D),
+                      fontSize: 12,
+                      fontWeight: FontWeight.w500,
+                    ),
+                  ),
+                ),
             ],
           ),
         ),
@@ -392,225 +800,10 @@ class _AttendanceScreenState extends State<AttendanceScreen> with SingleTickerPr
     );
   }
 
-  Widget _buildSessionScheduleTile({
-    required AttendanceType type,
-    required String name,
-    required String timing,
-    required bool isMarked,
-    required DateTime? markedTime,
-    required bool isActiveNow,
-    String? iconName,
-    String? lateTime,
-  }) {
-    final style = AttendanceEventStyle.of(type);
-    final primaryColor = style.primaryColor;
-    final iconData = _resolveIcon(iconName, style.icon);
-
-    final tile = Container(
-      margin: const EdgeInsets.only(bottom: 12),
-      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
-      decoration: BoxDecoration(
-        color: isActiveNow
-            ? primaryColor.withValues(alpha: 0.08)
-            : AppColors.surface,
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(
-          color: isActiveNow
-              ? primaryColor.withValues(alpha: 0.4)
-              : AppColors.border.withValues(alpha: 0.6),
-          width: isActiveNow ? 1.5 : 1.0,
-        ),
-        boxShadow: isActiveNow
-            ? [
-                BoxShadow(
-                  color: primaryColor.withValues(alpha: 0.08),
-                  blurRadius: 10,
-                  offset: const Offset(0, 4),
-                ),
-              ]
-            : null,
-      ),
-      child: Row(
-        children: [
-          Container(
-            width: 42,
-            height: 42,
-            decoration: BoxDecoration(
-              color: style.softBackgroundColor,
-              borderRadius: BorderRadius.circular(12),
-            ),
-            child: Icon(
-              iconData,
-              color: primaryColor,
-              size: 20,
-            ),
-          ),
-          const SizedBox(width: 12),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Row(
-                  children: [
-                    Flexible(
-                      child: Text(
-                        name,
-                        style: const TextStyle(
-                          fontSize: 14.5,
-                          fontWeight: FontWeight.w700,
-                          color: AppColors.textPrimary,
-                        ),
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                      ),
-                    ),
-                    if (isActiveNow) ...[
-                      const SizedBox(width: 6),
-                      Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1.5),
-                        decoration: BoxDecoration(
-                          color: AppColors.primary,
-                          borderRadius: BorderRadius.circular(4),
-                        ),
-                        child: const Text(
-                          'LIVE',
-                          style: TextStyle(
-                            fontSize: 9.5,
-                            fontWeight: FontWeight.w800,
-                            color: Colors.white,
-                            letterSpacing: 0.4,
-                          ),
-                        ),
-                      ),
-                    ],
-                  ],
-                ),
-                const SizedBox(height: 3),
-                Wrap(
-                  crossAxisAlignment: WrapCrossAlignment.center,
-                  spacing: 6,
-                  runSpacing: 3,
-                  children: [
-                    Text(
-                      timing,
-                      style: const TextStyle(
-                        fontSize: 12,
-                        fontWeight: FontWeight.w500,
-                        color: AppColors.textMuted,
-                      ),
-                    ),
-                    if (lateTime != null && lateTime.isNotEmpty)
-                      Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1),
-                        decoration: BoxDecoration(
-                          color: AppColors.warningOrange.withValues(alpha: 0.12),
-                          borderRadius: BorderRadius.circular(4),
-                        ),
-                        child: Text(
-                          'Late: $lateTime',
-                          style: const TextStyle(
-                            fontSize: 10,
-                            fontWeight: FontWeight.w600,
-                            color: AppColors.warningOrange,
-                          ),
-                        ),
-                      ),
-                  ],
-                ),
-              ],
-            ),
-          ),
-          const SizedBox(width: 8),
-          if (isMarked)
-            Container(
-              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-              decoration: BoxDecoration(
-                color: AppColors.successGreen.withValues(alpha: 0.12),
-                borderRadius: BorderRadius.circular(8),
-                border: Border.all(color: AppColors.successGreen.withValues(alpha: 0.25)),
-              ),
-              child: Row(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  const Icon(Icons.check_circle_rounded, size: 13, color: AppColors.successGreen),
-                  const SizedBox(width: 4),
-                  Text(
-                    markedTime != null
-                        ? DateFormat('hh:mm a').format(markedTime.toLocal())
-                        : 'Done',
-                    style: const TextStyle(
-                      fontSize: 11,
-                      fontWeight: FontWeight.w700,
-                      color: AppColors.successGreen,
-                    ),
-                  ),
-                ],
-              ),
-            )
-          else if (isActiveNow)
-            Container(
-              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-              decoration: BoxDecoration(
-                color: AppColors.primary.withValues(alpha: 0.12),
-                borderRadius: BorderRadius.circular(8),
-                border: Border.all(color: AppColors.primary.withValues(alpha: 0.3)),
-              ),
-              child: const Text(
-                'Open Now',
-                style: TextStyle(
-                  fontSize: 11,
-                  fontWeight: FontWeight.w700,
-                  color: AppColors.primary,
-                ),
-              ),
-            )
-          else
-            Container(
-              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-              decoration: BoxDecoration(
-                color: AppColors.surfaceMuted,
-                borderRadius: BorderRadius.circular(8),
-              ),
-              child: const Text(
-                'Upcoming',
-                style: TextStyle(
-                  fontSize: 11,
-                  fontWeight: FontWeight.w600,
-                  color: AppColors.textMuted,
-                ),
-              ),
-            ),
-        ],
-      ),
-    );
-
-    if (isMarked) {
-      return Material(
-        color: Colors.transparent,
-        child: InkWell(
-          borderRadius: BorderRadius.circular(16),
-          onTap: () {
-            NamedropAttendanceOverlay.show(
-              context,
-              title: 'Attendance Marked!',
-              sessionName: name,
-              subtitle: markedTime != null
-                  ? 'Attendance verified at ${DateFormat('hh:mm a').format(markedTime.toLocal())}'
-                  : 'Attendance verified for $name.',
-            );
-          },
-          child: tile,
-        ),
-      );
-    }
-
-    return tile;
-  }
-
   @override
   Widget build(BuildContext context) {
     return Scaffold(
+      backgroundColor: AppColors.mainBackground,
       body: Obx(
         () => AsyncStateView(
           isLoading: controller.isLoading.value,
@@ -620,9 +813,8 @@ class _AttendanceScreenState extends State<AttendanceScreen> with SingleTickerPr
           loadingWidget: const _AttendanceSkeleton(),
           builder: (context) {
             final statusData = controller.studentStatus.value;
-            final isMarking = controller.markingType.value != null;
 
-            // Resolve list of session schedules from API or fallback defaults
+            // Resolve list of session schedules
             final schedules = controller.schedulesList.isNotEmpty
                 ? controller.schedulesList.toList()
                 : const [
@@ -651,27 +843,6 @@ class _AttendanceScreenState extends State<AttendanceScreen> with SingleTickerPr
                     ),
                   ];
 
-            // Resolve currently active or next upcoming session
-            final liveItem = schedules.firstWhereOrNull(
-              (s) => _isTimingActiveNow(s.startTime, s.endTime),
-            );
-
-            final AttendanceScheduleItem targetItem = liveItem ??
-                _findNextUpcomingSession(schedules) ??
-                schedules.first;
-
-            final activeType = targetItem.attendanceType;
-            final isBackendActive = controller.attendanceActive.value || (statusData?.attendanceActive == true);
-            final isTimingActive = liveItem != null;
-            final isAttendanceOpen = isBackendActive || isTimingActive;
-
-            final isAlreadyMarked = controller.alreadyMarked.value ||
-                (statusData?.alreadyMarked == true) ||
-                controller.todayStatus[activeType] != null;
-
-            final activeSessionName = targetItem.sessionName;
-            final activeTiming = '${targetItem.startTime} – ${targetItem.endTime}';
-
             return AppRefreshIndicator(
               onRefresh: controller.load,
               child: CustomScrollView(
@@ -679,225 +850,149 @@ class _AttendanceScreenState extends State<AttendanceScreen> with SingleTickerPr
                   parent: ClampingScrollPhysics(),
                 ),
                 slivers: [
-                  SliverGradientHeader(
-                    overline: DateFormat('EEEE, d MMMM').format(DateTime.now()).toUpperCase(),
-                    title: 'Attendance',
-                    titleStyle: AppTextStyles.headline.copyWith(
-                      fontSize: 20,
-                      fontWeight: FontWeight.w700,
-                      color: Colors.white,
-                      letterSpacing: -0.2,
-                    ),
-                    subtitle: 'Daily routine & verification',
-                    expandedHeight: 145.0,
-                    actions: [
-                      HeaderIconButton(
-                        icon: Icons.history_rounded,
-                        tooltip: 'Attendance History',
-                        onPressed: () => Get.toNamed(Routes.attendanceHistory),
-                      ),
-                      HeaderIconButton(
-                        icon: Icons.refresh_rounded,
-                        tooltip: 'Refresh',
-                        onPressed: controller.load,
-                      ),
-                      const SizedBox(width: AppDimens.gapSm),
-                    ],
-                    child: Row(
-                      children: [
-                        HeaderPill(
-                          icon: Icons.schedule_rounded,
-                          label: activeSessionName,
-                        ),
-                        const SizedBox(width: AppDimens.gapSm),
-                        HeaderPill(
-                          icon: isAlreadyMarked
-                              ? Icons.check_circle_outline
-                              : (isAttendanceOpen ? Icons.sensors_rounded : Icons.lock_clock_outlined),
-                          label: isAlreadyMarked
-                              ? 'Completed'
-                              : (isAttendanceOpen ? 'Live Now' : 'Closed'),
-                        ),
-                      ],
-                    ),
-                  ),
+                  _buildHeader(),
                   SliverToBoxAdapter(
                     child: FadeTransition(
                       opacity: _fadeAnimation,
-                      child: Center(
-                        child: Padding(
-                          padding: const EdgeInsets.all(AppDimens.screenPadding),
-                          child: ConstrainedBox(
-                            constraints: const BoxConstraints(maxWidth: 480),
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                // Student Profile Card
-                                _ProfileCard(controller: controller),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          const SizedBox(height: 18),
 
-                                // Attendance Action Card
-                                AppCard(
-                                  padding: const EdgeInsets.all(24.0),
-                                  child: Column(
-                                    children: [
-                                      if (isAlreadyMarked)
-                                        _buildSuccessBanner(activeSessionName)
-                                      else if (!isAttendanceOpen)
-                                        Padding(
-                                          padding: const EdgeInsets.symmetric(vertical: 20),
-                                          child: Column(
+                          // 1. "Today's Schedule" Section Header
+                          Padding(
+                            padding: const EdgeInsets.symmetric(horizontal: 20),
+                            child: Row(
+                              children: [
+                                Container(
+                                  width: 4,
+                                  height: 18,
+                                  decoration: BoxDecoration(
+                                    color: const Color(0xFFEAAB78),
+                                    borderRadius: BorderRadius.circular(2),
+                                  ),
+                                ),
+                                const SizedBox(width: 8),
+                                Text(
+                                  "Today's Schedule",
+                                  style: AppTextStyles.headline.copyWith(
+                                    fontSize: 18,
+                                    fontWeight: FontWeight.w800,
+                                    color: const Color(0xFF22333C),
+                                    letterSpacing: -0.2,
+                                  ),
+                                ),
+                                const Spacer(),
+                                Text(
+                                  '${schedules.length} sessions',
+                                  style: AppTextStyles.caption.copyWith(
+                                    fontSize: 13,
+                                    color: const Color(0xFF8C9BA5),
+                                    fontWeight: FontWeight.w500,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                          const SizedBox(height: 16),
+
+                          // 2. Side Timing & Schedule Cards List
+                          Padding(
+                            padding: const EdgeInsets.symmetric(horizontal: 10),
+                            child: Column(
+                              children: [
+                                for (int i = 0; i < schedules.length; i++) ...[
+                                  Builder(
+                                    builder: (context) {
+                                      final item = schedules[i];
+                                      final type = item.attendanceType;
+                                      final markedTime =
+                                          controller.todayStatus[type];
+                                      final isMarked =
+                                          markedTime != null ||
+                                          (controller.alreadyMarked.value &&
+                                              statusData?.activeType == type);
+                                      final isWindowOpen =
+                                          item.isScheduledToday &&
+                                              _isTimingActiveNow(
+                                                item.startTime,
+                                                item.endTime,
+                                              );
+                                      final isActiveNow = !isMarked &&
+                                          item.isScheduledToday &&
+                                          (isWindowOpen ||
+                                              (controller.attendanceActive.value &&
+                                                  statusData?.activeType == type));
+
+                                      return Padding(
+                                        padding: const EdgeInsets.only(bottom: 12),
+                                        child: IntrinsicHeight(
+                                          child: Row(
+                                            crossAxisAlignment:
+                                                CrossAxisAlignment.stretch,
                                             children: [
-                                              Container(
-                                                padding: const EdgeInsets.all(14),
-                                                decoration: BoxDecoration(
-                                                  shape: BoxShape.circle,
-                                                  color: AppColors.warningOrange.withValues(alpha: 0.15),
+                                              // Left side timing (horizontal, strictly on one line)
+                                              Padding(
+                                                padding: const EdgeInsets.only(
+                                                  top: 19,
                                                 ),
-                                                child: const Icon(
-                                                  Icons.schedule_rounded,
-                                                  size: 38,
-                                                  color: AppColors.warningOrange,
+                                                child: SizedBox(
+                                                  width: 38,
+                                                  child: Text(
+                                                    item.startTime,
+                                                    maxLines: 1,
+                                                    softWrap: false,
+                                                    textAlign: TextAlign.right,
+                                                    style: AppTextStyles.caption
+                                                        .copyWith(
+                                                          color: const Color(
+                                                            0xFF8C9BA5,
+                                                          ),
+                                                          fontSize: 12,
+                                                          fontWeight:
+                                                              FontWeight.w400,
+                                                          letterSpacing: -0.2,
+                                                        ),
+                                                  ),
                                                 ),
                                               ),
-                                              const SizedBox(height: 14),
-                                              const Text(
-                                                'Attendance is Closed',
-                                                style: TextStyle(
-                                                  fontSize: 18,
-                                                  fontWeight: FontWeight.w700,
-                                                  color: AppColors.textPrimary,
+                                              const SizedBox(width: 4),
+
+                                              // Vertical connecting line and dot
+                                              CustomPaint(
+                                                painter: _TimelinePainter(
+                                                  isFirst: i == 0,
+                                                  isLast: i == schedules.length - 1,
+                                                  lineColor: const Color(
+                                                    0xFFE5E2DA,
+                                                  ),
+                                                  dotColor: const Color(0xFF376682),
+                                                  dotCenterY: 29,
                                                 ),
+                                                child: const SizedBox(width: 10),
                                               ),
-                                              const SizedBox(height: 6),
-                                              Text(
-                                                controller.startTime.isNotEmpty && controller.endTime.isNotEmpty
-                                                    ? 'Attendance is closed.\nAvailable between ${controller.startTime.value} and ${controller.endTime.value}'
-                                                    : 'Next session ($activeSessionName) window is $activeTiming.',
-                                                textAlign: TextAlign.center,
-                                                style: const TextStyle(
-                                                  fontSize: 13,
-                                                  color: AppColors.textMuted,
-                                                  height: 1.4,
+                                              const SizedBox(width: 6),
+
+                                              // Schedule Card
+                                              Expanded(
+                                                child: _buildScheduleCard(
+                                                  item: item,
+                                                  isMarked: isMarked,
+                                                  isActiveNow: isActiveNow,
                                                 ),
                                               ),
                                             ],
                                           ),
-                                        )
-                                      else ...[
-                                        RadarAnimation(
-                                          isScanning: isMarking,
-                                          color: AppColors.primary,
-                                          child: ShaderMask(
-                                            shaderCallback: (bounds) =>
-                                                const LinearGradient(
-                                                  colors: [
-                                                    AppColors.primary,
-                                                    AppColors.primaryLight,
-                                                  ],
-                                                ).createShader(bounds),
-                                            child: const Icon(
-                                              Icons.bluetooth_searching,
-                                              size: 48,
-                                              color: Colors.white,
-                                            ),
-                                          ),
                                         ),
-                                        const SizedBox(height: 16),
-                                        Text(
-                                          isMarking
-                                              ? 'Scanning Beacon...'
-                                              : 'Mark $activeSessionName',
-                                          style: const TextStyle(
-                                            fontSize: 20,
-                                            fontWeight: FontWeight.w800,
-                                            color: AppColors.textPrimary,
-                                          ),
-                                        ),
-                                        const SizedBox(height: 4),
-                                        Text(
-                                          'Session window: $activeTiming',
-                                          style: const TextStyle(
-                                            fontSize: 12,
-                                            fontWeight: FontWeight.w600,
-                                            color: AppColors.primary,
-                                          ),
-                                        ),
-                                        const SizedBox(height: 8),
-                                        const Text(
-                                          'Make sure you are on your floor. Bluetooth will automatically connect to the floor device.',
-                                          textAlign: TextAlign.center,
-                                          style: TextStyle(
-                                            fontSize: 13,
-                                            color: AppColors.textMuted,
-                                            height: 1.4,
-                                          ),
-                                        ),
-                                        const SizedBox(height: 20),
-                                        SizedBox(
-                                          width: double.infinity,
-                                          child: AppButton(
-                                            label: 'Mark Attendance Now',
-                                            onPressed: isMarking
-                                                ? null
-                                                : () => _performBleScan(activeType, isAttendanceOpen: isAttendanceOpen),
-                                            isLoading: isMarking,
-                                          ),
-                                        ),
-                                      ],
-                                    ],
+                                      );
+                                    },
                                   ),
-                                ),
-                                const SizedBox(height: 24),
-
-                                // Today's Full Schedule Section
-                                Row(
-                                  children: [
-                                    Container(
-                                      width: 4,
-                                      height: 18,
-                                      decoration: BoxDecoration(
-                                        color: AppColors.primary,
-                                        borderRadius: BorderRadius.circular(2),
-                                      ),
-                                    ),
-                                    const SizedBox(width: 8),
-                                    const Text(
-                                      'Today\'s Sessions',
-                                      style: TextStyle(
-                                        fontSize: 17,
-                                        fontWeight: FontWeight.w800,
-                                        color: AppColors.textPrimary,
-                                        letterSpacing: -0.2,
-                                      ),
-                                    ),
-                                  ],
-                                ),
-                                const SizedBox(height: 12),
-
-                                // List of All Sessions
-                                ...schedules.map((item) {
-                                  final type = item.attendanceType;
-                                  final markedTime = controller.todayStatus[type];
-                                  final isMarked = markedTime != null || (isAlreadyMarked && targetItem.sessionKey == item.sessionKey);
-                                  final isWindowOpen = _isTimingActiveNow(item.startTime, item.endTime);
-                                  final isActiveNow = !isMarked && (isWindowOpen || (isBackendActive && targetItem.sessionKey == item.sessionKey));
-                                  final timingStr = '${item.startTime} – ${item.endTime}';
-
-                                  return _buildSessionScheduleTile(
-                                    type: type,
-                                    name: item.sessionName,
-                                    timing: timingStr,
-                                    isMarked: isMarked,
-                                    markedTime: markedTime,
-                                    isActiveNow: isActiveNow,
-                                    iconName: item.iconName,
-                                    lateTime: item.lateTime,
-                                  );
-                                }),
+                                ],
                               ],
                             ),
                           ),
-                        ),
+                          const SizedBox(height: 36),
+                        ],
                       ),
                     ),
                   ),
@@ -931,11 +1026,6 @@ class _AttendanceSkeleton extends StatelessWidget {
           subtitle: 'Daily routine & verification',
           expandedHeight: 145.0,
           actions: [
-            HeaderIconButton(
-              icon: Icons.history_rounded,
-              tooltip: 'Attendance History',
-              onPressed: () {},
-            ),
             HeaderIconButton(
               icon: Icons.refresh_rounded,
               tooltip: 'Refresh',
@@ -1094,174 +1184,59 @@ class _AttendanceSkeleton extends StatelessWidget {
   }
 }
 
-class _ProfileCard extends StatelessWidget {
-  final AttendanceController controller;
-  const _ProfileCard({required this.controller});
+class _TimelinePainter extends CustomPainter {
+  final bool isFirst;
+  final bool isLast;
+  final Color lineColor;
+  final Color dotColor;
+  final double dotCenterY;
+
+  const _TimelinePainter({
+    required this.isFirst,
+    required this.isLast,
+    required this.lineColor,
+    required this.dotColor,
+    required this.dotCenterY,
+  });
 
   @override
-  Widget build(BuildContext context) {
-    return Obx(() {
-      final details = controller.studentDetails.value;
-      final name = details != null && details.fullName.isNotEmpty ? details.fullName : 'Student';
-      final room = details != null && details.room.isNotEmpty ? details.room : '--';
-      final phone = details != null && details.phone.isNotEmpty ? details.phone : '--';
-      String rawBankCode = (details != null && details.bankCode.isNotEmpty && details.bankCode != '--')
-          ? details.bankCode
-          : (controller.studentId.value != null ? controller.studentId.value.toString() : '');
-      final bankCode = (rawBankCode.length == 3 && RegExp(r'^[0-9]{3}$').hasMatch(rawBankCode))
-          ? '0$rawBankCode'
-          : rawBankCode;
+  void paint(Canvas canvas, Size size) {
+    final centerX = size.width / 2;
+    final linePaint = Paint()
+      ..color = lineColor
+      ..strokeWidth = 1.5
+      ..style = PaintingStyle.stroke;
 
-      final parts = name.trim().split(RegExp(r'\s+')).where((p) => p.isNotEmpty).toList();
-      String initials = "ST";
-      if (parts.length >= 2) {
-        initials = (parts[0][0] + parts[1][0]).toUpperCase();
-      } else if (parts.isNotEmpty && parts[0].isNotEmpty) {
-        initials = parts[0][0].toUpperCase();
-      }
-
-      final floorName = controller.assignedFloorName.value.isNotEmpty
-          ? controller.assignedFloorName.value
-          : (controller.assignedFloorId.value == 0
-              ? 'Ground Floor'
-              : (controller.assignedFloorId.value > 0
-                  ? 'Floor ${controller.assignedFloorId.value}'
-                  : 'Floor --'));
-
-      final groupName = (details != null && details.groupName.isNotEmpty) ? details.groupName : '';
-
-      return Padding(
-        padding: const EdgeInsets.only(bottom: AppDimens.gapLg),
-        child: AppCard(
-          padding: const EdgeInsets.all(16.0),
-          child: Column(
-            children: [
-              Row(
-                children: [
-                  Container(
-                    width: 50,
-                    height: 50,
-                    decoration: const BoxDecoration(
-                      shape: BoxShape.circle,
-                      gradient: LinearGradient(
-                        colors: [AppColors.primary, AppColors.primaryLight],
-                      ),
-                    ),
-                    child: Center(
-                      child: Text(
-                        initials,
-                        style: const TextStyle(
-                          color: Colors.white,
-                          fontWeight: FontWeight.w700,
-                          fontSize: 16,
-                        ),
-                      ),
-                    ),
-                  ),
-                  const SizedBox(width: 14),
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          name,
-                          style: const TextStyle(
-                            fontSize: 16,
-                            fontWeight: FontWeight.w700,
-                            color: AppColors.textPrimary,
-                          ),
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                        ),
-                        const SizedBox(height: 6),
-                        Wrap(
-                          spacing: 6,
-                          runSpacing: 4,
-                          children: [
-                            if (bankCode.isNotEmpty)
-                              _buildInfoChip(Icons.badge_outlined, bankCode),
-                            _buildInfoChip(Icons.meeting_room_outlined, 'Room $room'),
-                            _buildInfoChip(Icons.apartment_rounded, floorName),
-                            if (groupName.isNotEmpty)
-                              _buildInfoChip(Icons.groups_rounded, groupName),
-                          ],
-                        ),
-                      ],
-                    ),
-                  ),
-                ],
-              ),
-              if (phone.isNotEmpty && phone != '--') ...[
-                const SizedBox(height: 12),
-                const Divider(height: 1, color: AppColors.borderLight),
-                const SizedBox(height: 10),
-                Row(
-                  children: [
-                    const Icon(Icons.phone_android_rounded, size: 15, color: AppColors.textMuted),
-                    const SizedBox(width: 6),
-                    Text(
-                      phone,
-                      style: const TextStyle(
-                        fontSize: 12.5,
-                        color: AppColors.textSecondary,
-                      ),
-                    ),
-                    const Spacer(),
-                    Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-                      decoration: BoxDecoration(
-                        color: AppColors.successGreen.withValues(alpha: 0.12),
-                        borderRadius: BorderRadius.circular(20),
-                      ),
-                      child: const Row(
-                        children: [
-                          Icon(Icons.verified_user_rounded, size: 12, color: AppColors.successGreen),
-                          SizedBox(width: 4),
-                          Text(
-                            'Verified',
-                            style: TextStyle(
-                              fontSize: 10.5,
-                              color: AppColors.successGreen,
-                              fontWeight: FontWeight.w700,
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                  ],
-                ),
-              ],
-            ],
-          ),
-        ),
-      );
-    });
-  }
-
-  Widget _buildInfoChip(IconData icon, String label) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 3),
-      decoration: BoxDecoration(
-        color: AppColors.primary.withValues(alpha: 0.08),
-        borderRadius: BorderRadius.circular(6),
-      ),
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Icon(icon, size: 12, color: AppColors.primary),
-          const SizedBox(width: 4),
-          Text(
-            label,
-            style: const TextStyle(
-              fontSize: 11,
-              fontWeight: FontWeight.w600,
-              color: AppColors.primary,
-            ),
-          ),
-        ],
-      ),
+    // Draw line above dot (short top line for first item, full top for others)
+    final topY = isFirst ? 10.0 : 0.0;
+    canvas.drawLine(
+      Offset(centerX, topY),
+      Offset(centerX, dotCenterY),
+      linePaint,
     );
+
+    // Draw line from dot to bottom (if not last)
+    if (!isLast) {
+      canvas.drawLine(
+        Offset(centerX, dotCenterY),
+        Offset(centerX, size.height),
+        linePaint,
+      );
+    }
+
+    // Draw solid circle dot matching user screenshot
+    final dotPaint = Paint()
+      ..color = dotColor
+      ..style = PaintingStyle.fill;
+
+    canvas.drawCircle(Offset(centerX, dotCenterY), 3.5, dotPaint);
   }
+
+  @override
+  bool shouldRepaint(covariant _TimelinePainter oldDelegate) =>
+      oldDelegate.isFirst != isFirst ||
+      oldDelegate.isLast != isLast ||
+      oldDelegate.lineColor != lineColor ||
+      oldDelegate.dotColor != dotColor ||
+      oldDelegate.dotCenterY != dotCenterY;
 }
-
-

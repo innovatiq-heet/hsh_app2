@@ -6,7 +6,6 @@ import '../../../core/constants/app_colors.dart';
 import '../../../core/constants/app_dimens.dart';
 import '../../../core/constants/app_text_styles.dart';
 import '../../../core/utils/date_formatting.dart';
-import '../../shared/widgets/app_card.dart';
 import '../../shared/widgets/async_state_view.dart';
 import '../../shared/widgets/empty_state.dart';
 import '../../shared/widgets/status_badge.dart';
@@ -229,85 +228,161 @@ class _HistoryCard extends StatelessWidget {
   Widget build(BuildContext context) {
     final style = AttendanceEventStyle.of(entry.type);
     final dateStr = DateFormat('dd MMM yyyy').format(entry.date);
+    final timeStr = DateFormat('hh:mm a').format(entry.time.toLocal());
 
-    return AppCard(
-      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
-      radius: AppDimens.radiusMd,
-      child: Row(
-        children: [
-          Container(
-            width: 36,
-            height: 36,
-            decoration: BoxDecoration(
-              color: style.softBackgroundColor,
-              borderRadius: BorderRadius.circular(AppDimens.radiusSm),
-            ),
-            child: Icon(
-              style.icon,
-              color: style.primaryColor,
-              size: 18,
-            ),
+    // Status indicator color (Default to Present/Success Green for marked records)
+    final Color statusColor = AppColors.successGreen;
+    final String methodLabel = entry.viaCode ? 'Dynamic QR' : 'BLE Proximity';
+    final IconData methodIcon = entry.viaCode ? Icons.qr_code_2_rounded : Icons.bluetooth_rounded;
+
+    return Container(
+      decoration: BoxDecoration(
+        color: AppColors.surface,
+        borderRadius: BorderRadius.circular(AppDimens.radiusMd),
+        border: Border.all(color: AppColors.border, width: 1),
+        boxShadow: [
+          BoxShadow(
+            color: AppColors.shadow.withValues(alpha: 0.04),
+            blurRadius: 8,
+            offset: const Offset(0, 2),
           ),
-          const SizedBox(width: AppDimens.gapMd),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Row(
-                  children: [
-                    Text(
-                      entry.type.label,
-                      style: AppTextStyles.subtitle.copyWith(
-                        fontWeight: FontWeight.w600,
-                        fontSize: 14,
+        ],
+      ),
+      child: ClipRRect(
+        borderRadius: BorderRadius.circular(AppDimens.radiusMd),
+        child: IntrinsicHeight(
+          child: Row(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              // Left edge status color indicator
+              Container(
+                width: 5,
+                color: statusColor,
+              ),
+              Expanded(
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+                  child: Row(
+                    children: [
+                      // Event icon badge
+                      Container(
+                        width: 40,
+                        height: 40,
+                        decoration: BoxDecoration(
+                          color: style.softBackgroundColor,
+                          borderRadius: BorderRadius.circular(AppDimens.radiusSm),
+                        ),
+                        child: Icon(
+                          style.icon,
+                          color: style.primaryColor,
+                          size: 20,
+                        ),
                       ),
-                    ),
-                    const Spacer(),
-                    StatusBadge(
-                      label: entry.viaCode ? 'Code' : 'QR Verified',
-                      color: entry.viaCode
-                          ? AppColors.primary
-                          : AppColors.successGreen,
-                      icon: entry.viaCode
-                          ? Icons.pin_outlined
-                          : Icons.qr_code_2_rounded,
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 3),
-                Row(
-                  children: [
-                    const Icon(
-                      Icons.calendar_today_outlined,
-                      size: 12,
-                      color: AppColors.textMuted,
-                    ),
-                    const SizedBox(width: 4),
-                    Text(
-                      dateStr,
-                      style: AppTextStyles.caption.copyWith(
-                        color: AppColors.textSecondary,
-                        fontWeight: FontWeight.w500,
-                      ),
-                    ),
-                    if (entry.aadhar != null && entry.aadhar!.isNotEmpty) ...[
-                      const Spacer(),
-                      Text(
-                        'Aadhar: ${entry.aadhar}',
-                        style: AppTextStyles.caption.copyWith(
-                          color: AppColors.textMuted,
-                          fontSize: 11,
-                          fontWeight: FontWeight.w500,
+                      const SizedBox(width: AppDimens.gapMd),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Row(
+                              children: [
+                                Text(
+                                  '${style.emoji} ${entry.type.label}',
+                                  style: AppTextStyles.subtitle.copyWith(
+                                    fontWeight: FontWeight.w700,
+                                    fontSize: 14,
+                                    color: AppColors.textPrimary,
+                                  ),
+                                ),
+                                const Spacer(),
+                                StatusBadge(
+                                  label: 'Present',
+                                  color: statusColor,
+                                  icon: Icons.check_circle_rounded,
+                                ),
+                              ],
+                            ),
+                            const SizedBox(height: 6),
+                            Row(
+                              children: [
+                                const Icon(
+                                  Icons.access_time_rounded,
+                                  size: 13,
+                                  color: AppColors.textMuted,
+                                ),
+                                const SizedBox(width: 4),
+                                Text(
+                                  '$dateStr • $timeStr',
+                                  style: AppTextStyles.caption.copyWith(
+                                    color: AppColors.textSecondary,
+                                    fontWeight: FontWeight.w500,
+                                  ),
+                                ),
+                              ],
+                            ),
+                            const SizedBox(height: 6),
+                            Row(
+                              children: [
+                                // Method Badge
+                                Container(
+                                  padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2),
+                                  decoration: BoxDecoration(
+                                    color: AppColors.primarySoft,
+                                    borderRadius: BorderRadius.circular(AppDimens.radiusPill),
+                                    border: Border.all(color: AppColors.primaryLight.withValues(alpha: 0.2)),
+                                  ),
+                                  child: Row(
+                                    mainAxisSize: MainAxisSize.min,
+                                    children: [
+                                      Icon(methodIcon, size: 11, color: AppColors.primary),
+                                      const SizedBox(width: 4),
+                                      Text(
+                                        methodLabel,
+                                        style: AppTextStyles.caption.copyWith(
+                                          color: AppColors.primary,
+                                          fontSize: 10,
+                                          fontWeight: FontWeight.w700,
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                                const SizedBox(width: 8),
+                                // Location Badge
+                                Container(
+                                  padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2),
+                                  decoration: BoxDecoration(
+                                    color: AppColors.surfaceMuted,
+                                    borderRadius: BorderRadius.circular(AppDimens.radiusPill),
+                                  ),
+                                  child: Row(
+                                    mainAxisSize: MainAxisSize.min,
+                                    children: [
+                                      const Icon(Icons.location_on_outlined, size: 11, color: AppColors.textMuted),
+                                      const SizedBox(width: 3),
+                                      Text(
+                                        'Floor Gate Verified',
+                                        style: AppTextStyles.caption.copyWith(
+                                          color: AppColors.textSecondary,
+                                          fontSize: 10,
+                                          fontWeight: FontWeight.w600,
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ],
                         ),
                       ),
                     ],
-                  ],
+                  ),
                 ),
-              ],
-            ),
+              ),
+            ],
           ),
-        ],
+        ),
       ),
     );
   }

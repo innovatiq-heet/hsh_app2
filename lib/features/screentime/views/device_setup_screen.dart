@@ -6,6 +6,7 @@ import '../../../core/constants/app_dimens.dart';
 import '../../../core/constants/app_text_styles.dart';
 import '../../../core/services/geofence_device_service.dart';
 import '../../../core/services/screen_time_service.dart';
+import '../../../core/storage/session_store.dart';
 import '../../shared/widgets/app_button.dart';
 
 /// Student-side onboarding: a checklist of the system settings the hostel
@@ -33,6 +34,14 @@ class _DeviceSetupScreenState extends State<DeviceSetupScreen> with WidgetsBindi
   @override
   void initState() {
     super.initState();
+    final session = Get.isRegistered<SessionStore>() ? Get.find<SessionStore>().session : null;
+    if (session?.isAlumni == true) {
+      ScreenTimeService.stopMonitoring();
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) Get.back();
+      });
+      return;
+    }
     WidgetsBinding.instance.addObserver(this);
     _refresh();
     // Some ROMs don't fire a lifecycle event when the Settings panel is a

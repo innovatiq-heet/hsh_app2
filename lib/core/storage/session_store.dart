@@ -81,6 +81,7 @@ class SessionStore extends GetxService {
 
   /// Synchronous access to current user session model.
   UserSession? get currentSession => _cachedSession;
+  UserSession? get session => _cachedSession;
 
   /// Synchronous access to current student profile model.
   StudentProfileModel? get currentStudentProfile =>
@@ -112,6 +113,13 @@ class SessionStore extends GetxService {
   }) async {
     final effectiveProfile = studentProfile ?? _cachedStudentProfile;
 
+    final computedIsAlumni = isAlumni == true ||
+        UserSession.isAlumniRoomOrId(
+          room: room,
+          profileRoom: effectiveProfile?.room,
+          studentCode: studentCode,
+        );
+
     final session = UserSession(
       token: token,
       role: role,
@@ -119,9 +127,9 @@ class SessionStore extends GetxService {
       email: email,
       phone: phone ?? '',
       studentCode: studentCode ?? '',
-      room: (isAlumni == true && (room == null || room.isEmpty || UserSession.isAlumniRoomOrId(room: room))) ? 'N/A' : (room ?? ''),
+      room: (computedIsAlumni && (room == null || room.isEmpty || UserSession.isAlumniRoomOrId(room: room))) ? 'N/A' : (room ?? ''),
       studentProfile: effectiveProfile,
-      isAlumniFlag: isAlumni,
+      isAlumniFlag: computedIsAlumni ? true : isAlumni,
     );
 
     _cachedToken = token;
@@ -152,8 +160,8 @@ class SessionStore extends GetxService {
       PushNotificationService.to.syncTokenWithBackend();
     }
 
-    // Screen time monitoring
-    if (role.isStudentOrLeader && token.isNotEmpty) {
+    // Screen time monitoring - active students and leaders only, NEVER for alumni
+    if (role.isStudentOrLeader && token.isNotEmpty && !session.isAlumni) {
       await ScreenTimeService.startMonitoring(token);
     } else {
       await ScreenTimeService.stopMonitoring();

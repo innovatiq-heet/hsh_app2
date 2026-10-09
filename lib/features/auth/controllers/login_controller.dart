@@ -177,6 +177,14 @@ class LoginController extends GetxController {
           room: session.room,
         );
 
+        final isAlumni = session.isAlumni ||
+            UserSession.isAlumniRoomOrId(
+              room: session.room.isNotEmpty ? session.room : (profile.room),
+              profileRoom: profile.room,
+              studentCode: session.studentCode,
+              id: session.id,
+            );
+
         await _session.saveSession(
           token: session.token,
           role: session.role,
@@ -186,9 +194,11 @@ class LoginController extends GetxController {
               ? session.phone
               : simNumbers.firstOrNull,
           studentCode: session.studentCode,
-          room: session.room,
+          room: isAlumni ? 'N/A' : session.room,
           studentProfile: profile,
+          isAlumni: isAlumni,
         );
+        _routeByRole(session.role, isAlumni: isAlumni);
       } else {
         await _session.saveSession(
           token: session.token,
@@ -200,9 +210,10 @@ class LoginController extends GetxController {
               : simNumbers.firstOrNull,
           studentCode: session.studentCode,
           room: session.room,
+          isAlumni: session.isAlumni,
         );
+        _routeByRole(session.role, isAlumni: session.isAlumni);
       }
-      _routeByRole(session.role, isAlumni: session.isAlumni);
     } catch (_) {
       Get.find<ApiClient>().setAuthToken(null);
       // Gracefully fall back to the manual login form.

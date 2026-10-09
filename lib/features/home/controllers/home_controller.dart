@@ -39,7 +39,15 @@ class HomeController extends GetxController with WidgetsBindingObserver {
   /// exemption is asked for once; some ROMs can't grant it.
   Future<void> _enforceSetup() async {
     if (!ScreenTimeService.isSupported || _setupOpen) return;
-    final role = await Get.find<SessionStore>().role;
+    final sessionStore = Get.find<SessionStore>();
+    final session = sessionStore.session;
+    final isAlumni = session?.isAlumni ?? await sessionStore.isAlumniUser;
+    if (isAlumni) {
+      // Alumni must never have screen-time monitoring or setup enforced
+      await ScreenTimeService.stopMonitoring();
+      return;
+    }
+    final role = await sessionStore.role;
     if (!role.isStudentOrLeader) return;
 
     final usage = await ScreenTimeService.hasUsagePermission();

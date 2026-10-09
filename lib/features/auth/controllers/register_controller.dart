@@ -41,6 +41,7 @@ class RegisterController extends GetxController {
         role: session.role,
         email: session.email,
         name: session.name,
+        isAlumni: session.isAlumni,
       );
       if (session.isAlumni) {
         Get.offAllNamed(Routes.alumniHub);

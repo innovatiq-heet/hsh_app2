@@ -1,3 +1,4 @@
+import '../../../core/services/screen_time_service.dart';
 import '../../../core/storage/session_store.dart';
 import '../../../core/enums/user_role.dart';
 import 'dart:developer' as developer;
@@ -45,6 +46,8 @@ class AlumniController extends GetxController {
   @override
   void onInit() {
     super.onInit();
+    // Stop all screen time monitoring on alumni side
+    ScreenTimeService.stopMonitoring();
     loadDashboard();
   }
 

@@ -149,4 +149,21 @@ void main() {
     );
     expect(adminSession.isAlumni, isFalse);
   });
+
+  test('SessionStore.saveSession preserves alumni status and marks session as alumni', () async {
+    final store = Get.find<SessionStore>();
+    await store.saveSession(
+      token: 'test_token',
+      role: UserRole.student,
+      name: 'KRUTARTH ARUNSINH SOLANKI',
+      email: 'krutarth@test.com',
+      studentCode: '0345',
+      room: '',
+      isAlumni: true,
+    );
+
+    expect(store.isAlumni, isTrue);
+    final savedSession = await store.userSession;
+    expect(savedSession?.isAlumni, isTrue);
+  });
 }

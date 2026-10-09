@@ -96,11 +96,22 @@ object LocationSampler {
         }
     }
 
-    private fun toFix(l: Location) = LocationFix(
-        latitude = l.latitude,
-        longitude = l.longitude,
-        accuracyMeters = if (l.hasAccuracy()) l.accuracy else 999f,
-        timeMillis = l.time,
-        mocked = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) l.isMock else @Suppress("DEPRECATION") l.isFromMockProvider,
-    )
+    private fun toFix(l: Location): LocationFix {
+        var isMock = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+            l.isMock
+        } else {
+            @Suppress("DEPRECATION") l.isFromMockProvider
+        }
+        // Heuristic: zero accuracy is a signature of artificial GPS injection
+        if (!isMock && l.hasAccuracy() && l.accuracy == 0f) {
+            isMock = true
+        }
+        return LocationFix(
+            latitude = l.latitude,
+            longitude = l.longitude,
+            accuracyMeters = if (l.hasAccuracy()) l.accuracy else 999f,
+            timeMillis = l.time,
+            mocked = isMock,
+        )
+    }
 }

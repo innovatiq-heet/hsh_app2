@@ -8,6 +8,8 @@ import '../../../core/services/screen_time_service.dart';
 import '../../../core/storage/session_store.dart';
 import '../../../core/utils/app_snackbar.dart';
 import '../../../core/utils/date_formatting.dart';
+import '../../../core/models/geofence/geofence_policy_model.dart';
+import '../../../core/network/repository/geofence/geofence_repository.dart';
 import '../models/screen_time_policy.dart';
 import '../services/app_icon_cache.dart';
 
@@ -18,6 +20,12 @@ import '../services/app_icon_cache.dart';
 /// and setting bedtime curfews.
 class StudentScreenTimeController extends GetxController with WidgetsBindingObserver {
   final ApiClient _apiClient = Get.find<ApiClient>();
+  final GeofenceRepository _geofenceRepo = GeofenceRepository();
+
+  /// Hostel-wide curfew policy (enforced natively on student phones).
+  final Rx<GeofencePolicyModel> globalCurfewPolicy = const GeofencePolicyModel().obs;
+  final RxBool isLoadingCurfew = false.obs;
+  final RxBool isUpdatingCurfew = false.obs;
 
   static const _refreshInterval = Duration(minutes: 1);
 
@@ -581,7 +589,10 @@ class StudentScreenTimeController extends GetxController with WidgetsBindingObse
       return;
     }
 
-    await fetchStudentsList();
+    await Future.wait([
+      fetchStudentsList(),
+      loadGlobalCurfew(),
+    ]);
   }
 
   Future<void> _autoRefresh() async {
@@ -589,7 +600,10 @@ class StudentScreenTimeController extends GetxController with WidgetsBindingObse
     if (_studentId.isNotEmpty) {
       await Future.wait([fetchLiveStatus(), fetchHistory(), fetchStudentPolicies()]);
     } else {
-      await fetchStudentsList(silent: true);
+      await Future.wait([
+        fetchStudentsList(silent: true),
+        loadGlobalCurfew(),
+      ]);
     }
   }
 
@@ -599,33 +613,120 @@ class StudentScreenTimeController extends GetxController with WidgetsBindingObse
   Future<void> refreshAll() async {
     if (!currentRole.value.canViewScreenTime) return;
     if (selectedStudent.value == null) {
-      await fetchStudentsList();
+      await Future.wait([
+        fetchStudentsList(),
+        loadGlobalCurfew(),
+      ]);
     } else {
       await Future.wait([fetchLiveStatus(), fetchHistory(), fetchStudentPolicies()]);
     }
   }
 
+  /// Load hostel-wide curfew policy (night curfew window & active status).
+  Future<void> loadGlobalCurfew() async {
+    if (!currentRole.value.canViewScreenTime) return;
+    isLoadingCurfew.value = true;
+    try {
+      final policy = await _geofenceRepo.fetchPolicy();
+      globalCurfewPolicy.value = policy;
+    } catch (e) {
+      debugPrint('[ScreenTime] loadGlobalCurfew error: $e');
+    } finally {
+      isLoadingCurfew.value = false;
+    }
+  }
+
+  /// Turn ON or Turn OFF curfew time globally for all hostel students.
+  Future<void> toggleGlobalCurfew(bool enable) async {
+    final current = globalCurfewPolicy.value;
+    if (current.isActive == enable && !isUpdatingCurfew.value) return;
+    final updated = current.copyWith(isActive: enable);
+    final previous = current;
+    globalCurfewPolicy.value = updated; // optimistic update
+    isUpdatingCurfew.value = true;
+
+    try {
+      await _geofenceRepo.savePolicy(updated);
+      AppSnackbar.success(
+        enable ? 'Curfew Turned ON' : 'Curfew Turned OFF',
+        enable
+            ? 'Hostel night curfew is now ACTIVE (${updated.formatTimeRange()}).'
+            : 'Hostel night curfew is now TURNED OFF globally.',
+      );
+    } catch (e) {
+      globalCurfewPolicy.value = previous; // rollback
+      debugPrint('[ScreenTime] toggleGlobalCurfew error: $e');
+      AppSnackbar.error(
+        'Update Failed',
+        'Could not update global curfew. Server might be unreachable.',
+      );
+    } finally {
+      isUpdatingCurfew.value = false;
+    }
+  }
+
+  /// Update the start and end time for the global curfew window.
+  Future<void> updateGlobalCurfewTimes(TimeOfDay start, TimeOfDay end) async {
+    final current = globalCurfewPolicy.value;
+    final updated = current.copyWith(startTime: start, endTime: end);
+    final previous = current;
+    globalCurfewPolicy.value = updated;
+    isUpdatingCurfew.value = true;
+
+    try {
+      await _geofenceRepo.savePolicy(updated);
+      AppSnackbar.success(
+        'Curfew Window Updated',
+        'Global curfew is now set to ${updated.formatTimeRange()}.',
+      );
+    } catch (e) {
+      globalCurfewPolicy.value = previous;
+      debugPrint('[ScreenTime] updateGlobalCurfewTimes error: $e');
+      AppSnackbar.error('Update Failed', 'Could not save new curfew hours.');
+    } finally {
+      isUpdatingCurfew.value = false;
+    }
+  }
+
   /// Leader/Staff fetches directory of all students with today screen time overview from real API.
-  /// Without an explicit [search] the text in the directory search box is
-  /// sent, so the server searches every student (the unfiltered list is
-  /// capped at 100) and auto-refresh keeps the same results.
+  /// Uses batching with limit 500 and pagination offsets to retrieve every student in the hostel.
   Future<void> fetchStudentsList({String? search, bool silent = false}) async {
     if (!silent) isLoadingStudents.value = true;
     try {
-      final queryParams = <String, dynamic>{};
       final query = (search ?? searchFilterController.text).trim();
-      if (query.isNotEmpty) {
-        queryParams['search'] = query;
-      }
+      final baseParams = <String, dynamic>{
+        'limit': 500,
+        if (query.isNotEmpty) 'search': query,
+      };
 
       final response = await _apiClient.dio.get(
         '/screen-time/students',
-        queryParameters: queryParams,
+        queryParameters: {...baseParams, 'offset': 0},
       );
       final data = response.data['data'] ?? response.data;
 
       if (data != null && data['students'] != null) {
-        allStudents.assignAll(List<dynamic>.from(data['students']));
+        final List<dynamic> loaded = List<dynamic>.from(data['students']);
+        final int total = (data['total'] is num) ? (data['total'] as num).toInt() : loaded.length;
+
+        // Fetch remaining pages if hostel has more than 500 students
+        while (loaded.length < total) {
+          final nextRes = await _apiClient.dio.get(
+            '/screen-time/students',
+            queryParameters: {...baseParams, 'offset': loaded.length},
+          );
+          final nextData = nextRes.data['data'] ?? nextRes.data;
+          if (nextData != null &&
+              nextData['students'] != null &&
+              (nextData['students'] as List).isNotEmpty) {
+            final nextList = List<dynamic>.from(nextData['students']);
+            loaded.addAll(nextList);
+          } else {
+            break;
+          }
+        }
+
+        allStudents.assignAll(loaded);
         filterStudents(searchFilterController.text);
       }
     } catch (e) {

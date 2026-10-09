@@ -4,7 +4,7 @@ import 'package:flutter/services.dart';
 import 'package:get/get.dart';
 import '../../../core/constants/app_colors.dart';
 import '../../../core/constants/app_dimens.dart';
-import '../../../core/constants/app_routes.dart';
+// import '../../../core/constants/app_routes.dart';
 import '../../../core/constants/app_text_styles.dart';
 import '../../shared/widgets/app_button.dart';
 import '../../shared/widgets/app_text_field.dart';
@@ -159,7 +159,8 @@ class _FormPanel extends StatelessWidget {
             Text('Welcome', style: AppTextStyles.displayMd),
             const SizedBox(height: 6),
             Text(
-              'Sign in with your Student ID, Alumni Code, or Mobile',
+              // 'Sign in with your Student ID, Alumni Code, or Mobile',
+              'Sign in with your Student ID or Mobile',
               style: AppTextStyles.bodyMd.copyWith(
                 color: AppColors.textSecondary,
               ),
@@ -206,7 +207,8 @@ class _FormPanel extends StatelessWidget {
             }),
             AppTextField(
               controller: controller.studentIdController,
-              label: 'Student ID / Alumni / Mobile Number',
+              // label: 'Student ID / Alumni / Mobile Number',
+              label: 'Student ID / Mobile Number',
               hint: 'e.g. 0345 or 9876543210',
               prefixIcon: Icons.badge_outlined,
               keyboardType: TextInputType.text,
@@ -221,8 +223,8 @@ class _FormPanel extends StatelessWidget {
                 onPressed: controller.isLoading.value ? null : controller.login,
               ),
             ),
-            const SizedBox(height: 20),
-            const _AlumniPortalCard(),
+            // const SizedBox(height: 20),
+            // const _AlumniPortalCard(),
             const SizedBox(height: 20),
             Container(
               padding: const EdgeInsets.all(14),
@@ -241,7 +243,8 @@ class _FormPanel extends StatelessWidget {
                   Expanded(
                     child: Text(
                       Platform.isIOS
-                          ? 'Enter your Student ID, Alumni Code, or mobile number to sign in manually.'
+                          // ? 'Enter your Student ID, Alumni Code, or mobile number to sign in manually.'
+                          ? 'Enter your Student ID or mobile number to sign in manually.'
                           : 'Auto-login will automatically authenticate when your registered SIM card is detected.',
                       style: AppTextStyles.bodySm.copyWith(
                         color: AppColors.textSecondary,
@@ -259,116 +262,116 @@ class _FormPanel extends StatelessWidget {
   }
 }
 
-class _AlumniPortalCard extends StatelessWidget {
-  const _AlumniPortalCard();
-
-  @override
-  Widget build(BuildContext context) {
-    return Material(
-      color: Colors.transparent,
-      child: InkWell(
-        onTap: () => Get.toNamed(Routes.alumniHub),
-        borderRadius: BorderRadius.circular(16),
-        child: Ink(
-          decoration: BoxDecoration(
-            color: const Color(0xFFF8FAFC),
-            borderRadius: BorderRadius.circular(16),
-            border: Border.all(
-              color: AppColors.primary.withValues(alpha: 0.20),
-              width: 1.2,
-            ),
-            boxShadow: [
-              BoxShadow(
-                color: AppColors.primary.withValues(alpha: 0.04),
-                blurRadius: 10,
-                offset: const Offset(0, 3),
-              ),
-            ],
-          ),
-          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
-          child: Row(
-            children: [
-              Container(
-                width: 44,
-                height: 44,
-                decoration: BoxDecoration(
-                  gradient: const LinearGradient(
-                    colors: [Color(0xFF2563EB), Color(0xFF1D4ED8)],
-                    begin: Alignment.topLeft,
-                    end: Alignment.bottomRight,
-                  ),
-                  borderRadius: BorderRadius.circular(12),
-                  boxShadow: [
-                    BoxShadow(
-                      color: const Color(0xFF2563EB).withValues(alpha: 0.25),
-                      blurRadius: 8,
-                      offset: const Offset(0, 3),
-                    ),
-                  ],
-                ),
-                child: const Icon(
-                  Icons.school_rounded,
-                  color: Colors.white,
-                  size: 24,
-                ),
-              ),
-              const SizedBox(width: 14),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Row(
-                      children: [
-                        Text(
-                          'Alumni Network',
-                          style: AppTextStyles.bodyMd.copyWith(
-                            fontWeight: FontWeight.w700,
-                            color: AppColors.textPrimary,
-                          ),
-                        ),
-                        const SizedBox(width: 8),
-                        Container(
-                          padding: const EdgeInsets.symmetric(
-                            horizontal: 6,
-                            vertical: 2,
-                          ),
-                          decoration: BoxDecoration(
-                            color: AppColors.primary.withValues(alpha: 0.1),
-                            borderRadius: BorderRadius.circular(6),
-                          ),
-                          child: Text(
-                            'HUB',
-                            style: AppTextStyles.caption.copyWith(
-                              color: AppColors.primary,
-                              fontWeight: FontWeight.w800,
-                              fontSize: 10,
-                            ),
-                          ),
-                        ),
-                      ],
-                    ),
-                    const SizedBox(height: 3),
-                    Text(
-                      'Graduated or former student? Explore reunions, mentorship & alumni directory',
-                      style: AppTextStyles.bodySm.copyWith(
-                        color: AppColors.textSecondary,
-                        fontSize: 12,
-                        height: 1.25,
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-              const SizedBox(width: 8),
-              const Icon(
-                Icons.chevron_right_rounded,
-                color: AppColors.textMuted,
-                size: 24,
-              ),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-}
+// class _AlumniPortalCard extends StatelessWidget {
+//   const _AlumniPortalCard();
+// 
+//   @override
+//   Widget build(BuildContext context) {
+//     return Material(
+//       color: Colors.transparent,
+//       child: InkWell(
+//         onTap: () => Get.toNamed(Routes.alumniHub),
+//         borderRadius: BorderRadius.circular(16),
+//         child: Ink(
+//           decoration: BoxDecoration(
+//             color: const Color(0xFFF8FAFC),
+//             borderRadius: BorderRadius.circular(16),
+//             border: Border.all(
+//               color: AppColors.primary.withValues(alpha: 0.20),
+//               width: 1.2,
+//             ),
+//             boxShadow: [
+//               BoxShadow(
+//                 color: AppColors.primary.withValues(alpha: 0.04),
+//                 blurRadius: 10,
+//                 offset: const Offset(0, 3),
+//               ),
+//             ],
+//           ),
+//           padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+//           child: Row(
+//             children: [
+//               Container(
+//                 width: 44,
+//                 height: 44,
+//                 decoration: BoxDecoration(
+//                   gradient: const LinearGradient(
+//                     colors: [Color(0xFF2563EB), Color(0xFF1D4ED8)],
+//                     begin: Alignment.topLeft,
+//                     end: Alignment.bottomRight,
+//                   ),
+//                   borderRadius: BorderRadius.circular(12),
+//                   boxShadow: [
+//                     BoxShadow(
+//                       color: const Color(0xFF2563EB).withValues(alpha: 0.25),
+//                       blurRadius: 8,
+//                       offset: const Offset(0, 3),
+//                     ),
+//                   ],
+//                 ),
+//                 child: const Icon(
+//                   Icons.school_rounded,
+//                   color: Colors.white,
+//                   size: 24,
+//                 ),
+//               ),
+//               const SizedBox(width: 14),
+//               Expanded(
+//                 child: Column(
+//                   crossAxisAlignment: CrossAxisAlignment.start,
+//                   children: [
+//                     Row(
+//                       children: [
+//                         Text(
+//                           'Alumni Network',
+//                           style: AppTextStyles.bodyMd.copyWith(
+//                             fontWeight: FontWeight.w700,
+//                             color: AppColors.textPrimary,
+//                           ),
+//                         ),
+//                         const SizedBox(width: 8),
+//                         Container(
+//                           padding: const EdgeInsets.symmetric(
+//                             horizontal: 6,
+//                             vertical: 2,
+//                           ),
+//                           decoration: BoxDecoration(
+//                             color: AppColors.primary.withValues(alpha: 0.1),
+//                             borderRadius: BorderRadius.circular(6),
+//                           ),
+//                           child: Text(
+//                             'HUB',
+//                             style: AppTextStyles.caption.copyWith(
+//                               color: AppColors.primary,
+//                               fontWeight: FontWeight.w800,
+//                               fontSize: 10,
+//                             ),
+//                           ),
+//                         ),
+//                       ],
+//                     ),
+//                     const SizedBox(height: 3),
+//                     Text(
+//                       'Graduated or former student? Explore reunions, mentorship & alumni directory',
+//                       style: AppTextStyles.bodySm.copyWith(
+//                         color: AppColors.textSecondary,
+//                         fontSize: 12,
+//                         height: 1.25,
+//                       ),
+//                     ),
+//                   ],
+//                 ),
+//               ),
+//               const SizedBox(width: 8),
+//               const Icon(
+//                 Icons.chevron_right_rounded,
+//                 color: AppColors.textMuted,
+//                 size: 24,
+//               ),
+//             ],
+//           ),
+//         ),
+//       ),
+//     );
+//   }
+// }

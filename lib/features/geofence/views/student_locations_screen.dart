@@ -27,27 +27,27 @@ class StudentLocationsScreen extends GetView<StudentLocationsController> {
             SliverGradientHeader(
               title: 'Student Locations',
               subtitle: 'Real-time phone GPS & campus geofence',
+              expandedHeight: 245.0,
+              leading: HeaderIconButton(
+                icon: Icons.arrow_back_rounded,
+                tooltip: 'Back',
+                onPressed: () => Get.back(),
+              ),
               actions: [
-                IconButton(
-                  icon: const Icon(Icons.refresh_rounded, color: Colors.white),
-                  onPressed: controller.load,
+                HeaderIconButton(
+                  icon: Icons.refresh_rounded,
                   tooltip: 'Refresh locations',
+                  onPressed: controller.load,
                 ),
               ],
-            ),
-
-            // Executive overview summary strip
-            SliverToBoxAdapter(
-              child: Padding(
-                padding: const EdgeInsets.fromLTRB(16, 12, 16, 8),
-                child: Obx(_buildOverviewStats),
-              ),
+              // Counts shifted directly into the hero blue gradient header
+              child: Obx(_buildOverviewStats),
             ),
 
             // Search bar
             SliverToBoxAdapter(
               child: Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+                padding: const EdgeInsets.fromLTRB(16, 12, 16, 4),
                 child: _buildSearchBar(),
               ),
             ),
@@ -111,7 +111,7 @@ class StudentLocationsScreen extends GetView<StudentLocationsController> {
     );
   }
 
-  /// Executive summary metrics cards (All, Outside, Inside, No Fix).
+  /// Executive summary metrics cards inside the hero blue gradient header.
   Widget _buildOverviewStats() {
     final total = controller.students.length;
     final outsideCount = controller.countOf(LocationStatus.outside);
@@ -127,7 +127,7 @@ class StudentLocationsScreen extends GetView<StudentLocationsController> {
                 title: 'Total',
                 count: total,
                 icon: Icons.people_alt_rounded,
-                accentColor: AppColors.primary,
+                accentColor: const Color(0xFFBAE6FD),
                 isSelected: controller.filter.value == null,
                 onTap: () => controller.setFilter(null),
               ),
@@ -138,7 +138,7 @@ class StudentLocationsScreen extends GetView<StudentLocationsController> {
                 title: 'Outside',
                 count: outsideCount,
                 icon: Icons.warning_amber_rounded,
-                accentColor: const Color(0xFFEF4444),
+                accentColor: const Color(0xFFFF8A8A),
                 highlightAlert: outsideCount > 0,
                 isSelected: controller.filter.value == LocationStatus.outside,
                 onTap: () => controller.setFilter(LocationStatus.outside),
@@ -150,7 +150,7 @@ class StudentLocationsScreen extends GetView<StudentLocationsController> {
                 title: 'Inside',
                 count: insideCount,
                 icon: Icons.check_circle_rounded,
-                accentColor: const Color(0xFF10B981),
+                accentColor: const Color(0xFF86EFAC),
                 isSelected: controller.filter.value == LocationStatus.inside,
                 onTap: () => controller.setFilter(LocationStatus.inside),
               ),
@@ -161,7 +161,7 @@ class StudentLocationsScreen extends GetView<StudentLocationsController> {
                 title: 'No Fix',
                 count: noDataCount,
                 icon: Icons.location_off_rounded,
-                accentColor: const Color(0xFF94A3B8),
+                accentColor: const Color(0xFFCBD5E1),
                 isSelected: controller.filter.value == LocationStatus.noData,
                 onTap: () => controller.setFilter(LocationStatus.noData),
               ),
@@ -269,7 +269,7 @@ class StudentLocationsScreen extends GetView<StudentLocationsController> {
   }
 }
 
-/// Tappable metric overview card for fast warden inspection.
+/// Glassmorphic metric card embedded inside the hero blue gradient header.
 class _MetricCard extends StatelessWidget {
   final String title;
   final int count;
@@ -298,43 +298,49 @@ class _MetricCard extends StatelessWidget {
         borderRadius: BorderRadius.circular(12),
         child: AnimatedContainer(
           duration: const Duration(milliseconds: 180),
-          padding: const EdgeInsets.symmetric(vertical: 10, horizontal: 8),
+          padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 6),
           decoration: BoxDecoration(
             color: isSelected
-                ? accentColor.withValues(alpha: 0.12)
-                : AppColors.surface,
+                ? Colors.white.withValues(alpha: 0.28)
+                : (highlightAlert
+                    ? const Color(0xFFEF4444).withValues(alpha: 0.25)
+                    : Colors.white.withValues(alpha: 0.12)),
             borderRadius: BorderRadius.circular(12),
             border: Border.all(
               color: isSelected
-                  ? accentColor
+                  ? Colors.white
                   : (highlightAlert
                       ? const Color(0xFFFCA5A5)
-                      : AppColors.border.withValues(alpha: 0.7)),
+                      : Colors.white.withValues(alpha: 0.22)),
               width: isSelected ? 1.5 : 1.0,
             ),
-            boxShadow: [
-              BoxShadow(
-                color: Colors.black.withValues(alpha: 0.02),
-                blurRadius: 4,
-                offset: const Offset(0, 2),
-              ),
-            ],
+            boxShadow: isSelected
+                ? [
+                    BoxShadow(
+                      color: Colors.black.withValues(alpha: 0.12),
+                      blurRadius: 6,
+                      offset: const Offset(0, 2),
+                    ),
+                  ]
+                : [],
           ),
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
               Icon(
                 icon,
-                size: 18,
-                color: isSelected ? accentColor : (highlightAlert ? const Color(0xFFEF4444) : accentColor),
+                size: 17,
+                color: highlightAlert
+                    ? const Color(0xFFFF8A8A)
+                    : (isSelected ? Colors.white : accentColor),
               ),
-              const SizedBox(height: 4),
+              const SizedBox(height: 3),
               Text(
                 '$count',
-                style: TextStyle(
-                  fontSize: 16,
+                style: const TextStyle(
+                  fontSize: 15,
                   fontWeight: FontWeight.w800,
-                  color: highlightAlert ? const Color(0xFFEF4444) : AppColors.textPrimary,
+                  color: Colors.white,
                   height: 1.1,
                 ),
               ),
@@ -344,9 +350,9 @@ class _MetricCard extends StatelessWidget {
                 maxLines: 1,
                 overflow: TextOverflow.ellipsis,
                 style: TextStyle(
-                  fontSize: 11,
-                  fontWeight: isSelected ? FontWeight.w700 : FontWeight.w500,
-                  color: isSelected ? accentColor : AppColors.textSecondary,
+                  fontSize: 10.5,
+                  fontWeight: isSelected ? FontWeight.w800 : FontWeight.w600,
+                  color: Colors.white.withValues(alpha: isSelected ? 1.0 : 0.85),
                 ),
               ),
             ],
@@ -668,7 +674,7 @@ class _StudentLocationCard extends StatelessWidget {
         borderRadius: BorderRadius.circular(6),
       ),
       child: Row(
-        mainAxisSize: MainAxisSize.min,
+        mainAxisSize: minAxisSize,
         children: [
           Icon(icon, size: 11, color: const Color(0xFF64748B)),
           const SizedBox(width: 3),
@@ -684,6 +690,8 @@ class _StudentLocationCard extends StatelessWidget {
       ),
     );
   }
+
+  static const minAxisSize = MainAxisSize.min;
 
   /// Refined status badge.
   Widget _buildStatusBadge() {

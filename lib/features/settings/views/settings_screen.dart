@@ -81,68 +81,68 @@ class SettingScreen extends StatelessWidget {
     );
   }
 
-  void _showLanguageSheet(BuildContext context) {
-    showModalBottomSheet(
-      context: context,
-      backgroundColor: AppColors.surface,
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(AppDimens.radiusXl)),
-      ),
-      builder: (ctx) => SafeArea(
-        child: Padding(
-          padding: const EdgeInsets.symmetric(
-            horizontal: AppDimens.screenPadding,
-            vertical: AppDimens.gapLg,
-          ),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              Center(
-                child: Container(
-                  width: 44,
-                  height: 4,
-                  decoration: BoxDecoration(
-                    color: AppColors.border,
-                    borderRadius: BorderRadius.circular(2),
-                  ),
-                ),
-              ),
-              const SizedBox(height: AppDimens.gapLg),
-              Text('Select Language', style: AppTextStyles.headline),
-              const SizedBox(height: AppDimens.gapSm),
-              Text(
-                'Choose your preferred application language',
-                style: AppTextStyles.bodySm,
-              ),
-              const SizedBox(height: AppDimens.gapLg),
-              _LanguageTile(
-                title: 'English',
-                subtitle: 'English (Default)',
-                isSelected: true,
-                onTap: () => Navigator.of(ctx).pop(),
-              ),
-              const SizedBox(height: AppDimens.gapSm),
-              _LanguageTile(
-                title: 'हिन्दी',
-                subtitle: 'Hindi',
-                isSelected: false,
-                onTap: () => Navigator.of(ctx).pop(),
-              ),
-              const SizedBox(height: AppDimens.gapSm),
-              _LanguageTile(
-                title: 'ગુજરાતી',
-                subtitle: 'Gujarati',
-                isSelected: false,
-                onTap: () => Navigator.of(ctx).pop(),
-              ),
-              const SizedBox(height: AppDimens.gapXl),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
+  // void _showLanguageSheet(BuildContext context) {
+  //   showModalBottomSheet(
+  //     context: context,
+  //     backgroundColor: AppColors.surface,
+  //     shape: const RoundedRectangleBorder(
+  //       borderRadius: BorderRadius.vertical(top: Radius.circular(AppDimens.radiusXl)),
+  //     ),
+  //     builder: (ctx) => SafeArea(
+  //       child: Padding(
+  //         padding: const EdgeInsets.symmetric(
+  //           horizontal: AppDimens.screenPadding,
+  //           vertical: AppDimens.gapLg,
+  //         ),
+  //         child: Column(
+  //           mainAxisSize: MainAxisSize.min,
+  //           crossAxisAlignment: CrossAxisAlignment.stretch,
+  //           children: [
+  //             Center(
+  //               child: Container(
+  //                 width: 44,
+  //                 height: 4,
+  //                 decoration: BoxDecoration(
+  //                   color: AppColors.border,
+  //                   borderRadius: BorderRadius.circular(2),
+  //                 ),
+  //               ),
+  //             ),
+  //             const SizedBox(height: AppDimens.gapLg),
+  //             Text('Select Language', style: AppTextStyles.headline),
+  //             const SizedBox(height: AppDimens.gapSm),
+  //             Text(
+  //               'Choose your preferred application language',
+  //               style: AppTextStyles.bodySm,
+  //             ),
+  //             const SizedBox(height: AppDimens.gapLg),
+  //             _LanguageTile(
+  //               title: 'English',
+  //               subtitle: 'English (Default)',
+  //               isSelected: true,
+  //               onTap: () => Navigator.of(ctx).pop(),
+  //             ),
+  //             const SizedBox(height: AppDimens.gapSm),
+  //             _LanguageTile(
+  //               title: 'हिन्दी',
+  //               subtitle: 'Hindi',
+  //               isSelected: false,
+  //               onTap: () => Navigator.of(ctx).pop(),
+  //             ),
+  //             const SizedBox(height: AppDimens.gapSm),
+  //             _LanguageTile(
+  //               title: 'ગુજરાતી',
+  //               subtitle: 'Gujarati',
+  //               isSelected: false,
+  //               onTap: () => Navigator.of(ctx).pop(),
+  //             ),
+  //             const SizedBox(height: AppDimens.gapXl),
+  //           ],
+  //         ),
+  //       ),
+  //     ),
+  //   );
+  // }
 
   void _showAboutSheet(BuildContext context) {
     showModalBottomSheet(
@@ -346,40 +346,40 @@ class SettingScreen extends StatelessWidget {
                     );
                   }),
 
-                const SectionHeader(title: 'Account'),
-                _Group(
-                  children: [
-                    SectionListTile(
-                      icon: Icons.person_outline_rounded,
-                      title: 'Edit profile',
-                      subtitle: 'Contact, address, family, vehicle',
-                      iconColor: AppColors.primary,
-                      onTap: () => Get.toNamed(
-                        Routes.studentProfileEdit,
-                        arguments: profileController?.profile.value,
-                      ),
-                    ),
-                    SectionListTile(
-                      icon: Icons.grid_view_rounded,
-                      title: 'All services',
-                      subtitle: 'Laundry, complaints, attendance & leave',
-                      iconColor: AppColors.secondary,
-                      onTap: () => Get.toNamed(Routes.services),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: AppDimens.gapXl),
+                // const SectionHeader(title: 'Account'),
+                // _Group(
+                //   children: [
+                //     SectionListTile(
+                //       icon: Icons.person_outline_rounded,
+                //       title: 'Edit profile',
+                //       subtitle: 'Contact, address, family, vehicle',
+                //       iconColor: AppColors.primary,
+                //       onTap: () => Get.toNamed(
+                //         Routes.studentProfileEdit,
+                //         arguments: profileController?.profile.value,
+                //       ),
+                //     ),
+                //     SectionListTile(
+                //       icon: Icons.grid_view_rounded,
+                //       title: 'All services',
+                //       subtitle: 'Laundry, complaints, attendance & leave',
+                //       iconColor: AppColors.secondary,
+                //       onTap: () => Get.toNamed(Routes.services),
+                //     ),
+                //   ],
+                // ),
+                // const SizedBox(height: AppDimens.gapXl),
 
                 const SectionHeader(title: 'Preferences'),
                 _Group(
                   children: [
-                    SectionListTile(
-                      icon: Icons.translate_rounded,
-                      title: 'Language',
-                      subtitle: 'English',
-                      iconColor: AppColors.secondaryLight,
-                      onTap: () => _showLanguageSheet(context),
-                    ),
+                    // SectionListTile(
+                    //   icon: Icons.translate_rounded,
+                    //   title: 'Language',
+                    //   subtitle: 'English',
+                    //   iconColor: AppColors.secondaryLight,
+                    //   onTap: () => _showLanguageSheet(context),
+                    // ),
                     SectionListTile(
                       icon: Icons.system_update_rounded,
                       title: 'App Version & Updates',
@@ -469,59 +469,59 @@ class SettingScreen extends StatelessWidget {
   }
 }
 
-class _LanguageTile extends StatelessWidget {
-  final String title;
-  final String subtitle;
-  final bool isSelected;
-  final VoidCallback onTap;
-
-  const _LanguageTile({
-    required this.title,
-    required this.subtitle,
-    required this.isSelected,
-    required this.onTap,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return InkWell(
-      onTap: onTap,
-      borderRadius: BorderRadius.circular(AppDimens.radiusMd),
-      child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-        decoration: BoxDecoration(
-          color: isSelected ? AppColors.primarySoft : AppColors.surfaceMuted,
-          borderRadius: BorderRadius.circular(AppDimens.radiusMd),
-          border: Border.all(
-            color: isSelected ? AppColors.primary : AppColors.border,
-            width: isSelected ? 1.5 : 1,
-          ),
-        ),
-        child: Row(
-          children: [
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    title,
-                    style: AppTextStyles.subtitle.copyWith(
-                      color: isSelected ? AppColors.primary : AppColors.textPrimary,
-                    ),
-                  ),
-                  const SizedBox(height: 2),
-                  Text(subtitle, style: AppTextStyles.bodySm),
-                ],
-              ),
-            ),
-            if (isSelected)
-              const Icon(Icons.check_circle_rounded, color: AppColors.primary, size: 22),
-          ],
-        ),
-      ),
-    );
-  }
-}
+// class _LanguageTile extends StatelessWidget {
+//   final String title;
+//   final String subtitle;
+//   final bool isSelected;
+//   final VoidCallback onTap;
+// 
+//   const _LanguageTile({
+//     required this.title,
+//     required this.subtitle,
+//     required this.isSelected,
+//     required this.onTap,
+//   });
+// 
+//   @override
+//   Widget build(BuildContext context) {
+//     return InkWell(
+//       onTap: onTap,
+//       borderRadius: BorderRadius.circular(AppDimens.radiusMd),
+//       child: Container(
+//         padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+//         decoration: BoxDecoration(
+//           color: isSelected ? AppColors.primarySoft : AppColors.surfaceMuted,
+//           borderRadius: BorderRadius.circular(AppDimens.radiusMd),
+//           border: Border.all(
+//             color: isSelected ? AppColors.primary : AppColors.border,
+//             width: isSelected ? 1.5 : 1,
+//           ),
+//         ),
+//         child: Row(
+//           children: [
+//             Expanded(
+//               child: Column(
+//                 crossAxisAlignment: CrossAxisAlignment.start,
+//                 children: [
+//                   Text(
+//                     title,
+//                     style: AppTextStyles.subtitle.copyWith(
+//                       color: isSelected ? AppColors.primary : AppColors.textPrimary,
+//                     ),
+//                   ),
+//                   const SizedBox(height: 2),
+//                   Text(subtitle, style: AppTextStyles.bodySm),
+//                 ],
+//               ),
+//             ),
+//             if (isSelected)
+//               const Icon(Icons.check_circle_rounded, color: AppColors.primary, size: 22),
+//           ],
+//         ),
+//       ),
+//     );
+//   }
+// }
 
 class _Group extends StatelessWidget {
   final List<Widget> children;

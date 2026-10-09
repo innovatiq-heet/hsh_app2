@@ -145,7 +145,97 @@ class AttendanceScannerScreen extends GetView<AttendanceScannerController> {
             ),
           ),
 
-          // 4. Bottom Guidance Card
+          // 4. BLE Search Ripple Animation Overlay (Center of Viewfinder)
+          Obx(() {
+            if (!controller.isBleSearching.value) return const SizedBox.shrink();
+            return Center(
+              child: Padding(
+                padding: const EdgeInsets.only(bottom: 60),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    const _PulsingBleRipple(),
+                    const SizedBox(height: 12),
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
+                      decoration: BoxDecoration(
+                        color: Colors.black.withValues(alpha: 0.65),
+                        borderRadius: BorderRadius.circular(AppDimens.radiusPill),
+                        border: Border.all(
+                          color: AppColors.primaryLight.withValues(alpha: 0.4),
+                          width: 1.2,
+                        ),
+                      ),
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          const SizedBox(
+                            width: 12,
+                            height: 12,
+                            child: CircularProgressIndicator(
+                              strokeWidth: 2,
+                              valueColor: AlwaysStoppedAnimation<Color>(AppColors.primaryLight),
+                            ),
+                          ),
+                          const SizedBox(width: 8),
+                          Text(
+                            'Searching for Floor ESP-32 Beacon...',
+                            style: AppTextStyles.caption.copyWith(
+                              color: Colors.white,
+                              fontWeight: FontWeight.w600,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            );
+          }),
+
+          // 5. Timeout Banner (Suggest Scan QR Instead)
+          Obx(() {
+            if (!controller.bleTimedOut.value || controller.isSuccessMarked.value) {
+              return const SizedBox.shrink();
+            }
+            return Positioned(
+              top: MediaQuery.of(context).padding.top + 105,
+              left: 20,
+              right: 20,
+              child: Container(
+                padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+                decoration: BoxDecoration(
+                  color: AppColors.warningOrange.withValues(alpha: 0.92),
+                  borderRadius: BorderRadius.circular(AppDimens.radiusMd),
+                  boxShadow: [
+                    BoxShadow(
+                      color: Colors.black.withValues(alpha: 0.25),
+                      blurRadius: 10,
+                      offset: const Offset(0, 4),
+                    ),
+                  ],
+                ),
+                child: Row(
+                  children: [
+                    const Icon(Icons.info_outline_rounded, color: Colors.white, size: 16),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: Text(
+                        'Beacon not detected. Align QR code inside the frame or move closer.',
+                        style: AppTextStyles.caption.copyWith(
+                          color: Colors.white,
+                          fontWeight: FontWeight.w700,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            );
+          }),
+
+          // 6. Bottom Guidance Card
           Positioned(
             bottom: AppDimens.gapXxl,
             left: AppDimens.screenPadding,
@@ -199,7 +289,7 @@ class AttendanceScannerScreen extends GetView<AttendanceScannerController> {
                           ),
                           const SizedBox(height: AppDimens.gapSm),
                           Text(
-                            'Align the dynamic QR code displayed on the hostel kiosk/screen inside the frame',
+                            'Align the dynamic QR code on screen or stay near your floor beacon',
                             textAlign: TextAlign.center,
                             style: AppTextStyles.bodySm.copyWith(
                               color: Colors.white.withValues(alpha: 0.82),
@@ -237,7 +327,91 @@ class AttendanceScannerScreen extends GetView<AttendanceScannerController> {
             ),
           ),
 
-          // 5. Verifying State Loading Overlay
+          // 7. Wrong Floor Detected Error Modal
+          Obx(() {
+            if (!controller.wrongFloorDetected.value) return const SizedBox.shrink();
+            return Container(
+              color: Colors.black87,
+              padding: const EdgeInsets.all(AppDimens.screenPadding),
+              child: Center(
+                child: Container(
+                  constraints: const BoxConstraints(maxWidth: 380),
+                  padding: const EdgeInsets.all(24),
+                  decoration: BoxDecoration(
+                    color: AppColors.surface,
+                    borderRadius: BorderRadius.circular(AppDimens.radiusXl),
+                    border: Border.all(color: AppColors.cancelledRed, width: 1.5),
+                    boxShadow: [
+                      BoxShadow(
+                        color: AppColors.cancelledRed.withValues(alpha: 0.2),
+                        blurRadius: 24,
+                        offset: const Offset(0, 8),
+                      ),
+                    ],
+                  ),
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Container(
+                        width: 64,
+                        height: 64,
+                        decoration: BoxDecoration(
+                          color: AppColors.cancelledRed.withValues(alpha: 0.12),
+                          shape: BoxShape.circle,
+                        ),
+                        child: const Icon(
+                          Icons.wrong_location_rounded,
+                          color: AppColors.cancelledRed,
+                          size: 34,
+                        ),
+                      ),
+                      const SizedBox(height: 18),
+                      Text(
+                        'Wrong Floor Detected',
+                        style: AppTextStyles.headline.copyWith(
+                          color: AppColors.cancelledRed,
+                          fontWeight: FontWeight.w800,
+                        ),
+                      ),
+                      const SizedBox(height: 10),
+                      Text(
+                        'Detected Beacon: ${controller.detectedBeaconFloor.value}\nYour Assigned Floor: ${controller.assignedStudentFloor.value}\n\nPlease proceed to ${controller.assignedStudentFloor.value} to mark your attendance.',
+                        textAlign: TextAlign.center,
+                        style: AppTextStyles.bodyMd.copyWith(
+                          color: AppColors.textSecondary,
+                          height: 1.45,
+                        ),
+                      ),
+                      const SizedBox(height: 22),
+                      Row(
+                        children: [
+                          Expanded(
+                            child: OutlinedButton(
+                              onPressed: () => Get.back(),
+                              child: const Text('Back'),
+                            ),
+                          ),
+                          const SizedBox(width: 12),
+                          Expanded(
+                            child: ElevatedButton(
+                              style: ElevatedButton.styleFrom(
+                                backgroundColor: AppColors.cancelledRed,
+                                foregroundColor: Colors.white,
+                              ),
+                              onPressed: controller.retryFloorScan,
+                              child: const Text('Retry Scan'),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            );
+          }),
+
+          // 8. Verifying State Loading Overlay
           Obx(() {
             if (!controller.isVerifying.value) return const SizedBox.shrink();
             return Container(
@@ -259,12 +433,12 @@ class AttendanceScannerScreen extends GetView<AttendanceScannerController> {
                       ),
                       const SizedBox(height: AppDimens.gapLg),
                       Text(
-                        'Verifying QR Token...',
+                        'Verifying Attendance...',
                         style: AppTextStyles.title,
                       ),
                       const SizedBox(height: AppDimens.gapXs),
                       Text(
-                        'Validating dynamic timestamp & anti-proxy signature',
+                        'Validating beacon proximity & token signature',
                         style: AppTextStyles.bodySm.copyWith(
                           color: AppColors.textSecondary,
                         ),
@@ -277,7 +451,7 @@ class AttendanceScannerScreen extends GetView<AttendanceScannerController> {
             );
           }),
 
-          // 6. Celebratory Success NameDrop Overlay
+          // 9. Celebratory Success NameDrop Overlay
           Obx(() {
             final record = controller.successRecord.value;
             if (record == null) return const SizedBox.shrink();
@@ -288,7 +462,7 @@ class AttendanceScannerScreen extends GetView<AttendanceScannerController> {
               sessionName: record.type.label,
               eventType: record.type,
               eventStyle: style,
-              subtitle: 'Your attendance has been recorded successfully via QR code.',
+              subtitle: 'Your attendance has been recorded successfully.',
               onDismiss: () {
                 Get.back();
               },
@@ -441,3 +615,75 @@ class _ScannerPainter extends CustomPainter {
     return oldDelegate.animationValue != animationValue;
   }
 }
+
+class _PulsingBleRipple extends StatefulWidget {
+  const _PulsingBleRipple();
+
+  @override
+  State<_PulsingBleRipple> createState() => _PulsingBleRippleState();
+}
+
+class _PulsingBleRippleState extends State<_PulsingBleRipple>
+    with SingleTickerProviderStateMixin {
+  late final AnimationController _rippleController = AnimationController(
+    vsync: this,
+    duration: const Duration(milliseconds: 1500),
+  )..repeat();
+
+  @override
+  void dispose() {
+    _rippleController.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return AnimatedBuilder(
+      animation: _rippleController,
+      builder: (context, child) {
+        final t = _rippleController.value;
+        final size = 68.0 + (50.0 * t);
+        final opacity = (1.0 - t).clamp(0.0, 1.0);
+
+        return Stack(
+          alignment: Alignment.center,
+          children: [
+            Container(
+              width: size,
+              height: size,
+              decoration: BoxDecoration(
+                shape: BoxShape.circle,
+                color: AppColors.primarySoft.withValues(alpha: opacity * 0.35),
+                border: Border.all(
+                  color: AppColors.primaryLight.withValues(alpha: opacity * 0.75),
+                  width: 1.8,
+                ),
+              ),
+            ),
+            Container(
+              width: 50,
+              height: 50,
+              decoration: BoxDecoration(
+                shape: BoxShape.circle,
+                gradient: AppColors.primaryGradient,
+                boxShadow: [
+                  BoxShadow(
+                    color: AppColors.primary.withValues(alpha: 0.4),
+                    blurRadius: 14,
+                    offset: const Offset(0, 4),
+                  ),
+                ],
+              ),
+              child: const Icon(
+                Icons.bluetooth_searching_rounded,
+                color: Colors.white,
+                size: 24,
+              ),
+            ),
+          ],
+        );
+      },
+    );
+  }
+}
+

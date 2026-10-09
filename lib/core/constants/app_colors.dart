@@ -1,95 +1,118 @@
 import 'package:flutter/material.dart';
 
 /// Design system color tokens.
-/// Warm hospitality palette:
-/// - Terracotta & camel tones
-/// - Warm cream backgrounds
-/// - Charcoal accents
+/// Modern academic & hospitality palette:
+/// - Navy & Blue primary tones (#376682, #4D89A3)
+/// - Warm Sand & Amber secondary accents (#EAAB78, #8A5A1F)
+/// - Cream background (#F6F4EF)
+/// - Deep Ink charcoal text (#22333C)
+/// - Subtle Line borders (#E4E1DA)
 class AppColors {
   AppColors._();
 
   // --- Main brand colors ---
-  /// Terracotta / Primary: #C44D28
-  static const Color primary = Color(0xFFC44D28);
-  /// Terracotta light: #D86642
-  static const Color primaryLight = Color(0xFFD86642);
-  /// Terracotta dark: #7A3723
-  static const Color primaryDark = Color(0xFF7A3723);
-  /// Header tint (mapped to Terracotta dark for warm, rich headers)
-  static const Color headerBlue = Color(0xFF7A3723);
+  /// Navy / Primary: #376682
+  static const Color primary = Color.fromARGB(255, 86, 156, 196);
 
-  /// Warm camel / secondary: #8A5B36
-  static const Color secondary = Color(0xFF8A5B36);
-  /// Camel light: #B27642
-  static const Color secondaryLight = Color(0xFFB27642);
-  /// Camel dark: #654126
-  static const Color secondaryDark = Color(0xFF654126);
+  /// Blue / Primary Light: #4D89A3
+  static const Color primaryLight = Color(0xFF4D89A3);
 
-  /// Charcoal / accent: #4E4E52
-  static const Color accent = Color(0xFF4E4E52);
-  /// Charcoal light: #76767B
-  static const Color accentLight = Color(0xFF76767B);
-  /// Charcoal dark: #2F2F33
-  static const Color accentDark = Color(0xFF2F2F33);
+  /// Ink / Primary Dark: #22333C
+  static const Color primaryDark = Color(0xFF22333C);
+
+  /// Header tint: #376682
+  static const Color headerBlue = Color(0xFF376682);
+
+  /// Warm sand / Secondary: #EAAB78
+  static const Color secondary = Color(0xFFEAAB78);
+
+  /// Sand light: #F3C9A6
+  static const Color secondaryLight = Color(0xFFF3C9A6);
+
+  /// Amber dark: #8A5A1F
+  static const Color secondaryDark = Color(0xFF8A5A1F);
+
+  /// Ink / Accent: #22333C
+  static const Color accent = Color(0xFF22333C);
+
+  /// Mist / Accent Light: #769BAB
+  static const Color accentLight = Color(0xFF769BAB);
+
+  /// Charcoal dark: #18252C
+  static const Color accentDark = Color(0xFF18252C);
 
   // --- Backgrounds ---
-  /// Warm cream background: #FFF4EC
-  static const Color mainBackground = Color(0xFFFFF4EC);
-  /// Background secondary: #FFF9F5
-  static const Color backgroundSecondary = Color(0xFFFFF9F5);
+  /// Warm cream background: #F6F4EF
+  static const Color mainBackground = Color(0xFFF6F4EF);
+
+  /// Background secondary: #FAF9F6
+  static const Color backgroundSecondary = Color(0xFFFAF9F6);
+
   /// White surface: #FFFFFF
   static const Color surface = Color(0xFFFFFFFF);
-  /// Surface muted: #FFF9F5
-  static const Color surfaceMuted = Color(0xFFFFF9F5);
+
+  /// Surface muted: #F6F4EF
+  static const Color surfaceMuted = Color(0xFFF6F4EF);
 
   // --- Text ---
-  /// Primary text: #2B2B2B
-  static const Color textPrimary = Color(0xFF2B2B2B);
-  /// Secondary text: #5A5A5A
-  static const Color textSecondary = Color(0xFF5A5A5A);
-  /// Muted text: #7D7D7D
-  static const Color textMuted = Color(0xFF7D7D7D);
-  /// Light text: #A3A3A3
-  static const Color textLight = Color(0xFFA3A3A3);
+  /// Primary text: #22333C
+  static const Color textPrimary = Color(0xFF22333C);
+
+  /// Secondary text: #5D6B73
+  static const Color textSecondary = Color(0xFF5D6B73);
+
+  /// Muted text: #94938E
+  static const Color textMuted = Color(0xFF94938E);
+
+  /// Light text: #B0B5B9
+  static const Color textLight = Color(0xFFB0B5B9);
 
   // --- Borders ---
-  /// Border: #DDD6CE
-  static const Color border = Color(0xFFDDD6CE);
-  /// Border light: #EAE5E0
-  static const Color borderLight = Color(0xFFEAE5E0);
-  /// Border primary: #D86642
-  static const Color borderPrimary = Color(0xFFD86642);
-  /// Border accent: #76767B
-  static const Color borderAccent = Color(0xFF76767B);
+  /// Border: #E4E1DA
+  static const Color border = Color(0xFFE4E1DA);
+
+  /// Border light: #ECEAE4
+  static const Color borderLight = Color(0xFFECEAE4);
+
+  /// Border primary: #4D89A3
+  static const Color borderPrimary = Color(0xFF4D89A3);
+
+  /// Border accent: #769BAB
+  static const Color borderAccent = Color(0xFF769BAB);
 
   // --- Status colors ---
   /// Success: #2E7D32
   static const Color successGreen = Color(0xFF2E7D32);
-  /// Warning: #C17817
-  static const Color warningOrange = Color(0xFFC17817);
-  /// Error: #C62828
-  static const Color cancelledRed = Color(0xFFC62828);
-  static const Color errorRed = Color(0xFFC62828);
-  /// Info / Pending: #1565C0
-  static const Color pendingBlue = Color(0xFF1565C0);
+
+  /// Warning: #8A5A1F
+  static const Color warningOrange = Color(0xFF8A5A1F);
+
+  /// Error: #D32F2F
+  static const Color cancelledRed = Color(0xFFD32F2F);
+  static const Color errorRed = Color(0xFFD32F2F);
+
+  /// Info / Pending: #4D89A3
+  static const Color pendingBlue = Color(0xFF4D89A3);
 
   // --- Supporting tokens ---
-  /// Soft terracotta tint for badges, selected pills & wash surfaces
-  static const Color primarySoft = Color(0xFFFBECE6);
-  /// Soft camel tint
-  static const Color secondarySoft = Color(0xFFF6EDE6);
+  /// Soft navy tint for badges, selected pills & wash surfaces
+  static const Color primarySoft = Color(0xFFEBF2F5);
+
+  /// Soft sand tint
+  static const Color secondarySoft = Color(0xFFFDF4EC);
+
   /// Warm shadow
-  static const Color shadow = Color(0xFF2F2F33);
+  static const Color shadow = Color(0xFF22333C);
 
   // --- Gradients ---
-  /// Terracotta into Warm Camel
+  /// Navy into Blue
   static const LinearGradient primaryGradient = LinearGradient(
     begin: Alignment.topLeft,
     end: Alignment.bottomRight,
-    colors: [primary, secondary],
+    colors: [primary, primaryLight],
   );
 
-  /// Hero headers: deep terracotta into warm terracotta and terracotta light
+  /// Hero headers: deep ink into navy and blue
   static const LinearGradient heroGradient = LinearGradient(
     begin: Alignment.topLeft,
     end: Alignment.bottomRight,
@@ -97,7 +120,7 @@ class AppColors {
     stops: [0.0, 0.55, 1.0],
   );
 
-  /// Buttons: terracotta into terracotta light
+  /// Buttons: navy into blue
   static const LinearGradient buttonGradient = LinearGradient(
     begin: Alignment.centerLeft,
     end: Alignment.centerRight,

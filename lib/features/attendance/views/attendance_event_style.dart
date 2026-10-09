@@ -1,4 +1,4 @@
-﻿import 'package:flutter/material.dart';
+import 'package:flutter/material.dart';
 import '../../../core/enums/attendance_type.dart';
 import '../../../core/constants/app_colors.dart';
 
@@ -122,42 +122,42 @@ class AttendanceEventStyle {
     switch (type) {
       case AttendanceType.aarti:
         return const [
-          Color(0xFFFFE0B2),
+          AppColors.secondaryLight,
           AppColors.warningOrange,
           AppColors.primaryLight,
           AppColors.primary,
         ];
       case AttendanceType.morning:
         return const [
-          Color(0xFFFFD180),
-          AppColors.warningOrange,
           AppColors.secondaryLight,
+          AppColors.warningOrange,
+          AppColors.secondary,
           AppColors.primary,
         ];
       case AttendanceType.lunch:
         return const [
-          Color(0xFFFFE8DC),
+          AppColors.secondarySoft,
           AppColors.secondaryLight,
           AppColors.secondary,
           AppColors.primary,
         ];
       case AttendanceType.dinner:
         return const [
-          Color(0xFFFFCCBC),
+          AppColors.primarySoft,
           AppColors.primaryLight,
           AppColors.primary,
           AppColors.primaryDark,
         ];
       case AttendanceType.night:
         return const [
-          Color(0xFFE2E8F0),
+          AppColors.primarySoft,
           AppColors.primaryLight,
           AppColors.headerBlue,
-          Color(0xFF1E293B),
+          AppColors.primaryDark,
         ];
       case AttendanceType.sabha:
         return const [
-          Color(0xFFFFCDD2),
+          AppColors.primarySoft,
           AppColors.cancelledRed,
           AppColors.primary,
           AppColors.primaryDark,
@@ -170,7 +170,7 @@ class AttendanceEventStyle {
 
   /// Default brand wave colors when no event type is specified
   static const List<Color> defaultBrandWaveColors = [
-    Color(0xFFFFE8DC),
+    AppColors.secondarySoft,
     AppColors.primaryLight,
     AppColors.primary,
     AppColors.secondary,

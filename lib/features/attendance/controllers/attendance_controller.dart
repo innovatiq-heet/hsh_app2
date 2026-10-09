@@ -1,4 +1,4 @@
-﻿import 'dart:async';
+import 'dart:async';
 import 'dart:developer' as developer;
 import 'dart:io';
 import 'package:flutter_blue_plus/flutter_blue_plus.dart';
@@ -21,8 +21,10 @@ class AttendanceController extends GetxController with LoadStateMixin {
   final FloorStringsRepository _floorStringsRepo = Get.find();
 
   static const String esp32ServiceUuid = '4fafc201-1fb5-459e-8fcc-c5c9c331914b';
-  static const String attendanceServiceUuid = '4fafc201-1fb5-459e-8fcc-c5c9c331914b';
-  static const String floorTokenCharacteristicUuid = 'beb5483e-36e1-4688-b7f5-ea07361b26a8';
+  static const String attendanceServiceUuid =
+      '4fafc201-1fb5-459e-8fcc-c5c9c331914b';
+  static const String floorTokenCharacteristicUuid =
+      'beb5483e-36e1-4688-b7f5-ea07361b26a8';
 
   // Attendance state
   final alreadyMarked = false.obs;
@@ -36,6 +38,9 @@ class AttendanceController extends GetxController with LoadStateMixin {
   final todayStatus = <AttendanceType, DateTime?>{}.obs;
   final studentStatus = Rxn<StudentAttendanceStatus>();
   final schedulesList = <AttendanceScheduleItem>[].obs;
+  final recentHistory = <AttendanceRecord>[].obs;
+  final assignedFloor = 'Floor 9'.obs;
+  final assignedRoom = 'Room 913'.obs;
   final markingType = Rxn<AttendanceType>();
   final markingSessionKey = ''.obs;
   final isMarking = false.obs;
@@ -47,6 +52,15 @@ class AttendanceController extends GetxController with LoadStateMixin {
   final assignedFloorId = 0.obs;
   final assignedFloorName = 'Ground Floor'.obs;
   final currentFloorServiceUuid = 'FLR0-QFPH-HEYE'.obs;
+
+  // Student identity details for Attendance Screen header
+  final studentName = 'Harshil Vijaybhai Patel'.obs;
+  final studentCode = '0987'.obs;
+  final studentRoom = 'Room 913'.obs;
+  final studentFloor = 'Floor 9'.obs;
+  final studentGroup = 'Pavitra'.obs;
+  final studentPhone = ''.obs;
+  final isVerified = true.obs;
 
   @override
   void onInit() {
@@ -239,6 +253,83 @@ class AttendanceController extends GetxController with LoadStateMixin {
 
       todaySessionStatus.refresh();
       todayStatus.refresh();
+
+      // 6. Load assigned floor from session store room
+      try {
+        final room = await store.cachedRoom;
+        if (room != null && room.isNotEmpty) {
+          assignedRoom.value = room;
+          final digits = room.replaceAll(RegExp(r'[^0-9]'), '');
+          if (digits.isNotEmpty) {
+            final floorDigit = digits.length >= 3 ? digits[0] : digits;
+            assignedFloor.value = 'Floor $floorDigit';
+          }
+        }
+      } catch (_) {}
+
+      // 7. Load recent 7-day attendance history summary
+      try {
+        final historyLogs = await _repository.history(
+          from: DateTime.now().subtract(const Duration(days: 7)),
+          to: DateTime.now(),
+          limit: 10,
+        );
+        recentHistory.assignAll(historyLogs);
+      } catch (_) {}
+
+      // 8. Load student identity details for header card
+      try {
+        final sName = await store.name;
+        if (sName != null && sName.trim().isNotEmpty) {
+          studentName.value = sName.trim();
+        }
+        final sPhone = await store.cachedPhone;
+        if (sPhone != null && sPhone.trim().isNotEmpty) {
+          studentPhone.value = sPhone.trim();
+        }
+        final sCode = await store.cachedStudentCode;
+        if (sCode != null && sCode.trim().isNotEmpty) {
+          studentCode.value = sCode.trim();
+        }
+        final sRoom = await store.cachedRoom;
+        if (sRoom != null && sRoom.trim().isNotEmpty) {
+          studentRoom.value = sRoom.startsWith('Room') ? sRoom : 'Room $sRoom';
+          assignedRoom.value = studentRoom.value;
+          final digits = sRoom.replaceAll(RegExp(r'[^0-9]'), '');
+          if (digits.isNotEmpty) {
+            final floorDigit = digits.length >= 3 ? digits[0] : digits;
+            studentFloor.value = 'Floor $floorDigit';
+            assignedFloor.value = 'Floor $floorDigit';
+          }
+        }
+
+        final p = studentDetails.value;
+        if (p != null) {
+          if (p.fullName.trim().isNotEmpty) {
+            studentName.value = p.fullName.trim();
+          }
+          if (p.phone.trim().isNotEmpty) {
+            studentPhone.value = p.phone.trim();
+          }
+          if (p.bankCode.trim().isNotEmpty) {
+            studentCode.value = p.bankCode.trim();
+          }
+          if (p.groupName.trim().isNotEmpty) {
+            studentGroup.value = p.groupName.trim();
+          }
+          if (p.room.trim().isNotEmpty) {
+            studentRoom.value =
+                p.room.startsWith('Room') ? p.room : 'Room ${p.room}';
+            assignedRoom.value = studentRoom.value;
+            final digits = p.room.replaceAll(RegExp(r'[^0-9]'), '');
+            if (digits.isNotEmpty) {
+              final floorDigit = digits.length >= 3 ? digits[0] : digits;
+              studentFloor.value = 'Floor $floorDigit';
+              assignedFloor.value = 'Floor $floorDigit';
+            }
+          }
+        }
+      } catch (_) {}
     } catch (_) {}
   }, showLoading: showLoading);
 
@@ -288,7 +379,9 @@ class AttendanceController extends GetxController with LoadStateMixin {
   /// Connects to candidate ESP-32 and reads the floor string GATT characteristic
   Future<String?> _readFloorTokenFromDevice(BluetoothDevice device) async {
     final normService = attendanceServiceUuid.replaceAll('-', '').toLowerCase();
-    final normChar = floorTokenCharacteristicUuid.replaceAll('-', '').toLowerCase();
+    final normChar = floorTokenCharacteristicUuid
+        .replaceAll('-', '')
+        .toLowerCase();
 
     try {
       await device.connect(
@@ -312,7 +405,10 @@ class AttendanceController extends GetxController with LoadStateMixin {
         }
       }
     } catch (e) {
-      developer.log('Read floor token exception for ${device.remoteId}: $e', name: 'AttendanceController');
+      developer.log(
+        'Read floor token exception for ${device.remoteId}: $e',
+        name: 'AttendanceController',
+      );
     } finally {
       try {
         await device.disconnect();
@@ -327,7 +423,9 @@ class AttendanceController extends GetxController with LoadStateMixin {
     String? sessionKey,
   }) async {
     final effectiveKey = (sessionKey ?? type.apiValue).toLowerCase().trim();
-    if (isMarking.value && markingSessionKey.value.isNotEmpty && markingSessionKey.value != effectiveKey) {
+    if (isMarking.value &&
+        markingSessionKey.value.isNotEmpty &&
+        markingSessionKey.value != effectiveKey) {
       return null;
     }
     markingType.value = type;
@@ -344,7 +442,8 @@ class AttendanceController extends GetxController with LoadStateMixin {
         ].request();
 
         if (statuses[Permission.bluetoothScan]?.isPermanentlyDenied == true ||
-            statuses[Permission.bluetoothConnect]?.isPermanentlyDenied == true) {
+            statuses[Permission.bluetoothConnect]?.isPermanentlyDenied ==
+                true) {
           throw Exception(
             'Bluetooth permissions are needed to detect your floor ESP-32. Please allow them in your phone settings.',
           );
@@ -390,8 +489,12 @@ class AttendanceController extends GetxController with LoadStateMixin {
           ? assignedFloorName.value
           : (targetFloorId == 0 ? 'Ground Floor' : 'Floor $targetFloorId');
 
-      final normAttendanceService = attendanceServiceUuid.replaceAll('-', '').toLowerCase();
-      final expectedNorm = expectedFloorString.replaceAll('-', '').toLowerCase();
+      final normAttendanceService = attendanceServiceUuid
+          .replaceAll('-', '')
+          .toLowerCase();
+      final expectedNorm = expectedFloorString
+          .replaceAll('-', '')
+          .toLowerCase();
 
       final candidateResults = <ScanResult>[];
 
@@ -399,10 +502,18 @@ class AttendanceController extends GetxController with LoadStateMixin {
       final scanSubscription = FlutterBluePlus.scanResults.listen((results) {
         for (final r in results) {
           final adv = r.advertisementData;
-          final name = (r.device.platformName.isNotEmpty ? r.device.platformName : adv.advName).toLowerCase();
-          final hasServiceUuid = adv.serviceUuids.any((u) =>
-              u.toString().replaceAll('-', '').toLowerCase() == normAttendanceService);
-          final hasHostelName = name.contains('hostel') ||
+          final name =
+              (r.device.platformName.isNotEmpty
+                      ? r.device.platformName
+                      : adv.advName)
+                  .toLowerCase();
+          final hasServiceUuid = adv.serviceUuids.any(
+            (u) =>
+                u.toString().replaceAll('-', '').toLowerCase() ==
+                normAttendanceService,
+          );
+          final hasHostelName =
+              name.contains('hostel') ||
               name.contains('esp32') ||
               name.contains('hams') ||
               name.contains('floor') ||
@@ -411,7 +522,9 @@ class AttendanceController extends GetxController with LoadStateMixin {
               name.contains('sabha');
 
           if (hasServiceUuid || hasHostelName) {
-            if (!candidateResults.any((c) => c.device.remoteId == r.device.remoteId)) {
+            if (!candidateResults.any(
+              (c) => c.device.remoteId == r.device.remoteId,
+            )) {
               candidateResults.add(r);
             }
           }
@@ -433,10 +546,18 @@ class AttendanceController extends GetxController with LoadStateMixin {
       // Also gather devices from lastScanResults in case final packet arrived at stop
       for (final r in FlutterBluePlus.lastScanResults) {
         final adv = r.advertisementData;
-        final name = (r.device.platformName.isNotEmpty ? r.device.platformName : adv.advName).toLowerCase();
-        final hasServiceUuid = adv.serviceUuids.any((u) =>
-            u.toString().replaceAll('-', '').toLowerCase() == normAttendanceService);
-        final hasHostelName = name.contains('hostel') ||
+        final name =
+            (r.device.platformName.isNotEmpty
+                    ? r.device.platformName
+                    : adv.advName)
+                .toLowerCase();
+        final hasServiceUuid = adv.serviceUuids.any(
+          (u) =>
+              u.toString().replaceAll('-', '').toLowerCase() ==
+              normAttendanceService,
+        );
+        final hasHostelName =
+            name.contains('hostel') ||
             name.contains('esp32') ||
             name.contains('hams') ||
             name.contains('floor') ||
@@ -445,7 +566,9 @@ class AttendanceController extends GetxController with LoadStateMixin {
             name.contains('sabha');
 
         if (hasServiceUuid || hasHostelName) {
-          if (!candidateResults.any((c) => c.device.remoteId == r.device.remoteId)) {
+          if (!candidateResults.any(
+            (c) => c.device.remoteId == r.device.remoteId,
+          )) {
             candidateResults.add(r);
           }
         }
@@ -470,11 +593,12 @@ class AttendanceController extends GetxController with LoadStateMixin {
 
         // Fallback: If GATT read didn't respond, inspect advertisement name
         if (readToken == null || readToken.isEmpty) {
-          final advName = (candidate.device.platformName.isNotEmpty
-                  ? candidate.device.platformName
-                  : candidate.advertisementData.advName)
-              .trim()
-              .toLowerCase();
+          final advName =
+              (candidate.device.platformName.isNotEmpty
+                      ? candidate.device.platformName
+                      : candidate.advertisementData.advName)
+                  .trim()
+                  .toLowerCase();
 
           if (advName.contains('global') ||
               advName.contains('all_floor') ||
@@ -491,12 +615,15 @@ class AttendanceController extends GetxController with LoadStateMixin {
 
         if (readToken != null && readToken.isNotEmpty) {
           final tokenUpper = readToken.trim().toUpperCase();
-          final isGlobalToken = tokenUpper == 'GLOBAL' ||
+          final isGlobalToken =
+              tokenUpper == 'GLOBAL' ||
               tokenUpper == 'GLOBAL_ALL_FLOORS' ||
               tokenUpper == 'HAMS_GLOBAL' ||
               tokenUpper.startsWith('GLOBAL_');
 
-          final isTargetFloor = readToken.trim().toLowerCase() == expectedFloorString.toLowerCase();
+          final isTargetFloor =
+              readToken.trim().toLowerCase() ==
+              expectedFloorString.toLowerCase();
 
           if (isTargetFloor || isGlobalToken) {
             floorStringMatched = true;
@@ -510,7 +637,8 @@ class AttendanceController extends GetxController with LoadStateMixin {
 
       // 5. Verification check
       if (!floorStringMatched) {
-        if (detectedWrongFloorString != null && detectedWrongFloorString.isNotEmpty) {
+        if (detectedWrongFloorString != null &&
+            detectedWrongFloorString.isNotEmpty) {
           throw Exception(
             "Floor Mismatch: You connected to a device with floor string '$detectedWrongFloorString', but you are assigned to $targetFloorName (token '$expectedFloorString'). Please go to $targetFloorName to mark attendance.",
           );
@@ -563,5 +691,7 @@ class AttendanceController extends GetxController with LoadStateMixin {
     todayStatus[record.type] = record.time;
     todayStatus.refresh();
     alreadyMarked.value = true;
+    recentHistory.insert(0, record);
+    recentHistory.refresh();
   }
 }

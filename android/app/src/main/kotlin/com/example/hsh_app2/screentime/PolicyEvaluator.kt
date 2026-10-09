@@ -79,7 +79,7 @@ object PolicyEvaluator {
         val policy = PolicyStore.policy(context)
         if (policy.isLocked) return BlockReason.DEVICE_LOCKED
         if (packageName in policy.blockedPackages) return BlockReason.APP_BLOCKED
-        if (policy.hasBedtime && isInBedtime(policy)) return BlockReason.BEDTIME
+        if (policy.hasBedtime && isInBedtime(policy, context = context)) return BlockReason.BEDTIME
         if (policy.dailyLimitMinutes > 0 && todayMinutes(context) >= policy.dailyLimitMinutes) {
             return BlockReason.DAILY_LIMIT
         }
@@ -91,10 +91,23 @@ object PolicyEvaluator {
 
     // ---------- Bedtime ----------
 
-    fun isInBedtime(policy: DevicePolicy, now: Calendar = Calendar.getInstance()): Boolean {
+    fun isInBedtime(
+        policy: DevicePolicy,
+        now: Calendar = Calendar.getInstance(),
+        context: Context? = null,
+    ): Boolean {
         val start = parseMinutes(policy.bedtimeStart) ?: return false
         val end = parseMinutes(policy.bedtimeEnd) ?: return false
         if (start == end) return false
+
+        // Anti-tamper: If user disabled automatic network time in Settings, fail closed
+        if (context != null) {
+            val autoTime = runCatching {
+                Settings.Global.getInt(context.contentResolver, Settings.Global.AUTO_TIME, 1)
+            }.getOrDefault(1)
+            if (autoTime == 0) return true
+        }
+
         val cur = now.get(Calendar.HOUR_OF_DAY) * 60 + now.get(Calendar.MINUTE)
         // Overnight window (e.g. 23:00 → 05:00) wraps past midnight.
         return if (start < end) cur in start until end else cur >= start || cur < end

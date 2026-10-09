@@ -159,11 +159,24 @@ object GeofenceEvaluator {
 
     // ---------- Curfew window ----------
 
-    fun isInCurfew(policy: GeofencePolicy, now: Calendar = Calendar.getInstance()): Boolean {
+    fun isInCurfew(
+        policy: GeofencePolicy,
+        now: Calendar = Calendar.getInstance(),
+        context: Context? = null,
+    ): Boolean {
         if (!policy.active) return false
         val start = parseMinutes(policy.start) ?: return false
         val end = parseMinutes(policy.end) ?: return false
         if (start == end) return false
+
+        // Anti-tamper: If user disabled automatic network time in Settings, fail closed
+        if (context != null) {
+            val autoTime = runCatching {
+                android.provider.Settings.Global.getInt(context.contentResolver, android.provider.Settings.Global.AUTO_TIME, 1)
+            }.getOrDefault(1)
+            if (autoTime == 0) return true
+        }
+
         val cur = now.get(Calendar.HOUR_OF_DAY) * 60 + now.get(Calendar.MINUTE)
         val overnight = start > end
         val inWindow = if (!overnight) cur in start until end else cur >= start || cur < end
@@ -194,7 +207,7 @@ object GeofenceEvaluator {
     /** Curfew is on, no gate pass → the fence is being enforced right now. */
     fun isEnforcing(context: Context, now: Long = System.currentTimeMillis()): Boolean {
         val policy = PolicyStore.geofencePolicy(context)
-        return policy.active && !policy.isExempt(now) && isInCurfew(policy)
+        return policy.active && !policy.isExempt(now) && isInCurfew(policy, context = context)
     }
 
     /**

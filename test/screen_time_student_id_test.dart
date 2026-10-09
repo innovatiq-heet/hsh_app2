@@ -62,6 +62,16 @@ void main() {
             'blockedPackages': [],
           },
         };
+      case '/geofence/policy':
+        return {
+          'id': 'default_curfew',
+          'name': 'Hostel Night Curfew',
+          'startTime': '22:00',
+          'endTime': '06:00',
+          'isActive': true,
+          'checkIntervalMinutes': 2,
+          'repeatDays': ['Daily'],
+        };
     }
     return null;
   }

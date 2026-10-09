@@ -3,9 +3,11 @@ import 'package:get/get.dart';
 import '../../../core/constants/app_colors.dart';
 import '../../../core/constants/app_dimens.dart';
 import '../../../core/constants/app_text_styles.dart';
+import '../../../core/models/geofence/geofence_policy_model.dart';
 import '../../shared/widgets/app_card.dart';
 import '../../shared/widgets/empty_state.dart';
 import '../../shared/widgets/skeleton_loader.dart';
+import '../../shared/widgets/status_badge.dart';
 import '../controllers/student_screen_time_controller.dart';
 import 'app_brand_icon.dart';
 
@@ -19,6 +21,8 @@ class StudentDirectoryView extends GetView<StudentScreenTimeController> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
+        const _GlobalCurfewBanner(),
+        const SizedBox(height: AppDimens.gapMd),
         _SummaryStrip(),
         const SizedBox(height: AppDimens.gapMd),
         _SearchField(),
@@ -424,5 +428,401 @@ class _Tag extends StatelessWidget {
         ],
       ),
     );
+  }
+}
+
+/// Hostel-wide Curfew status & quick 1-tap global control banner for wardens.
+class _GlobalCurfewBanner extends GetView<StudentScreenTimeController> {
+  const _GlobalCurfewBanner();
+
+  @override
+  Widget build(BuildContext context) {
+    return Obx(() {
+      final policy = controller.globalCurfewPolicy.value;
+      final isActive = policy.isActive;
+      final isUpdating = controller.isUpdatingCurfew.value;
+      final accentColor = isActive ? AppColors.successGreen : AppColors.warningOrange;
+
+      return Container(
+        decoration: BoxDecoration(
+          color: AppColors.surface,
+          borderRadius: BorderRadius.circular(AppDimens.radiusLg),
+          border: Border.all(
+            color: accentColor.withValues(alpha: 0.35),
+            width: 1.2,
+          ),
+          boxShadow: [
+            BoxShadow(
+              color: accentColor.withValues(alpha: 0.06),
+              blurRadius: 10,
+              offset: const Offset(0, 3),
+            ),
+          ],
+        ),
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+        child: Row(
+          children: [
+            Container(
+              width: 44,
+              height: 44,
+              decoration: BoxDecoration(
+                color: accentColor.withValues(alpha: 0.12),
+                borderRadius: BorderRadius.circular(12),
+              ),
+              child: Icon(
+                isActive ? Icons.nightlight_round : Icons.bedtime_off_outlined,
+                color: accentColor,
+                size: 22,
+              ),
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    children: [
+                      Flexible(
+                        child: Text(
+                          'Night Curfew',
+                          style: AppTextStyles.bodyMd.copyWith(
+                            fontWeight: FontWeight.bold,
+                            color: AppColors.textPrimary,
+                          ),
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                      ),
+                      const SizedBox(width: 8),
+                      StatusBadge(
+                        label: isActive ? 'ACTIVE' : 'TURNED OFF',
+                        color: accentColor,
+                        icon: isActive ? Icons.check_circle_rounded : Icons.pause_circle_rounded,
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 3),
+                  Row(
+                    children: [
+                      const Icon(
+                        Icons.schedule_rounded,
+                        size: 13,
+                        color: AppColors.textSecondary,
+                      ),
+                      const SizedBox(width: 4),
+                      Text(
+                        policy.formatTimeRange(),
+                        style: AppTextStyles.caption.copyWith(
+                          color: AppColors.textSecondary,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                      const SizedBox(width: 6),
+                      InkWell(
+                        onTap: () => _showEditCurfewHours(context, controller, policy),
+                        borderRadius: BorderRadius.circular(4),
+                        child: Padding(
+                          padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 2),
+                          child: Text(
+                            'Edit Hours',
+                            style: AppTextStyles.caption.copyWith(
+                              color: AppColors.primary,
+                              fontWeight: FontWeight.w700,
+                              decoration: TextDecoration.underline,
+                            ),
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(width: 8),
+            _CurfewToggleButton(
+              isActive: isActive,
+              isUpdating: isUpdating,
+              onPressed: isUpdating ? null : () => controller.toggleGlobalCurfew(!isActive),
+            ),
+          ],
+        ),
+      );
+    });
+  }
+
+  void _showEditCurfewHours(
+    BuildContext context,
+    StudentScreenTimeController controller,
+    GeofencePolicyModel policy,
+  ) {
+    TimeOfDay start = policy.startTime;
+    TimeOfDay end = policy.endTime;
+
+    Get.bottomSheet(
+      StatefulBuilder(
+        builder: (ctx, setState) {
+          String formatTime(TimeOfDay t) {
+            final hour = t.hourOfPeriod == 0 ? 12 : t.hourOfPeriod;
+            final min = t.minute.toString().padLeft(2, '0');
+            final period = t.period == DayPeriod.am ? 'AM' : 'PM';
+            return '$hour:$min $period';
+          }
+
+          return Container(
+            padding: const EdgeInsets.all(AppDimens.cardPadding),
+            decoration: const BoxDecoration(
+              color: AppColors.surface,
+              borderRadius: BorderRadius.vertical(top: Radius.circular(AppDimens.radiusXl)),
+            ),
+            child: SafeArea(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    children: [
+                      const Icon(Icons.access_time_filled_rounded, color: AppColors.primary, size: 24),
+                      const SizedBox(width: 8),
+                      Text(
+                        'Set Global Curfew Hours',
+                        style: AppTextStyles.headline.copyWith(fontSize: 18),
+                      ),
+                      const Spacer(),
+                      IconButton(
+                        icon: const Icon(Icons.close_rounded),
+                        onPressed: () => Get.back(),
+                        visualDensity: VisualDensity.compact,
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 6),
+                  Text(
+                    'Applies to all hostel students. Phones evaluate curfew boundaries during this window.',
+                    style: AppTextStyles.caption.copyWith(color: AppColors.textSecondary),
+                  ),
+                  const SizedBox(height: AppDimens.gapLg),
+                  Row(
+                    children: [
+                      Expanded(
+                        child: _CurfewTimeTile(
+                          label: 'START TIME',
+                          timeStr: formatTime(start),
+                          onTap: () async {
+                            final picked = await showTimePicker(
+                              context: context,
+                              initialTime: start,
+                            );
+                            if (picked != null) {
+                              setState(() => start = picked);
+                            }
+                          },
+                        ),
+                      ),
+                      const SizedBox(width: AppDimens.gapMd),
+                      Expanded(
+                        child: _CurfewTimeTile(
+                          label: 'END TIME',
+                          timeStr: formatTime(end),
+                          onTap: () async {
+                            final picked = await showTimePicker(
+                              context: context,
+                              initialTime: end,
+                            );
+                            if (picked != null) {
+                              setState(() => end = picked);
+                            }
+                          },
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: AppDimens.gapXl),
+                  Row(
+                    children: [
+                      Expanded(
+                        child: OutlinedButton(
+                          onPressed: () => Get.back(),
+                          style: OutlinedButton.styleFrom(
+                            padding: const EdgeInsets.symmetric(vertical: 14),
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(AppDimens.radiusMd),
+                            ),
+                          ),
+                          child: const Text('Cancel'),
+                        ),
+                      ),
+                      const SizedBox(width: AppDimens.gapMd),
+                      Expanded(
+                        child: ElevatedButton(
+                          onPressed: () {
+                            Get.back();
+                            controller.updateGlobalCurfewTimes(start, end);
+                          },
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: AppColors.primary,
+                            foregroundColor: Colors.white,
+                            padding: const EdgeInsets.symmetric(vertical: 14),
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(AppDimens.radiusMd),
+                            ),
+                          ),
+                          child: const Text('Save Hours', style: TextStyle(fontWeight: FontWeight.bold)),
+                        ),
+                      ),
+                    ],
+                  ),
+                ],
+              ),
+            ),
+          );
+        },
+      ),
+      isScrollControlled: true,
+    );
+  }
+}
+
+class _CurfewTimeTile extends StatelessWidget {
+  final String label;
+  final String timeStr;
+  final VoidCallback onTap;
+
+  const _CurfewTimeTile({
+    required this.label,
+    required this.timeStr,
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(AppDimens.radiusMd),
+      child: Container(
+        padding: const EdgeInsets.all(12),
+        decoration: BoxDecoration(
+          color: AppColors.backgroundSecondary,
+          borderRadius: BorderRadius.circular(AppDimens.radiusMd),
+          border: Border.all(color: AppColors.border),
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(label, style: AppTextStyles.caption.copyWith(fontWeight: FontWeight.bold, fontSize: 10)),
+            const SizedBox(height: 6),
+            Row(
+              children: [
+                const Icon(Icons.edit_calendar_rounded, size: 16, color: AppColors.primary),
+                const SizedBox(width: 6),
+                Text(
+                  timeStr,
+                  style: AppTextStyles.bodyMd.copyWith(fontWeight: FontWeight.bold),
+                ),
+              ],
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _CurfewToggleButton extends StatelessWidget {
+  final bool isActive;
+  final bool isUpdating;
+  final VoidCallback? onPressed;
+
+  const _CurfewToggleButton({
+    required this.isActive,
+    required this.isUpdating,
+    required this.onPressed,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    if (isActive) {
+      // Button to turn OFF curfew
+      return Material(
+        color: Colors.transparent,
+        child: InkWell(
+          onTap: onPressed,
+          borderRadius: BorderRadius.circular(AppDimens.radiusPill),
+          child: Container(
+            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+            decoration: BoxDecoration(
+              color: const Color(0xFFFEE2E2),
+              borderRadius: BorderRadius.circular(AppDimens.radiusPill),
+              border: Border.all(color: const Color(0xFFFCA5A5)),
+            ),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                if (isUpdating)
+                  const SizedBox(
+                    width: 14,
+                    height: 14,
+                    child: CircularProgressIndicator(strokeWidth: 2, color: AppColors.cancelledRed),
+                  )
+                else
+                  const Icon(Icons.power_settings_new_rounded, size: 15, color: AppColors.cancelledRed),
+                const SizedBox(width: 6),
+                Text(
+                  'Turn OFF',
+                  style: AppTextStyles.caption.copyWith(
+                    color: AppColors.cancelledRed,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      );
+    } else {
+      // Button to turn ON curfew
+      return Material(
+        color: Colors.transparent,
+        child: InkWell(
+          onTap: onPressed,
+          borderRadius: BorderRadius.circular(AppDimens.radiusPill),
+          child: Container(
+            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+            decoration: BoxDecoration(
+              gradient: const LinearGradient(
+                colors: [Color(0xFF16A34A), Color(0xFF15803D)],
+              ),
+              borderRadius: BorderRadius.circular(AppDimens.radiusPill),
+              boxShadow: [
+                BoxShadow(
+                  color: const Color(0xFF16A34A).withValues(alpha: 0.3),
+                  blurRadius: 6,
+                  offset: const Offset(0, 2),
+                ),
+              ],
+            ),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                if (isUpdating)
+                  const SizedBox(
+                    width: 14,
+                    height: 14,
+                    child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
+                  )
+                else
+                  const Icon(Icons.power_settings_new_rounded, size: 15, color: Colors.white),
+                const SizedBox(width: 6),
+                Text(
+                  'Turn ON',
+                  style: AppTextStyles.caption.copyWith(
+                    color: Colors.white,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      );
+    }
   }
 }

@@ -87,6 +87,7 @@
             android:launchMode="singleTask"
             android:taskAffinity="com.example.hsh_app2.blocker"
             android:theme="@android:style/Theme.NoTitleBar.Fullscreen"
+            android:resizeableActivity="false"
             android:excludeFromRecents="true" />
 
         <!-- Real-time Android App Blocker Accessibility Service -->

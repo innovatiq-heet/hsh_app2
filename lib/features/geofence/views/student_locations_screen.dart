@@ -1,212 +1,220 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:get/get.dart';
-import '../../../core/constants/app_colors.dart';
-import '../../../core/constants/app_dimens.dart';
-import '../../../core/constants/app_text_styles.dart';
 import '../../../core/models/geofence/student_location.dart';
 import '../../../core/utils/app_snackbar.dart';
 import '../../../core/utils/date_formatting.dart';
 import '../../shared/widgets/empty_state.dart';
-import '../../shared/widgets/gradient_header.dart';
+import '../../shared/widgets/staggered_slide_fade.dart';
 import '../controllers/student_locations_controller.dart';
 
-/// Modern, executive view of every student's last reported phone location.
+/// Modern, executive view of every student's last reported phone location,
+/// styled with the signature deep navy header, sky-blue accents, and slate card styling
+/// from the Phonebook screen.
 class StudentLocationsScreen extends GetView<StudentLocationsController> {
   const StudentLocationsScreen({super.key});
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: AppColors.mainBackground,
-      body: RefreshIndicator(
-        onRefresh: controller.load,
-        child: CustomScrollView(
-          physics: const AlwaysScrollableScrollPhysics(),
-          slivers: [
-            SliverGradientHeader(
-              title: 'Student Locations',
-              subtitle: 'Real-time phone GPS & campus geofence',
-              expandedHeight: 245.0,
-              leading: HeaderIconButton(
-                icon: Icons.arrow_back_rounded,
-                tooltip: 'Back',
-                onPressed: () => Get.back(),
-              ),
-              actions: [
-                HeaderIconButton(
-                  icon: Icons.refresh_rounded,
-                  tooltip: 'Refresh locations',
-                  onPressed: controller.load,
+    return AnnotatedRegion<SystemUiOverlayStyle>(
+      value: SystemUiOverlayStyle.light,
+      child: Scaffold(
+        backgroundColor: const Color(0xFFF8FAFC),
+        body: RefreshIndicator(
+          onRefresh: controller.load,
+          color: const Color(0xFF0284C7),
+          backgroundColor: Colors.white,
+          child: CustomScrollView(
+            physics: const AlwaysScrollableScrollPhysics(
+              parent: BouncingScrollPhysics(),
+            ),
+            slivers: [
+              SliverPersistentHeader(
+                pinned: true,
+                delegate: _StudentLocationsHeaderDelegate(
+                  controller: controller,
+                  topPadding: MediaQuery.of(context).padding.top,
                 ),
-              ],
-              // Counts shifted directly into the hero blue gradient header
-              child: Obx(_buildOverviewStats),
-            ),
-
-            // Search bar
-            SliverToBoxAdapter(
-              child: Padding(
-                padding: const EdgeInsets.fromLTRB(16, 12, 16, 4),
-                child: _buildSearchBar(),
               ),
-            ),
 
-            // Filter chips
-            SliverToBoxAdapter(
-              child: Obx(_buildFilterChips),
-            ),
+              // Search bar
+              SliverToBoxAdapter(
+                child: Padding(
+                  padding: const EdgeInsets.fromLTRB(20, 16, 20, 0),
+                  child: _buildSearchBar(),
+                ),
+              ),
 
-            // List of students
-            Obx(() {
-              if (controller.isLoading.value) {
-                return const SliverFillRemaining(
-                  hasScrollBody: false,
-                  child: Center(
-                    child: CircularProgressIndicator(),
-                  ),
-                );
-              }
+              // Filter chips
+              SliverToBoxAdapter(
+                child: Obx(_buildFilterChips),
+              ),
 
-              if (controller.loadError.value.isNotEmpty) {
-                return SliverFillRemaining(
-                  hasScrollBody: false,
-                  child: EmptyState(
-                    icon: Icons.cloud_off_rounded,
-                    title: 'Locations Unavailable',
-                    message: controller.loadError.value,
-                    actionLabel: 'Retry',
-                    onAction: controller.load,
-                  ),
-                );
-              }
+              // Section header
+              SliverToBoxAdapter(
+                child: Padding(
+                  padding: const EdgeInsets.fromLTRB(20, 6, 20, 12),
+                  child: Row(
+                    children: [
+                      Container(
+                        width: 20,
+                        height: 3.5,
+                        decoration: BoxDecoration(
+                          color: const Color(0xFFD97706),
+                          borderRadius: BorderRadius.circular(2),
+                        ),
+                      ),
+                      const SizedBox(width: 8),
+                      Obx(() {
+                        final filter = controller.filter.value;
+                        final String sectionTitle;
+                        switch (filter) {
+                          case LocationStatus.outside:
+                            sectionTitle = 'Outside Campus (${controller.countOf(LocationStatus.outside)})';
+                            break;
+                          case LocationStatus.inside:
+                            sectionTitle = 'Inside Campus (${controller.countOf(LocationStatus.inside)})';
+                            break;
+                          case LocationStatus.noData:
+                            sectionTitle = 'No GPS Fix (${controller.countOf(LocationStatus.noData)})';
+                            break;
+                          default:
+                            sectionTitle = 'All Students (${controller.students.length})';
+                        }
 
-              final items = controller.visible;
-              if (items.isEmpty) {
-                return const SliverFillRemaining(
-                  hasScrollBody: false,
-                  child: EmptyState(
-                    icon: Icons.location_searching_rounded,
-                    title: 'No Students Found',
-                    message: 'Try adjusting your search query or filter selection.',
-                  ),
-                );
-              }
-
-              return SliverPadding(
-                padding: const EdgeInsets.fromLTRB(16, 6, 16, 24),
-                sliver: SliverList.separated(
-                  itemCount: items.length,
-                  separatorBuilder: (_, _) => const SizedBox(height: 12),
-                  itemBuilder: (_, i) => _StudentLocationCard(
-                    student: items[i],
-                    controller: controller,
+                        return Text(
+                          sectionTitle,
+                          style: const TextStyle(
+                            fontSize: 17.5,
+                            fontWeight: FontWeight.w800,
+                            color: Color(0xFF0F172A),
+                            letterSpacing: -0.2,
+                          ),
+                        );
+                      }),
+                    ],
                   ),
                 ),
-              );
-            }),
-          ],
+              ),
+
+              // List of students
+              Obx(() {
+                if (controller.isLoading.value) {
+                  return const SliverFillRemaining(
+                    hasScrollBody: false,
+                    child: Center(
+                      child: CircularProgressIndicator(
+                        color: Color(0xFF0284C7),
+                      ),
+                    ),
+                  );
+                }
+
+                if (controller.loadError.value.isNotEmpty) {
+                  return SliverFillRemaining(
+                    hasScrollBody: false,
+                    child: EmptyState(
+                      icon: Icons.cloud_off_rounded,
+                      title: 'Locations Unavailable',
+                      message: controller.loadError.value,
+                      actionLabel: 'Retry',
+                      onAction: controller.load,
+                    ),
+                  );
+                }
+
+                final items = controller.visible;
+                if (items.isEmpty) {
+                  return const SliverFillRemaining(
+                    hasScrollBody: false,
+                    child: EmptyState(
+                      icon: Icons.location_searching_rounded,
+                      title: 'No Students Found',
+                      message: 'Try adjusting your search query or filter selection.',
+                    ),
+                  );
+                }
+
+                return SliverPadding(
+                  padding: const EdgeInsets.fromLTRB(20, 0, 20, 36),
+                  sliver: SliverList.separated(
+                    itemCount: items.length,
+                    separatorBuilder: (_, _) => const SizedBox(height: 12),
+                    itemBuilder: (_, i) {
+                      final card = _StudentLocationCard(
+                        student: items[i],
+                        controller: controller,
+                      );
+                      if (i < 8) {
+                        return StaggeredSlideFade(
+                          index: i,
+                          duration: const Duration(milliseconds: 280),
+                          slideOffset: 12.0,
+                          child: card,
+                        );
+                      }
+                      return card;
+                    },
+                  ),
+                );
+              }),
+            ],
+          ),
         ),
       ),
     );
   }
 
-  /// Executive summary metrics cards inside the hero blue gradient header.
-  Widget _buildOverviewStats() {
-    final total = controller.students.length;
-    final outsideCount = controller.countOf(LocationStatus.outside);
-    final insideCount = controller.countOf(LocationStatus.inside);
-    final noDataCount = controller.countOf(LocationStatus.noData);
-
-    return LayoutBuilder(
-      builder: (context, constraints) {
-        return Row(
-          children: [
-            Expanded(
-              child: _MetricCard(
-                title: 'Total',
-                count: total,
-                icon: Icons.people_alt_rounded,
-                accentColor: const Color(0xFFBAE6FD),
-                isSelected: controller.filter.value == null,
-                onTap: () => controller.setFilter(null),
-              ),
-            ),
-            const SizedBox(width: 8),
-            Expanded(
-              child: _MetricCard(
-                title: 'Outside',
-                count: outsideCount,
-                icon: Icons.warning_amber_rounded,
-                accentColor: const Color(0xFFFF8A8A),
-                highlightAlert: outsideCount > 0,
-                isSelected: controller.filter.value == LocationStatus.outside,
-                onTap: () => controller.setFilter(LocationStatus.outside),
-              ),
-            ),
-            const SizedBox(width: 8),
-            Expanded(
-              child: _MetricCard(
-                title: 'Inside',
-                count: insideCount,
-                icon: Icons.check_circle_rounded,
-                accentColor: const Color(0xFF86EFAC),
-                isSelected: controller.filter.value == LocationStatus.inside,
-                onTap: () => controller.setFilter(LocationStatus.inside),
-              ),
-            ),
-            const SizedBox(width: 8),
-            Expanded(
-              child: _MetricCard(
-                title: 'No Fix',
-                count: noDataCount,
-                icon: Icons.location_off_rounded,
-                accentColor: const Color(0xFFCBD5E1),
-                isSelected: controller.filter.value == LocationStatus.noData,
-                onTap: () => controller.setFilter(LocationStatus.noData),
-              ),
-            ),
-          ],
-        );
-      },
-    );
-  }
-
-  /// Modern capsule search bar with clear button and live match counter.
+  /// Modern capsule search bar matching the Phonebook screen search input.
   Widget _buildSearchBar() {
     return Container(
       decoration: BoxDecoration(
-        color: AppColors.surface,
-        borderRadius: BorderRadius.circular(14),
-        border: Border.all(color: AppColors.border.withValues(alpha: 0.8)),
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: const Color(0xFFE2E8F0)),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withValues(alpha: 0.03),
-            blurRadius: 8,
-            offset: const Offset(0, 2),
+            color: const Color(0xFF0F172A).withValues(alpha: 0.04),
+            blurRadius: 14,
+            offset: const Offset(0, 3),
           ),
         ],
       ),
       child: TextField(
         controller: controller.searchController,
         onChanged: (v) => controller.query.value = v,
-        style: AppTextStyles.bodyMd.copyWith(color: AppColors.textPrimary),
+        style: const TextStyle(
+          color: Color(0xFF0F172A),
+          fontSize: 14.5,
+          fontWeight: FontWeight.w600,
+        ),
         decoration: InputDecoration(
           isDense: true,
-          contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+          contentPadding: const EdgeInsets.symmetric(
+            horizontal: 16,
+            vertical: 14,
+          ),
           hintText: 'Search by student name, room, ID or phone...',
-          hintStyle: AppTextStyles.bodySm.copyWith(color: AppColors.textMuted),
+          hintStyle: const TextStyle(
+            color: Color(0xFF94A3B8),
+            fontSize: 14,
+            fontWeight: FontWeight.w400,
+          ),
           border: InputBorder.none,
           prefixIcon: const Icon(
             Icons.search_rounded,
-            color: AppColors.primary,
+            color: Color(0xFF0284C7),
             size: 22,
           ),
           suffixIcon: Obx(() {
             final q = controller.query.value;
             if (q.isEmpty) return const SizedBox.shrink();
             return IconButton(
-              icon: const Icon(Icons.close_rounded, size: 18, color: AppColors.textMuted),
+              icon: const Icon(
+                Icons.close_rounded,
+                size: 18,
+                color: Color(0xFF64748B),
+              ),
               onPressed: () {
                 controller.searchController.clear();
                 controller.query.value = '';
@@ -218,14 +226,14 @@ class StudentLocationsScreen extends GetView<StudentLocationsController> {
     );
   }
 
-  /// Modern filter chips.
+  /// Horizontal modern filter chip pills matching the Phonebook chips.
   Widget _buildFilterChips() {
     final activeFilter = controller.filter.value;
 
     return SingleChildScrollView(
       scrollDirection: Axis.horizontal,
       physics: const BouncingScrollPhysics(),
-      padding: const EdgeInsets.fromLTRB(16, 8, 16, 8),
+      padding: const EdgeInsets.fromLTRB(20, 12, 20, 8),
       child: Row(
         children: [
           _ModernFilterChip(
@@ -233,7 +241,7 @@ class StudentLocationsScreen extends GetView<StudentLocationsController> {
             count: controller.students.length,
             icon: Icons.grid_view_rounded,
             isSelected: activeFilter == null,
-            color: AppColors.primary,
+            color: const Color(0xFF0284C7),
             onTap: () => controller.setFilter(null),
           ),
           const SizedBox(width: 8),
@@ -242,7 +250,7 @@ class StudentLocationsScreen extends GetView<StudentLocationsController> {
             count: controller.countOf(LocationStatus.outside),
             icon: Icons.wrong_location_rounded,
             isSelected: activeFilter == LocationStatus.outside,
-            color: const Color(0xFFEF4444),
+            color: const Color(0xFFDC2626),
             onTap: () => controller.setFilter(LocationStatus.outside),
           ),
           const SizedBox(width: 8),
@@ -269,7 +277,365 @@ class StudentLocationsScreen extends GetView<StudentLocationsController> {
   }
 }
 
-/// Glassmorphic metric card embedded inside the hero blue gradient header.
+/// Collapsible shrinking deep navy header with luminous arcs, matching Phonebook header.
+class _StudentLocationsHeaderDelegate extends SliverPersistentHeaderDelegate {
+  final StudentLocationsController controller;
+  final double topPadding;
+
+  _StudentLocationsHeaderDelegate({
+    required this.controller,
+    required this.topPadding,
+  });
+
+  @override
+  double get minExtent => topPadding + 62.0;
+
+  @override
+  double get maxExtent => topPadding + 230.0;
+
+  @override
+  Widget build(
+    BuildContext context,
+    double shrinkOffset,
+    bool overlapsContent,
+  ) {
+    final progress = (shrinkOffset / (maxExtent - minExtent)).clamp(0.0, 1.0);
+    final expandedOpacity = (1.0 - progress * 1.8).clamp(0.0, 1.0);
+    final collapsedTitleOpacity = ((progress - 0.35) / 0.65).clamp(0.0, 1.0);
+    final cornerRadius = Radius.circular(
+      (34.0 * (1.0 - progress)).clamp(0.0, 34.0),
+    );
+
+    return Container(
+      decoration: BoxDecoration(
+        gradient: const LinearGradient(
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+          colors: [
+            Color(0xFF03192E),
+            Color(0xFF032B4F),
+            Color(0xFF025A8D),
+            Color(0xFF0369A1),
+          ],
+          stops: [0.0, 0.38, 0.75, 1.0],
+        ),
+        borderRadius: BorderRadius.vertical(bottom: cornerRadius),
+        boxShadow: progress > 0.25
+            ? [
+                BoxShadow(
+                  color: const Color(0xFF03192E).withValues(alpha: 0.22 * progress),
+                  blurRadius: 10,
+                  offset: const Offset(0, 3),
+                ),
+              ]
+            : null,
+      ),
+      child: ClipRRect(
+        borderRadius: BorderRadius.vertical(bottom: cornerRadius),
+        child: Stack(
+          fit: StackFit.expand,
+          children: [
+            // Luminous ambient orbs & arcs
+            CustomPaint(painter: _HeaderOrbPainter()),
+
+            // Top pinned navigation bar (Back button, Collapsed title, Refresh button)
+            Positioned(
+              top: topPadding + 6,
+              left: 16,
+              right: 16,
+              height: 46,
+              child: Row(
+                children: [
+                  Material(
+                    color: Colors.transparent,
+                    child: InkWell(
+                      onTap: () => Get.back(),
+                      borderRadius: BorderRadius.circular(24),
+                      child: Container(
+                        width: 42,
+                        height: 42,
+                        decoration: BoxDecoration(
+                          color: Colors.white.withValues(alpha: 0.16),
+                          shape: BoxShape.circle,
+                          border: Border.all(
+                            color: Colors.white.withValues(alpha: 0.25),
+                            width: 1,
+                          ),
+                        ),
+                        child: const Icon(
+                          Icons.arrow_back_rounded,
+                          color: Colors.white,
+                          size: 20,
+                        ),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+
+                  // Collapsed title that fades in on shrink
+                  Expanded(
+                    child: Opacity(
+                      opacity: collapsedTitleOpacity,
+                      child: const Text(
+                        'Student Locations',
+                        style: TextStyle(
+                          color: Colors.white,
+                          fontSize: 18,
+                          fontWeight: FontWeight.w800,
+                          letterSpacing: -0.3,
+                        ),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                    ),
+                  ),
+
+                  // Refresh button with loading spinner
+                  Obx(() {
+                    final isLoading = controller.isLoading.value;
+                    return Material(
+                      color: Colors.transparent,
+                      child: InkWell(
+                        onTap: isLoading ? null : controller.load,
+                        borderRadius: BorderRadius.circular(24),
+                        child: Container(
+                          width: 42,
+                          height: 42,
+                          decoration: BoxDecoration(
+                            color: Colors.white.withValues(alpha: 0.16),
+                            shape: BoxShape.circle,
+                            border: Border.all(
+                              color: Colors.white.withValues(alpha: 0.25),
+                              width: 1,
+                            ),
+                          ),
+                          child: isLoading
+                              ? const Padding(
+                                  padding: EdgeInsets.all(11),
+                                  child: CircularProgressIndicator(
+                                    strokeWidth: 2.2,
+                                    color: Colors.white,
+                                  ),
+                                )
+                              : const Icon(
+                                  Icons.refresh_rounded,
+                                  color: Colors.white,
+                                  size: 20,
+                                ),
+                        ),
+                      ),
+                    );
+                  }),
+                ],
+              ),
+            ),
+
+            // Expanded content (Amber dash, Overline, Large Title, Subtitle, Metric cards)
+            if (expandedOpacity > 0.02)
+              Positioned(
+                top: topPadding + 54,
+                left: 20,
+                right: 20,
+                bottom: 12,
+                child: Opacity(
+                  opacity: expandedOpacity,
+                  child: Transform.translate(
+                    offset: Offset(0, -progress * 18),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      mainAxisAlignment: MainAxisAlignment.end,
+                      children: [
+                        Container(
+                          width: 28,
+                          height: 3.5,
+                          decoration: BoxDecoration(
+                            color: const Color(0xFFEAAB78),
+                            borderRadius: BorderRadius.circular(2),
+                          ),
+                        ),
+                        const SizedBox(height: 6),
+                        Text(
+                          'CAMPUS GEOFENCE & GPS TRACKING',
+                          style: TextStyle(
+                            color: Colors.white.withValues(alpha: 0.72),
+                            fontSize: 10.5,
+                            fontWeight: FontWeight.w700,
+                            letterSpacing: 1.2,
+                          ),
+                        ),
+                        const SizedBox(height: 3),
+                        const Text(
+                          'Student Locations',
+                          style: TextStyle(
+                            color: Colors.white,
+                            fontSize: 24,
+                            fontWeight: FontWeight.w800,
+                            letterSpacing: -0.6,
+                          ),
+                        ),
+                        const SizedBox(height: 2),
+                        Text(
+                          'Real-time phone GPS & campus geofence',
+                          style: TextStyle(
+                            color: Colors.white.withValues(alpha: 0.85),
+                            fontSize: 12.5,
+                            fontWeight: FontWeight.w400,
+                          ),
+                        ),
+                        const SizedBox(height: 10),
+
+                        // Frosted summary metric cards
+                        Obx(_buildOverviewStats),
+                      ],
+                    ),
+                  ),
+                ),
+              ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  /// Executive summary metrics cards inside the hero navy gradient header.
+  Widget _buildOverviewStats() {
+    final total = controller.students.length;
+    final outsideCount = controller.countOf(LocationStatus.outside);
+    final insideCount = controller.countOf(LocationStatus.inside);
+    final noDataCount = controller.countOf(LocationStatus.noData);
+
+    return Row(
+      children: [
+        Expanded(
+          child: _MetricCard(
+            title: 'Total',
+            count: total,
+            icon: Icons.people_alt_rounded,
+            accentColor: const Color(0xFF38BDF8),
+            isSelected: controller.filter.value == null,
+            onTap: () => controller.setFilter(null),
+          ),
+        ),
+        const SizedBox(width: 8),
+        Expanded(
+          child: _MetricCard(
+            title: 'Outside',
+            count: outsideCount,
+            icon: Icons.warning_amber_rounded,
+            accentColor: const Color(0xFFFF8A8A),
+            highlightAlert: outsideCount > 0,
+            isSelected: controller.filter.value == LocationStatus.outside,
+            onTap: () => controller.setFilter(LocationStatus.outside),
+          ),
+        ),
+        const SizedBox(width: 8),
+        Expanded(
+          child: _MetricCard(
+            title: 'Inside',
+            count: insideCount,
+            icon: Icons.check_circle_rounded,
+            accentColor: const Color(0xFF86EFAC),
+            isSelected: controller.filter.value == LocationStatus.inside,
+            onTap: () => controller.setFilter(LocationStatus.inside),
+          ),
+        ),
+        const SizedBox(width: 8),
+        Expanded(
+          child: _MetricCard(
+            title: 'No Fix',
+            count: noDataCount,
+            icon: Icons.location_off_rounded,
+            accentColor: const Color(0xFFCBD5E1),
+            isSelected: controller.filter.value == LocationStatus.noData,
+            onTap: () => controller.setFilter(LocationStatus.noData),
+          ),
+        ),
+      ],
+    );
+  }
+
+  @override
+  bool shouldRebuild(covariant _StudentLocationsHeaderDelegate oldDelegate) {
+    return oldDelegate.topPadding != topPadding ||
+        oldDelegate.controller != controller;
+  }
+}
+
+/// Custom painter for luminous concentric arcs and ambient light orbs in the header background.
+class _HeaderOrbPainter extends CustomPainter {
+  @override
+  void paint(Canvas canvas, Size size) {
+    // Top-right luminous ambient glow
+    final glowPaintRight = Paint()
+      ..shader = RadialGradient(
+        colors: [
+          const Color(0xFF38BDF8).withValues(alpha: 0.16),
+          const Color(0xFF0284C7).withValues(alpha: 0.0),
+        ],
+      ).createShader(
+        Rect.fromCircle(
+          center: Offset(size.width * 0.90, size.height * 0.15),
+          radius: size.width * 0.55,
+        ),
+      );
+    canvas.drawCircle(
+      Offset(size.width * 0.90, size.height * 0.15),
+      size.width * 0.55,
+      glowPaintRight,
+    );
+
+    // Bottom-left subtle ambient glow
+    final glowPaintLeft = Paint()
+      ..shader = RadialGradient(
+        colors: [
+          const Color(0xFF0284C7).withValues(alpha: 0.12),
+          const Color(0xFF032B4F).withValues(alpha: 0.0),
+        ],
+      ).createShader(
+        Rect.fromCircle(
+          center: Offset(size.width * 0.10, size.height * 0.85),
+          radius: size.width * 0.45,
+        ),
+      );
+    canvas.drawCircle(
+      Offset(size.width * 0.10, size.height * 0.85),
+      size.width * 0.45,
+      glowPaintLeft,
+    );
+
+    // Elegant concentric arcs with smooth stroke
+    final strokePaint = Paint()
+      ..color = Colors.white.withValues(alpha: 0.065)
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 1.2;
+
+    canvas.drawCircle(
+      Offset(size.width * 0.88, size.height * 0.08),
+      size.width * 0.38,
+      strokePaint,
+    );
+    canvas.drawCircle(
+      Offset(size.width * 0.88, size.height * 0.08),
+      size.width * 0.62,
+      strokePaint,
+    );
+    canvas.drawCircle(
+      Offset(size.width * 0.88, size.height * 0.08),
+      size.width * 0.86,
+      strokePaint,
+    );
+    canvas.drawCircle(
+      Offset(size.width * 0.08, size.height * 0.92),
+      size.width * 0.46,
+      strokePaint,
+    );
+  }
+
+  @override
+  bool shouldRepaint(covariant CustomPainter oldDelegate) => false;
+}
+
+/// Frosted metric card embedded inside the hero navy gradient header.
 class _MetricCard extends StatelessWidget {
   final String title;
   final int count;
@@ -298,13 +664,13 @@ class _MetricCard extends StatelessWidget {
         borderRadius: BorderRadius.circular(12),
         child: AnimatedContainer(
           duration: const Duration(milliseconds: 180),
-          padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 6),
+          padding: const EdgeInsets.symmetric(vertical: 7, horizontal: 6),
           decoration: BoxDecoration(
             color: isSelected
                 ? Colors.white.withValues(alpha: 0.28)
                 : (highlightAlert
                     ? const Color(0xFFEF4444).withValues(alpha: 0.25)
-                    : Colors.white.withValues(alpha: 0.12)),
+                    : Colors.white.withValues(alpha: 0.14)),
             borderRadius: BorderRadius.circular(12),
             border: Border.all(
               color: isSelected
@@ -329,28 +695,28 @@ class _MetricCard extends StatelessWidget {
             children: [
               Icon(
                 icon,
-                size: 17,
+                size: 16,
                 color: highlightAlert
                     ? const Color(0xFFFF8A8A)
                     : (isSelected ? Colors.white : accentColor),
               ),
-              const SizedBox(height: 3),
+              const SizedBox(height: 2),
               Text(
                 '$count',
                 style: const TextStyle(
-                  fontSize: 15,
+                  fontSize: 14,
                   fontWeight: FontWeight.w800,
                   color: Colors.white,
                   height: 1.1,
                 ),
               ),
-              const SizedBox(height: 2),
+              const SizedBox(height: 1),
               Text(
                 title,
                 maxLines: 1,
                 overflow: TextOverflow.ellipsis,
                 style: TextStyle(
-                  fontSize: 10.5,
+                  fontSize: 10,
                   fontWeight: isSelected ? FontWeight.w800 : FontWeight.w600,
                   color: Colors.white.withValues(alpha: isSelected ? 1.0 : 0.85),
                 ),
@@ -363,7 +729,7 @@ class _MetricCard extends StatelessWidget {
   }
 }
 
-/// Interactive filter chip pill.
+/// Interactive filter chip pill matching PhonebookScreen chips.
 class _ModernFilterChip extends StatelessWidget {
   final String label;
   final int count;
@@ -387,26 +753,26 @@ class _ModernFilterChip extends StatelessWidget {
       color: Colors.transparent,
       child: InkWell(
         onTap: onTap,
-        borderRadius: BorderRadius.circular(AppDimens.radiusPill),
+        borderRadius: BorderRadius.circular(20),
         child: AnimatedContainer(
-          duration: const Duration(milliseconds: 180),
-          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 7),
+          duration: const Duration(milliseconds: 200),
+          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 7.5),
           decoration: BoxDecoration(
-            color: isSelected ? color : AppColors.surface,
-            borderRadius: BorderRadius.circular(AppDimens.radiusPill),
+            color: isSelected ? color : Colors.white,
+            borderRadius: BorderRadius.circular(20),
             border: Border.all(
-              color: isSelected ? color : AppColors.border,
+              color: isSelected ? color : const Color(0xFFE2E8F0),
               width: 1.0,
             ),
             boxShadow: isSelected
                 ? [
                     BoxShadow(
                       color: color.withValues(alpha: 0.25),
-                      blurRadius: 6,
+                      blurRadius: 8,
                       offset: const Offset(0, 2),
                     ),
                   ]
-                : [],
+                : null,
           ),
           child: Row(
             mainAxisSize: MainAxisSize.min,
@@ -420,9 +786,9 @@ class _ModernFilterChip extends StatelessWidget {
               Text(
                 label,
                 style: TextStyle(
-                  fontSize: 12,
+                  fontSize: 13,
                   fontWeight: isSelected ? FontWeight.w700 : FontWeight.w600,
-                  color: isSelected ? Colors.white : AppColors.textPrimary,
+                  color: isSelected ? Colors.white : const Color(0xFF475569),
                 ),
               ),
               const SizedBox(width: 6),
@@ -437,7 +803,7 @@ class _ModernFilterChip extends StatelessWidget {
                 child: Text(
                   '$count',
                   style: TextStyle(
-                    fontSize: 10.5,
+                    fontSize: 11,
                     fontWeight: FontWeight.w800,
                     color: isSelected ? Colors.white : color,
                   ),
@@ -451,7 +817,7 @@ class _ModernFilterChip extends StatelessWidget {
   }
 }
 
-/// Modern, sleek Student Location card.
+/// Modern student location card matching the Phonebook card design.
 class _StudentLocationCard extends StatelessWidget {
   final StudentLocation student;
   final StudentLocationsController controller;
@@ -468,25 +834,25 @@ class _StudentLocationCard extends StatelessWidget {
 
     return Container(
       decoration: BoxDecoration(
-        color: AppColors.surface,
-        borderRadius: BorderRadius.circular(16),
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(20),
         border: Border.all(
           color: isOutside
               ? const Color(0xFFFCA5A5)
-              : AppColors.border.withValues(alpha: 0.8),
+              : const Color(0xFFE2E8F0),
           width: isOutside ? 1.5 : 1.0,
         ),
         boxShadow: [
           BoxShadow(
             color: isOutside
-                ? const Color(0xFFEF4444).withValues(alpha: 0.06)
-                : Colors.black.withValues(alpha: 0.03),
-            blurRadius: 10,
+                ? const Color(0xFFEF4444).withValues(alpha: 0.05)
+                : const Color(0xFF0F172A).withValues(alpha: 0.035),
+            blurRadius: 12,
             offset: const Offset(0, 3),
           ),
         ],
       ),
-      padding: const EdgeInsets.all(14),
+      padding: const EdgeInsets.all(16),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -502,28 +868,29 @@ class _StudentLocationCard extends StatelessWidget {
                   children: [
                     Text(
                       student.name,
-                      style: AppTextStyles.subtitle.copyWith(
+                      style: const TextStyle(
                         fontWeight: FontWeight.w700,
-                        fontSize: 14.5,
-                        color: AppColors.textPrimary,
+                        fontSize: 15.5,
+                        color: Color(0xFF0F172A),
+                        letterSpacing: -0.2,
                       ),
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
                     ),
-                    const SizedBox(height: 3),
-                    Row(
+                    const SizedBox(height: 5),
+                    Wrap(
+                      spacing: 6,
+                      runSpacing: 4,
                       children: [
                         _buildTag(
-                          icon: Icons.meeting_room_outlined,
+                          icon: Icons.meeting_room_rounded,
                           text: 'Room ${student.room}',
                         ),
-                        if (student.studentCode.isNotEmpty) ...[
-                          const SizedBox(width: 6),
+                        if (student.studentCode.isNotEmpty)
                           _buildTag(
-                            icon: Icons.badge_outlined,
+                            icon: Icons.badge_rounded,
                             text: student.studentCode,
                           ),
-                        ],
                       ],
                     ),
                   ],
@@ -551,42 +918,49 @@ class _StudentLocationCard extends StatelessWidget {
                     icon: const Icon(Icons.map_rounded, size: 16),
                     label: const Text(
                       'Open in Maps',
-                      style: TextStyle(fontSize: 12, fontWeight: FontWeight.w700),
+                      style: TextStyle(
+                        fontSize: 12.5,
+                        fontWeight: FontWeight.w700,
+                      ),
                     ),
                     style: ElevatedButton.styleFrom(
-                      backgroundColor: AppColors.primary,
+                      backgroundColor: const Color(0xFF0284C7),
                       foregroundColor: Colors.white,
                       elevation: 0,
-                      padding: const EdgeInsets.symmetric(vertical: 10),
+                      padding: const EdgeInsets.symmetric(vertical: 11),
                       shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(10),
+                        borderRadius: BorderRadius.circular(12),
                       ),
                     ),
                   ),
                 ),
-                const SizedBox(width: 8),
+                const SizedBox(width: 10),
               ],
               if (student.phone.trim().isNotEmpty) ...[
                 Expanded(
                   child: OutlinedButton.icon(
                     onPressed: () => controller.callStudent(student),
-                    icon: const Icon(Icons.phone_rounded, size: 16, color: AppColors.primary),
+                    icon: const Icon(
+                      Icons.phone_rounded,
+                      size: 16,
+                      color: Color(0xFF0284C7),
+                    ),
                     label: const Text(
                       'Call Student',
                       style: TextStyle(
-                        fontSize: 12,
+                        fontSize: 12.5,
                         fontWeight: FontWeight.w700,
-                        color: AppColors.primary,
+                        color: Color(0xFF0284C7),
                       ),
                     ),
                     style: OutlinedButton.styleFrom(
-                      backgroundColor: AppColors.primary.withValues(alpha: 0.05),
-                      side: BorderSide(
-                        color: AppColors.primary.withValues(alpha: 0.3),
+                      backgroundColor: const Color(0xFFE0F2FE).withValues(alpha: 0.4),
+                      side: const BorderSide(
+                        color: Color(0xFFBAE6FD),
                       ),
-                      padding: const EdgeInsets.symmetric(vertical: 10),
+                      padding: const EdgeInsets.symmetric(vertical: 11),
                       shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(10),
+                        borderRadius: BorderRadius.circular(12),
                       ),
                     ),
                   ),
@@ -599,27 +973,31 @@ class _StudentLocationCard extends StatelessWidget {
     );
   }
 
-  /// Modern squircle avatar with monogram and status indicator.
+  /// Modern squircle avatar with status indicator dot.
   Widget _buildAvatar() {
-    final (bgGradient, textColor, dotColor) = switch (student.status) {
+    final (bg, textColor, borderColor, dotColor) = switch (student.status) {
       LocationStatus.outside => (
-        const LinearGradient(colors: [Color(0xFFFFE4E6), Color(0xFFFECDD3)]),
-        const Color(0xFFBE123C),
-        const Color(0xFFEF4444),
+        const Color(0xFFFEF2F2),
+        const Color(0xFFDC2626),
+        const Color(0xFFFCA5A5),
+        const Color(0xFFDC2626),
       ),
       LocationStatus.inside => (
-        const LinearGradient(colors: [Color(0xFFDCFCE7), Color(0xFFBBF7D0)]),
-        const Color(0xFF15803D),
-        const Color(0xFF10B981),
+        const Color(0xFFF0FDF4),
+        const Color(0xFF16A34A),
+        const Color(0xFF86EFAC),
+        const Color(0xFF16A34A),
       ),
       LocationStatus.unknownArea => (
-        const LinearGradient(colors: [Color(0xFFE0F2FE), Color(0xFFBAE6FD)]),
-        const Color(0xFF0369A1),
-        const Color(0xFF0EA5E9),
+        const Color(0xFFE0F2FE),
+        const Color(0xFF0284C7),
+        const Color(0xFFBAE6FD),
+        const Color(0xFF0284C7),
       ),
       LocationStatus.noData => (
-        const LinearGradient(colors: [Color(0xFFF1F5F9), Color(0xFFE2E8F0)]),
+        const Color(0xFFF1F5F9),
         const Color(0xFF64748B),
+        const Color(0xFFCBD5E1),
         const Color(0xFF94A3B8),
       ),
     };
@@ -632,17 +1010,21 @@ class _StudentLocationCard extends StatelessWidget {
       clipBehavior: Clip.none,
       children: [
         Container(
-          width: 44,
-          height: 44,
+          width: 46,
+          height: 46,
           decoration: BoxDecoration(
-            gradient: bgGradient,
-            borderRadius: BorderRadius.circular(12),
+            color: bg,
+            borderRadius: BorderRadius.circular(15),
+            border: Border.all(
+              color: borderColor,
+              width: 1,
+            ),
           ),
           alignment: Alignment.center,
           child: Text(
             letter,
             style: TextStyle(
-              fontSize: 18,
+              fontSize: 19,
               fontWeight: FontWeight.w800,
               color: textColor,
             ),
@@ -665,33 +1047,32 @@ class _StudentLocationCard extends StatelessWidget {
     );
   }
 
-  /// Small metadata tag for Room and Student ID.
+  /// Small metadata tag for Room and Student ID matching Phonebook tags.
   Widget _buildTag({required IconData icon, required String text}) {
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
       decoration: BoxDecoration(
         color: const Color(0xFFF1F5F9),
-        borderRadius: BorderRadius.circular(6),
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(color: const Color(0xFFE2E8F0)),
       ),
       child: Row(
-        mainAxisSize: minAxisSize,
+        mainAxisSize: MainAxisSize.min,
         children: [
           Icon(icon, size: 11, color: const Color(0xFF64748B)),
-          const SizedBox(width: 3),
+          const SizedBox(width: 4),
           Text(
             text,
             style: const TextStyle(
-              fontSize: 10.5,
-              fontWeight: FontWeight.w600,
-              color: Color(0xFF475569),
+              fontSize: 11.5,
+              fontWeight: FontWeight.w700,
+              color: Color(0xFF334155),
             ),
           ),
         ],
       ),
     );
   }
-
-  static const minAxisSize = MainAxisSize.min;
 
   /// Refined status badge.
   Widget _buildStatusBadge() {
@@ -712,22 +1093,22 @@ class _StudentLocationCard extends StatelessWidget {
       ),
       LocationStatus.unknownArea => (
         'Location known',
-        AppColors.primary,
-        AppColors.primary.withValues(alpha: 0.1),
-        AppColors.primary.withValues(alpha: 0.3),
+        const Color(0xFF0284C7),
+        const Color(0xFFE0F2FE),
+        const Color(0xFFBAE6FD),
         Icons.location_on_rounded,
       ),
       LocationStatus.noData => (
         'No GPS fix',
         const Color(0xFF64748B),
         const Color(0xFFF8FAFC),
-        const Color(0xFFCBD5E1),
+        const Color(0xFFE2E8F0),
         Icons.location_off_rounded,
       ),
     };
 
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 5),
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
       decoration: BoxDecoration(
         color: bgColor,
         borderRadius: BorderRadius.circular(20),
@@ -751,26 +1132,26 @@ class _StudentLocationCard extends StatelessWidget {
     );
   }
 
-  /// Modern location details panel replacing the raw grey box.
+  /// Modern location details panel with clean slate styling.
   Widget _buildLocationPanel(BuildContext context, LocationFix? loc) {
     if (loc == null) {
       return Container(
         width: double.infinity,
-        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
         decoration: BoxDecoration(
           color: const Color(0xFFF8FAFC),
-          borderRadius: BorderRadius.circular(10),
+          borderRadius: BorderRadius.circular(14),
           border: Border.all(color: const Color(0xFFE2E8F0)),
         ),
-        child: Row(
-          children: const [
+        child: const Row(
+          children: [
             Icon(Icons.satellite_alt_outlined, size: 16, color: Color(0xFF94A3B8)),
-            SizedBox(width: 8),
+            SizedBox(width: 10),
             Expanded(
               child: Text(
                 'Phone hasn\'t reported GPS fix yet (offline or setup pending)',
                 style: TextStyle(
-                  fontSize: 11.5,
+                  fontSize: 12,
                   fontWeight: FontWeight.w500,
                   color: Color(0xFF64748B),
                 ),
@@ -785,10 +1166,10 @@ class _StudentLocationCard extends StatelessWidget {
 
     return Container(
       width: double.infinity,
-      padding: const EdgeInsets.all(11),
+      padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
         color: const Color(0xFFF8FAFC),
-        borderRadius: BorderRadius.circular(10),
+        borderRadius: BorderRadius.circular(14),
         border: Border.all(color: const Color(0xFFE2E8F0)),
       ),
       child: Column(
@@ -798,15 +1179,15 @@ class _StudentLocationCard extends StatelessWidget {
           Row(
             children: [
               Container(
-                padding: const EdgeInsets.all(4),
+                padding: const EdgeInsets.all(5),
                 decoration: BoxDecoration(
-                  color: AppColors.primary.withValues(alpha: 0.12),
-                  borderRadius: BorderRadius.circular(6),
+                  color: const Color(0xFFE0F2FE),
+                  borderRadius: BorderRadius.circular(8),
                 ),
                 child: const Icon(
                   Icons.near_me_rounded,
-                  size: 13,
-                  color: AppColors.primary,
+                  size: 14,
+                  color: Color(0xFF0284C7),
                 ),
               ),
               const SizedBox(width: 8),
@@ -819,11 +1200,11 @@ class _StudentLocationCard extends StatelessWidget {
                         fontFamily: 'monospace',
                         fontSize: 12.5,
                         fontWeight: FontWeight.w700,
-                        color: Color(0xFF334155),
+                        color: Color(0xFF0F172A),
                         letterSpacing: -0.2,
                       ),
                     ),
-                    const SizedBox(width: 4),
+                    const SizedBox(width: 6),
                     InkWell(
                       onTap: () {
                         Clipboard.setData(ClipboardData(text: coordsText));
@@ -831,10 +1212,10 @@ class _StudentLocationCard extends StatelessWidget {
                       },
                       borderRadius: BorderRadius.circular(4),
                       child: const Padding(
-                        padding: EdgeInsets.all(2),
+                        padding: EdgeInsets.all(3),
                         child: Icon(
                           Icons.copy_rounded,
-                          size: 13,
+                          size: 14,
                           color: Color(0xFF64748B),
                         ),
                       ),
@@ -844,17 +1225,18 @@ class _StudentLocationCard extends StatelessWidget {
               ),
               if (student.status == LocationStatus.outside && loc.distanceMeters != null) ...[
                 Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 3),
+                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3.5),
                   decoration: BoxDecoration(
-                    color: const Color(0xFFFFE4E6),
-                    borderRadius: BorderRadius.circular(6),
+                    color: const Color(0xFFFEF2F2),
+                    borderRadius: BorderRadius.circular(8),
+                    border: Border.all(color: const Color(0xFFFCA5A5)),
                   ),
                   child: Text(
                     _distance(loc.distanceMeters!),
                     style: const TextStyle(
-                      fontSize: 10.5,
+                      fontSize: 11,
                       fontWeight: FontWeight.w700,
-                      color: Color(0xFFBE123C),
+                      color: Color(0xFFDC2626),
                     ),
                   ),
                 ),
@@ -862,31 +1244,31 @@ class _StudentLocationCard extends StatelessWidget {
             ],
           ),
 
-          const SizedBox(height: 8),
+          const SizedBox(height: 10),
           const Divider(height: 1, thickness: 0.8, color: Color(0xFFE2E8F0)),
-          const SizedBox(height: 8),
+          const SizedBox(height: 10),
 
           // Metadata Row: Updated time and Accuracy
           Row(
             children: [
-              const Icon(Icons.schedule_rounded, size: 12, color: Color(0xFF64748B)),
-              const SizedBox(width: 4),
+              const Icon(Icons.schedule_rounded, size: 13, color: Color(0xFF64748B)),
+              const SizedBox(width: 5),
               Text(
                 'Updated ${DateFormatting.relativeTime(loc.fixTime)}',
                 style: const TextStyle(
-                  fontSize: 11,
+                  fontSize: 11.5,
                   fontWeight: FontWeight.w500,
                   color: Color(0xFF475569),
                 ),
               ),
               if (loc.accuracyMeters > 0) ...[
-                const SizedBox(width: 10),
-                const Icon(Icons.my_location_rounded, size: 12, color: Color(0xFF64748B)),
-                const SizedBox(width: 4),
+                const SizedBox(width: 12),
+                const Icon(Icons.my_location_rounded, size: 13, color: Color(0xFF64748B)),
+                const SizedBox(width: 5),
                 Text(
                   '±${loc.accuracyMeters.round()} m accuracy',
                   style: const TextStyle(
-                    fontSize: 11,
+                    fontSize: 11.5,
                     fontWeight: FontWeight.w500,
                     color: Color(0xFF475569),
                   ),
@@ -897,23 +1279,23 @@ class _StudentLocationCard extends StatelessWidget {
 
           // Mocked / Fake GPS warning
           if (loc.mocked) ...[
-            const SizedBox(height: 8),
+            const SizedBox(height: 10),
             Container(
-              padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 6),
+              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
               decoration: BoxDecoration(
                 color: const Color(0xFFFEF2F2),
-                borderRadius: BorderRadius.circular(6),
+                borderRadius: BorderRadius.circular(8),
                 border: Border.all(color: const Color(0xFFFCA5A5)),
               ),
-              child: Row(
-                children: const [
-                  Icon(Icons.gpp_bad_rounded, size: 14, color: Color(0xFFDC2626)),
+              child: const Row(
+                children: [
+                  Icon(Icons.gpp_bad_rounded, size: 15, color: Color(0xFFDC2626)),
                   SizedBox(width: 6),
                   Expanded(
                     child: Text(
                       'Fake GPS detected — location spoofing alert',
                       style: TextStyle(
-                        fontSize: 11,
+                        fontSize: 11.5,
                         fontWeight: FontWeight.w700,
                         color: Color(0xFFDC2626),
                       ),

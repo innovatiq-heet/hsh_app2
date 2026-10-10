@@ -36,6 +36,7 @@ class PhonebookController extends GetxController {
     'Pavitra',
     'Pulkit',
     'Paramanand',
+    'Alumni',
   ];
 
   @override
@@ -147,8 +148,14 @@ class PhonebookController extends GetxController {
     search();
   }
 
-  Future<void> search() async {
-    isLoading.value = true;
+  final isSearching = false.obs;
+
+  Future<void> search({bool forceLoading = false}) async {
+    if (forceLoading || students.isEmpty) {
+      isLoading.value = true;
+    } else {
+      isSearching.value = true;
+    }
     try {
       final results = await PhonebookDatabaseService.instance.searchStudents(
         query: searchController.text.trim(),
@@ -159,6 +166,7 @@ class PhonebookController extends GetxController {
       AppSnackbar.error('Search error', e.toString());
     } finally {
       isLoading.value = false;
+      isSearching.value = false;
     }
   }
 

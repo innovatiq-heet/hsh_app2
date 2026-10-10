@@ -6,7 +6,6 @@ import '../../../core/constants/app_config.dart';
 import '../../../core/constants/app_dimens.dart';
 import '../../../core/constants/app_routes.dart';
 import '../../../core/constants/app_text_styles.dart';
-import '../../../core/constants/image_assets.dart';
 import '../../../core/services/shorebird_service.dart';
 import '../../../core/storage/session_store.dart';
 import '../../shared/widgets/staggered_slide_fade.dart';
@@ -94,6 +93,7 @@ class _OperatorHomeScreenState extends State<OperatorHomeScreen> {
         route: Routes.operatorStudentLocations,
       ),
     ]),
+    /*
     _OperatorGroup('Alumni Network & Community', [
       _OperatorAction(
         title: 'Alumni Console',
@@ -116,8 +116,10 @@ class _OperatorHomeScreenState extends State<OperatorHomeScreen> {
         route: Routes.alumniDirectory,
       ),
     ]),
+    */
   ];
 
+  /*
   static const _additionalActions = [
     _OperatorAction(
       title: 'Complaints Desk',
@@ -150,6 +152,7 @@ class _OperatorHomeScreenState extends State<OperatorHomeScreen> {
       route: Routes.operatorAttendanceQrDisplay,
     ),
   ];
+  */
 
   Future<void> _logout() async {
     final confirmed = await Get.dialog<bool>(
@@ -300,6 +303,7 @@ class _OperatorHomeScreenState extends State<OperatorHomeScreen> {
                     ],
 
                     // Collapsible More Hostel Services (Complaints, Laundry, Attendance QR)
+                    /*
                     Theme(
                       data: Theme.of(context).copyWith(dividerColor: Colors.transparent),
                       child: ExpansionTile(
@@ -340,6 +344,7 @@ class _OperatorHomeScreenState extends State<OperatorHomeScreen> {
                         ],
                       ),
                     ),
+                    */
 
                     const SizedBox(height: 28),
                     Center(
@@ -399,53 +404,20 @@ class _OperatorHeader extends StatelessWidget {
             begin: Alignment.topLeft,
             end: Alignment.bottomRight,
             colors: [
-              Color(0xFF021B35),
-              Color(0xFF033B61),
-              Color(0xFF075985),
+              Color(0xFF03192E),
+              Color(0xFF032B4F),
+              Color(0xFF025A8D),
+              Color(0xFF0369A1),
             ],
+            stops: [0.0, 0.38, 0.75, 1.0],
           ),
         ),
         child: Stack(
           children: [
-            // Glowing decorative arcs
+            // Glowing decorative arcs and luminous ambient orbs
             Positioned.fill(
               child: CustomPaint(
                 painter: _HeaderOrbPainter(),
-              ),
-            ),
-
-            // Building photo blended into the bottom right corner
-            Positioned(
-              right: 0,
-              bottom: 0,
-              width: 220,
-              height: 165,
-              child: ShaderMask(
-                shaderCallback: (rect) {
-                  return const LinearGradient(
-                    begin: Alignment.centerLeft,
-                    end: Alignment.centerRight,
-                    colors: [Colors.transparent, Colors.white],
-                    stops: [0.0, 0.45],
-                  ).createShader(rect);
-                },
-                blendMode: BlendMode.dstIn,
-                child: ShaderMask(
-                  shaderCallback: (rect) {
-                    return const LinearGradient(
-                      begin: Alignment.topCenter,
-                      end: Alignment.bottomCenter,
-                      colors: [Colors.transparent, Colors.white],
-                      stops: [0.0, 0.35],
-                    ).createShader(rect);
-                  },
-                  blendMode: BlendMode.dstIn,
-                  child: Image.asset(
-                    ImageAssets.hostelDusk,
-                    fit: BoxFit.cover,
-                    errorBuilder: (context, error, stackTrace) => const SizedBox.shrink(),
-                  ),
-                ),
               ),
             ),
 
@@ -579,18 +551,46 @@ class _OperatorHeader extends StatelessWidget {
   }
 }
 
-/// Custom painter for luminous concentric arcs in the header background.
+/// Custom painter for luminous concentric arcs and ambient light orbs in the header background.
 class _HeaderOrbPainter extends CustomPainter {
   @override
   void paint(Canvas canvas, Size size) {
+    // Top-right luminous ambient glow
+    final glowPaintRight = Paint()
+      ..shader = RadialGradient(
+        colors: [
+          const Color(0xFF38BDF8).withValues(alpha: 0.16),
+          const Color(0xFF0284C7).withValues(alpha: 0.0),
+        ],
+      ).createShader(Rect.fromCircle(
+        center: Offset(size.width * 0.90, size.height * 0.15),
+        radius: size.width * 0.55,
+      ));
+    canvas.drawCircle(Offset(size.width * 0.90, size.height * 0.15), size.width * 0.55, glowPaintRight);
+
+    // Bottom-left subtle ambient glow
+    final glowPaintLeft = Paint()
+      ..shader = RadialGradient(
+        colors: [
+          const Color(0xFF0284C7).withValues(alpha: 0.12),
+          const Color(0xFF032B4F).withValues(alpha: 0.0),
+        ],
+      ).createShader(Rect.fromCircle(
+        center: Offset(size.width * 0.10, size.height * 0.85),
+        radius: size.width * 0.45,
+      ));
+    canvas.drawCircle(Offset(size.width * 0.10, size.height * 0.85), size.width * 0.45, glowPaintLeft);
+
+    // Elegant concentric arcs with smooth stroke
     final strokePaint = Paint()
-      ..color = Colors.white.withValues(alpha: 0.08)
+      ..color = Colors.white.withValues(alpha: 0.065)
       ..style = PaintingStyle.stroke
       ..strokeWidth = 1.2;
 
-    canvas.drawCircle(Offset(size.width * 0.82, size.height * 0.08), size.width * 0.42, strokePaint);
-    canvas.drawCircle(Offset(size.width * 0.82, size.height * 0.08), size.width * 0.68, strokePaint);
-    canvas.drawCircle(Offset(size.width * 0.08, size.height * 0.88), size.width * 0.50, strokePaint);
+    canvas.drawCircle(Offset(size.width * 0.88, size.height * 0.08), size.width * 0.38, strokePaint);
+    canvas.drawCircle(Offset(size.width * 0.88, size.height * 0.08), size.width * 0.62, strokePaint);
+    canvas.drawCircle(Offset(size.width * 0.88, size.height * 0.08), size.width * 0.86, strokePaint);
+    canvas.drawCircle(Offset(size.width * 0.08, size.height * 0.92), size.width * 0.46, strokePaint);
   }
 
   @override

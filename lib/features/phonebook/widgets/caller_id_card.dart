@@ -1,14 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
-import '../../../core/constants/app_colors.dart';
-import '../../../core/constants/app_dimens.dart';
-import '../../../core/constants/app_text_styles.dart';
-import '../../shared/widgets/app_button.dart';
-import '../../shared/widgets/app_card.dart';
 import '../controllers/phonebook_controller.dart';
 
-/// "Know who's calling" — status + one button, with platform-specific copy
-/// because Android shows a popup and iOS only shows a label.
+/// "Know who's calling" — Truecaller-style campus caller identification.
 class CallerIdCard extends GetView<PhonebookController> {
   const CallerIdCard({super.key});
 
@@ -21,18 +15,16 @@ class CallerIdCard extends GetView<PhonebookController> {
 
       if (!s.supported) {
         if (isIOS) {
-          // On iOS, "not supported" usually means the App Group / extension
-          // isn't wired up yet — show a helpful message instead of the
-          // Android-only copy.
           return _shell(
             icon: Icons.phone_in_talk_rounded,
-            color: AppColors.primary,
+            iconColor: const Color(0xFF0284C7),
+            bgTint: const Color(0xFFE0F2FE),
+            statusBadge: _badge('iOS CallKit', const Color(0xFF0284C7), const Color(0xFFE0F2FE)),
             title: 'Know who\'s calling',
-            body: 'See which student or parent is calling, right on the call screen.',
-            trailing: AppButton(
+            body: 'Identify student and parent calls directly on the native incoming call screen.',
+            trailing: _actionButton(
               label: 'Open Settings',
               icon: Icons.settings_rounded,
-              expand: false,
               isLoading: busy,
               onPressed: controller.enableCallerId,
             ),
@@ -40,47 +32,59 @@ class CallerIdCard extends GetView<PhonebookController> {
         }
         return _shell(
           icon: Icons.phone_disabled_rounded,
-          color: AppColors.textMuted,
+          iconColor: const Color(0xFF94A3B8),
+          bgTint: const Color(0xFFF1F5F9),
+          statusBadge: _badge('Unavailable', const Color(0xFF64748B), const Color(0xFFF1F5F9)),
           title: 'Caller ID not available',
-          body: 'Needs Android 10 or newer.',
+          body: 'Requires Android 10 or newer with Call Screening support.',
         );
       }
 
       if (s.isWorking) {
         return _shell(
           icon: Icons.phone_callback_rounded,
-          color: AppColors.successGreen,
-          title: 'Caller ID is on',
+          iconColor: const Color(0xFF059669),
+          bgTint: const Color(0xFFD1FAE5),
+          statusBadge: _badge('Active', const Color(0xFF059669), const Color(0xFFD1FAE5)),
+          title: 'Campus Caller ID is active',
           body: isIOS
-              ? 'Incoming calls from students or parents show "HSH · Name · Room · Relation".'
-              : 'A card with the student\'s name, room and relation pops up when they call.',
-          trailing: TextButton(onPressed: controller.disableCallerId, child: const Text('Turn off')),
+              ? 'Incoming calls display "HSH · Name · Room/Alumni · Relation" on the call screen.'
+              : 'A heads-up identification card pops up showing student name, room or alumni status, and relation.',
+          trailing: TextButton(
+            onPressed: controller.disableCallerId,
+            style: TextButton.styleFrom(
+              foregroundColor: const Color(0xFFE11D48),
+              textStyle: const TextStyle(fontWeight: FontWeight.w700, fontSize: 13),
+            ),
+            child: const Text('Turn off'),
+          ),
           footer: !isIOS && !s.overlayGranted
               ? _hint(
-                  'Popup blocked — allow "Display over other apps" to see the card during calls. '
-                  'You still get a notification.',
-                  action: 'Allow',
+                  'Popup blocked — grant "Display over other apps" to see the visual card during calls. Heads-up notifications are still active.',
+                  action: 'Grant Access',
                   onTap: controller.enableCallerId,
                 )
               : null,
         );
       }
 
-      // Not working yet: role/extension missing, or warden turned it off.
+      // Not working yet
       final body = isIOS
           ? (s.iosState == 'disabled'
               ? 'Turn on "HSH App" under Settings → Phone → Call Blocking & Identification.'
-              : 'See which student or parent is calling, right on the call screen.')
-          : 'See who\'s calling — name, room and whether it\'s the student or a parent — before you pick up.';
+              : 'Identify incoming calls from students and parents directly on screen.')
+          : 'Instant caller ID — identify student name, room or alumni relation before answering.';
+
       return _shell(
         icon: Icons.phone_in_talk_rounded,
-        color: AppColors.primary,
-        title: 'Know who\'s calling',
+        iconColor: const Color(0xFF0284C7),
+        bgTint: const Color(0xFFE0F2FE),
+        statusBadge: _badge('Inactive', const Color(0xFFD97706), const Color(0xFFFEF3C7)),
+        title: 'Incoming Caller ID',
         body: body,
-        trailing: AppButton(
+        trailing: _actionButton(
           label: isIOS ? 'Open Settings' : 'Enable',
           icon: isIOS ? Icons.settings_rounded : Icons.check_rounded,
-          expand: false,
           isLoading: busy,
           onPressed: controller.enableCallerId,
         ),
@@ -88,42 +92,153 @@ class CallerIdCard extends GetView<PhonebookController> {
     });
   }
 
+  Widget _badge(String text, Color textColor, Color bgColor) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 3.5),
+      decoration: BoxDecoration(
+        color: bgColor,
+        borderRadius: BorderRadius.circular(12),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Container(
+            width: 6,
+            height: 6,
+            decoration: BoxDecoration(
+              color: textColor,
+              shape: BoxShape.circle,
+            ),
+          ),
+          const SizedBox(width: 5),
+          Text(
+            text,
+            style: TextStyle(
+              color: textColor,
+              fontSize: 11.5,
+              fontWeight: FontWeight.w700,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _actionButton({
+    required String label,
+    required IconData icon,
+    required bool isLoading,
+    required VoidCallback onPressed,
+  }) {
+    if (isLoading) {
+      return const SizedBox(
+        width: 32,
+        height: 32,
+        child: CircularProgressIndicator(strokeWidth: 2.5),
+      );
+    }
+    return ElevatedButton.icon(
+      onPressed: onPressed,
+      icon: Icon(icon, size: 16),
+      label: Text(label),
+      style: ElevatedButton.styleFrom(
+        backgroundColor: const Color(0xFF0284C7),
+        foregroundColor: Colors.white,
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(12),
+        ),
+        textStyle: const TextStyle(fontWeight: FontWeight.w700, fontSize: 13),
+        elevation: 0,
+      ),
+    );
+  }
+
   Widget _shell({
     required IconData icon,
-    required Color color,
+    required Color iconColor,
+    required Color bgTint,
+    required Widget statusBadge,
     required String title,
     required String body,
     Widget? trailing,
     Widget? footer,
   }) {
-    return AppCard(
-      padding: const EdgeInsets.all(AppDimens.cardPadding),
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(color: const Color(0xFFE2E8F0)),
+        boxShadow: [
+          BoxShadow(
+            color: const Color(0xFF0F172A).withValues(alpha: 0.04),
+            blurRadius: 16,
+            offset: const Offset(0, 4),
+          ),
+        ],
+      ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Container(
-                width: 40,
-                height: 40,
-                decoration: BoxDecoration(color: color.withValues(alpha: 0.12), shape: BoxShape.circle),
-                child: Icon(icon, color: color, size: 22),
+                width: 44,
+                height: 44,
+                decoration: BoxDecoration(
+                  color: bgTint,
+                  borderRadius: BorderRadius.circular(14),
+                ),
+                child: Icon(icon, color: iconColor, size: 22),
               ),
-              const SizedBox(width: 12),
+              const SizedBox(width: 14),
               Expanded(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text(title, style: AppTextStyles.title),
-                    const SizedBox(height: 2),
-                    Text(body, style: AppTextStyles.bodySm.copyWith(color: AppColors.textSecondary)),
+                    Row(
+                      children: [
+                        Expanded(
+                          child: Text(
+                            title,
+                            style: const TextStyle(
+                              fontSize: 15.5,
+                              fontWeight: FontWeight.w700,
+                              color: Color(0xFF0F172A),
+                              letterSpacing: -0.2,
+                            ),
+                          ),
+                        ),
+                        statusBadge,
+                      ],
+                    ),
+                    const SizedBox(height: 4),
+                    Text(
+                      body,
+                      style: const TextStyle(
+                        fontSize: 13,
+                        color: Color(0xFF64748B),
+                        height: 1.35,
+                      ),
+                    ),
                   ],
                 ),
               ),
-              if (trailing != null) ...[const SizedBox(width: 8), trailing],
             ],
           ),
-          if (footer != null) ...[const SizedBox(height: 10), footer],
+          if (trailing != null) ...[
+            const SizedBox(height: 12),
+            Align(
+              alignment: Alignment.centerRight,
+              child: trailing,
+            ),
+          ],
+          if (footer != null) ...[
+            const SizedBox(height: 12),
+            footer,
+          ],
         ],
       ),
     );
@@ -131,17 +246,40 @@ class CallerIdCard extends GetView<PhonebookController> {
 
   Widget _hint(String text, {required String action, required VoidCallback onTap}) {
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 9),
       decoration: BoxDecoration(
-        color: AppColors.warningOrange.withValues(alpha: 0.1),
-        borderRadius: BorderRadius.circular(AppDimens.radiusSm),
+        color: const Color(0xFFFFFBEB),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: const Color(0xFFFDE68A)),
       ),
       child: Row(
         children: [
-          const Icon(Icons.layers_outlined, size: 16, color: AppColors.warningOrange),
+          const Icon(Icons.layers_outlined, size: 16, color: Color(0xFFD97706)),
           const SizedBox(width: 8),
-          Expanded(child: Text(text, style: AppTextStyles.caption)),
-          TextButton(onPressed: onTap, child: Text(action)),
+          Expanded(
+            child: Text(
+              text,
+              style: const TextStyle(
+                fontSize: 12,
+                color: Color(0xFF92400E),
+                height: 1.3,
+              ),
+            ),
+          ),
+          const SizedBox(width: 6),
+          TextButton(
+            onPressed: onTap,
+            style: TextButton.styleFrom(
+              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+              minimumSize: Size.zero,
+              tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+              foregroundColor: const Color(0xFFD97706),
+            ),
+            child: Text(
+              action,
+              style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 12),
+            ),
+          ),
         ],
       ),
     );

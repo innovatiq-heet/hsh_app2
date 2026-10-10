@@ -175,7 +175,7 @@ object CallerIdOverlay {
         })
         textCol.addView(TextView(context).apply {
             text = if (matches.size > 1 && m.relation != "Student") {
-                "${m.relation} of ${matches.joinToString(" & ") { it.name.substringBefore(' ') }}"
+                "${m.relation} of ${matches.joinToString(" & ") { it.name }}"
             } else m.headline
             setTextColor(Color.WHITE)
             textSize = 18f
@@ -183,7 +183,12 @@ object CallerIdOverlay {
             maxLines = 1
         })
         textCol.addView(TextView(context).apply {
-            val bits = listOfNotNull(m.place.takeIf { it.isNotBlank() }, m.studentId.takeIf { it.isNotBlank() }?.let { "ID $it" }, pretty(number))
+            val placeText = when {
+                m.place.isBlank() || m.place.equals("HSH Resident", ignoreCase = true) || m.place.contains("Room N/A", ignoreCase = true) || m.place.equals("N/A", ignoreCase = true) || m.place.equals("None", ignoreCase = true) -> "Alumni"
+                m.place.contains("N/A", ignoreCase = true) -> m.place.replace(Regex("•?\\s*Room\\s*N/A", RegexOption.IGNORE_CASE), "").trim().let { if (it.isBlank() || it == "•") "Alumni" else "$it · Alumni" }
+                else -> m.place
+            }
+            val bits = listOfNotNull(placeText.takeIf { it.isNotBlank() }, m.studentId.takeIf { it.isNotBlank() }?.let { "ID $it" }, pretty(number))
             text = bits.joinToString(" · ")
             setTextColor(Color.parseColor("#F5D2C4"))
             textSize = 12.5f

@@ -6,4 +6,5 @@ class ImageAssets {
 
   static const String loginBackground = 'assets/images/login_screen_bg.jpeg';
   static const String appLogo = 'assets/images/hsh_top.png';
+  static const String hostelDusk = 'assets/images/hostel_dusk.jpg';
 }

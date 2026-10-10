@@ -97,8 +97,12 @@ class PhonebookScreen extends GetView<PhonebookController> {
                                 ),
                               if (student.room != null && student.room!.isNotEmpty)
                                 StatusBadge(
-                                  label: 'Room ${student.room}',
-                                  color: AppColors.textSecondary,
+                                  label: student.room == 'Alumni' || student.room?.toLowerCase() == 'n/a'
+                                      ? 'Alumni'
+                                      : 'Room ${student.room}',
+                                  color: student.room == 'Alumni' || student.room?.toLowerCase() == 'n/a'
+                                      ? AppColors.secondaryDark
+                                      : AppColors.textSecondary,
                                 ),
                               if (student.enrollmentNumber.isNotEmpty)
                                 StatusBadge(
@@ -633,9 +637,13 @@ class _StudentPhonebookCard extends StatelessWidget {
                           Padding(
                             padding: const EdgeInsets.only(right: 6),
                             child: Text(
-                              'Room ${student.room}',
+                              student.room == 'Alumni' || student.room?.toLowerCase() == 'n/a'
+                                  ? 'Alumni'
+                                  : 'Room ${student.room}',
                               style: AppTextStyles.caption.copyWith(
-                                color: AppColors.textPrimary,
+                                color: student.room == 'Alumni' || student.room?.toLowerCase() == 'n/a'
+                                    ? AppColors.secondaryDark
+                                    : AppColors.textPrimary,
                                 fontWeight: FontWeight.w600,
                               ),
                             ),

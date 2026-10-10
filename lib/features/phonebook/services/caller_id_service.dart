@@ -115,7 +115,7 @@ class CallerIdService {
       final e164 = PhoneNumberNormalizer.toE164Int(r['phone_normalized']?.toString() ?? r['phone']?.toString());
       if (e164 == null) continue;
       final agg = byNumber.putIfAbsent(e164, _Agg.new);
-      agg.names.add(_firstName((r['name'] ?? '').toString()));
+      agg.names.add(_fullName((r['name'] ?? '').toString()));
       agg.relations.add(relationLabel((r['phone_label'] ?? '').toString()));
       final place = (r['department'] ?? '').toString().trim();
       if (place.isNotEmpty) agg.places.add(place);
@@ -145,10 +145,20 @@ class CallerIdService {
   }
 
   static String _formatPlace(String rawPlace) {
-    if (rawPlace.isEmpty || rawPlace == 'HSH Resident') return '';
+    if (rawPlace.isEmpty || rawPlace == 'HSH Resident') return 'Alumni';
+    final lower = rawPlace.toLowerCase();
+    if (lower == 'n/a' || lower == 'none' || lower.contains('room n/a') || lower.contains('room: n/a')) {
+      final cleanGroup = rawPlace.replaceAll(RegExp(r'[•·-]?\s*Room:?\s*N/A', caseSensitive: false), '').trim();
+      return cleanGroup.isNotEmpty && cleanGroup != '•' ? '$cleanGroup (Alumni)' : 'Alumni';
+    }
+    if (lower.contains('alumni')) return rawPlace;
+
     final roomMatch = RegExp(r'Room\s*([A-Za-z0-9_-]+)', caseSensitive: false).firstMatch(rawPlace);
     if (roomMatch != null) {
       final roomNum = roomMatch.group(1)!;
+      if (roomNum.toLowerCase() == 'n/a' || roomNum.toLowerCase() == 'none') {
+        return 'Alumni';
+      }
       final groupOnly = rawPlace.replaceAll(RegExp(r'[•·-]?\s*Room\s*[A-Za-z0-9_-]+', caseSensitive: false), '').trim();
       if (groupOnly.isNotEmpty && groupOnly != 'HSH Resident') {
         return 'Rm $roomNum ($groupOnly)';
@@ -168,11 +178,9 @@ class CallerIdService {
     return 'Student';
   }
 
-  static String _firstName(String full) {
-    final parts = full.trim().split(RegExp(r'\s+'));
-    // "Rohan Sharma" → "Rohan Sharma" but "Rohan Kumar Sharma" → "Rohan Sharma" to keep labels short.
-    if (parts.length <= 2) return parts.join(' ');
-    return '${parts.first} ${parts.last}';
+  static String _fullName(String full) {
+    final parts = full.trim().split(RegExp(r'\s+')).where((p) => p.isNotEmpty);
+    return parts.join(' ');
   }
 
   static Future<bool> _bool(String method) async {

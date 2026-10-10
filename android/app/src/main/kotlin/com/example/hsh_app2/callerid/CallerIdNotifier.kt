@@ -22,9 +22,14 @@ object CallerIdNotifier {
         ensureChannel(context)
         val m = matches.first()
         val title = if (matches.size > 1 && m.relation != "Student") {
-            "${m.relation} of ${matches.joinToString(" & ") { it.name.substringBefore(' ') }}"
+            "${m.relation} of ${matches.joinToString(" & ") { it.name }}"
         } else m.headline
-        val body = listOfNotNull(m.place.takeIf { it.isNotBlank() }, CallerIdOverlay.pretty(number)).joinToString(" · ")
+        val placeText = when {
+            m.place.isBlank() || m.place.equals("HSH Resident", ignoreCase = true) || m.place.contains("Room N/A", ignoreCase = true) || m.place.equals("N/A", ignoreCase = true) || m.place.equals("None", ignoreCase = true) -> "Alumni"
+            m.place.contains("N/A", ignoreCase = true) -> m.place.replace(Regex("•?\\s*Room\\s*N/A", RegexOption.IGNORE_CASE), "").trim().let { if (it.isBlank() || it == "•") "Alumni" else "$it · Alumni" }
+            else -> m.place
+        }
+        val body = listOfNotNull(placeText.takeIf { it.isNotBlank() }, CallerIdOverlay.pretty(number)).joinToString(" · ")
 
         val open = PendingIntent.getActivity(
             context, number.hashCode(), CallerIdOverlay.launchIntent(context, m),

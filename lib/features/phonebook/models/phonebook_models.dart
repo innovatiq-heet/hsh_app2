@@ -98,6 +98,16 @@ class PhonebookStudent {
       derivedGroup = dept.trim();
     }
 
+    final rawRoom = json['room']?.toString().trim();
+    final isRoomNa = rawRoom == null ||
+        rawRoom.isEmpty ||
+        rawRoom.toLowerCase() == 'n/a' ||
+        rawRoom.toLowerCase() == 'none' ||
+        rawRoom.toLowerCase() == 'null';
+    final resolvedRoom = isRoomNa
+        ? (dept.toLowerCase().contains('alumni') ? 'Alumni' : (derivedRoom ?? 'Alumni'))
+        : rawRoom;
+
     return PhonebookStudent(
       id: json['id']?.toString() ?? json['internal_id']?.toString() ?? '',
       studentId: json['student_id']?.toString() ?? '',
@@ -107,7 +117,7 @@ class PhonebookStudent {
       batch: json['batch']?.toString() ?? 'ACTIVE',
       email: json['email']?.toString(),
       phones: phonesList,
-      room: json['room']?.toString() ?? derivedRoom,
+      room: resolvedRoom,
       groupName: json['group_name']?.toString() ?? derivedGroup,
       updatedAt: json['updated_at']?.toString(),
     );

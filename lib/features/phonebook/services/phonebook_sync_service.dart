@@ -71,17 +71,46 @@ class PhonebookSyncService {
         final s = rawList[i];
         if (s is! Map) continue;
 
-        final nameParts = [s['firstName'], s['middleName'], s['lastName']]
-            .where((p) => p != null && p.toString().trim().isNotEmpty)
-            .map((p) => p.toString().trim())
+        final rawFirst = (s['firstName'] ?? s['first_name'] ?? '').toString().trim();
+        final rawMiddle = (s['middleName'] ?? s['middle_name'] ?? s['fatherName'] ?? s['father_name'] ?? '').toString().trim();
+        final rawLast = (s['lastName'] ?? s['last_name'] ?? s['surname'] ?? '').toString().trim();
+        final rawFull = (s['name'] ?? s['fullName'] ?? '').toString().trim();
+
+        final nameParts = [rawFirst, rawMiddle, rawLast]
+            .where((p) => p.isNotEmpty)
             .toList();
-        final fullName =
-            nameParts.isNotEmpty ? nameParts.join(' ') : 'Unknown Student';
+
+        String fullName;
+        if (nameParts.length >= 3) {
+          fullName = nameParts.join(' ');
+        } else if (rawFull.isNotEmpty && rawFull.split(RegExp(r'\s+')).length >= 3) {
+          fullName = rawFull;
+        } else if (nameParts.isNotEmpty) {
+          fullName = nameParts.join(' ');
+        } else if (rawFull.isNotEmpty) {
+          fullName = rawFull;
+        } else {
+          fullName = 'Unknown Student';
+        }
 
         final bankCode = s['bankCode']?.toString().trim();
         final aadhar = s['aadhar']?.toString().trim();
-        final room = s['room']?.toString().trim();
+        final rawRoom = s['room']?.toString().trim();
         final group = s['groupName']?.toString().trim();
+        final status = s['status']?.toString().toLowerCase().trim() ?? '';
+
+        final isRoomNa = rawRoom == null ||
+            rawRoom.isEmpty ||
+            rawRoom.toLowerCase() == 'n/a' ||
+            rawRoom.toLowerCase() == 'none' ||
+            rawRoom.toLowerCase() == 'null';
+        final isAlumni = isRoomNa ||
+            status.contains('alumni') ||
+            status.contains('left') ||
+            status.contains('former') ||
+            status.contains('pass');
+
+        final room = isRoomNa ? null : rawRoom;
 
         final studentCode = (bankCode != null && bankCode.isNotEmpty)
             ? 'HSH-$bankCode'
@@ -91,18 +120,20 @@ class PhonebookSyncService {
 
         final enrollment = (bankCode != null && bankCode.isNotEmpty)
             ? bankCode
-            : (room != null && room.isNotEmpty
+            : (room != null
                 ? 'Room $room'
-                : (aadhar != null && aadhar.length >= 6
-                    ? aadhar.substring(aadhar.length - 6)
-                    : 'AVD-${i + 1}'));
+                : (isAlumni
+                    ? 'Alumni'
+                    : (aadhar != null && aadhar.length >= 6
+                        ? aadhar.substring(aadhar.length - 6)
+                        : 'AVD-${i + 1}')));
 
-        String dept = 'HSH Resident';
+        String dept;
+        String? cleanGroup;
         if (group != null &&
             group.isNotEmpty &&
             group.toLowerCase() != 'not available') {
           final lowerGroup = group.toLowerCase().trim();
-          String cleanGroup;
           if (lowerGroup == 'param') {
             cleanGroup = 'Param';
           } else if (lowerGroup == 'pavitra') {
@@ -114,15 +145,21 @@ class PhonebookSyncService {
           } else {
             cleanGroup = group[0].toUpperCase() + group.substring(1);
           }
-          dept = cleanGroup;
-          if (room != null && room.isNotEmpty) dept += ' • Room $room';
-        } else if (room != null && room.isNotEmpty) {
-          dept = 'Room $room';
         }
 
-        final batch =
-            s['status']?.toString().replaceAll('-', ' ').toUpperCase() ??
-                'ACTIVE';
+        if (isAlumni) {
+          dept = cleanGroup != null ? '$cleanGroup • Alumni' : 'Alumni';
+        } else if (cleanGroup != null) {
+          dept = room != null ? '$cleanGroup • Room $room' : cleanGroup;
+        } else if (room != null) {
+          dept = 'Room $room';
+        } else {
+          dept = 'Alumni';
+        }
+
+        final batch = isAlumni
+            ? 'ALUMNI'
+            : (s['status']?.toString().replaceAll('-', ' ').toUpperCase() ?? 'ACTIVE');
         final email = s['email']?.toString();
         uniqueStudents.add(studentCode);
 
@@ -150,9 +187,8 @@ class PhonebookSyncService {
         if (fatherPhone != null &&
             fatherPhone.isNotEmpty &&
             fatherPhone != phone) {
-          final middleName = s['middleName']?.toString().trim();
-          final fatherLabel = (middleName != null && middleName.isNotEmpty)
-              ? 'Father ($middleName)'
+          final fatherLabel = (rawMiddle.isNotEmpty)
+              ? 'Father ($rawMiddle)'
               : 'Father Contact';
           records.add({
             'internal_id': 'stu_${i + 1}',

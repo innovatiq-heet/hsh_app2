@@ -47,14 +47,22 @@ class PhonebookScreen extends GetView<PhonebookController> {
     }
   }
 
-  void _showStudentContactDetails(BuildContext context, PhonebookStudent student) {
-    final isAlumni = student.room == 'Alumni' ||
+  void _showStudentContactDetails(
+    BuildContext context,
+    PhonebookStudent student,
+  ) {
+    final isAlumni =
+        student.room == 'Alumni' ||
         student.room == null ||
         student.room!.isEmpty ||
         student.room!.toLowerCase() == 'n/a' ||
         student.room!.toLowerCase() == 'none';
-    final gColor = isAlumni ? const Color(0xFF9333EA) : groupColor(student.groupName);
-    final gBg = isAlumni ? const Color(0xFFF3E8FF) : groupBgColor(student.groupName);
+    final gColor = isAlumni
+        ? const Color(0xFF9333EA)
+        : groupColor(student.groupName);
+    final gBg = isAlumni
+        ? const Color(0xFFF3E8FF)
+        : groupBgColor(student.groupName);
 
     showModalBottomSheet(
       context: context,
@@ -91,11 +99,15 @@ class PhonebookScreen extends GetView<PhonebookController> {
                       decoration: BoxDecoration(
                         color: gBg,
                         borderRadius: BorderRadius.circular(18),
-                        border: Border.all(color: gColor.withValues(alpha: 0.2)),
+                        border: Border.all(
+                          color: gColor.withValues(alpha: 0.2),
+                        ),
                       ),
                       alignment: Alignment.center,
                       child: Text(
-                        student.name.isNotEmpty ? student.name[0].toUpperCase() : 'S',
+                        student.name.isNotEmpty
+                            ? student.name[0].toUpperCase()
+                            : 'S',
                         style: TextStyle(
                           color: gColor,
                           fontWeight: FontWeight.w800,
@@ -124,16 +136,25 @@ class PhonebookScreen extends GetView<PhonebookController> {
                             children: [
                               if (isAlumni)
                                 Container(
-                                  padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 3.5),
+                                  padding: const EdgeInsets.symmetric(
+                                    horizontal: 9,
+                                    vertical: 3.5,
+                                  ),
                                   decoration: BoxDecoration(
                                     color: const Color(0xFFF3E8FF),
                                     borderRadius: BorderRadius.circular(10),
-                                    border: Border.all(color: const Color(0xFFE9D5FF)),
+                                    border: Border.all(
+                                      color: const Color(0xFFE9D5FF),
+                                    ),
                                   ),
                                   child: const Row(
                                     mainAxisSize: MainAxisSize.min,
                                     children: [
-                                      Icon(Icons.school_rounded, size: 12, color: Color(0xFF7E22CE)),
+                                      Icon(
+                                        Icons.school_rounded,
+                                        size: 12,
+                                        color: Color(0xFF7E22CE),
+                                      ),
                                       SizedBox(width: 4),
                                       Text(
                                         'Alumni',
@@ -146,13 +167,19 @@ class PhonebookScreen extends GetView<PhonebookController> {
                                     ],
                                   ),
                                 )
-                              else if (student.room != null && student.room!.isNotEmpty)
+                              else if (student.room != null &&
+                                  student.room!.isNotEmpty)
                                 Container(
-                                  padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 3.5),
+                                  padding: const EdgeInsets.symmetric(
+                                    horizontal: 9,
+                                    vertical: 3.5,
+                                  ),
                                   decoration: BoxDecoration(
                                     color: const Color(0xFFF1F5F9),
                                     borderRadius: BorderRadius.circular(10),
-                                    border: Border.all(color: const Color(0xFFE2E8F0)),
+                                    border: Border.all(
+                                      color: const Color(0xFFE2E8F0),
+                                    ),
                                   ),
                                   child: Text(
                                     'Room ${student.room}',
@@ -165,11 +192,18 @@ class PhonebookScreen extends GetView<PhonebookController> {
                                 ),
                               if (student.groupName != null)
                                 Container(
-                                  padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 3.5),
+                                  padding: const EdgeInsets.symmetric(
+                                    horizontal: 9,
+                                    vertical: 3.5,
+                                  ),
                                   decoration: BoxDecoration(
                                     color: groupBgColor(student.groupName),
                                     borderRadius: BorderRadius.circular(10),
-                                    border: Border.all(color: groupColor(student.groupName).withValues(alpha: 0.2)),
+                                    border: Border.all(
+                                      color: groupColor(
+                                        student.groupName,
+                                      ).withValues(alpha: 0.2),
+                                    ),
                                   ),
                                   child: Text(
                                     student.groupName!,
@@ -182,11 +216,16 @@ class PhonebookScreen extends GetView<PhonebookController> {
                                 ),
                               if (student.enrollmentNumber.isNotEmpty)
                                 Container(
-                                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3.5),
+                                  padding: const EdgeInsets.symmetric(
+                                    horizontal: 8,
+                                    vertical: 3.5,
+                                  ),
                                   decoration: BoxDecoration(
                                     color: const Color(0xFFF8FAFC),
                                     borderRadius: BorderRadius.circular(10),
-                                    border: Border.all(color: const Color(0xFFE2E8F0)),
+                                    border: Border.all(
+                                      color: const Color(0xFFE2E8F0),
+                                    ),
                                   ),
                                   child: Text(
                                     '#${student.enrollmentNumber}',
@@ -235,15 +274,23 @@ class PhonebookScreen extends GetView<PhonebookController> {
                     padding: EdgeInsets.symmetric(vertical: 12),
                     child: Text(
                       'No phone numbers registered for this contact.',
-                      style: TextStyle(color: Color(0xFF94A3B8), fontSize: 13.5),
+                      style: TextStyle(
+                        color: Color(0xFF94A3B8),
+                        fontSize: 13.5,
+                      ),
                     ),
                   )
                 else
                   ...student.phones.map((p) {
-                    final isWhatsApp = p.label.toLowerCase().contains('whatsapp');
+                    final isWhatsApp = p.label.toLowerCase().contains(
+                      'whatsapp',
+                    );
                     return Container(
                       margin: const EdgeInsets.only(bottom: 8),
-                      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 14,
+                        vertical: 10,
+                      ),
                       decoration: BoxDecoration(
                         color: const Color(0xFFF8FAFC),
                         borderRadius: BorderRadius.circular(16),
@@ -255,13 +302,19 @@ class PhonebookScreen extends GetView<PhonebookController> {
                             width: 36,
                             height: 36,
                             decoration: BoxDecoration(
-                              color: isWhatsApp ? const Color(0xFFECFDF5) : const Color(0xFFE0F2FE),
+                              color: isWhatsApp
+                                  ? const Color(0xFFECFDF5)
+                                  : const Color(0xFFE0F2FE),
                               borderRadius: BorderRadius.circular(10),
                             ),
                             child: Icon(
-                              isWhatsApp ? Icons.chat_rounded : Icons.phone_rounded,
+                              isWhatsApp
+                                  ? Icons.chat_rounded
+                                  : Icons.phone_rounded,
                               size: 18,
-                              color: isWhatsApp ? const Color(0xFF059669) : const Color(0xFF0284C7),
+                              color: isWhatsApp
+                                  ? const Color(0xFF059669)
+                                  : const Color(0xFF0284C7),
                             ),
                           ),
                           const SizedBox(width: 12),
@@ -290,12 +343,21 @@ class PhonebookScreen extends GetView<PhonebookController> {
                             ),
                           ),
                           IconButton(
-                            icon: const Icon(Icons.copy_rounded, size: 18, color: Color(0xFF64748B)),
+                            icon: const Icon(
+                              Icons.copy_rounded,
+                              size: 18,
+                              color: Color(0xFF64748B),
+                            ),
                             tooltip: 'Copy Number',
-                            onPressed: () => controller.copyToClipboard(p.phone, p.label),
+                            onPressed: () =>
+                                controller.copyToClipboard(p.phone, p.label),
                           ),
                           IconButton(
-                            icon: const Icon(Icons.chat_rounded, size: 18, color: Color(0xFF059669)),
+                            icon: const Icon(
+                              Icons.chat_rounded,
+                              size: 18,
+                              color: Color(0xFF059669),
+                            ),
                             tooltip: 'WhatsApp',
                             onPressed: () {
                               Navigator.pop(ctx);
@@ -303,7 +365,11 @@ class PhonebookScreen extends GetView<PhonebookController> {
                             },
                           ),
                           IconButton(
-                            icon: const Icon(Icons.call_rounded, size: 18, color: Color(0xFF0284C7)),
+                            icon: const Icon(
+                              Icons.call_rounded,
+                              size: 18,
+                              color: Color(0xFF0284C7),
+                            ),
                             tooltip: 'Call Phone',
                             onPressed: () {
                               Navigator.pop(ctx);
@@ -340,7 +406,10 @@ class PhonebookScreen extends GetView<PhonebookController> {
                   ),
                   const SizedBox(height: 8),
                   Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 14,
+                      vertical: 10,
+                    ),
                     decoration: BoxDecoration(
                       color: const Color(0xFFF8FAFC),
                       borderRadius: BorderRadius.circular(16),
@@ -355,7 +424,11 @@ class PhonebookScreen extends GetView<PhonebookController> {
                             color: const Color(0xFFCCFBF1),
                             borderRadius: BorderRadius.circular(10),
                           ),
-                          child: const Icon(Icons.email_rounded, size: 18, color: Color(0xFF0D9488)),
+                          child: const Icon(
+                            Icons.email_rounded,
+                            size: 18,
+                            color: Color(0xFF0D9488),
+                          ),
                         ),
                         const SizedBox(width: 12),
                         Expanded(
@@ -369,9 +442,16 @@ class PhonebookScreen extends GetView<PhonebookController> {
                           ),
                         ),
                         IconButton(
-                          icon: const Icon(Icons.copy_rounded, size: 18, color: Color(0xFF64748B)),
+                          icon: const Icon(
+                            Icons.copy_rounded,
+                            size: 18,
+                            color: Color(0xFF64748B),
+                          ),
                           tooltip: 'Copy Email',
-                          onPressed: () => controller.copyToClipboard(student.email!, 'Email'),
+                          onPressed: () => controller.copyToClipboard(
+                            student.email!,
+                            'Email',
+                          ),
                         ),
                       ],
                     ),
@@ -400,7 +480,10 @@ class PhonebookScreen extends GetView<PhonebookController> {
                       shape: RoundedRectangleBorder(
                         borderRadius: BorderRadius.circular(14),
                       ),
-                      textStyle: const TextStyle(fontWeight: FontWeight.w700, fontSize: 14),
+                      textStyle: const TextStyle(
+                        fontWeight: FontWeight.w700,
+                        fontSize: 14,
+                      ),
                       elevation: 0,
                     ),
                   ),
@@ -428,8 +511,12 @@ class PhonebookScreen extends GetView<PhonebookController> {
               parent: BouncingScrollPhysics(),
             ),
             slivers: [
-              SliverToBoxAdapter(
-                child: _PhonebookHeader(controller: controller),
+              SliverPersistentHeader(
+                pinned: true,
+                delegate: _PhonebookHeaderDelegate(
+                  controller: controller,
+                  topPadding: MediaQuery.of(context).padding.top,
+                ),
               ),
               SliverToBoxAdapter(
                 child: Padding(
@@ -449,7 +536,9 @@ class PhonebookScreen extends GetView<PhonebookController> {
                           border: Border.all(color: const Color(0xFFE2E8F0)),
                           boxShadow: [
                             BoxShadow(
-                              color: const Color(0xFF0F172A).withValues(alpha: 0.04),
+                              color: const Color(
+                                0xFF0F172A,
+                              ).withValues(alpha: 0.04),
                               blurRadius: 14,
                               offset: const Offset(0, 3),
                             ),
@@ -464,7 +553,8 @@ class PhonebookScreen extends GetView<PhonebookController> {
                             fontWeight: FontWeight.w600,
                           ),
                           decoration: InputDecoration(
-                            hintText: 'Search by name, room, alumni, ID or phone...',
+                            hintText:
+                                'Search by name, room, alumni, ID or phone...',
                             hintStyle: const TextStyle(
                               color: Color(0xFF94A3B8),
                               fontSize: 14,
@@ -493,12 +583,19 @@ class PhonebookScreen extends GetView<PhonebookController> {
                                 return const SizedBox.shrink();
                               }
                               return IconButton(
-                                icon: const Icon(Icons.close_rounded, size: 18, color: Color(0xFF64748B)),
+                                icon: const Icon(
+                                  Icons.close_rounded,
+                                  size: 18,
+                                  color: Color(0xFF64748B),
+                                ),
                                 onPressed: controller.clearSearch,
                               );
                             }),
                             border: InputBorder.none,
-                            contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+                            contentPadding: const EdgeInsets.symmetric(
+                              horizontal: 16,
+                              vertical: 14,
+                            ),
                           ),
                         ),
                       ),
@@ -511,9 +608,12 @@ class PhonebookScreen extends GetView<PhonebookController> {
                         child: Obx(() {
                           return Row(
                             children: PhonebookController.hshGroups.map((g) {
-                              final isSelected = controller.selectedGroup.value == g;
+                              final isSelected =
+                                  controller.selectedGroup.value == g;
                               final isAlumniChip = g.toLowerCase() == 'alumni';
-                              final color = isAlumniChip ? const Color(0xFF9333EA) : const Color(0xFF0284C7);
+                              final color = isAlumniChip
+                                  ? const Color(0xFF9333EA)
+                                  : const Color(0xFF0284C7);
 
                               return Padding(
                                 padding: const EdgeInsets.only(right: 8),
@@ -523,19 +623,30 @@ class PhonebookScreen extends GetView<PhonebookController> {
                                     borderRadius: BorderRadius.circular(20),
                                     onTap: () => controller.selectGroup(g),
                                     child: AnimatedContainer(
-                                      duration: const Duration(milliseconds: 200),
-                                      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 7.5),
+                                      duration: const Duration(
+                                        milliseconds: 200,
+                                      ),
+                                      padding: const EdgeInsets.symmetric(
+                                        horizontal: 14,
+                                        vertical: 7.5,
+                                      ),
                                       decoration: BoxDecoration(
-                                        color: isSelected ? color : Colors.white,
+                                        color: isSelected
+                                            ? color
+                                            : Colors.white,
                                         borderRadius: BorderRadius.circular(20),
                                         border: Border.all(
-                                          color: isSelected ? color : const Color(0xFFE2E8F0),
+                                          color: isSelected
+                                              ? color
+                                              : const Color(0xFFE2E8F0),
                                           width: 1,
                                         ),
                                         boxShadow: isSelected
                                             ? [
                                                 BoxShadow(
-                                                  color: color.withValues(alpha: 0.25),
+                                                  color: color.withValues(
+                                                    alpha: 0.25,
+                                                  ),
                                                   blurRadius: 8,
                                                   offset: const Offset(0, 2),
                                                 ),
@@ -549,16 +660,22 @@ class PhonebookScreen extends GetView<PhonebookController> {
                                             Icon(
                                               Icons.school_rounded,
                                               size: 14,
-                                              color: isSelected ? Colors.white : const Color(0xFF9333EA),
+                                              color: isSelected
+                                                  ? Colors.white
+                                                  : const Color(0xFF9333EA),
                                             ),
                                             const SizedBox(width: 5),
                                           ],
                                           Text(
                                             g,
                                             style: TextStyle(
-                                              color: isSelected ? Colors.white : const Color(0xFF475569),
+                                              color: isSelected
+                                                  ? Colors.white
+                                                  : const Color(0xFF475569),
                                               fontSize: 13,
-                                              fontWeight: isSelected ? FontWeight.w700 : FontWeight.w600,
+                                              fontWeight: isSelected
+                                                  ? FontWeight.w700
+                                                  : FontWeight.w600,
                                             ),
                                           ),
                                         ],
@@ -591,8 +708,8 @@ class PhonebookScreen extends GetView<PhonebookController> {
                             final group = controller.selectedGroup.value;
                             return Text(
                               group == 'All'
-                                  ? 'Directory Contacts' // 'Directory Contacts ($count)'
-                                  : '$group Contacts',   // '$group Contacts ($count)'
+                                  ? 'All Contacts' // 'Directory Contacts ($count)'
+                                  : '$group Contacts', // '$group Contacts ($count)'
                               style: const TextStyle(
                                 fontSize: 17.5,
                                 fontWeight: FontWeight.w800,
@@ -616,7 +733,9 @@ class PhonebookScreen extends GetView<PhonebookController> {
                     child: Padding(
                       padding: EdgeInsets.symmetric(vertical: 48),
                       child: Center(
-                        child: CircularProgressIndicator(color: Color(0xFF0284C7)),
+                        child: CircularProgressIndicator(
+                          color: Color(0xFF0284C7),
+                        ),
                       ),
                     ),
                   );
@@ -626,11 +745,15 @@ class PhonebookScreen extends GetView<PhonebookController> {
                 if (list.isEmpty) {
                   return SliverToBoxAdapter(
                     child: Padding(
-                      padding: const EdgeInsets.symmetric(vertical: 36, horizontal: 20),
+                      padding: const EdgeInsets.symmetric(
+                        vertical: 36,
+                        horizontal: 20,
+                      ),
                       child: EmptyState(
                         icon: Icons.person_search_rounded,
                         title: 'No student contacts found',
-                        message: controller.searchText.value.isNotEmpty ||
+                        message:
+                            controller.searchText.value.isNotEmpty ||
                                 controller.selectedGroup.value != 'All'
                             ? 'Try clearing filters or search query.'
                             : 'Tap Sync to download contacts from the live campus directory.',
@@ -645,12 +768,14 @@ class PhonebookScreen extends GetView<PhonebookController> {
                   padding: const EdgeInsets.fromLTRB(20, 0, 20, 36),
                   sliver: SliverList.separated(
                     itemCount: list.length,
-                    separatorBuilder: (context, index) => const SizedBox(height: 10),
+                    separatorBuilder: (context, index) =>
+                        const SizedBox(height: 10),
                     itemBuilder: (context, index) {
                       final student = list[index];
                       final card = _StudentPhonebookCard(
                         student: student,
-                        onTap: () => _showStudentContactDetails(context, student),
+                        onTap: () =>
+                            _showStudentContactDetails(context, student),
                         onCall: (phone) => controller.makeCall(phone),
                         onWhatsApp: (phone) => controller.openWhatsApp(phone),
                       );
@@ -676,204 +801,255 @@ class PhonebookScreen extends GetView<PhonebookController> {
   }
 }
 
-/// Deep navy header with luminous arcs, hostel photo overlay, sync action and status pills.
-class _PhonebookHeader extends StatelessWidget {
+/// Collapsible shrinking deep navy header with luminous arcs, sync action and status pills.
+class _PhonebookHeaderDelegate extends SliverPersistentHeaderDelegate {
   final PhonebookController controller;
+  final double topPadding;
 
-  const _PhonebookHeader({required this.controller});
+  _PhonebookHeaderDelegate({
+    required this.controller,
+    required this.topPadding,
+  });
 
   @override
-  Widget build(BuildContext context) {
+  double get minExtent => topPadding + 62.0;
+
+  @override
+  double get maxExtent => topPadding + 224.0;
+
+  @override
+  Widget build(
+    BuildContext context,
+    double shrinkOffset,
+    bool overlapsContent,
+  ) {
     final dateFormat = DateFormat('dd MMM, hh:mm a');
+    final progress = (shrinkOffset / (maxExtent - minExtent)).clamp(0.0, 1.0);
+    final expandedOpacity = (1.0 - progress * 1.8).clamp(0.0, 1.0);
+    final collapsedTitleOpacity = ((progress - 0.35) / 0.65).clamp(0.0, 1.0);
+    final cornerRadius = Radius.circular(
+      (34.0 * (1.0 - progress)).clamp(0.0, 34.0),
+    );
 
-    return ClipRRect(
-      borderRadius: const BorderRadius.vertical(bottom: Radius.circular(34)),
-      child: Container(
-        decoration: const BoxDecoration(
-          gradient: LinearGradient(
-            begin: Alignment.topLeft,
-            end: Alignment.bottomRight,
-            colors: [
-              Color(0xFF03192E),
-              Color(0xFF032B4F),
-              Color(0xFF025A8D),
-              Color(0xFF0369A1),
-            ],
-            stops: [0.0, 0.38, 0.75, 1.0],
-          ),
+    return Container(
+      decoration: BoxDecoration(
+        gradient: const LinearGradient(
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+          colors: [
+            Color(0xFF03192E),
+            Color(0xFF032B4F),
+            Color(0xFF025A8D),
+            Color(0xFF0369A1),
+          ],
+          stops: [0.0, 0.38, 0.75, 1.0],
         ),
+        borderRadius: BorderRadius.vertical(bottom: cornerRadius),
+        boxShadow: progress > 0.25
+            ? [
+                BoxShadow(
+                  color: const Color(
+                    0xFF03192E,
+                  ).withValues(alpha: 0.22 * progress),
+                  blurRadius: 10,
+                  offset: const Offset(0, 3),
+                ),
+              ]
+            : null,
+      ),
+      child: ClipRRect(
+        borderRadius: BorderRadius.vertical(bottom: cornerRadius),
         child: Stack(
+          fit: StackFit.expand,
           children: [
-            // Glowing decorative arcs and luminous ambient orbs
-            Positioned.fill(
-              child: CustomPaint(
-                painter: _HeaderOrbPainter(),
-              ),
-            ),
+            // Luminous ambient orbs & arcs
+            CustomPaint(painter: _HeaderOrbPainter()),
 
-            // Header Content
-            SafeArea(
-              bottom: false,
-              child: Padding(
-                padding: const EdgeInsets.fromLTRB(20, 14, 20, 24),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Row(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        if (Navigator.canPop(context)) ...[
-                          Material(
-                            color: Colors.transparent,
-                            child: InkWell(
-                              onTap: () => Get.back(),
-                              borderRadius: BorderRadius.circular(24),
-                              child: Container(
-                                width: 42,
-                                height: 42,
-                                decoration: BoxDecoration(
-                                  color: Colors.white.withValues(alpha: 0.16),
-                                  shape: BoxShape.circle,
-                                  border: Border.all(
-                                    color: Colors.white.withValues(alpha: 0.25),
-                                    width: 1,
+            // Top pinned navigation bar (Back button, Collapsed title, Sync button)
+            Positioned(
+              top: topPadding + 6,
+              left: 16,
+              right: 16,
+              height: 46,
+              child: Row(
+                children: [
+                  if (Navigator.canPop(context)) ...[
+                    Material(
+                      color: Colors.transparent,
+                      child: InkWell(
+                        onTap: () => Get.back(),
+                        borderRadius: BorderRadius.circular(24),
+                        child: Container(
+                          width: 42,
+                          height: 42,
+                          decoration: BoxDecoration(
+                            color: Colors.white.withValues(alpha: 0.16),
+                            shape: BoxShape.circle,
+                            border: Border.all(
+                              color: Colors.white.withValues(alpha: 0.25),
+                              width: 1,
+                            ),
+                          ),
+                          child: const Icon(
+                            Icons.arrow_back_rounded,
+                            color: Colors.white,
+                            size: 20,
+                          ),
+                        ),
+                      ),
+                    ),
+                    const SizedBox(width: 12),
+                  ],
+
+                  // Pinned title that smoothly fades in as header shrinks
+                  Expanded(
+                    child: Opacity(
+                      opacity: collapsedTitleOpacity,
+                      child: const Text(
+                        'Student Phonebook',
+                        style: TextStyle(
+                          color: Colors.white,
+                          fontSize: 18,
+                          fontWeight: FontWeight.w800,
+                          letterSpacing: -0.3,
+                        ),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                    ),
+                  ),
+
+                  // Sync directory button
+                  Obx(() {
+                    final isSyncing = controller.isSyncing.value;
+                    return Material(
+                      color: Colors.transparent,
+                      child: InkWell(
+                        onTap: isSyncing ? null : () => controller.syncNow(),
+                        borderRadius: BorderRadius.circular(24),
+                        child: Container(
+                          width: 42,
+                          height: 42,
+                          decoration: BoxDecoration(
+                            color: Colors.white.withValues(alpha: 0.16),
+                            shape: BoxShape.circle,
+                            border: Border.all(
+                              color: Colors.white.withValues(alpha: 0.25),
+                              width: 1,
+                            ),
+                          ),
+                          child: isSyncing
+                              ? const Padding(
+                                  padding: EdgeInsets.all(11),
+                                  child: CircularProgressIndicator(
+                                    strokeWidth: 2.2,
+                                    color: Colors.white,
                                   ),
-                                ),
-                                child: const Icon(
-                                  Icons.arrow_back_rounded,
+                                )
+                              : const Icon(
+                                  Icons.sync_rounded,
                                   color: Colors.white,
                                   size: 20,
                                 ),
-                              ),
-                            ),
-                          ),
-                          const SizedBox(width: 14),
-                        ],
+                        ),
+                      ),
+                    );
+                  }),
+                ],
+              ),
+            ),
 
-                        // Title & overline
-                        Expanded(
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Container(
-                                width: 28,
-                                height: 3.5,
-                                decoration: BoxDecoration(
-                                  color: const Color(0xFFEAAB78),
-                                  borderRadius: BorderRadius.circular(2),
-                                ),
-                              ),
-                              const SizedBox(height: 7),
-                              Text(
-                                'CAMPUS DIRECTORY & CALLER ID',
-                                style: TextStyle(
-                                  color: Colors.white.withValues(alpha: 0.72),
-                                  fontSize: 11,
-                                  fontWeight: FontWeight.w700,
-                                  letterSpacing: 1.2,
-                                ),
-                              ),
-                              const SizedBox(height: 4),
-                              const Text(
-                                'Student Phonebook',
-                                style: TextStyle(
-                                  color: Colors.white,
-                                  fontSize: 27,
-                                  fontWeight: FontWeight.w800,
-                                  letterSpacing: -0.6,
-                                ),
-                              ),
-                              const SizedBox(height: 4),
-                              Text(
-                                'Residents, alumni & parent caller records',
-                                style: TextStyle(
-                                  color: Colors.white.withValues(alpha: 0.85),
-                                  fontSize: 13.5,
-                                  fontWeight: FontWeight.w400,
-                                ),
-                              ),
-                            ],
+            // Expanded content (Amber dash, Overline, Large Title, Subtitle, Status Pills)
+            if (expandedOpacity > 0.02)
+              Positioned(
+                top: topPadding + 58,
+                left: 20,
+                right: 20,
+                bottom: 14,
+                child: Opacity(
+                  opacity: expandedOpacity,
+                  child: Transform.translate(
+                    offset: Offset(0, -progress * 18),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      mainAxisAlignment: MainAxisAlignment.end,
+                      children: [
+                        Container(
+                          width: 28,
+                          height: 3.5,
+                          decoration: BoxDecoration(
+                            color: const Color(0xFFEAAB78),
+                            borderRadius: BorderRadius.circular(2),
                           ),
                         ),
+                        const SizedBox(height: 6),
+                        Text(
+                          'CAMPUS DIRECTORY & CALLER ID',
+                          style: TextStyle(
+                            color: Colors.white.withValues(alpha: 0.72),
+                            fontSize: 10.5,
+                            fontWeight: FontWeight.w700,
+                            letterSpacing: 1.2,
+                          ),
+                        ),
+                        const SizedBox(height: 3),
+                        const Text(
+                          'Student Phonebook',
+                          style: TextStyle(
+                            color: Colors.white,
+                            fontSize: 25,
+                            fontWeight: FontWeight.w800,
+                            letterSpacing: -0.6,
+                          ),
+                        ),
+                        const SizedBox(height: 2),
+                        Text(
+                          'Residents, alumni & parent caller records',
+                          style: TextStyle(
+                            color: Colors.white.withValues(alpha: 0.85),
+                            fontSize: 13,
+                            fontWeight: FontWeight.w400,
+                          ),
+                        ),
+                        const SizedBox(height: 12),
 
-                        // Sync directory button
+                        // Frosted status pills
                         Obx(() {
-                          final isSyncing = controller.isSyncing.value;
-                          return Material(
-                            color: Colors.transparent,
-                            child: InkWell(
-                              onTap: isSyncing ? null : () => controller.syncNow(),
-                              borderRadius: BorderRadius.circular(24),
-                              child: Container(
-                                width: 44,
-                                height: 44,
-                                decoration: BoxDecoration(
-                                  color: Colors.white.withValues(alpha: 0.16),
-                                  shape: BoxShape.circle,
-                                  border: Border.all(
-                                    color: Colors.white.withValues(alpha: 0.25),
-                                    width: 1,
-                                  ),
+                          final syncDate = controller.lastSync.value;
+                          final callerOn = controller.callerId.value.isWorking;
+
+                          return SingleChildScrollView(
+                            scrollDirection: Axis.horizontal,
+                            physics: const BouncingScrollPhysics(),
+                            child: Row(
+                              children: [
+                                _headerPill(
+                                  icon: Icons.cloud_done_rounded,
+                                  label: syncDate != null
+                                      ? 'Synced ${dateFormat.format(syncDate)}'
+                                      : 'Not synced yet',
                                 ),
-                                child: isSyncing
-                                    ? const Padding(
-                                        padding: EdgeInsets.all(12),
-                                        child: CircularProgressIndicator(
-                                          strokeWidth: 2.5,
-                                          color: Colors.white,
-                                        ),
-                                      )
-                                    : const Icon(
-                                        Icons.sync_rounded,
-                                        color: Colors.white,
-                                        size: 21,
-                                      ),
-                              ),
+                                const SizedBox(width: 8),
+                                _headerPill(
+                                  icon: callerOn
+                                      ? Icons.phone_callback_rounded
+                                      : Icons.phone_disabled_rounded,
+                                  label: callerOn
+                                      ? 'Caller ID Active'
+                                      : 'Caller ID Inactive',
+                                  iconColor: callerOn
+                                      ? const Color(0xFF34D399)
+                                      : const Color(0xFFFBBF24),
+                                ),
+                              ],
                             ),
                           );
                         }),
                       ],
                     ),
-
-                    const SizedBox(height: 16),
-
-                    // Frosted status pills
-                    Obx(() {
-                      // Directory contacts count pill commented out as of now:
-                      // final count = controller.totalCachedCount.value;
-                      final syncDate = controller.lastSync.value;
-                      final callerOn = controller.callerId.value.isWorking;
-
-                      return SingleChildScrollView(
-                        scrollDirection: Axis.horizontal,
-                        physics: const BouncingScrollPhysics(),
-                        child: Row(
-                          children: [
-                            // _headerPill(
-                            //   icon: Icons.groups_rounded,
-                            //   label: '$count Cached',
-                            // ),
-                            // const SizedBox(width: 8),
-                            _headerPill(
-                              icon: Icons.cloud_done_rounded,
-                              label: syncDate != null
-                                  ? 'Synced ${dateFormat.format(syncDate)}'
-                                  : 'Not synced yet',
-                            ),
-                            const SizedBox(width: 8),
-                            _headerPill(
-                              icon: callerOn ? Icons.phone_callback_rounded : Icons.phone_disabled_rounded,
-                              label: callerOn ? 'Caller ID Active' : 'Caller ID Inactive',
-                              iconColor: callerOn ? const Color(0xFF34D399) : const Color(0xFFFBBF24),
-                            ),
-                          ],
-                        ),
-                      );
-                    }),
-                  ],
+                  ),
                 ),
               ),
-            ),
           ],
         ),
       ),
@@ -886,7 +1062,7 @@ class _PhonebookHeader extends StatelessWidget {
     Color? iconColor,
   }) {
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6.5),
+      padding: const EdgeInsets.symmetric(horizontal: 11, vertical: 5.5),
       decoration: BoxDecoration(
         color: Colors.white.withValues(alpha: 0.14),
         borderRadius: BorderRadius.circular(20),
@@ -898,23 +1074,25 @@ class _PhonebookHeader extends StatelessWidget {
       child: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
-          Icon(
-            icon,
-            size: 13.5,
-            color: iconColor ?? Colors.white,
-          ),
-          const SizedBox(width: 6),
+          Icon(icon, size: 13, color: iconColor ?? Colors.white),
+          const SizedBox(width: 5),
           Text(
             label,
             style: const TextStyle(
               color: Colors.white,
-              fontSize: 12,
+              fontSize: 11.5,
               fontWeight: FontWeight.w600,
             ),
           ),
         ],
       ),
     );
+  }
+
+  @override
+  bool shouldRebuild(covariant _PhonebookHeaderDelegate oldDelegate) {
+    return oldDelegate.topPadding != topPadding ||
+        oldDelegate.controller != controller;
   }
 }
 
@@ -924,29 +1102,43 @@ class _HeaderOrbPainter extends CustomPainter {
   void paint(Canvas canvas, Size size) {
     // Top-right luminous ambient glow
     final glowPaintRight = Paint()
-      ..shader = RadialGradient(
-        colors: [
-          const Color(0xFF38BDF8).withValues(alpha: 0.16),
-          const Color(0xFF0284C7).withValues(alpha: 0.0),
-        ],
-      ).createShader(Rect.fromCircle(
-        center: Offset(size.width * 0.90, size.height * 0.15),
-        radius: size.width * 0.55,
-      ));
-    canvas.drawCircle(Offset(size.width * 0.90, size.height * 0.15), size.width * 0.55, glowPaintRight);
+      ..shader =
+          RadialGradient(
+            colors: [
+              const Color(0xFF38BDF8).withValues(alpha: 0.16),
+              const Color(0xFF0284C7).withValues(alpha: 0.0),
+            ],
+          ).createShader(
+            Rect.fromCircle(
+              center: Offset(size.width * 0.90, size.height * 0.15),
+              radius: size.width * 0.55,
+            ),
+          );
+    canvas.drawCircle(
+      Offset(size.width * 0.90, size.height * 0.15),
+      size.width * 0.55,
+      glowPaintRight,
+    );
 
     // Bottom-left subtle ambient glow
     final glowPaintLeft = Paint()
-      ..shader = RadialGradient(
-        colors: [
-          const Color(0xFF0284C7).withValues(alpha: 0.12),
-          const Color(0xFF032B4F).withValues(alpha: 0.0),
-        ],
-      ).createShader(Rect.fromCircle(
-        center: Offset(size.width * 0.10, size.height * 0.85),
-        radius: size.width * 0.45,
-      ));
-    canvas.drawCircle(Offset(size.width * 0.10, size.height * 0.85), size.width * 0.45, glowPaintLeft);
+      ..shader =
+          RadialGradient(
+            colors: [
+              const Color(0xFF0284C7).withValues(alpha: 0.12),
+              const Color(0xFF032B4F).withValues(alpha: 0.0),
+            ],
+          ).createShader(
+            Rect.fromCircle(
+              center: Offset(size.width * 0.10, size.height * 0.85),
+              radius: size.width * 0.45,
+            ),
+          );
+    canvas.drawCircle(
+      Offset(size.width * 0.10, size.height * 0.85),
+      size.width * 0.45,
+      glowPaintLeft,
+    );
 
     // Elegant concentric arcs with smooth stroke
     final strokePaint = Paint()
@@ -954,10 +1146,26 @@ class _HeaderOrbPainter extends CustomPainter {
       ..style = PaintingStyle.stroke
       ..strokeWidth = 1.2;
 
-    canvas.drawCircle(Offset(size.width * 0.88, size.height * 0.08), size.width * 0.38, strokePaint);
-    canvas.drawCircle(Offset(size.width * 0.88, size.height * 0.08), size.width * 0.62, strokePaint);
-    canvas.drawCircle(Offset(size.width * 0.88, size.height * 0.08), size.width * 0.86, strokePaint);
-    canvas.drawCircle(Offset(size.width * 0.08, size.height * 0.92), size.width * 0.46, strokePaint);
+    canvas.drawCircle(
+      Offset(size.width * 0.88, size.height * 0.08),
+      size.width * 0.38,
+      strokePaint,
+    );
+    canvas.drawCircle(
+      Offset(size.width * 0.88, size.height * 0.08),
+      size.width * 0.62,
+      strokePaint,
+    );
+    canvas.drawCircle(
+      Offset(size.width * 0.88, size.height * 0.08),
+      size.width * 0.86,
+      strokePaint,
+    );
+    canvas.drawCircle(
+      Offset(size.width * 0.08, size.height * 0.92),
+      size.width * 0.46,
+      strokePaint,
+    );
   }
 
   @override
@@ -981,14 +1189,19 @@ class _StudentPhonebookCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final primary = student.primaryPhone;
-    final isAlumni = student.room == 'Alumni' ||
+    final isAlumni =
+        student.room == 'Alumni' ||
         student.room == null ||
         student.room!.isEmpty ||
         student.room!.toLowerCase() == 'n/a' ||
         student.room!.toLowerCase() == 'none';
 
-    final gColor = isAlumni ? const Color(0xFF9333EA) : PhonebookScreen.groupColor(student.groupName);
-    final gBg = isAlumni ? const Color(0xFFF3E8FF) : PhonebookScreen.groupBgColor(student.groupName);
+    final gColor = isAlumni
+        ? const Color(0xFF9333EA)
+        : PhonebookScreen.groupColor(student.groupName);
+    final gBg = isAlumni
+        ? const Color(0xFFF3E8FF)
+        : PhonebookScreen.groupBgColor(student.groupName);
 
     return Container(
       decoration: BoxDecoration(
@@ -1022,11 +1235,15 @@ class _StudentPhonebookCard extends StatelessWidget {
                       decoration: BoxDecoration(
                         color: gBg,
                         borderRadius: BorderRadius.circular(15),
-                        border: Border.all(color: gColor.withValues(alpha: 0.2)),
+                        border: Border.all(
+                          color: gColor.withValues(alpha: 0.2),
+                        ),
                       ),
                       alignment: Alignment.center,
                       child: Text(
-                        student.name.isNotEmpty ? student.name[0].toUpperCase() : 'S',
+                        student.name.isNotEmpty
+                            ? student.name[0].toUpperCase()
+                            : 'S',
                         style: TextStyle(
                           color: gColor,
                           fontWeight: FontWeight.w800,
@@ -1057,16 +1274,25 @@ class _StudentPhonebookCard extends StatelessWidget {
                             children: [
                               if (isAlumni)
                                 Container(
-                                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2.5),
+                                  padding: const EdgeInsets.symmetric(
+                                    horizontal: 8,
+                                    vertical: 2.5,
+                                  ),
                                   decoration: BoxDecoration(
                                     color: const Color(0xFFF3E8FF),
                                     borderRadius: BorderRadius.circular(8),
-                                    border: Border.all(color: const Color(0xFFE9D5FF)),
+                                    border: Border.all(
+                                      color: const Color(0xFFE9D5FF),
+                                    ),
                                   ),
                                   child: const Row(
                                     mainAxisSize: MainAxisSize.min,
                                     children: [
-                                      Icon(Icons.school_rounded, size: 11, color: Color(0xFF7E22CE)),
+                                      Icon(
+                                        Icons.school_rounded,
+                                        size: 11,
+                                        color: Color(0xFF7E22CE),
+                                      ),
                                       SizedBox(width: 3.5),
                                       Text(
                                         'Alumni',
@@ -1079,13 +1305,19 @@ class _StudentPhonebookCard extends StatelessWidget {
                                     ],
                                   ),
                                 )
-                              else if (student.room != null && student.room!.isNotEmpty)
+                              else if (student.room != null &&
+                                  student.room!.isNotEmpty)
                                 Container(
-                                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2.5),
+                                  padding: const EdgeInsets.symmetric(
+                                    horizontal: 8,
+                                    vertical: 2.5,
+                                  ),
                                   decoration: BoxDecoration(
                                     color: const Color(0xFFF1F5F9),
                                     borderRadius: BorderRadius.circular(8),
-                                    border: Border.all(color: const Color(0xFFE2E8F0)),
+                                    border: Border.all(
+                                      color: const Color(0xFFE2E8F0),
+                                    ),
                                   ),
                                   child: Text(
                                     'Room ${student.room}',
@@ -1098,18 +1330,27 @@ class _StudentPhonebookCard extends StatelessWidget {
                                 ),
                               if (student.groupName != null)
                                 Container(
-                                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2.5),
+                                  padding: const EdgeInsets.symmetric(
+                                    horizontal: 8,
+                                    vertical: 2.5,
+                                  ),
                                   decoration: BoxDecoration(
-                                    color: PhonebookScreen.groupBgColor(student.groupName),
+                                    color: PhonebookScreen.groupBgColor(
+                                      student.groupName,
+                                    ),
                                     borderRadius: BorderRadius.circular(8),
                                     border: Border.all(
-                                      color: PhonebookScreen.groupColor(student.groupName).withValues(alpha: 0.2),
+                                      color: PhonebookScreen.groupColor(
+                                        student.groupName,
+                                      ).withValues(alpha: 0.2),
                                     ),
                                   ),
                                   child: Text(
                                     student.groupName!,
                                     style: TextStyle(
-                                      color: PhonebookScreen.groupColor(student.groupName),
+                                      color: PhonebookScreen.groupColor(
+                                        student.groupName,
+                                      ),
                                       fontSize: 11,
                                       fontWeight: FontWeight.w700,
                                     ),
@@ -1160,7 +1401,10 @@ class _StudentPhonebookCard extends StatelessWidget {
                           Padding(
                             padding: const EdgeInsets.only(left: 6),
                             child: Container(
-                              padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 1.5),
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 6,
+                                vertical: 1.5,
+                              ),
                               decoration: BoxDecoration(
                                 color: const Color(0xFFF1F5F9),
                                 borderRadius: BorderRadius.circular(8),
@@ -1192,7 +1436,9 @@ class _StudentPhonebookCard extends StatelessWidget {
                                 decoration: BoxDecoration(
                                   color: const Color(0xFFECFDF5),
                                   borderRadius: BorderRadius.circular(10),
-                                  border: Border.all(color: const Color(0xFFA7F3D0)),
+                                  border: Border.all(
+                                    color: const Color(0xFFA7F3D0),
+                                  ),
                                 ),
                                 child: const Icon(
                                   Icons.chat_rounded,

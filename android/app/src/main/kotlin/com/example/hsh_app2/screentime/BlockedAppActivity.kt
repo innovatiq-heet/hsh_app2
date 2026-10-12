@@ -17,6 +17,7 @@ import android.widget.Button
 import android.widget.LinearLayout
 import android.widget.TextView
 import android.window.OnBackInvokedDispatcher
+import java.util.concurrent.Executors
 
 class BlockedAppActivity : Activity() {
 
@@ -44,6 +45,13 @@ class BlockedAppActivity : Activity() {
             if (PolicyEvaluator.evaluate(this@BlockedAppActivity, blockedPackage) == null) {
                 goToHomeScreen()
                 return
+            }
+            if (isDeviceLocked) {
+                Executors.newSingleThreadExecutor().execute {
+                    runCatching {
+                        ScreenTimeSync.fetchAndSavePolicy(this@BlockedAppActivity)
+                    }
+                }
             }
             handler.postDelayed(this, 3000)
         }

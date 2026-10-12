@@ -58,6 +58,21 @@ class MainActivity : FlutterActivity() {
         intent.removeExtra(CallerIdOverlay.EXTRA_TARGET)
     }
 
+    override fun onResume() {
+        super.onResume()
+        if (PolicyStore.hasSession(applicationContext)) {
+            PolicyPollService.start(applicationContext)
+            PolicyPollService.requestRefresh(applicationContext)
+            AppBlockerAccessibilityService.recheckForeground()
+            screenTimeExecutor.execute {
+                runCatching {
+                    ScreenTimeSync.fetchAndSavePolicy(applicationContext)
+                }
+            }
+        }
+    }
+
+
     override fun onActivityResult(requestCode: Int, resultCode: Int, data: Intent?) {
         super.onActivityResult(requestCode, resultCode, data)
         if (requestCode == REQ_CALL_SCREENING_ROLE) {

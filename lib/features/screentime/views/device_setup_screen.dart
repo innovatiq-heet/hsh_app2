@@ -58,7 +58,14 @@ class _DeviceSetupScreenState extends State<DeviceSetupScreen> with WidgetsBindi
 
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
-    if (state == AppLifecycleState.resumed) _refresh();
+    if (state == AppLifecycleState.resumed) {
+      final session = Get.isRegistered<SessionStore>() ? Get.find<SessionStore>().session : null;
+      if (session?.token != null && session?.isAlumni != true) {
+        ScreenTimeService.startMonitoring(session!.token);
+        ScreenTimeService.refreshPolicy();
+      }
+      _refresh();
+    }
   }
 
   Future<void> _refresh() async {
@@ -81,6 +88,11 @@ class _DeviceSetupScreenState extends State<DeviceSetupScreen> with WidgetsBindi
 
   void _finish() {
     _poll?.cancel();
+    final session = Get.isRegistered<SessionStore>() ? Get.find<SessionStore>().session : null;
+    if (session?.token != null && session?.isAlumni != true) {
+      ScreenTimeService.startMonitoring(session!.token);
+      ScreenTimeService.refreshPolicy();
+    }
     ScreenTimeService.syncNow();
     GeofenceDeviceService.sampleNow();
     if (Get.currentRoute.contains('device-setup')) Get.back();

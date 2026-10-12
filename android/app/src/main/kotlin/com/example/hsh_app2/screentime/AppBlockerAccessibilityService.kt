@@ -1,6 +1,7 @@
 package com.example.hsh_app2.screentime
 
 import android.accessibilityservice.AccessibilityService
+import android.accessibilityservice.AccessibilityServiceInfo
 import android.content.ComponentName
 import android.content.Context
 import android.os.Handler
@@ -9,6 +10,8 @@ import android.provider.Settings
 import android.text.TextUtils
 import android.util.Log
 import android.view.accessibility.AccessibilityEvent
+import android.view.accessibility.AccessibilityNodeInfo
+import android.widget.Toast
 import java.util.concurrent.Executors
 
 /**
@@ -85,12 +88,24 @@ class AppBlockerAccessibilityService : AccessibilityService() {
                 PolicyPollService.start(this)
             }
             ScreenTimeSync.ensureTick(this)
+            // Even if PolicyPollService was stopped by Task Manager, fetch the policy
+            // directly in the background so the parent lock is ALWAYS kept up-to-date!
+            lookupExecutor.execute {
+                runCatching {
+                    ScreenTimeSync.fetchAndSavePolicy(this@AppBlockerAccessibilityService)
+                }
+            }
         }
     }
 
     override fun onServiceConnected() {
         super.onServiceConnected()
         instance = this
+        val info = serviceInfo
+        if (info != null) {
+            info.flags = info.flags or AccessibilityServiceInfo.FLAG_RETRIEVE_INTERACTIVE_WINDOWS
+            serviceInfo = info
+        }
         PolicyStore.addPolicyListener(policyListener)
         ensureBackgroundSync()
         // The service can (re)connect while a restricted app is already open.
@@ -106,9 +121,23 @@ class AppBlockerAccessibilityService : AccessibilityService() {
     }
 
     override fun onAccessibilityEvent(event: AccessibilityEvent?) {
-        if (event?.eventType != AccessibilityEvent.TYPE_WINDOW_STATE_CHANGED) return
+        if (event == null) return
+        val eventType = event.eventType
+        if (eventType != AccessibilityEvent.TYPE_WINDOW_STATE_CHANGED &&
+            eventType != AccessibilityEvent.TYPE_WINDOW_CONTENT_CHANGED) return
+
         val pkg = event.packageName?.toString() ?: return
         ensureBackgroundSync()
+
+        // Anti-tamper Settings guard: prevent students from force-stopping,
+        // uninstalling or disabling HSH security services.
+        if (guardSettingsIfTampering(pkg, event)) {
+            return
+        }
+
+        // App blocker enforcement only evaluates full window state switches
+        if (eventType != AccessibilityEvent.TYPE_WINDOW_STATE_CHANGED) return
+
         if (isActivityWindow(pkg, event.className?.toString()) && foregroundPkg != pkg) {
             foregroundPkg = pkg
             switchSeq++
@@ -183,4 +212,159 @@ class AppBlockerAccessibilityService : AccessibilityService() {
         activityCache[key] = isActivity
         return isActivity
     }
+
+    // region Anti-Tamper Settings Guard
+    private var lastSettingsCheckAt = 0L
+    private var lastTamperToastAt = 0L
+
+    private fun isSettingsOrInstaller(pkg: String): Boolean {
+        if (pkg == "com.android.settings" ||
+            pkg == "com.google.android.settings" ||
+            pkg == "com.samsung.android.settings" ||
+            pkg == "com.android.systemui" ||
+            pkg == "com.miui.securitycenter" ||
+            pkg == "com.coloros.safecenter" ||
+            pkg == "com.coloros.settings" ||
+            pkg == "com.vivo.permissionmanager" ||
+            pkg == "com.huawei.systemmanager" ||
+            pkg == "com.transsion.phonemaster" ||
+            pkg == "com.android.packageinstaller" ||
+            pkg == "com.google.android.packageinstaller"
+        ) {
+            return true
+        }
+        val lower = pkg.lowercase()
+        return lower.contains("settings") ||
+               lower.contains("safecenter") ||
+               lower.contains("securitycenter") ||
+               lower.contains("packageinstaller") ||
+               lower.contains("systemui")
+    }
+
+    /**
+     * Intercepts attempts by students to Force-Stop, Uninstall, or toggle off
+     * accessibility/security permissions for HSH App in Android Settings while a
+     * student session is active. Normal device settings (Wi-Fi, Bluetooth, Sound, Display)
+     * remain completely usable.
+     */
+    private fun guardSettingsIfTampering(pkg: String, event: AccessibilityEvent): Boolean {
+        if (!PolicyStore.hasSession(this)) return false
+        if (!isSettingsOrInstaller(pkg)) return false
+
+        val now = System.currentTimeMillis()
+        val eventType = event.eventType
+        // Debounce content-changed events to keep scrolling smooth
+        if (eventType == AccessibilityEvent.TYPE_WINDOW_CONTENT_CHANGED && now - lastSettingsCheckAt < 150L) {
+            return false
+        }
+        lastSettingsCheckAt = now
+
+        val root = runCatching { rootInActiveWindow ?: event.source }.getOrNull() ?: return false
+        val className = event.className?.toString() ?: ""
+
+        val isTamper = try {
+            checkNodeTamper(root, className)
+        } catch (e: Exception) {
+            Log.e(TAG, "Error checking anti-tamper: ${e.message}")
+            false
+        }
+
+        if (isTamper) {
+            Log.w(TAG, "Anti-tamper triggered on $pkg (class: $className)")
+            // 1. Immediately exit the restricted settings screen
+            performGlobalAction(GLOBAL_ACTION_BACK)
+
+            // 2. Warn the student
+            if (now - lastTamperToastAt > 2000L) {
+                lastTamperToastAt = now
+                mainHandler.post {
+                    Toast.makeText(
+                        applicationContext,
+                        "Hostel policy: Modifying or force-stopping HSH security settings is restricted.",
+                        Toast.LENGTH_SHORT
+                    ).show()
+                }
+            }
+
+            // 3. Fallback: If still on the restricted screen after 250ms, press Home
+            mainHandler.postDelayed({
+                runCatching {
+                    val currentRoot = rootInActiveWindow ?: return@runCatching
+                    val currentPkg = currentRoot.packageName?.toString() ?: ""
+                    if (isSettingsOrInstaller(currentPkg) && checkNodeTamper(currentRoot, "")) {
+                        performGlobalAction(GLOBAL_ACTION_HOME)
+                    }
+                }
+            }, 250L)
+
+            return true
+        }
+        return false
+    }
+
+    private fun checkNodeTamper(root: AccessibilityNodeInfo, className: String): Boolean {
+        // Direct package match: In Android Settings, our package name appears on the App Info page
+        // (version footer / package details) or uninstaller dialog, never in the general apps list.
+        if (hasText(root, "com.example.hsh_app2")) {
+            return true
+        }
+
+        val hasAppTitle = hasText(root, "HSH App") || hasText(root, "HSH Seva")
+        val hasServiceTitle = hasText(root, "HSH App Blocker")
+
+        // SystemUI Task Manager ("Check background activity" / "Active apps" bottom sheet)
+        val isTaskManagerSheet = hasText(root, "Check background activity") ||
+            hasText(root, "active while running in the background") ||
+            hasText(root, "Active apps") ||
+            hasText(root, "active app")
+        if (isTaskManagerSheet && (hasAppTitle || hasText(root, "Stop"))) {
+            return true
+        }
+
+        if (!hasAppTitle && !hasServiceTitle) {
+            return false
+        }
+
+        // If the accessibility service toggle page is open
+        if (hasServiceTitle || className.contains("ToggleAccessibility", ignoreCase = true)) {
+            return true
+        }
+
+        // If it's an App Details / Uninstaller fragment or activity
+        val isDetailsClass = className.contains("InstalledAppDetails", ignoreCase = true) ||
+            className.contains("AppInfo", ignoreCase = true) ||
+            className.contains("ApplicationsDetails", ignoreCase = true) ||
+            className.contains("AppDetails", ignoreCase = true) ||
+            className.contains("Uninstaller", ignoreCase = true) ||
+            className.contains("PackageInstaller", ignoreCase = true)
+
+        if (isDetailsClass && hasAppTitle) {
+            return true
+        }
+
+        // Action buttons present on App Info pages
+        val hasTamperActions = hasText(root, "Force stop") ||
+            hasText(root, "Force close") ||
+            hasText(root, "Uninstall") ||
+            hasText(root, "Clear data") ||
+            hasText(root, "Clear storage") ||
+            hasText(root, "Disable")
+
+        if (hasTamperActions && hasAppTitle) {
+            return true
+        }
+
+        return false
+    }
+
+    @Suppress("DEPRECATION")
+    private fun hasText(root: AccessibilityNodeInfo, text: String): Boolean {
+        val list = runCatching { root.findAccessibilityNodeInfosByText(text) }.getOrNull() ?: return false
+        val found = list.isNotEmpty()
+        for (node in list) {
+            runCatching { node.recycle() }
+        }
+        return found
+    }
+    // endregion
 }

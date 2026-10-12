@@ -2,7 +2,6 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:get/get.dart';
 import '../../../core/models/geofence/student_location.dart';
-import '../../../core/utils/app_snackbar.dart';
 import '../../../core/utils/date_formatting.dart';
 import '../../shared/widgets/empty_state.dart';
 import '../../shared/widgets/staggered_slide_fade.dart';
@@ -291,7 +290,7 @@ class _StudentLocationsHeaderDelegate extends SliverPersistentHeaderDelegate {
   double get minExtent => topPadding + 62.0;
 
   @override
-  double get maxExtent => topPadding + 230.0;
+  double get maxExtent => topPadding + 240.0;
 
   @override
   Widget build(
@@ -433,7 +432,6 @@ class _StudentLocationsHeaderDelegate extends SliverPersistentHeaderDelegate {
             // Expanded content (Amber dash, Overline, Large Title, Subtitle, Metric cards)
             if (expandedOpacity > 0.02)
               Positioned(
-                top: topPadding + 54,
                 left: 20,
                 right: 20,
                 bottom: 12,
@@ -442,8 +440,8 @@ class _StudentLocationsHeaderDelegate extends SliverPersistentHeaderDelegate {
                   child: Transform.translate(
                     offset: Offset(0, -progress * 18),
                     child: Column(
+                      mainAxisSize: MainAxisSize.min,
                       crossAxisAlignment: CrossAxisAlignment.start,
-                      mainAxisAlignment: MainAxisAlignment.end,
                       children: [
                         Container(
                           width: 28,
@@ -1162,7 +1160,14 @@ class _StudentLocationCard extends StatelessWidget {
       );
     }
 
-    final coordsText = '${loc.latitude.toStringAsFixed(6)}, ${loc.longitude.toStringAsFixed(6)}';
+    final accuracyPct = _accuracyPercentage(loc.accuracyMeters);
+    final (accuracyColor, accuracyBg, accuracyBorder) = accuracyPct >= 85
+        ? (const Color(0xFF16A34A), const Color(0xFFF0FDF4), const Color(0xFFBBF7D0))
+        : accuracyPct >= 65
+            ? (const Color(0xFF0284C7), const Color(0xFFE0F2FE), const Color(0xFFBAE6FD))
+            : accuracyPct >= 45
+                ? (const Color(0xFFD97706), const Color(0xFFFEF3C7), const Color(0xFFFDE68A))
+                : (const Color(0xFFDC2626), const Color(0xFFFEF2F2), const Color(0xFFFECDD3));
 
     return Container(
       width: double.infinity,
@@ -1175,69 +1180,106 @@ class _StudentLocationCard extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          // Top Row: Coordinates + Copy button + Distance badge (if outside)
+          // Top Row: Student Accuracy Percentage + Distance in meters
           Row(
             children: [
+              // Accuracy Percentage Pill
               Container(
-                padding: const EdgeInsets.all(5),
+                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4.5),
                 decoration: BoxDecoration(
-                  color: const Color(0xFFE0F2FE),
+                  color: accuracyBg,
                   borderRadius: BorderRadius.circular(8),
+                  border: Border.all(color: accuracyBorder),
                 ),
-                child: const Icon(
-                  Icons.near_me_rounded,
-                  size: 14,
-                  color: Color(0xFF0284C7),
-                ),
-              ),
-              const SizedBox(width: 8),
-              Expanded(
                 child: Row(
+                  mainAxisSize: MainAxisSize.min,
                   children: [
-                    Text(
-                      coordsText,
-                      style: const TextStyle(
-                        fontFamily: 'monospace',
-                        fontSize: 12.5,
-                        fontWeight: FontWeight.w700,
-                        color: Color(0xFF0F172A),
-                        letterSpacing: -0.2,
-                      ),
+                    Icon(
+                      Icons.gps_fixed_rounded,
+                      size: 13,
+                      color: accuracyColor,
                     ),
-                    const SizedBox(width: 6),
-                    InkWell(
-                      onTap: () {
-                        Clipboard.setData(ClipboardData(text: coordsText));
-                        AppSnackbar.info('Copied', 'Coordinates copied to clipboard');
-                      },
-                      borderRadius: BorderRadius.circular(4),
-                      child: const Padding(
-                        padding: EdgeInsets.all(3),
-                        child: Icon(
-                          Icons.copy_rounded,
-                          size: 14,
-                          color: Color(0xFF64748B),
-                        ),
+                    const SizedBox(width: 5),
+                    Text(
+                      '$accuracyPct% Accuracy',
+                      style: TextStyle(
+                        fontSize: 12,
+                        fontWeight: FontWeight.w700,
+                        color: accuracyColor,
+                        letterSpacing: -0.2,
                       ),
                     ),
                   ],
                 ),
               ),
-              if (student.status == LocationStatus.outside && loc.distanceMeters != null) ...[
+
+              const Spacer(),
+
+              // Distance in meters badge
+              if (loc.distanceMeters != null) ...[
                 Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3.5),
+                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4.5),
                   decoration: BoxDecoration(
-                    color: const Color(0xFFFEF2F2),
+                    color: student.status == LocationStatus.outside
+                        ? const Color(0xFFFEF2F2)
+                        : const Color(0xFFF0FDF4),
                     borderRadius: BorderRadius.circular(8),
-                    border: Border.all(color: const Color(0xFFFCA5A5)),
-                  ),
-                  child: Text(
-                    _distance(loc.distanceMeters!),
-                    style: const TextStyle(
-                      fontSize: 11,
-                      fontWeight: FontWeight.w700,
-                      color: Color(0xFFDC2626),
+                    border: Border.all(
+                      color: student.status == LocationStatus.outside
+                          ? const Color(0xFFFCA5A5)
+                          : const Color(0xFF86EFAC),
                     ),
+                  ),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Icon(
+                        Icons.near_me_rounded,
+                        size: 13,
+                        color: student.status == LocationStatus.outside
+                            ? const Color(0xFFDC2626)
+                            : const Color(0xFF16A34A),
+                      ),
+                      const SizedBox(width: 4),
+                      Text(
+                        _distance(loc.distanceMeters!),
+                        style: TextStyle(
+                          fontSize: 11.5,
+                          fontWeight: FontWeight.w700,
+                          color: student.status == LocationStatus.outside
+                              ? const Color(0xFFDC2626)
+                              : const Color(0xFF16A34A),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ] else if (student.status == LocationStatus.inside) ...[
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4.5),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFFF0FDF4),
+                    borderRadius: BorderRadius.circular(8),
+                    border: Border.all(color: const Color(0xFF86EFAC)),
+                  ),
+                  child: const Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Icon(
+                        Icons.check_circle_rounded,
+                        size: 13,
+                        color: Color(0xFF16A34A),
+                      ),
+                      SizedBox(width: 4),
+                      Text(
+                        '0 m (Inside)',
+                        style: TextStyle(
+                          fontSize: 11.5,
+                          fontWeight: FontWeight.w700,
+                          color: Color(0xFF16A34A),
+                        ),
+                      ),
+                    ],
                   ),
                 ),
               ],
@@ -1248,7 +1290,7 @@ class _StudentLocationCard extends StatelessWidget {
           const Divider(height: 1, thickness: 0.8, color: Color(0xFFE2E8F0)),
           const SizedBox(height: 10),
 
-          // Metadata Row: Updated time and Accuracy
+          // Metadata Row: Updated time and Precision
           Row(
             children: [
               const Icon(Icons.schedule_rounded, size: 13, color: Color(0xFF64748B)),
@@ -1266,7 +1308,7 @@ class _StudentLocationCard extends StatelessWidget {
                 const Icon(Icons.my_location_rounded, size: 13, color: Color(0xFF64748B)),
                 const SizedBox(width: 5),
                 Text(
-                  '±${loc.accuracyMeters.round()} m accuracy',
+                  '±${loc.accuracyMeters.round()} m precision',
                   style: const TextStyle(
                     fontSize: 11.5,
                     fontWeight: FontWeight.w500,
@@ -1310,6 +1352,19 @@ class _StudentLocationCard extends StatelessWidget {
     );
   }
 
-  static String _distance(double m) =>
-      m < 1000 ? '${m.round()}m away' : '${(m / 1000).toStringAsFixed(1)}km away';
+  static String _distance(double m) => '${m.round()} m away';
+
+  static int _accuracyPercentage(double accuracyMeters) {
+    if (accuracyMeters <= 0) return 100;
+    if (accuracyMeters <= 3) return 100;
+    if (accuracyMeters <= 5) return 98;
+    if (accuracyMeters <= 10) return 94;
+    if (accuracyMeters <= 15) return 89;
+    if (accuracyMeters <= 20) return 84;
+    if (accuracyMeters <= 30) return 76;
+    if (accuracyMeters <= 50) return 64;
+    if (accuracyMeters <= 75) return 50;
+    if (accuracyMeters <= 100) return 35;
+    return (100 - (accuracyMeters * 0.75)).clamp(10.0, 30.0).round();
+  }
 }

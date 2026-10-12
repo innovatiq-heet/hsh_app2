@@ -296,7 +296,11 @@ class PushNotificationService extends GetxService {
       case 'curfew':
       case 'warning':
       case 'curfew_warning':
-        Get.toNamed(Routes.studentHome);
+        if (Get.isRegistered<SessionStore>() && Get.find<SessionStore>().canOperate) {
+          Get.toNamed(Routes.operatorGeofence, arguments: data);
+        } else {
+          Get.toNamed(Routes.studentHome, arguments: data);
+        }
         break;
       case 'screentime':
       case 'screen_time':
@@ -367,5 +371,24 @@ class PushNotificationService extends GetxService {
         name: 'PushNotification',
       );
     }
+  }
+
+  /// Subscribes the device to operator/admin broadcast topics for curfew breaches and alerts.
+  Future<void> subscribeToOperatorTopics() async {
+    try {
+      await FirebaseMessaging.instance.subscribeToTopic('operator_alerts');
+      await FirebaseMessaging.instance.subscribeToTopic('geofence_breaches');
+      developer.log('Subscribed to operator broadcast topics.', name: 'PushNotification');
+    } catch (e) {
+      developer.log('Could not subscribe to operator topics: $e', name: 'PushNotification');
+    }
+  }
+
+  /// Unsubscribes from operator broadcast topics (e.g. on logout or student session).
+  Future<void> unsubscribeFromOperatorTopics() async {
+    try {
+      await FirebaseMessaging.instance.unsubscribeFromTopic('operator_alerts');
+      await FirebaseMessaging.instance.unsubscribeFromTopic('geofence_breaches');
+    } catch (_) {}
   }
 }

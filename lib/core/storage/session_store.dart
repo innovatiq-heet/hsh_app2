@@ -158,6 +158,11 @@ class SessionStore extends GetxService {
     // Sync FCM push notification token with backend
     if (Get.isRegistered<PushNotificationService>()) {
       PushNotificationService.to.syncTokenWithBackend();
+      if (role.canOperate) {
+        PushNotificationService.to.subscribeToOperatorTopics();
+      } else {
+        PushNotificationService.to.unsubscribeFromOperatorTopics();
+      }
     }
 
     // Screen time monitoring - active students and leaders only, NEVER for alumni
@@ -226,6 +231,11 @@ class SessionStore extends GetxService {
     if (Get.isRegistered<AadharService>()) {
       Get.find<AadharService>().invalidate();
     }
+
+    // 5. Unsubscribe from operator notification topics
+    if (Get.isRegistered<PushNotificationService>()) {
+      PushNotificationService.to.unsubscribeFromOperatorTopics();
+    }
   }
 
   /// Backward-compatible alias for logout().
@@ -265,6 +275,9 @@ class SessionStore extends GetxService {
     await _ensureSessionLoaded();
     return _cachedSession?.role ?? UserRole.unknown;
   }
+
+  /// Synchronously checks if the current cached user has operator/warden privileges.
+  bool get canOperate => _cachedSession?.role.canOperate == true;
 
   Future<String?> get email async {
     if (_cachedSession != null) return _cachedSession!.email;

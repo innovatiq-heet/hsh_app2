@@ -23,6 +23,7 @@ class ParentalControlsCard extends GetView<StudentScreenTimeController> {
       final start = controller.bedtimeStart.value;
       final end = controller.bedtimeEnd.value;
       final blocked = controller.blockedPackages.length;
+      final appLimitsCount = controller.appLimits.length;
       final busy = controller.isUpdatingPolicy.value;
 
       return AppCard(
@@ -55,7 +56,7 @@ class ParentalControlsCard extends GetView<StudentScreenTimeController> {
                         Text(
                           locked
                               ? 'Only calls and this app work until you unlock'
-                              : _summary(blocked, limit, start, end),
+                              : _summary(blocked, appLimitsCount, limit, start, end),
                           style: AppTextStyles.bodySm.copyWith(
                             color: locked ? Colors.white.withValues(alpha: 0.85) : AppColors.textSecondary,
                           ),
@@ -142,9 +143,10 @@ class ParentalControlsCard extends GetView<StudentScreenTimeController> {
     });
   }
 
-  String _summary(int blocked, int limit, String start, String end) {
+  String _summary(int blocked, int appLimitsCount, int limit, String start, String end) {
     final parts = <String>[
       if (blocked > 0) '$blocked app${blocked == 1 ? '' : 's'} blocked',
+      if (appLimitsCount > 0) '$appLimitsCount app limit${appLimitsCount == 1 ? '' : 's'}',
       if (limit > 0) '${StudentScreenTimeController.formatMinutes(limit)} per day',
       if (start.isNotEmpty && end.isNotEmpty) 'curfew $start–$end',
     ];

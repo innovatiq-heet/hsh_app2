@@ -128,6 +128,10 @@ class AppSnackbar {
       ),
     };
 
+    if (Get.testMode && Get.overlayContext == null) {
+      return;
+    }
+
     if (Get.isSnackbarOpen) {
       Get.closeCurrentSnackbar();
     }

@@ -44,6 +44,24 @@ void main() {
       expect(policy.blockedPackages, isEmpty);
     });
 
+    test('parses apps array with daily_limit_minutes into appLimits', () {
+      final policy = ScreenTimePolicy.tryParse({
+        'data': {
+          'policy': {'policy_version': 5, 'daily_limit_minutes': 0},
+          'apps': [
+            {'package_name': 'com.instagram.android', 'app_name': 'Instagram', 'daily_limit_minutes': 45, 'is_blocked': 0},
+            {'package_name': 'com.zhiliaoapp.musically', 'app_name': 'TikTok', 'daily_limit_minutes': 30, 'is_blocked': 1},
+            {'package_name': 'com.whatsapp', 'app_name': 'WhatsApp', 'daily_limit_minutes': 0, 'is_blocked': 0},
+          ],
+        },
+      });
+      expect(policy, isNotNull);
+      expect(policy!.appLimits['com.instagram.android'], 45);
+      expect(policy.appLimits['com.zhiliaoapp.musically'], 30);
+      expect(policy.appLimits.containsKey('com.whatsapp'), isFalse);
+      expect(policy.blockedPackages, contains('com.zhiliaoapp.musically'));
+    });
+
     test('default policy has no curfew', () {
       expect(const ScreenTimePolicy().hasBedtime, isFalse);
     });

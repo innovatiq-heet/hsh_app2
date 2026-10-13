@@ -17,6 +17,9 @@ class ScreenTimePolicy {
   /// Backend `updatedAt`/version marker, echoed by devices in their compliance report.
   final String version;
 
+  /// Per-app daily limit in minutes (0 = no limit).
+  final Map<String, int> appLimits;
+
   const ScreenTimePolicy({
     this.isLocked = false,
     this.blockedPackages = const {},
@@ -24,6 +27,7 @@ class ScreenTimePolicy {
     this.bedtimeStart = '',
     this.bedtimeEnd = '',
     this.version = '',
+    this.appLimits = const {},
   });
 
   bool get hasBedtime => bedtimeStart.isNotEmpty && bedtimeEnd.isNotEmpty;
@@ -35,8 +39,22 @@ class ScreenTimePolicy {
     final data = raw['data'] is Map ? raw['data'] as Map : raw;
     final pol = data['policy'] is Map ? data['policy'] as Map : data;
 
+    final appsRaw = _pick(data, ['apps']) ?? _pick(pol, ['apps']) ?? _pick(raw, ['apps']);
+    final appLimitsRaw = _pick(data, ['appLimits', 'app_limits']) ??
+        _pick(pol, ['appLimits', 'app_limits']) ??
+        _pick(raw, ['appLimits', 'app_limits']);
+
     final blocked = _pick(data, ['blockedPackages', 'blocked_packages']) ??
-        _pick(pol, ['blockedPackages', 'blocked_packages']);
+        _pick(pol, ['blockedPackages', 'blocked_packages']) ??
+        (appsRaw is List
+            ? appsRaw
+                .whereType<Map>()
+                .where((a) => _toBool(a['is_blocked'] ?? a['isBlocked']) == true)
+                .map((a) => (a['package_name'] ?? a['packageName'] ?? '').toString())
+                .where((pkg) => pkg.isNotEmpty)
+                .toList()
+            : null);
+
     final locked = _pick(pol, ['is_locked', 'isLocked']) ?? _pick(data, ['is_locked', 'isLocked']);
     final limit = _pick(pol, ['daily_limit_minutes', 'dailyLimitMinutes']);
     final start = _pick(pol, ['bedtime_start', 'bedtimeStart']);
@@ -46,7 +64,30 @@ class ScreenTimePolicy {
     // clear it, not fall back to a previous/default value.
     final hasBedtime = _hasAny(pol, ['bedtime_start', 'bedtimeStart', 'bedtime_end', 'bedtimeEnd']);
 
-    if (blocked == null && locked == null && limit == null && !hasBedtime) {
+    Map<String, int>? parsedAppLimits;
+    if (appsRaw is List) {
+      parsedAppLimits = {};
+      for (final a in appsRaw) {
+        if (a is Map) {
+          final pkg = (a['package_name'] ?? a['packageName'] ?? '').toString().trim();
+          final appLimit = _toInt(a['daily_limit_minutes'] ?? a['dailyLimitMinutes']);
+          if (pkg.isNotEmpty && appLimit != null && appLimit > 0) {
+            parsedAppLimits[pkg] = appLimit;
+          }
+        }
+      }
+    } else if (appLimitsRaw is Map) {
+      parsedAppLimits = {};
+      for (final entry in appLimitsRaw.entries) {
+        final pkg = entry.key.toString().trim();
+        final appLimit = _toInt(entry.value);
+        if (pkg.isNotEmpty && appLimit != null && appLimit > 0) {
+          parsedAppLimits[pkg] = appLimit;
+        }
+      }
+    }
+
+    if (blocked == null && locked == null && limit == null && !hasBedtime && parsedAppLimits == null) {
       return null;
     }
 
@@ -61,6 +102,7 @@ class ScreenTimePolicy {
       bedtimeStart: bedtimeOff ? '' : (start == null ? base.bedtimeStart : _hhmm(start)),
       bedtimeEnd: bedtimeOff ? '' : (end == null ? base.bedtimeEnd : _hhmm(end)),
       version: version?.toString() ?? base.version,
+      appLimits: parsedAppLimits ?? base.appLimits,
     );
   }
 
@@ -84,6 +126,7 @@ class ScreenTimePolicy {
     String? bedtimeStart,
     String? bedtimeEnd,
     String? version,
+    Map<String, int>? appLimits,
   }) =>
       ScreenTimePolicy(
         isLocked: isLocked ?? this.isLocked,
@@ -92,6 +135,7 @@ class ScreenTimePolicy {
         bedtimeStart: bedtimeStart ?? this.bedtimeStart,
         bedtimeEnd: bedtimeEnd ?? this.bedtimeEnd,
         version: version ?? this.version,
+        appLimits: appLimits ?? this.appLimits,
       );
 
   /// Body for `PUT /screen-time/policies/:id`.
@@ -101,6 +145,7 @@ class ScreenTimePolicy {
         'daily_limit_minutes': dailyLimitMinutes,
         'bedtime_start': bedtimeStart,
         'bedtime_end': bedtimeEnd,
+        'app_limits': appLimits,
       };
 
   static dynamic _pick(Map m, List<String> keys) {

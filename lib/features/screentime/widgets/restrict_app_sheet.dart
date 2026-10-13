@@ -1,3 +1,4 @@
+import 'app_limit_sheet.dart';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import '../../../core/constants/app_colors.dart';
@@ -41,7 +42,7 @@ class _RestrictAppSheetState extends State<RestrictAppSheet> {
   Widget build(BuildContext context) {
     return SheetScaffold(
       title: 'Restrict apps',
-      subtitle: 'Tap an app to block or allow it on the student\'s phone.',
+      subtitle: 'Tap to block or allow. Long-press to set a daily time limit.',
       children: [
         Obx(() {
           final blocked = controller.blockedPackages;
@@ -67,7 +68,14 @@ class _RestrictAppSheetState extends State<RestrictAppSheet> {
                     pkg: p['pkg']!,
                     name: p['name']!,
                     blocked: blocked.contains(p['pkg']),
+                    limitMinutes: controller.appLimits[p['pkg']!] ?? 0,
                     onTap: () => controller.toggleAppBlock(p['pkg']!, p['name']!, !blocked.contains(p['pkg'])),
+                    onLongPress: () => AppLimitSheet.show(
+                      context,
+                      packageName: p['pkg']!,
+                      appName: p['name']!,
+                      currentLimit: controller.appLimits[p['pkg']!] ?? 0,
+                    ),
                   ),
               ]),
               if (used.isNotEmpty) ...[
@@ -80,7 +88,14 @@ class _RestrictAppSheetState extends State<RestrictAppSheet> {
                       pkg: a.pkg,
                       name: a.name.isNotEmpty ? a.name : a.pkg.split('.').last,
                       blocked: blocked.contains(a.pkg),
+                      limitMinutes: controller.appLimits[a.pkg] ?? 0,
                       onTap: () => controller.toggleAppBlock(a.pkg, a.name, !blocked.contains(a.pkg)),
+                      onLongPress: () => AppLimitSheet.show(
+                        context,
+                        packageName: a.pkg,
+                        appName: a.name.isNotEmpty ? a.name : a.pkg.split('.').last,
+                        currentLimit: controller.appLimits[a.pkg] ?? 0,
+                      ),
                     ),
                 ]),
               ],
@@ -175,14 +190,24 @@ class _AppTile extends StatelessWidget {
   final String pkg;
   final String name;
   final bool blocked;
+  final int limitMinutes;
   final VoidCallback onTap;
+  final VoidCallback? onLongPress;
 
-  const _AppTile({required this.pkg, required this.name, required this.blocked, required this.onTap});
+  const _AppTile({
+    required this.pkg,
+    required this.name,
+    required this.blocked,
+    this.limitMinutes = 0,
+    required this.onTap,
+    this.onLongPress,
+  });
 
   @override
   Widget build(BuildContext context) {
     return InkWell(
       onTap: onTap,
+      onLongPress: onLongPress,
       borderRadius: BorderRadius.circular(AppDimens.radiusMd),
       child: AnimatedContainer(
         duration: const Duration(milliseconds: 160),
@@ -210,6 +235,18 @@ class _AppTile extends StatelessWidget {
                 color: blocked ? AppColors.cancelledRed : AppColors.textPrimary,
               ),
             ),
+            if (limitMinutes > 0)
+              Padding(
+                padding: const EdgeInsets.only(top: 2),
+                child: Text(
+                  '${StudentScreenTimeController.formatMinutes(limitMinutes)} limit',
+                  style: AppTextStyles.caption.copyWith(
+                    fontSize: 9,
+                    color: AppColors.primary,
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+              ),
           ],
         ),
       ),

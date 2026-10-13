@@ -1,3 +1,4 @@
+import 'app_limit_sheet.dart';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import '../../../core/constants/app_colors.dart';
@@ -109,8 +110,8 @@ class AppUsageCard extends GetView<StudentScreenTimeController> {
 
             if (list.isEmpty)
               EmptyState(
-                icon: filter == 'Restricted' ? Icons.verified_user_outlined : Icons.apps_outlined,
-                title: filter == 'Restricted' ? 'Nothing blocked yet' : 'No app usage recorded',
+                icon: filter == 'Restricted' ? Icons.verified_user_outlined : (filter == 'Limited' ? Icons.hourglass_bottom_rounded : Icons.apps_outlined),
+                title: filter == 'Restricted' ? 'Nothing blocked yet' : (filter == 'Limited' ? 'No app limits set' : 'No app usage recorded'),
                 message: filter == 'Restricted'
                     ? 'Use "Restrict" to block distracting apps on this phone.'
                     : 'Usage appears once the phone reports in (every ~5 minutes).',
@@ -141,73 +142,149 @@ class _AppRow extends GetView<StudentScreenTimeController> {
     final name = (item['appName'] ?? pkg).toString();
     final mins = StudentScreenTimeController.toInt(item['minutes']);
     final blocked = item['isBlocked'] == true;
-    final share = dayTotal > 0 ? (mins / dayTotal).clamp(0.0, 1.0) : 0.0;
+    final limit = (item['dailyLimitMinutes'] as int?) ?? controller.appLimits[pkg] ?? 0;
+    final isLimitReached = limit > 0 && mins >= limit;
+    final share = limit > 0
+        ? (mins / limit).clamp(0.0, 1.0)
+        : (dayTotal > 0 ? (mins / dayTotal).clamp(0.0, 1.0) : 0.0);
 
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
-      decoration: BoxDecoration(
-        color: blocked ? AppColors.cancelledRed.withValues(alpha: 0.05) : Colors.transparent,
-        borderRadius: BorderRadius.circular(AppDimens.radiusMd),
+    return InkWell(
+      onTap: () => AppLimitSheet.show(
+        context,
+        packageName: pkg,
+        appName: name,
+        currentLimit: limit,
+        currentUsage: mins,
       ),
-      child: Row(
-        children: [
-          AppBrandIcon(packageName: pkg, appName: name, size: 42, isBlocked: blocked),
-          const SizedBox(width: 12),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Row(
-                  children: [
-                    Flexible(
-                      child: Text(
-                        name,
-                        style: AppTextStyles.bodyMd.copyWith(
-                          fontWeight: FontWeight.w600,
-                          color: blocked ? AppColors.cancelledRed : AppColors.textPrimary,
+      borderRadius: BorderRadius.circular(AppDimens.radiusMd),
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+        decoration: BoxDecoration(
+          color: blocked
+              ? AppColors.cancelledRed.withValues(alpha: 0.05)
+              : (isLimitReached ? Colors.amber.withValues(alpha: 0.06) : Colors.transparent),
+          borderRadius: BorderRadius.circular(AppDimens.radiusMd),
+        ),
+        child: Row(
+          children: [
+            AppBrandIcon(packageName: pkg, appName: name, size: 42, isBlocked: blocked),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    children: [
+                      Flexible(
+                        child: Text(
+                          name,
+                          style: AppTextStyles.bodyMd.copyWith(
+                            fontWeight: FontWeight.w600,
+                            color: blocked ? AppColors.cancelledRed : AppColors.textPrimary,
+                          ),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
                         ),
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
                       ),
-                    ),
-                    const SizedBox(width: 8),
-                    Text(
-                      mins > 0 ? StudentScreenTimeController.formatMinutes(mins) : '—',
-                      style: AppTextStyles.bodySm.copyWith(
-                        fontWeight: FontWeight.w700,
-                        color: blocked ? AppColors.cancelledRed : AppColors.textSecondary,
+                      const SizedBox(width: 8),
+                      Text(
+                        mins > 0 ? StudentScreenTimeController.formatMinutes(mins) : '—',
+                        style: AppTextStyles.bodySm.copyWith(
+                          fontWeight: FontWeight.w700,
+                          color: blocked
+                              ? AppColors.cancelledRed
+                              : (isLimitReached ? Colors.amber.shade900 : AppColors.textSecondary),
+                        ),
+                      ),
+                    ],
+                  ),
+                  if (limit > 0) ...[
+                    const SizedBox(height: 3),
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                      decoration: BoxDecoration(
+                        color: isLimitReached
+                            ? AppColors.cancelledRed.withValues(alpha: 0.12)
+                            : AppColors.primarySoft,
+                        borderRadius: BorderRadius.circular(AppDimens.radiusPill),
+                      ),
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Icon(
+                            Icons.hourglass_bottom_rounded,
+                            size: 11,
+                            color: isLimitReached ? AppColors.cancelledRed : AppColors.primary,
+                          ),
+                          const SizedBox(width: 3),
+                          Text(
+                            isLimitReached
+                                ? '${StudentScreenTimeController.formatMinutes(limit)} limit reached'
+                                : '${StudentScreenTimeController.formatMinutes(limit)} limit',
+                            style: AppTextStyles.caption.copyWith(
+                              fontSize: 10,
+                              fontWeight: FontWeight.w700,
+                              color: isLimitReached ? AppColors.cancelledRed : AppColors.primary,
+                            ),
+                          ),
+                        ],
                       ),
                     ),
                   ],
-                ),
-                const SizedBox(height: 6),
-                ClipRRect(
-                  borderRadius: BorderRadius.circular(3),
-                  child: LinearProgressIndicator(
-                    value: share,
-                    minHeight: 4,
-                    backgroundColor: AppColors.borderLight,
-                    valueColor: AlwaysStoppedAnimation(
-                      blocked ? AppColors.cancelledRed.withValues(alpha: 0.6) : AppColors.primary,
+                  const SizedBox(height: 6),
+                  ClipRRect(
+                    borderRadius: BorderRadius.circular(3),
+                    child: LinearProgressIndicator(
+                      value: share,
+                      minHeight: 4,
+                      backgroundColor: AppColors.borderLight,
+                      valueColor: AlwaysStoppedAnimation(
+                        blocked
+                            ? AppColors.cancelledRed.withValues(alpha: 0.6)
+                            : (isLimitReached
+                                ? AppColors.cancelledRed
+                                : (limit > 0 && mins >= 0.8 * limit
+                                    ? Colors.amber.shade700
+                                    : AppColors.primary)),
+                      ),
                     ),
                   ),
+                ],
+              ),
+            ),
+            const SizedBox(width: 4),
+            Tooltip(
+              message: limit > 0
+                  ? 'Edit time limit (${StudentScreenTimeController.formatMinutes(limit)})'
+                  : 'Set time limit',
+              child: IconButton(
+                icon: Icon(
+                  limit > 0 ? Icons.hourglass_top_rounded : Icons.timer_outlined,
+                  size: 20,
+                  color: limit > 0 ? AppColors.primary : AppColors.textMuted,
                 ),
-              ],
+                onPressed: () => AppLimitSheet.show(
+                  context,
+                  packageName: pkg,
+                  appName: name,
+                  currentLimit: limit,
+                  currentUsage: mins,
+                ),
+              ),
             ),
-          ),
-          const SizedBox(width: 6),
-          Tooltip(
-            message: blocked ? 'Allow $name' : 'Block $name',
-            child: Switch.adaptive(
-              value: !blocked,
-              activeTrackColor: AppColors.successGreen,
-              inactiveThumbColor: Colors.white,
-              inactiveTrackColor: AppColors.cancelledRed,
-              trackOutlineColor: const WidgetStatePropertyAll(Colors.transparent),
-              onChanged: (allowed) => controller.toggleAppBlock(pkg, name, !allowed),
+            Tooltip(
+              message: blocked ? 'Allow $name' : 'Block $name',
+              child: Switch.adaptive(
+                value: !blocked,
+                activeTrackColor: AppColors.successGreen,
+                inactiveThumbColor: Colors.white,
+                inactiveTrackColor: AppColors.cancelledRed,
+                trackOutlineColor: const WidgetStatePropertyAll(Colors.transparent),
+                onChanged: (allowed) => controller.toggleAppBlock(pkg, name, !allowed),
+              ),
             ),
-          ),
-        ],
+          ],
+        ),
       ),
     );
   }

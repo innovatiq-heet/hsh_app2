@@ -14,6 +14,7 @@ Wardens (the operator console / platform admins) control and monitor each studen
 | :--- | :--- |
 | **Remote lock** | Every app except calls, keyboards, the launcher, Settings and this app is blocked until the warden unlocks. |
 | **Blocked apps** | Individual apps (e.g. Instagram) are blocked. Takes effect immediately, **even if the app is already open**. |
+| **App time limit** | Individual apps are blocked once today's usage reaches the app's configured limit. 0 = no limit. |
 | **Bedtime** | Apps are blocked inside a nightly window (e.g. 23:00–05:00). Off when no bedtime is set. |
 | **Daily limit** | Apps are blocked once today's total screen time reaches the limit. 0 = no limit. |
 | **Usage dashboard** | Today's total, per-app breakdown, 30-day history, online / screen-on / current app. |
@@ -165,8 +166,9 @@ graph TD
 1. This app itself and protected packages → always allowed.
 2. `isLocked` → `DEVICE_LOCKED`.
 3. Package in `blockedPackages` → `APP_BLOCKED`.
-4. Inside the bedtime window (overnight wrap supported) → `BEDTIME`.
-5. Daily limit set and today's minutes ≥ limit → `DAILY_LIMIT`.
+4. Package has `appLimits` set and today's usage ≥ limit → `APP_LIMIT`.
+5. Inside the bedtime window (overnight wrap supported) → `BEDTIME`.
+6. Daily limit set and today's minutes ≥ limit → `DAILY_LIMIT`.
 
 **Protected packages (never blocked):** dialers, in-call UI, emergency, system UI, Settings (incl. Samsung), permission controller, package installer, Google Play services, plus every enabled keyboard, home launcher and dialer discovered at runtime.
 

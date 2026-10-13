@@ -63,6 +63,7 @@ object PolicyStore {
     private const val KEY_DAILY_LIMIT = "daily_limit_minutes"
     private const val KEY_BEDTIME_START = "bedtime_start"
     private const val KEY_BEDTIME_END = "bedtime_end"
+    private const val KEY_APP_LIMITS = "app_limits"
     private const val KEY_POLICY_VERSION = "policy_version"
     private const val KEY_POLICY_APPLIED_AT = "policy_applied_at"
     private const val KEY_POLICY_VERSION_NUM = "policy_version_num"

@@ -72,6 +72,11 @@ void main() {
           'checkIntervalMinutes': 2,
           'repeatDays': ['Daily'],
         };
+      case '/screen-time/apps/rule':
+        return {
+          'success': true,
+          'message': 'App rule updated successfully',
+        };
     }
     return null;
   }
@@ -181,5 +186,17 @@ void main() {
 
     expect(requests.last.path, '/screen-time/students');
     expect(requests.last.queryParameters['search'], 'Asha');
+  });
+
+  test('setting app time limit sends student id and daily_limit_minutes', () async {
+    final controller = await open({'id': studentId, 'name': 'Asha Patel'});
+    await controller.setAppLimit('com.instagram.android', 'Instagram', 45);
+
+    final ruleReq = requests.firstWhere((r) => r.path == '/screen-time/apps/rule');
+    expect(ruleReq.data['student_id'], '$studentId');
+    expect(ruleReq.data['package_name'], 'com.instagram.android');
+    expect(ruleReq.data['daily_limit_minutes'], 45);
+    expect(controller.appLimits['com.instagram.android'], 45);
+    expectNoBankCodeUsed();
   });
 }

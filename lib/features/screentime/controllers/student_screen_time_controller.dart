@@ -470,6 +470,7 @@ class StudentScreenTimeController extends GetxController with WidgetsBindingObse
   final RxString bedtimeStart = ''.obs;
   final RxString bedtimeEnd = ''.obs;
   final RxString policyVersion = ''.obs;
+  final RxMap<String, int> appLimits = <String, int>{}.obs;
 
   /// The selected student's policy as currently shown in the UI.
   ScreenTimePolicy get currentPolicy => ScreenTimePolicy(
@@ -479,6 +480,7 @@ class StudentScreenTimeController extends GetxController with WidgetsBindingObse
         bedtimeStart: bedtimeStart.value,
         bedtimeEnd: bedtimeEnd.value,
         version: policyVersion.value,
+        appLimits: Map<String, int>.from(appLimits),
       );
 
   void _applyPolicy(ScreenTimePolicy p) {
@@ -488,6 +490,7 @@ class StudentScreenTimeController extends GetxController with WidgetsBindingObse
     bedtimeStart.value = p.bedtimeStart;
     bedtimeEnd.value = p.bedtimeEnd;
     policyVersion.value = p.version;
+    appLimits.assignAll(p.appLimits);
     _syncBlockedStatusToApps();
   }
 
@@ -985,6 +988,52 @@ class StudentScreenTimeController extends GetxController with WidgetsBindingObse
     if (id.isEmpty) throw StateError('No student selected');
     await _apiClient.dio.put('/screen-time/policies/$id', data: fields);
     policyVersion.value = DateTime.now().toIso8601String();
+  }
+
+  /// Set daily time limit for an app in minutes (0 = no limit)
+  Future<void> setAppLimit(String packageName, String appName, int limitMinutes) async {
+    final studentName = selectedStudent.value is Map
+        ? (selectedStudent.value['name'] ?? 'Student')
+        : 'Student';
+    final previous = currentPolicy;
+    final updatedLimits = Map<String, int>.from(previous.appLimits);
+    if (limitMinutes > 0) {
+      updatedLimits[packageName] = limitMinutes;
+    } else {
+      updatedLimits.remove(packageName);
+    }
+    final updated = previous.copyWith(appLimits: updatedLimits);
+
+    // Optimistic update; rolled back below if the API rejects it.
+    _applyPolicy(updated);
+    try {
+      final id = _studentId;
+      if (id.isEmpty) throw StateError('No student selected');
+      final isBlocked = blockedPackages.contains(packageName);
+      await _apiClient.dio.post('/screen-time/apps/rule', data: {
+        'student_id': id,
+        'package_name': packageName,
+        'app_name': appName,
+        'is_blocked': isBlocked,
+        'daily_limit_minutes': limitMinutes,
+      });
+      policyVersion.value = DateTime.now().toIso8601String();
+      if (limitMinutes > 0) {
+        AppSnackbar.success(
+          'Limit Set',
+          '$appName limited to ${formatMinutes(limitMinutes)}/day for $studentName.',
+        );
+      } else {
+        AppSnackbar.info(
+          'Limit Removed',
+          'Time limit removed for $appName on $studentName\'s phone.',
+        );
+      }
+    } catch (e) {
+      debugPrint('[ScreenTime] setAppLimit error: $e');
+      _applyPolicy(previous);
+      AppSnackbar.error('Not Saved', 'Could not update limit for $appName for $studentName. Please try again.');
+    }
   }
 
   /// Toggle blocking or unblocking an app (Admin / Warden action)

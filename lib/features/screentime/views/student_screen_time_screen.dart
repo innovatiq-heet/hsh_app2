@@ -29,27 +29,35 @@ class StudentScreenTimeScreen extends GetView<StudentScreenTimeController> {
             onRefresh: controller.refreshAll,
             color: const Color(0xFF0284C7),
             backgroundColor: Colors.white,
-            child: CustomScrollView(
-              physics: const AlwaysScrollableScrollPhysics(
-                parent: BouncingScrollPhysics(),
+            child: NotificationListener<ScrollNotification>(
+              onNotification: (scrollInfo) {
+                if (selected == null && scrollInfo.metrics.extentAfter < 350) {
+                  controller.loadMoreItems();
+                }
+                return false;
+              },
+              child: CustomScrollView(
+                physics: const AlwaysScrollableScrollPhysics(
+                  parent: BouncingScrollPhysics(),
+                ),
+                slivers: [
+                  SliverPersistentHeader(
+                    pinned: true,
+                    delegate: _ScreenTimeHeaderDelegate(
+                      controller: controller,
+                      topPadding: MediaQuery.of(context).padding.top,
+                    ),
+                  ),
+                  SliverPadding(
+                    padding: const EdgeInsets.fromLTRB(16, 16, 16, 36),
+                    sliver: SliverToBoxAdapter(
+                      child: selected == null
+                          ? const StudentDirectoryView()
+                          : _buildDetail(context),
+                    ),
+                  ),
+                ],
               ),
-              slivers: [
-                SliverPersistentHeader(
-                  pinned: true,
-                  delegate: _ScreenTimeHeaderDelegate(
-                    controller: controller,
-                    topPadding: MediaQuery.of(context).padding.top,
-                  ),
-                ),
-                SliverPadding(
-                  padding: const EdgeInsets.fromLTRB(16, 16, 16, 36),
-                  sliver: SliverToBoxAdapter(
-                    child: selected == null
-                        ? const StudentDirectoryView()
-                        : _buildDetail(context),
-                  ),
-                ),
-              ],
             ),
           );
         }),
@@ -885,8 +893,7 @@ class _ScreenTimeHeaderDelegate extends SliverPersistentHeaderDelegate {
 
   @override
   double get maxExtent {
-    final selected = controller.selectedStudent.value;
-    return topPadding + (selected != null ? 190.0 : 180.0);
+    return topPadding + 195.0;
   }
 
   @override
@@ -1154,6 +1161,40 @@ class _ScreenTimeHeaderDelegate extends SliverPersistentHeaderDelegate {
                                   label: isLocked ? 'Device Locked' : 'Unlocked',
                                 ),
                               ],
+                            );
+                          }),
+                        ] else ...[
+                          const SizedBox(height: 8),
+                          Obx(() {
+                            final total = controller.directoryCount('All');
+                            final online = controller.directoryCount('Online');
+                            final locked = controller.directoryCount('Locked');
+                            return SingleChildScrollView(
+                              scrollDirection: Axis.horizontal,
+                              physics: const BouncingScrollPhysics(),
+                              child: Row(
+                                children: [
+                                  _headerPill(
+                                    icon: Icons.people_alt_rounded,
+                                    iconColor: const Color(0xFF38BDF8),
+                                    label: '$total Total Students',
+                                  ),
+                                  const SizedBox(width: 8),
+                                  _headerPill(
+                                    icon: Icons.circle_rounded,
+                                    iconColor: const Color(0xFF34D399),
+                                    label: '$online Online',
+                                  ),
+                                  if (locked > 0) ...[
+                                    const SizedBox(width: 8),
+                                    _headerPill(
+                                      icon: Icons.lock_rounded,
+                                      iconColor: const Color(0xFFF87171),
+                                      label: '$locked Locked',
+                                    ),
+                                  ],
+                                ],
+                              ),
                             );
                           }),
                         ],

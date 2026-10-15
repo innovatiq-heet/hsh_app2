@@ -199,4 +199,114 @@ void main() {
     expect(controller.appLimits['com.instagram.android'], 45);
     expectNoBankCodeUsed();
   });
+
+  test('multi-field search matches room, aadhar with leading zero stripped, and clearSearch restores', () async {
+    final controller = await open(null);
+    expect(controller.filteredStudents, isNotEmpty);
+
+    // Search by room
+    controller.filterStudents('204');
+    expect(controller.filteredStudents.length, 1);
+    expect(controller.filteredStudents.first['name'], 'Asha Patel');
+
+    // Search by student code / bank code without leading zero ("768" matching "0768")
+    controller.filterStudents('768');
+    expect(controller.filteredStudents.length, 1);
+    expect(controller.filteredStudents.first['name'], 'Asha Patel');
+
+    // Search non-matching
+    controller.filterStudents('NonExistent');
+    expect(controller.filteredStudents, isEmpty);
+
+    // clearSearch restores
+    controller.clearSearch();
+    expect(controller.filteredStudents, isNotEmpty);
+    expect(controller.searchFilterController.text, isEmpty);
+  });
+
+  test('loadMoreItems increments visible student count for lazy rendering', () async {
+    final controller = await open(null);
+    expect(controller.visibleStudentCount.value, 20);
+
+    // Populate 35 mock students to exceed uiBatchSize (20)
+    final mockStudents = List.generate(35, (i) => {
+      'id': 2000 + i,
+      'name': 'Student $i',
+      'room': '${100 + i}',
+      'totalScreenTimeMinutes': i,
+    });
+    controller.allStudents.assignAll(mockStudents);
+    controller.filterStudents('');
+    controller.visibleStudentCount.value = 20;
+
+    expect(controller.filteredStudents.length, 35);
+    expect(controller.visibleStudentCount.value, 20);
+
+    // Call loadMoreItems: should expand from 20 to 35
+    await controller.loadMoreItems();
+    expect(controller.visibleStudentCount.value, 35);
+  });
+
+  test('toBool coercions handle MySQL 1/0, bool, and string correctly', () {
+    expect(StudentScreenTimeController.toBool(true), isTrue);
+    expect(StudentScreenTimeController.toBool(false), isFalse);
+    expect(StudentScreenTimeController.toBool(1), isTrue);
+    expect(StudentScreenTimeController.toBool(0), isFalse);
+    expect(StudentScreenTimeController.toBool('1'), isTrue);
+    expect(StudentScreenTimeController.toBool('0'), isFalse);
+    expect(StudentScreenTimeController.toBool('true'), isTrue);
+    expect(StudentScreenTimeController.toBool('false'), isFalse);
+    expect(StudentScreenTimeController.toBool(null), isFalse);
+  });
+
+  test('isStudentOnline and isStudentOffline work with MySQL integers and fallback', () {
+    final sOnlineInt = {'id': 1, 'isOnline': 1, 'isScreenOn': 1};
+    final sOfflineInt = {'id': 2, 'isOnline': 0, 'isScreenOn': 0};
+    final sOnlineBool = {'id': 3, 'is_online': true, 'is_screen_on': false};
+    final sRecentSeen = {
+      'id': 4,
+      'last_seen': DateTime.now().subtract(const Duration(minutes: 5)).toIso8601String(),
+    };
+    final sOldSeen = {
+      'id': 5,
+      'last_seen': DateTime.now().subtract(const Duration(minutes: 15)).toIso8601String(),
+    };
+
+    expect(StudentScreenTimeController.isStudentOnline(sOnlineInt), isTrue);
+    expect(StudentScreenTimeController.isStudentOffline(sOnlineInt), isFalse);
+    expect(StudentScreenTimeController.isStudentScreenOn(sOnlineInt), isTrue);
+
+    expect(StudentScreenTimeController.isStudentOnline(sOfflineInt), isFalse);
+    expect(StudentScreenTimeController.isStudentOffline(sOfflineInt), isTrue);
+    expect(StudentScreenTimeController.isStudentScreenOn(sOfflineInt), isFalse);
+
+    expect(StudentScreenTimeController.isStudentOnline(sOnlineBool), isTrue);
+    expect(StudentScreenTimeController.isStudentScreenOn(sOnlineBool), isFalse);
+
+    expect(StudentScreenTimeController.isStudentOnline(sRecentSeen), isTrue);
+    expect(StudentScreenTimeController.isStudentOnline(sOldSeen), isFalse);
+  });
+
+  test('StudentScreenTimeController directoryCount and directoryFilter handle Online and Offline correctly', () {
+    final controller = StudentScreenTimeController();
+    controller.allStudents.assignAll([
+      {'id': 1, 'name': 'Alpha', 'isOnline': 1},
+      {'id': 2, 'name': 'Beta', 'isOnline': 0},
+      {'id': 3, 'name': 'Gamma', 'isOnline': true},
+      {'id': 4, 'name': 'Delta', 'isOnline': false},
+    ]);
+
+    expect(controller.directoryCount('Online'), 2);
+    expect(controller.directoryCount('Offline'), 2);
+
+    controller.setDirectoryFilter('Online');
+    expect(controller.filteredStudents.length, 2);
+    expect(controller.filteredStudents.map((s) => s['name']).toList(), ['Alpha', 'Gamma']);
+
+    controller.setDirectoryFilter('Offline');
+    expect(controller.filteredStudents.length, 2);
+    expect(controller.filteredStudents.map((s) => s['name']).toList(), ['Beta', 'Delta']);
+  });
 }
+
+

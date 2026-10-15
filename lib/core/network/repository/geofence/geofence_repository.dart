@@ -72,4 +72,20 @@ class GeofenceRepository {
     final data = response.data is Map ? response.data['data'] : null;
     return data is Map ? Map<String, dynamic>.from(data) : const {};
   }
+
+  /// Location breadcrumb history for a student
+  Future<List<Map<String, dynamic>>> fetchLocationHistory(String studentId, {int limit = 50}) async {
+    final response = await _apiClient.dio.get('/geofence/history/$studentId', queryParameters: {'limit': limit});
+    final raw = response.data;
+    final list = raw is Map ? raw['data'] : raw;
+    if (list is! List) return const [];
+    return list.whereType<Map>().map((m) => Map<String, dynamic>.from(m)).toList();
+  }
+
+  /// Bulk alert to all students outside campus perimeter
+  Future<Map<String, dynamic>> alertAllOutside() async {
+    final response = await _apiClient.dio.post('/geofence/alert-all-outside');
+    final data = response.data is Map ? response.data['data'] : null;
+    return data is Map ? Map<String, dynamic>.from(data) : const {};
+  }
 }

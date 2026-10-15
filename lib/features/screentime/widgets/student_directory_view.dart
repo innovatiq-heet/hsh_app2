@@ -39,6 +39,15 @@ class StudentDirectoryView extends GetView<StudentScreenTimeController> {
           }
           final list = controller.filteredStudents;
           if (list.isEmpty) {
+            if (controller.isSearchingServer.value) {
+              return const SkeletonList(
+                count: 3,
+                itemHeight: 76,
+                padding: EdgeInsets.zero,
+                shrinkWrap: true,
+                physics: NeverScrollableScrollPhysics(),
+              );
+            }
             final filtered = controller.directoryFilter.value != 'All' ||
                 controller.searchText.value.isNotEmpty;
             return AppCard(
@@ -51,19 +60,62 @@ class StudentDirectoryView extends GetView<StudentScreenTimeController> {
                 actionLabel: filtered ? 'Clear filters' : null,
                 onAction: filtered
                     ? () {
-                        controller.searchFilterController.clear();
+                        controller.clearSearch();
                         controller.setDirectoryFilter('All');
                       }
                     : null,
               ),
             );
           }
-          return ListView.separated(
-            shrinkWrap: true,
-            physics: const NeverScrollableScrollPhysics(),
-            itemCount: list.length,
-            separatorBuilder: (_, _) => const SizedBox(height: AppDimens.gapSm),
-            itemBuilder: (_, i) => _StudentRow(student: list[i]),
+
+          final visibleCount = controller.visibleStudentCount.value;
+          final displayed = list.take(visibleCount).toList();
+          final hasMoreToShow = displayed.length < list.length || controller.hasMoreStudents.value;
+
+          return Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              ListView.separated(
+                shrinkWrap: true,
+                physics: const NeverScrollableScrollPhysics(),
+                itemCount: displayed.length,
+                separatorBuilder: (_, _) => const SizedBox(height: AppDimens.gapSm),
+                itemBuilder: (_, i) => _StudentRow(student: displayed[i]),
+              ),
+              if (hasMoreToShow) ...[
+                const SizedBox(height: 12),
+                Center(
+                  child: controller.isLoadingMore.value
+                      ? const Padding(
+                          padding: EdgeInsets.symmetric(vertical: 12),
+                          child: SizedBox(
+                            width: 24,
+                            height: 24,
+                            child: CircularProgressIndicator(strokeWidth: 2, color: Color(0xFF0284C7)),
+                          ),
+                        )
+                      : TextButton.icon(
+                          onPressed: controller.loadMoreItems,
+                          icon: const Icon(Icons.arrow_downward_rounded, size: 16),
+                          label: Text(
+                            displayed.length < list.length
+                                ? 'Show more (${displayed.length} of ${list.length})'
+                                : 'Load more from server',
+                            style: const TextStyle(
+                              fontSize: 13,
+                              fontWeight: FontWeight.w600,
+                              color: Color(0xFF0284C7),
+                            ),
+                          ),
+                          style: TextButton.styleFrom(
+                            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                            backgroundColor: const Color(0xFFE0F2FE).withValues(alpha: 0.5),
+                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                          ),
+                        ),
+                ),
+              ],
+            ],
           );
         }),
       ],
@@ -76,20 +128,18 @@ class _SummaryStrip extends GetView<StudentScreenTimeController> {
   @override
   Widget build(BuildContext context) {
     return Obx(() {
-      final all = controller.allStudents;
+      final total = controller.directoryCount('All');
       final online = controller.directoryCount('Online');
+      final offline = controller.directoryCount('Offline');
       final locked = controller.directoryCount('Locked');
-      final attention = all.where(StudentScreenTimeController.isStudentTampered).length;
-      final totalMins = all.fold<int>(
-        0, (sum, s) => sum + StudentScreenTimeController.toInt(s['totalScreenTimeMinutes']));
-      final avg = all.isEmpty ? 0 : totalMins ~/ all.length;
+      final attention = controller.directoryCount('Attention');
 
       Widget tile(String value, String label, Color color, Color bg, Color border, {VoidCallback? onTap}) => Expanded(
             child: InkWell(
               onTap: onTap,
               borderRadius: BorderRadius.circular(12),
               child: Container(
-                padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 8),
+                padding: const EdgeInsets.symmetric(vertical: 10, horizontal: 4),
                 decoration: BoxDecoration(
                   color: bg,
                   borderRadius: BorderRadius.circular(12),
@@ -101,18 +151,22 @@ class _SummaryStrip extends GetView<StudentScreenTimeController> {
                       value,
                       style: TextStyle(
                         color: color,
-                        fontSize: 18,
+                        fontSize: 17,
                         fontWeight: FontWeight.w800,
                       ),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
                     ),
                     const SizedBox(height: 2),
                     Text(
                       label,
                       style: const TextStyle(
                         color: Color(0xFF64748B),
-                        fontSize: 11,
+                        fontSize: 10.5,
                         fontWeight: FontWeight.w600,
                       ),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
                     ),
                   ],
                 ),
@@ -123,22 +177,32 @@ class _SummaryStrip extends GetView<StudentScreenTimeController> {
       return Row(
         children: [
           tile(
-            '$online/${all.length}',
+            '$total',
+            'Total',
+            const Color(0xFF0284C7),
+            const Color(0xFFF0F9FF),
+            const Color(0xFFBAE6FD),
+            onTap: () => controller.setDirectoryFilter('All'),
+          ),
+          const SizedBox(width: 6),
+          tile(
+            '$online',
             'Online',
             const Color(0xFF16A34A),
             const Color(0xFFF0FDF4),
             const Color(0xFF86EFAC),
             onTap: () => controller.setDirectoryFilter('Online'),
           ),
-          const SizedBox(width: 8),
+          const SizedBox(width: 6),
           tile(
-            StudentScreenTimeController.formatMinutes(avg),
-            'Avg today',
-            const Color(0xFF0284C7),
-            const Color(0xFFE0F2FE),
-            const Color(0xFFBAE6FD),
+            '$offline',
+            'Offline',
+            const Color(0xFF64748B),
+            const Color(0xFFF8FAFC),
+            const Color(0xFFCBD5E1),
+            onTap: () => controller.setDirectoryFilter('Offline'),
           ),
-          const SizedBox(width: 8),
+          const SizedBox(width: 6),
           tile(
             '$locked',
             'Locked',
@@ -147,7 +211,7 @@ class _SummaryStrip extends GetView<StudentScreenTimeController> {
             const Color(0xFFFCA5A5),
             onTap: () => controller.setDirectoryFilter('Locked'),
           ),
-          const SizedBox(width: 8),
+          const SizedBox(width: 6),
           tile(
             '$attention',
             'Attention',
@@ -165,51 +229,67 @@ class _SummaryStrip extends GetView<StudentScreenTimeController> {
 class _SearchField extends GetView<StudentScreenTimeController> {
   @override
   Widget build(BuildContext context) {
-    return Obx(() => Container(
-          decoration: BoxDecoration(
-            color: Colors.white,
-            borderRadius: BorderRadius.circular(16),
-            border: Border.all(color: const Color(0xFFE2E8F0)),
-            boxShadow: [
-              BoxShadow(
-                color: const Color(0xFF0F172A).withValues(alpha: 0.04),
-                blurRadius: 14,
-                offset: const Offset(0, 3),
-              ),
-            ],
-          ),
-          child: TextField(
-            controller: controller.searchFilterController,
-            onChanged: controller.filterStudents,
-            textInputAction: TextInputAction.search,
-            style: const TextStyle(
-              color: Color(0xFF0F172A),
-              fontSize: 14.5,
-              fontWeight: FontWeight.w600,
+    return Obx(() {
+      final isSearching = controller.isSearchingServer.value;
+      final hasText = controller.searchText.value.isNotEmpty;
+
+      return Container(
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(16),
+          border: Border.all(color: const Color(0xFFE2E8F0)),
+          boxShadow: [
+            BoxShadow(
+              color: const Color(0xFF0F172A).withValues(alpha: 0.04),
+              blurRadius: 14,
+              offset: const Offset(0, 3),
             ),
-            decoration: InputDecoration(
-              hintText: 'Search by name, room or Aadhar...',
-              hintStyle: const TextStyle(
-                color: Color(0xFF94A3B8),
-                fontSize: 14,
-                fontWeight: FontWeight.w400,
-              ),
-              isDense: true,
-              contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
-              border: InputBorder.none,
-              prefixIcon: const Icon(Icons.search_rounded, color: Color(0xFF0284C7), size: 22),
-              suffixIcon: controller.searchText.value.isNotEmpty
-                  ? IconButton(
-                      icon: const Icon(Icons.close_rounded, size: 18, color: Color(0xFF64748B)),
-                      onPressed: () {
-                        controller.searchFilterController.clear();
-                        controller.filterStudents('');
-                      },
-                    )
-                  : null,
+          ],
+        ),
+        child: TextField(
+          controller: controller.searchFilterController,
+          onChanged: controller.onSearchChanged,
+          onSubmitted: controller.onSearchSubmitted,
+          textInputAction: TextInputAction.search,
+          style: const TextStyle(
+            color: Color(0xFF0F172A),
+            fontSize: 14.5,
+            fontWeight: FontWeight.w600,
+          ),
+          decoration: InputDecoration(
+            hintText: 'Search by name, room, Aadhar or phone...',
+            hintStyle: const TextStyle(
+              color: Color(0xFF94A3B8),
+              fontSize: 14,
+              fontWeight: FontWeight.w400,
+            ),
+            isDense: true,
+            contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+            border: InputBorder.none,
+            prefixIcon: const Icon(Icons.search_rounded, color: Color(0xFF0284C7), size: 22),
+            suffixIcon: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                if (isSearching)
+                  const Padding(
+                    padding: EdgeInsets.only(right: 8),
+                    child: SizedBox(
+                      width: 16,
+                      height: 16,
+                      child: CircularProgressIndicator(strokeWidth: 2, color: Color(0xFF0284C7)),
+                    ),
+                  ),
+                if (hasText)
+                  IconButton(
+                    icon: const Icon(Icons.close_rounded, size: 18, color: Color(0xFF64748B)),
+                    onPressed: controller.clearSearch,
+                  ),
+              ],
             ),
           ),
-        ));
+        ),
+      );
+    });
   }
 }
 
@@ -232,6 +312,7 @@ class _FilterChips extends GetView<StudentScreenTimeController> {
                   'Locked' => const Color(0xFFDC2626),
                   'Attention' => const Color(0xFFD97706),
                   'Online' => const Color(0xFF16A34A),
+                  'Offline' => const Color(0xFF64748B),
                   _ => const Color(0xFF0284C7),
                 },
                 onTap: () => controller.setDirectoryFilter(f),
@@ -332,8 +413,8 @@ class _StudentRow extends GetView<StudentScreenTimeController> {
   Widget build(BuildContext context) {
     final name = (student['name'] ?? 'Student').toString();
     final room = (student['room'] ?? 'N/A').toString();
-    final isOnline = student['isOnline'] == true;
-    final isScreenOn = student['isScreenOn'] == true;
+    final isOnline = StudentScreenTimeController.isStudentOnline(student);
+    final isScreenOn = StudentScreenTimeController.isStudentScreenOn(student);
     final totalMins = StudentScreenTimeController.toInt(student['totalScreenTimeMinutes']);
     final nightMins = StudentScreenTimeController.toInt(student['nightScreenTimeMinutes']);
     final locked = StudentScreenTimeController.isStudentLocked(student);

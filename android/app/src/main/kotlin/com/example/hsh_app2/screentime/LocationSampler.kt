@@ -63,7 +63,11 @@ object LocationSampler {
             // Reuse a very recent accurate fix rather than waking the GPS again.
             val cached = listOf(LocationManager.GPS_PROVIDER, LocationManager.NETWORK_PROVIDER)
                 .mapNotNull { runCatching { lm.getLastKnownLocation(it) }.getOrNull() }
-                .filter { now - it.time <= FRESH_MS && it.accuracy <= GeofenceEvaluator.MAX_ACCURACY_M }
+                .filter {
+                val pm = context.getSystemService(Context.POWER_SERVICE) as? android.os.PowerManager
+                val freshWindow = if (pm?.isInteractive == true) FRESH_MS else 3 * 60_000L
+                now - it.time <= freshWindow && it.accuracy <= GeofenceEvaluator.MAX_ACCURACY_M
+            }
                 .minByOrNull { it.accuracy }
             if (cached != null) return toFix(cached)
 

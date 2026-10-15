@@ -89,7 +89,6 @@ object PolicyEvaluator {
     /** Forget cached usage so a fresh sync is reflected immediately. */
     fun invalidateUsage() {
         usageCacheAt = 0L
-        appUsageMillisCache = emptyMap()
     }
 
     // ---------- Bedtime ----------

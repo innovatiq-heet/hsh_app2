@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:hsh_app2/core/models/geofence/geofence_policy_model.dart';
 import 'package:hsh_app2/core/models/geofence/student_location.dart';
+import 'package:hsh_app2/core/services/geofence_service.dart';
+import 'package:hsh_app2/features/geofence/controllers/student_locations_controller.dart';
 
 /// Payload shapes as `hsh_api` sends them (`geofence.service.ts`).
 void main() {
@@ -100,6 +102,37 @@ void main() {
       final s = parse({'latitude': 22.5571, 'longitude': 72.9185, 'mocked': true, 'insideCampus': true, 'fixTime': fixTime});
       expect(s.location!.mocked, isTrue);
       expect(s.location!.mapsUri.toString(), 'https://www.google.com/maps/search/?api=1&query=22.5571,72.9185');
+    });
+  });
+
+  group('Campus Geofence & Map View support', () {
+    test('CampusGeofenceService contains non-empty polygon for Hari Saurabh Hostel', () {
+      expect(CampusGeofenceService.campusPolygon.isNotEmpty, isTrue);
+      expect(CampusGeofenceService.campusPolygon.length, greaterThanOrEqualTo(4));
+      // Campus center coordinates should fall inside the campus polygon
+      final inside = CampusGeofenceService.instance.isInsideCampus(22.5565, 72.9185);
+      expect(inside, isTrue);
+    });
+
+    test('StudentLocationsController toggleViewMode toggles isMapView and resets selection', () {
+      final controller = StudentLocationsController();
+      expect(controller.isMapView.value, isFalse);
+
+      controller.toggleViewMode();
+      expect(controller.isMapView.value, isTrue);
+
+      controller.selectedStudent.value = StudentLocation.fromJson({
+        'studentId': '101',
+        'studentCode': '001',
+        'name': 'Test Student',
+        'room': '101',
+      });
+      expect(controller.selectedStudent.value, isNotNull);
+
+      // Toggling back to list view clears selection
+      controller.toggleViewMode();
+      expect(controller.isMapView.value, isFalse);
+      expect(controller.selectedStudent.value, isNull);
     });
   });
 }

@@ -6,6 +6,7 @@ import '../../../core/utils/date_formatting.dart';
 import '../../shared/widgets/empty_state.dart';
 import '../../shared/widgets/staggered_slide_fade.dart';
 import '../controllers/student_locations_controller.dart';
+import '../widgets/campus_map_view.dart';
 
 /// Modern, executive view of every student's last reported phone location,
 /// styled with the signature deep navy header, sky-blue accents, and slate card styling
@@ -17,9 +18,38 @@ class StudentLocationsScreen extends GetView<StudentLocationsController> {
   Widget build(BuildContext context) {
     return AnnotatedRegion<SystemUiOverlayStyle>(
       value: SystemUiOverlayStyle.light,
-      child: Scaffold(
-        backgroundColor: const Color(0xFFF8FAFC),
-        body: RefreshIndicator(
+      child: Obx(() => PopScope(
+        canPop: !controller.isMapView.value,
+        onPopInvokedWithResult: (didPop, _) {
+          if (didPop) return;
+          if (controller.isMapView.value) {
+            controller.toggleViewMode();
+          }
+        },
+        child: Scaffold(
+          backgroundColor: const Color(0xFFF8FAFC),
+          floatingActionButtonLocation: FloatingActionButtonLocation.centerFloat,
+          floatingActionButton: controller.isMapView.value
+              ? null
+              : FloatingActionButton.extended(
+                  heroTag: 'campus_map_fab',
+                  onPressed: controller.toggleViewMode,
+                  backgroundColor: const Color(0xFF0369A1),
+                  foregroundColor: Colors.white,
+                  elevation: 4,
+                  icon: const Icon(Icons.radar_rounded, size: 20),
+                  label: const Text(
+                    'Campus Map View',
+                    style: TextStyle(
+                      fontSize: 13.5,
+                      fontWeight: FontWeight.w700,
+                      letterSpacing: 0.2,
+                    ),
+                  ),
+                ),
+          body: controller.isMapView.value
+              ? CampusMapView(controller: controller)
+              : RefreshIndicator(
           onRefresh: controller.load,
           color: const Color(0xFF0284C7),
           backgroundColor: Colors.white,
@@ -161,8 +191,9 @@ class StudentLocationsScreen extends GetView<StudentLocationsController> {
           ),
         ),
       ),
-    );
-  }
+    )),
+  );
+}
 
   /// Modern capsule search bar matching the Phonebook screen search input.
   Widget _buildSearchBar() {
@@ -388,6 +419,49 @@ class _StudentLocationsHeaderDelegate extends SliverPersistentHeaderDelegate {
                       ),
                     ),
                   ),
+
+                  // Campus Map view toggle button
+                  Obx(() {
+                    final isMap = controller.isMapView.value;
+                    return Material(
+                      color: Colors.transparent,
+                      child: InkWell(
+                        onTap: controller.toggleViewMode,
+                        borderRadius: BorderRadius.circular(20),
+                        child: Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 11, vertical: 7),
+                          decoration: BoxDecoration(
+                            color: Colors.white.withValues(alpha: 0.18),
+                            borderRadius: BorderRadius.circular(20),
+                            border: Border.all(
+                              color: Colors.white.withValues(alpha: 0.28),
+                              width: 1,
+                            ),
+                          ),
+                          child: Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Icon(
+                                isMap ? Icons.view_list_rounded : Icons.radar_rounded,
+                                color: Colors.white,
+                                size: 16,
+                              ),
+                              const SizedBox(width: 5),
+                              Text(
+                                isMap ? 'List' : 'Map',
+                                style: const TextStyle(
+                                  color: Colors.white,
+                                  fontSize: 12,
+                                  fontWeight: FontWeight.w700,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ),
+                    );
+                  }),
+                  const SizedBox(width: 8),
 
                   // Refresh button with loading spinner
                   Obx(() {
@@ -906,16 +980,19 @@ class _StudentLocationCard extends StatelessWidget {
 
           const SizedBox(height: 12),
 
-          // Action buttons: Open in Maps & Call Student
+          // Action buttons: Campus Map, Google Maps & Call Student
           Row(
             children: [
               if (loc != null) ...[
                 Expanded(
                   child: ElevatedButton.icon(
-                    onPressed: () => controller.openInMaps(student),
-                    icon: const Icon(Icons.map_rounded, size: 16),
+                    onPressed: () {
+                      controller.selectStudent(student);
+                      controller.isMapView.value = true;
+                    },
+                    icon: const Icon(Icons.radar_rounded, size: 16),
                     label: const Text(
-                      'Open in Maps',
+                      'Campus Map',
                       style: TextStyle(
                         fontSize: 12.5,
                         fontWeight: FontWeight.w700,
@@ -932,7 +1009,21 @@ class _StudentLocationCard extends StatelessWidget {
                     ),
                   ),
                 ),
-                const SizedBox(width: 10),
+                const SizedBox(width: 6),
+                IconButton.filledTonal(
+                  onPressed: () => controller.openInMaps(student),
+                  icon: const Icon(Icons.map_rounded, size: 18),
+                  tooltip: 'Open in Google Maps',
+                  style: IconButton.styleFrom(
+                    backgroundColor: const Color(0xFFE0F2FE),
+                    foregroundColor: const Color(0xFF0284C7),
+                    padding: const EdgeInsets.all(10),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 6),
               ],
               if (student.phone.trim().isNotEmpty) ...[
                 Expanded(

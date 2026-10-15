@@ -54,22 +54,63 @@ class StudentScreenTimeController extends GetxController with WidgetsBindingObse
       ? (selectedDayTotalMinutes / dailyLimitMinutes.value).clamp(0.0, 1.0)
       : 0.0;
 
-  // Directory quick filter: All / Online / Locked / Restricted / Night / Attention
+  // Directory quick filter: All / Online / Offline / Locked / Restricted / Night / Attention
   final RxString directoryFilter = 'All'.obs;
-  static const directoryFilters = ['All', 'Online', 'Locked', 'Restricted', 'Night', 'Attention'];
+  static const directoryFilters = ['All', 'Online', 'Offline', 'Locked', 'Restricted', 'Night', 'Attention'];
+
+  static bool toBool(dynamic value) {
+    if (value == null) return false;
+    if (value is bool) return value;
+    if (value is num) return value != 0;
+    if (value is String) {
+      final s = value.trim().toLowerCase();
+      return s == '1' || s == 'true';
+    }
+    return false;
+  }
+
+  static bool isStudentOnline(dynamic s) {
+    if (s is! Map) return false;
+    final onlineVal = s['isOnline'] ?? s['is_online'] ?? s['online'];
+    if (onlineVal != null) {
+      return toBool(onlineVal);
+    }
+    final lastSeen = lastSeenOf(s);
+    if (lastSeen != null) {
+      return DateTime.now().difference(lastSeen).inMinutes <= 10;
+    }
+    return false;
+  }
+
+  static bool isStudentOffline(dynamic s) => !isStudentOnline(s);
+
+  static bool isStudentScreenOn(dynamic s) {
+    if (s is! Map) return false;
+    final screenVal = s['isScreenOn'] ?? s['is_screen_on'] ?? s['screenOn'] ?? s['screen_on'];
+    return toBool(screenVal);
+  }
 
   void setDirectoryFilter(String filter) {
     directoryFilter.value = filter;
+    visibleStudentCount.value = uiBatchSize;
     filterStudents(searchFilterController.text);
   }
 
-  int directoryCount(String filter) =>
-      allStudents.where((s) => _matchesDirectoryFilter(s, filter)).length;
+  int directoryCount(String filter) {
+    if (filter == 'All') {
+      final total = totalStudentsCount.value;
+      if (total > allStudents.length) return total;
+      return allStudents.length;
+    }
+    return allStudents.where((s) => _matchesDirectoryFilter(s, filter)).length;
+  }
 
   static bool _matchesDirectoryFilter(dynamic s, String filter) {
     switch (filter) {
       case 'Online':
-        return s is Map && s['isOnline'] == true;
+        return isStudentOnline(s);
+      case 'Offline':
+        return isStudentOffline(s);
       case 'Locked':
         return isStudentLocked(s);
       case 'Restricted':
@@ -527,6 +568,21 @@ class StudentScreenTimeController extends GetxController with WidgetsBindingObse
   final Rx<UserRole> currentRole = UserRole.student.obs;
 
   Timer? _refreshTimer;
+  Timer? _searchDebounceTimer;
+  final RxBool isSearchingServer = false.obs;
+  final RxBool isLoadingMore = false.obs;
+  final RxBool hasMoreStudents = true.obs;
+  final RxInt visibleStudentCount = 20.obs;
+  static const int pageSize = 500;
+  static const int uiBatchSize = 20;
+
+  /// Total student count reported by server or current directory.
+  final RxInt totalStudentsCount = 0.obs;
+  bool _isFetchingRemainingStudents = false;
+
+  /// Cache of base directory loaded without a search query,
+  /// so clearing search restores the whole directory without an extra network roundtrip.
+  final List<dynamic> _baseStudents = [];
 
   @override
   void onInit() {
@@ -570,6 +626,7 @@ class StudentScreenTimeController extends GetxController with WidgetsBindingObse
   void onClose() {
     WidgetsBinding.instance.removeObserver(this);
     _refreshTimer?.cancel();
+    _searchDebounceTimer?.cancel();
     searchFilterController.dispose();
     super.onClose();
   }
@@ -692,54 +749,247 @@ class StudentScreenTimeController extends GetxController with WidgetsBindingObse
   }
 
   /// Leader/Staff fetches directory of all students with today screen time overview from real API.
-  /// Uses batching with limit 500 and pagination offsets to retrieve every student in the hostel.
-  Future<void> fetchStudentsList({String? search, bool silent = false}) async {
+  Future<void> fetchStudentsList({String? search, bool silent = false, bool refresh = true}) async {
+    final query = (search ?? searchFilterController.text).trim();
+    if (query.isNotEmpty) {
+      isSearchingServer.value = true;
+    }
     if (!silent) isLoadingStudents.value = true;
+    if (refresh) {
+      hasMoreStudents.value = true;
+      visibleStudentCount.value = uiBatchSize;
+    }
+
     try {
-      final query = (search ?? searchFilterController.text).trim();
       final baseParams = <String, dynamic>{
-        'limit': 500,
+        'limit': pageSize,
+        'offset': refresh ? 0 : allStudents.length,
         if (query.isNotEmpty) 'search': query,
       };
 
       final response = await _apiClient.dio.get(
         '/screen-time/students',
-        queryParameters: {...baseParams, 'offset': 0},
+        queryParameters: baseParams,
       );
       final data = response.data['data'] ?? response.data;
 
       if (data != null && data['students'] != null) {
         final List<dynamic> loaded = List<dynamic>.from(data['students']);
-        final int total = (data['total'] is num) ? (data['total'] as num).toInt() : loaded.length;
 
-        // Fetch remaining pages if hostel has more than 500 students
-        while (loaded.length < total) {
-          final nextRes = await _apiClient.dio.get(
-            '/screen-time/students',
-            queryParameters: {...baseParams, 'offset': loaded.length},
-          );
-          final nextData = nextRes.data['data'] ?? nextRes.data;
-          if (nextData != null &&
-              nextData['students'] != null &&
-              (nextData['students'] as List).isNotEmpty) {
-            final nextList = List<dynamic>.from(nextData['students']);
-            loaded.addAll(nextList);
-          } else {
-            break;
-          }
+        final serverTotal = toInt(
+          data['total'] ??
+              data['totalCount'] ??
+              data['count'] ??
+              data['totalStudents'] ??
+              data['pagination']?['total'],
+        );
+        if (serverTotal > 0) {
+          totalStudentsCount.value = serverTotal;
+        } else if (refresh && query.isEmpty) {
+          totalStudentsCount.value = loaded.length;
         }
 
-        allStudents.assignAll(loaded);
+        if (loaded.length < pageSize || (serverTotal > 0 && (allStudents.length + loaded.length) >= serverTotal)) {
+          hasMoreStudents.value = false;
+        }
+
+        if (refresh) {
+          if (query.isEmpty) {
+            _baseStudents
+              ..clear()
+              ..addAll(loaded);
+          }
+          allStudents.assignAll(loaded);
+        } else {
+          final existingIds = allStudents.map((s) => s['id']?.toString()).toSet();
+          for (final s in loaded) {
+            final idStr = s['id']?.toString();
+            if (idStr != null && !existingIds.contains(idStr)) {
+              allStudents.add(s);
+              existingIds.add(idStr);
+            }
+          }
+          if (query.isEmpty) {
+            _baseStudents
+              ..clear()
+              ..addAll(allStudents);
+          }
+        }
         filterStudents(searchFilterController.text);
+
+        // Fetch remaining student pages in background if more records exist beyond the first page
+        if (query.isEmpty && hasMoreStudents.value && allStudents.length < totalStudentsCount.value) {
+          _fetchAllRemainingStudentsInBackground();
+        }
       }
     } catch (e) {
       debugPrint('[ScreenTime] fetchStudentsList error: $e');
     } finally {
       isLoadingStudents.value = false;
+      isSearchingServer.value = false;
     }
   }
 
-  /// Filter students locally by name, room, or Aadhar
+  /// Fetches subsequent student pages in background so entire directory is locally available.
+  Future<void> _fetchAllRemainingStudentsInBackground() async {
+    if (_isFetchingRemainingStudents) return;
+    _isFetchingRemainingStudents = true;
+    try {
+      while (allStudents.length < totalStudentsCount.value && hasMoreStudents.value) {
+        final baseParams = <String, dynamic>{
+          'limit': pageSize,
+          'offset': allStudents.length,
+        };
+        final response = await _apiClient.dio.get(
+          '/screen-time/students',
+          queryParameters: baseParams,
+        );
+        final data = response.data['data'] ?? response.data;
+        if (data == null || data['students'] == null) break;
+        final List<dynamic> loaded = List<dynamic>.from(data['students']);
+        if (loaded.isEmpty) {
+          hasMoreStudents.value = false;
+          break;
+        }
+        final existingIds = allStudents.map((s) => s['id']?.toString()).toSet();
+        for (final s in loaded) {
+          final idStr = s['id']?.toString();
+          if (idStr != null && !existingIds.contains(idStr)) {
+            allStudents.add(s);
+            existingIds.add(idStr);
+          }
+        }
+        _baseStudents
+          ..clear()
+          ..addAll(allStudents);
+        if (loaded.length < pageSize || allStudents.length >= totalStudentsCount.value) {
+          hasMoreStudents.value = false;
+        }
+      }
+      filterStudents(searchFilterController.text);
+    } catch (e) {
+      debugPrint('[ScreenTime] _fetchAllRemainingStudentsInBackground error: $e');
+    } finally {
+      _isFetchingRemainingStudents = false;
+    }
+  }
+
+  /// Triggered by scrolling near bottom: loads more from memory, or from server if exhausted
+  Future<void> loadMoreItems() async {
+    if (visibleStudentCount.value < filteredStudents.length) {
+      visibleStudentCount.value = (visibleStudentCount.value + uiBatchSize).clamp(0, filteredStudents.length);
+      return;
+    }
+
+    if (hasMoreStudents.value && !isLoadingStudents.value && !isLoadingMore.value) {
+      await fetchMoreStudents();
+    }
+  }
+
+  Future<void> fetchMoreStudents() async {
+    if (isLoadingMore.value || !hasMoreStudents.value) return;
+    isLoadingMore.value = true;
+    try {
+      final query = searchFilterController.text.trim();
+      final baseParams = <String, dynamic>{
+        'limit': pageSize,
+        'offset': allStudents.length,
+        if (query.isNotEmpty) 'search': query,
+      };
+
+      final response = await _apiClient.dio.get(
+        '/screen-time/students',
+        queryParameters: baseParams,
+      );
+      final data = response.data['data'] ?? response.data;
+      if (data != null && data['students'] != null) {
+        final List<dynamic> loaded = List<dynamic>.from(data['students']);
+        final serverTotal = toInt(
+          data['total'] ??
+              data['totalCount'] ??
+              data['count'] ??
+              data['totalStudents'],
+        );
+        if (serverTotal > 0) {
+          totalStudentsCount.value = serverTotal;
+        }
+
+        if (loaded.isEmpty || loaded.length < pageSize || (serverTotal > 0 && (allStudents.length + loaded.length) >= serverTotal)) {
+          hasMoreStudents.value = false;
+        }
+        if (loaded.isNotEmpty) {
+          final existingIds = allStudents.map((s) => s['id']?.toString()).toSet();
+          for (final s in loaded) {
+            final idStr = s['id']?.toString();
+            if (idStr != null && !existingIds.contains(idStr)) {
+              allStudents.add(s);
+              existingIds.add(idStr);
+            }
+          }
+          if (query.isEmpty) {
+            _baseStudents
+              ..clear()
+              ..addAll(allStudents);
+          }
+          filterStudents(searchFilterController.text);
+          visibleStudentCount.value = (visibleStudentCount.value + uiBatchSize).clamp(0, filteredStudents.length);
+        }
+      }
+    } catch (e) {
+      debugPrint('[ScreenTime] fetchMoreStudents error: $e');
+    } finally {
+      isLoadingMore.value = false;
+    }
+  }
+
+  /// Called on every keystroke in search box: instant local filter + debounced server query
+  void onSearchChanged(String query) {
+    // 1. Instant local filter
+    filterStudents(query);
+
+    // 2. Debounced server search
+    _searchDebounceTimer?.cancel();
+    final trimmed = query.trim();
+    if (trimmed.isEmpty) {
+      isSearchingServer.value = false;
+      if (_baseStudents.isNotEmpty) {
+        allStudents.assignAll(_baseStudents);
+        filterStudents('');
+      } else {
+        fetchStudentsList(silent: true, refresh: true);
+      }
+      return;
+    }
+
+    isSearchingServer.value = true;
+    _searchDebounceTimer = Timer(const Duration(milliseconds: 350), () {
+      fetchStudentsList(search: trimmed, silent: true, refresh: true);
+    });
+  }
+
+  /// Called when user presses Search/Done on soft keyboard
+  void onSearchSubmitted(String query) {
+    _searchDebounceTimer?.cancel();
+    final trimmed = query.trim();
+    fetchStudentsList(search: trimmed, silent: false, refresh: true);
+  }
+
+  /// Clear search input and restore directory
+  void clearSearch() {
+    _searchDebounceTimer?.cancel();
+    searchFilterController.clear();
+    searchText.value = '';
+    isSearchingServer.value = false;
+    visibleStudentCount.value = uiBatchSize;
+    if (_baseStudents.isNotEmpty) {
+      allStudents.assignAll(_baseStudents);
+      filterStudents('');
+    } else {
+      fetchStudentsList(silent: true, refresh: true);
+    }
+  }
+
+  /// Filter students locally by name, room, or Aadhar/student code/phone
   void filterStudents(String query) {
     searchText.value = query;
     final q = query.trim().toLowerCase();
@@ -749,9 +999,18 @@ class StudentScreenTimeController extends GetxController with WidgetsBindingObse
       if (!_matchesDirectoryFilter(student, filter)) return false;
       if (q.isEmpty) return true;
       final name = (student['name'] ?? '').toString().toLowerCase();
-      final room = (student['room'] ?? '').toString().toLowerCase();
-      final aadhar = (student['aadhar'] ?? '').toString();
-      return name.contains(q) || room.contains(q) || aadhar.contains(q);
+      final room = (student['room'] ?? student['room_number'] ?? student['roomNumber'] ?? '').toString().toLowerCase();
+      final aadhar = (student['aadhar'] ?? student['student_code'] ?? student['studentCode'] ?? '').toString().toLowerCase();
+      final phone = (student['phone'] ?? student['phone_number'] ?? student['phoneNumber'] ?? '').toString().toLowerCase();
+
+      final qTrimmed = q.replaceFirst(RegExp(r'^0+'), '');
+      final aadharTrimmed = aadhar.replaceFirst(RegExp(r'^0+'), '');
+
+      return name.contains(q) ||
+          room.contains(q) ||
+          aadhar.contains(q) ||
+          (qTrimmed.isNotEmpty && aadharTrimmed.contains(qTrimmed)) ||
+          phone.contains(q);
     }).toList();
 
     // Students needing attention first, then heaviest users.
@@ -771,8 +1030,8 @@ class StudentScreenTimeController extends GetxController with WidgetsBindingObse
     // Retain all existing stats from the student object immediately so data is visible
     totalMinutesToday.value = toInt(student['totalScreenTimeMinutes']);
     nightMinutesToday.value = toInt(student['nightScreenTimeMinutes']);
-    isOnline.value = student['isOnline'] == true;
-    isScreenOn.value = student['isScreenOn'] == true;
+    isOnline.value = isStudentOnline(student);
+    isScreenOn.value = isStudentScreenOn(student);
     currentApp.value = (student['currentApp'] ?? 'Idle').toString();
 
     // Extract blocked packages & policy from student if present
@@ -814,8 +1073,7 @@ class StudentScreenTimeController extends GetxController with WidgetsBindingObse
     selectedStudent.value = null;
     openedWithDirectTarget.value = false;
     _resetDetail();
-    searchFilterController.clear();
-    filterStudents('');
+    clearSearch();
   }
 
   void _resetDetail() {
@@ -859,16 +1117,14 @@ class StudentScreenTimeController extends GetxController with WidgetsBindingObse
 
     debugPrint('[ScreenTime] _applyLiveStatusResponse data: $data');
 
-    if (data['isOnline'] != null) {
-      isOnline.value = data['isOnline'] == true;
-    } else if (data['is_online'] != null) {
-      isOnline.value = data['is_online'] == true;
+    final onlineVal = data['isOnline'] ?? data['is_online'] ?? data['online'];
+    if (onlineVal != null) {
+      isOnline.value = toBool(onlineVal);
     }
 
-    if (data['isScreenOn'] != null) {
-      isScreenOn.value = data['isScreenOn'] == true;
-    } else if (data['is_screen_on'] != null) {
-      isScreenOn.value = data['is_screen_on'] == true;
+    final screenVal = data['isScreenOn'] ?? data['is_screen_on'] ?? data['screenOn'] ?? data['screen_on'];
+    if (screenVal != null) {
+      isScreenOn.value = toBool(screenVal);
     }
 
     if (data['currentApp'] != null && data['currentApp'].toString().isNotEmpty) {

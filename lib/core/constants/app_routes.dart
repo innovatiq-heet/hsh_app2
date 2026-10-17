@@ -53,6 +53,7 @@ class Routes {
   static const operatorGeofence = '/operator/geofence';
   static const operatorStudentLocations = '/operator/geofence/locations';
   static const operatorAlumni = '/operator/alumni';
+  static const operatorBirthdayWishes = '/operator/birthday-wishes';
 
   static const noInternet = '/no-internet';
 }

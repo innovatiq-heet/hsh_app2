@@ -1,3 +1,5 @@
+import '../../features/birthday/bindings/admin_birthday_binding.dart';
+import '../../features/birthday/views/admin_birthday_screen.dart';
 import '../../features/alumni/bindings/alumni_binding.dart';
 import '../../features/alumni/views/alumni_hub_screen.dart';
 import '../../features/alumni/views/alumni_admin_hub_screen.dart';

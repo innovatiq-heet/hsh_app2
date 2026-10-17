@@ -1,5 +1,3 @@
-import '../../features/birthday/bindings/admin_birthday_binding.dart';
-import '../../features/birthday/views/admin_birthday_screen.dart';
 import '../../features/alumni/bindings/alumni_binding.dart';
 import '../../features/alumni/views/alumni_hub_screen.dart';
 import '../../features/alumni/views/alumni_admin_hub_screen.dart';
@@ -68,6 +66,8 @@ import '../../features/geofence/bindings/admin_geofence_binding.dart';
 import '../../features/geofence/views/admin_geofence_screen.dart';
 import '../../features/geofence/bindings/student_locations_binding.dart';
 import '../../features/geofence/views/student_locations_screen.dart';
+import '../../features/birthday/bindings/admin_birthday_binding.dart';
+import '../../features/birthday/views/admin_birthday_screen.dart';
 import '../../features/shared/screens/no_internet_screen.dart';
 import 'app_routes.dart';
 
@@ -323,6 +323,11 @@ class AppPages {
       name: Routes.operatorStudentLocations,
       page: () => const StudentLocationsScreen(),
       binding: StudentLocationsBinding(),
+    ),
+    GetPage(
+      name: Routes.operatorBirthdayWishes,
+      page: () => const AdminBirthdayScreen(),
+      binding: AdminBirthdayBinding(),
     ),
 
     // â”€â”€ Utility â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€

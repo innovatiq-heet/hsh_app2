@@ -35,9 +35,9 @@ class AdminBirthdayScreen extends GetView<AdminBirthdayController> {
               child: Column(
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  const Icon(Icons.error_outline_rounded, size: 48, color: AppColors.error),
+                  const Icon(Icons.error_outline_rounded, size: 48, color: AppColors.errorRed),
                   const SizedBox(height: AppDimens.gapMd),
-                  Text(error, textAlign: TextAlign.center, style: AppTextStyles.body),
+                  Text(error, textAlign: TextAlign.center, style: AppTextStyles.bodyMd),
                   const SizedBox(height: AppDimens.gapLg),
                   ElevatedButton(
                     onPressed: controller.loadDashboard,
@@ -104,7 +104,7 @@ class AdminBirthdayScreen extends GetView<AdminBirthdayController> {
               color: isOnline
                   ? const Color(0xFF10B981).withValues(alpha: 0.25)
                   : Colors.red.withValues(alpha: 0.25),
-              borderRadius: BorderRadius.circular(AppDimens.radiusFull),
+              borderRadius: BorderRadius.circular(AppDimens.radiusPill),
               border: Border.all(
                 color: isOnline ? const Color(0xFF10B981) : Colors.redAccent,
                 width: 1,
@@ -191,15 +191,15 @@ class AdminBirthdayScreen extends GetView<AdminBirthdayController> {
           controller.fetchStudents();
         }
       },
-      borderRadius: BorderRadius.circular(AppDimens.radiusFull),
+      borderRadius: BorderRadius.circular(AppDimens.radiusPill),
       child: AnimatedContainer(
         duration: const Duration(milliseconds: 200),
         padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
         decoration: BoxDecoration(
           color: isSelected ? AppColors.primary : Colors.white,
-          borderRadius: BorderRadius.circular(AppDimens.radiusFull),
+          borderRadius: BorderRadius.circular(AppDimens.radiusPill),
           border: Border.all(
-            color: isSelected ? AppColors.primary : AppColors.subtleLine,
+            color: isSelected ? AppColors.primary : AppColors.border,
           ),
           boxShadow: isSelected
               ? [
@@ -279,7 +279,7 @@ class AdminBirthdayScreen extends GetView<AdminBirthdayController> {
               ),
               const SizedBox(height: 6),
               const Text(
-                'No registered students have their birthday today. Check tomorrow's tab for upcoming celebrants.',
+                "No registered students have their birthday today. Check tomorrow's tab for upcoming celebrants.",
                 textAlign: TextAlign.center,
                 style: TextStyle(fontSize: 13, color: AppColors.textSecondary),
               ),
@@ -393,93 +393,95 @@ class AdminBirthdayScreen extends GetView<AdminBirthdayController> {
   }
 
   Widget _buildStudentCelebrantCard(BirthdayStudentModel s, {required bool isToday}) {
-    return AppCard(
-      margin: const EdgeInsets.only(bottom: AppDimens.gapMd),
-      padding: const EdgeInsets.all(AppDimens.gapMd),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          Row(
-            children: [
-              CircleAvatar(
-                radius: 20,
-                backgroundColor: const Color(0xFFFEF3C7),
-                child: Text(
-                  s.name.isNotEmpty ? s.name[0].toUpperCase() : '?',
-                  style: const TextStyle(color: Color(0xFFD97706), fontWeight: FontWeight.w700),
-                ),
-              ),
-              const SizedBox(width: AppDimens.gapMd),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      s.name,
-                      style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 15, color: AppColors.textPrimary),
-                    ),
-                    const SizedBox(height: 2),
-                    Row(
-                      children: [
-                        Container(
-                          padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                          decoration: BoxDecoration(
-                            color: AppColors.surfaceMuted,
-                            borderRadius: BorderRadius.circular(4),
-                          ),
-                          child: Text(
-                            s.room == 'N/A' ? 'Room N/A' : 'Room ${s.room}',
-                            style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w600, color: AppColors.textSecondary),
-                          ),
-                        ),
-                        if (s.studentCode.isNotEmpty) ...[
-                          const SizedBox(width: 6),
-                          Text(
-                            'ID: ${s.studentCode}',
-                            style: const TextStyle(fontSize: 12, color: AppColors.textSecondary),
-                          ),
-                        ],
-                      ],
-                    ),
-                  ],
-                ),
-              ),
-              if (isToday)
-                StatusBadge(
-                  label: s.alreadySentToday ? 'Sent Today' : 'Pending',
-                  type: s.alreadySentToday ? StatusBadgeType.success : StatusBadgeType.warning,
-                ),
-            ],
-          ),
-          const SizedBox(height: AppDimens.gapMd),
-          const Divider(height: 1, color: AppColors.subtleLine),
-          const SizedBox(height: AppDimens.gapSm),
-          Row(
-            children: [
-              if (s.dob.isNotEmpty) ...[
-                const Icon(Icons.cake_outlined, size: 14, color: Color(0xFFD97706)),
-                const SizedBox(width: 4),
-                Text(s.dob, style: const TextStyle(fontSize: 12, color: AppColors.textSecondary)),
-                const Spacer(),
-              ] else
-                const Spacer(),
-              if (s.phone.isNotEmpty)
-                IconButton(
-                  icon: const Icon(Icons.phone_rounded, size: 18, color: AppColors.primary),
-                  tooltip: 'Call Phone',
-                  onPressed: () => controller.callPhone(s.phone),
-                ),
-              if (s.whatsappNumber.isNotEmpty || s.phone.isNotEmpty)
-                IconButton(
-                  icon: const Icon(Icons.chat_bubble_rounded, size: 18, color: Color(0xFF10B981)),
-                  tooltip: 'WhatsApp Message',
-                  onPressed: () => controller.openWhatsApp(
-                    s.whatsappNumber.isNotEmpty ? s.whatsappNumber : s.phone,
+    return Padding(
+      padding: const EdgeInsets.only(bottom: AppDimens.gapMd),
+      child: AppCard(
+        padding: const EdgeInsets.all(AppDimens.gapMd),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Row(
+              children: [
+                CircleAvatar(
+                  radius: 20,
+                  backgroundColor: const Color(0xFFFEF3C7),
+                  child: Text(
+                    s.name.isNotEmpty ? s.name[0].toUpperCase() : '?',
+                    style: const TextStyle(color: Color(0xFFD97706), fontWeight: FontWeight.w700),
                   ),
                 ),
-            ],
-          ),
-        ],
+                const SizedBox(width: AppDimens.gapMd),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        s.name,
+                        style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 15, color: AppColors.textPrimary),
+                      ),
+                      const SizedBox(height: 2),
+                      Row(
+                        children: [
+                          Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                            decoration: BoxDecoration(
+                              color: AppColors.surfaceMuted,
+                              borderRadius: BorderRadius.circular(4),
+                            ),
+                            child: Text(
+                              s.room == 'N/A' ? 'Room N/A' : 'Room ${s.room}',
+                              style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w600, color: AppColors.textSecondary),
+                            ),
+                          ),
+                          if (s.studentCode.isNotEmpty) ...[
+                            const SizedBox(width: 6),
+                            Text(
+                              'ID: ${s.studentCode}',
+                              style: const TextStyle(fontSize: 12, color: AppColors.textSecondary),
+                            ),
+                          ],
+                        ],
+                      ),
+                    ],
+                  ),
+                ),
+                if (isToday)
+                  StatusBadge(
+                    label: s.alreadySentToday ? 'Sent Today' : 'Pending',
+                    color: s.alreadySentToday ? AppColors.successGreen : AppColors.warningOrange,
+                  ),
+              ],
+            ),
+            const SizedBox(height: AppDimens.gapMd),
+            const Divider(height: 1, color: AppColors.border),
+            const SizedBox(height: AppDimens.gapSm),
+            Row(
+              children: [
+                if (s.dob.isNotEmpty) ...[
+                  const Icon(Icons.cake_outlined, size: 14, color: Color(0xFFD97706)),
+                  const SizedBox(width: 4),
+                  Text(s.dob, style: const TextStyle(fontSize: 12, color: AppColors.textSecondary)),
+                  const Spacer(),
+                ] else
+                  const Spacer(),
+                if (s.phone.isNotEmpty)
+                  IconButton(
+                    icon: const Icon(Icons.phone_rounded, size: 18, color: AppColors.primary),
+                    tooltip: 'Call Phone',
+                    onPressed: () => controller.callPhone(s.phone),
+                  ),
+                if (s.whatsappNumber.isNotEmpty || s.phone.isNotEmpty)
+                  IconButton(
+                    icon: const Icon(Icons.chat_bubble_rounded, size: 18, color: Color(0xFF10B981)),
+                    tooltip: 'WhatsApp Message',
+                    onPressed: () => controller.openWhatsApp(
+                      s.whatsappNumber.isNotEmpty ? s.whatsappNumber : s.phone,
+                    ),
+                  ),
+              ],
+            ),
+          ],
+        ),
       ),
     );
   }
@@ -528,7 +530,7 @@ class AdminBirthdayScreen extends GetView<AdminBirthdayController> {
                   ),
                 ],
               ),
-              const Divider(height: 24, color: AppColors.subtleLine),
+              const Divider(height: 24, color: AppColors.border),
 
               // Target audience
               const Text('Target Audience', style: TextStyle(fontWeight: FontWeight.w600, fontSize: 13, color: AppColors.textSecondary)),
@@ -555,7 +557,7 @@ class AdminBirthdayScreen extends GetView<AdminBirthdayController> {
                   ],
                 ),
               ),
-              const Divider(height: 24, color: AppColors.subtleLine),
+              const Divider(height: 24, color: AppColors.border),
 
               // Admin notification phone
               TextField(
@@ -759,60 +761,62 @@ class AdminBirthdayScreen extends GetView<AdminBirthdayController> {
               ),
               const SizedBox(height: AppDimens.gapSm),
               ...list.take(100).map(
-                    (s) => AppCard(
-                      margin: const EdgeInsets.only(bottom: 8),
-                      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
-                      child: Row(
-                        children: [
-                          CircleAvatar(
-                            radius: 16,
-                            backgroundColor: AppColors.surfaceMuted,
-                            child: Text(
-                              s.name.isNotEmpty ? s.name[0] : '?',
-                              style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w700),
-                            ),
-                          ),
-                          const SizedBox(width: 12),
-                          Expanded(
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                Text(
-                                  s.name,
-                                  style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 13),
-                                ),
-                                Row(
-                                  children: [
-                                    Text(
-                                      s.room == 'N/A' ? 'Room N/A' : 'Room ${s.room}',
-                                      style: TextStyle(
-                                        fontSize: 11,
-                                        color: s.room == 'N/A' ? Colors.orange.shade800 : AppColors.textSecondary,
-                                        fontWeight: s.room == 'N/A' ? FontWeight.w700 : FontWeight.w500,
-                                      ),
-                                    ),
-                                    if (s.dob.isNotEmpty) ...[
-                                      const SizedBox(width: 8),
-                                      Text('DOB: ${s.dob}', style: const TextStyle(fontSize: 11, color: AppColors.textSecondary)),
-                                    ],
-                                  ],
-                                ),
-                              ],
-                            ),
-                          ),
-                          if (s.phone.isNotEmpty)
-                            IconButton(
-                              icon: const Icon(Icons.phone_rounded, size: 16, color: AppColors.primary),
-                              onPressed: () => controller.callPhone(s.phone),
-                            ),
-                          if (s.whatsappNumber.isNotEmpty || s.phone.isNotEmpty)
-                            IconButton(
-                              icon: const Icon(Icons.chat_bubble_rounded, size: 16, color: Color(0xFF10B981)),
-                              onPressed: () => controller.openWhatsApp(
-                                s.whatsappNumber.isNotEmpty ? s.whatsappNumber : s.phone,
+                    (s) => Padding(
+                      padding: const EdgeInsets.only(bottom: 8),
+                      child: AppCard(
+                        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+                        child: Row(
+                          children: [
+                            CircleAvatar(
+                              radius: 16,
+                              backgroundColor: AppColors.surfaceMuted,
+                              child: Text(
+                                s.name.isNotEmpty ? s.name[0] : '?',
+                                style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w700),
                               ),
                             ),
-                        ],
+                            const SizedBox(width: 12),
+                            Expanded(
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Text(
+                                    s.name,
+                                    style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 13),
+                                  ),
+                                  Row(
+                                    children: [
+                                      Text(
+                                        s.room == 'N/A' ? 'Room N/A' : 'Room ${s.room}',
+                                        style: TextStyle(
+                                          fontSize: 11,
+                                          color: s.room == 'N/A' ? Colors.orange.shade800 : AppColors.textSecondary,
+                                          fontWeight: s.room == 'N/A' ? FontWeight.w700 : FontWeight.w500,
+                                        ),
+                                      ),
+                                      if (s.dob.isNotEmpty) ...[
+                                        const SizedBox(width: 8),
+                                        Text('DOB: ${s.dob}', style: const TextStyle(fontSize: 11, color: AppColors.textSecondary)),
+                                      ],
+                                    ],
+                                  ),
+                                ],
+                              ),
+                            ),
+                            if (s.phone.isNotEmpty)
+                              IconButton(
+                                icon: const Icon(Icons.phone_rounded, size: 16, color: AppColors.primary),
+                                onPressed: () => controller.callPhone(s.phone),
+                              ),
+                            if (s.whatsappNumber.isNotEmpty || s.phone.isNotEmpty)
+                              IconButton(
+                                icon: const Icon(Icons.chat_bubble_rounded, size: 16, color: Color(0xFF10B981)),
+                                onPressed: () => controller.openWhatsApp(
+                                  s.whatsappNumber.isNotEmpty ? s.whatsappNumber : s.phone,
+                                ),
+                              ),
+                          ],
+                        ),
                       ),
                     ),
                   ),
@@ -915,7 +919,7 @@ class AdminBirthdayScreen extends GetView<AdminBirthdayController> {
                         Icon(
                           log.isSent ? Icons.check_circle_rounded : Icons.error_rounded,
                           size: 18,
-                          color: log.isSent ? const Color(0xFF10B981) : AppColors.error,
+                          color: log.isSent ? const Color(0xFF10B981) : AppColors.errorRed,
                         ),
                         const SizedBox(width: 10),
                         Expanded(
@@ -927,7 +931,7 @@ class AdminBirthdayScreen extends GetView<AdminBirthdayController> {
                                 style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 13),
                               ),
                               Text(
-                                '${log.room == "N/A" ? "Room N/A" : "Room " + log.room} • ${log.phone} • ${log.wishDate}',
+                                '${log.room == "N/A" ? "Room N/A" : "Room ${log.room}"} • ${log.phone} • ${log.wishDate}',
                                 style: const TextStyle(fontSize: 11, color: AppColors.textSecondary),
                               ),
                             ],
@@ -935,7 +939,7 @@ class AdminBirthdayScreen extends GetView<AdminBirthdayController> {
                         ),
                         StatusBadge(
                           label: log.status.toUpperCase(),
-                          type: log.isSent ? StatusBadgeType.success : StatusBadgeType.error,
+                          color: log.isSent ? AppColors.successGreen : AppColors.errorRed,
                         ),
                       ],
                     ),

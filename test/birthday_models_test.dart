@@ -1,9 +1,5 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:hsh_app2/core/models/birthday/birthday_models.dart';
-import 'package:hsh_app2/core/network/repository/birthday/birthday_repository.dart';
-import 'package:hsh_app2/features/birthday/bindings/admin_birthday_binding.dart';
-import 'package:hsh_app2/features/birthday/controllers/admin_birthday_controller.dart';
-import 'package:hsh_app2/features/birthday/views/admin_birthday_screen.dart';
 
 void main() {
   group('Birthday Models & Serialization', () {
@@ -51,18 +47,14 @@ void main() {
 
     test('BirthdayDashboardData parses full payload', () {
       final json = {
-        'config': {
-          'id': 1,
-          'isEnabled': true,
-          'sendTime': '08:00',
-        },
+        'config': {'id': 1, 'isEnabled': true, 'sendTime': '08:00'},
         'todaysBirthdays': [
           {
             'studentId': 101,
             'name': 'Krutarth Patel',
             'studentCode': 'HSH-102',
             'room': '204',
-          }
+          },
         ],
         'tomorrowsBirthdays': [
           {
@@ -70,7 +62,7 @@ void main() {
             'name': 'Rahul Sharma',
             'studentCode': 'HSH-105',
             'room': '306',
-          }
+          },
         ],
         'recentLogs': [],
         'isWhatsAppConnected': true,

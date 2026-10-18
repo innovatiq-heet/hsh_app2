@@ -362,7 +362,7 @@ class AdminBirthdayScreen extends GetView<AdminBirthdayController> {
                       );
                       if (confirmed == true) {
                         await controller.disconnectWhatsAppSession();
-                        Navigator.pop(ctx);
+                        if (ctx.mounted) Navigator.pop(ctx);
                       }
                     },
                     style: ElevatedButton.styleFrom(
@@ -1299,7 +1299,7 @@ class AdminBirthdayScreen extends GetView<AdminBirthdayController> {
                                 style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 13),
                               ),
                               Text(
-                                '${log.room == "N/A" ? "Room N/A" : "Room " + log.room} • ${log.phone} • ${log.wishDate}',
+                                '${log.room == "N/A" ? "Room N/A" : "Room ${log.room}"} • ${log.phone} • ${log.wishDate}',
                                 style: const TextStyle(fontSize: 11, color: AppColors.textSecondary),
                               ),
                             ],

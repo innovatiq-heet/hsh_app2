@@ -92,6 +92,16 @@ class _OperatorHomeScreenState extends State<OperatorHomeScreen> {
         waveColor: Color(0xFF99F6E4),
         route: Routes.operatorStudentLocations,
       ),
+      _OperatorAction(
+        title: 'Birthday Wishes',
+        subtitle: 'Automated greetings &\ncelebrants',
+        icon: Icons.cake_rounded,
+        iconColor: Color(0xFFD97706),
+        bgTint: Color(0xFFFEF3C7),
+        arrowBgTint: Color(0xFFFFFBEB),
+        waveColor: Color(0xFFFDE68A),
+        route: Routes.operatorBirthdayWishes,
+      ),
     ]),
     /*
     _OperatorGroup('Alumni Network & Community', [

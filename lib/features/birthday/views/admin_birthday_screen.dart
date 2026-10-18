@@ -299,14 +299,14 @@ class AdminBirthdayScreen extends GetView<AdminBirthdayController> {
               isSelected: current == 2,
               activeColor: const Color(0xFFD97706),
             ),
-            const SizedBox(width: 8),
-            _buildTabPill(
-              index: 3,
-              label: 'Directory',
-              icon: Icons.people_alt_rounded,
-              isSelected: current == 3,
-              activeColor: const Color(0xFF6366F1),
-            ),
+            // const SizedBox(width: 8),
+            // _buildTabPill(
+            //   index: 3,
+            //   label: 'Directory',
+            //   icon: Icons.people_alt_rounded,
+            //   isSelected: current == 3,
+            //   activeColor: const Color(0xFF6366F1),
+            // ),
             const SizedBox(width: 8),
             _buildTabPill(
               index: 4,
@@ -857,11 +857,7 @@ class AdminBirthdayScreen extends GetView<AdminBirthdayController> {
                     if (hasContact) ...[
                       Expanded(
                         child: ElevatedButton.icon(
-                          onPressed: () => controller.openWhatsApp(
-                            s.whatsappNumber.isNotEmpty
-                                ? s.whatsappNumber
-                                : s.phone,
-                          ),
+                          onPressed: () => controller.sendWishToStudent(s),
                           icon: Icon(
                             Icons.chat_bubble_rounded,
                             size: 15,
@@ -1660,11 +1656,7 @@ class AdminBirthdayScreen extends GetView<AdminBirthdayController> {
                                 size: 18,
                                 color: Color(0xFF059669),
                               ),
-                              onPressed: () => controller.openWhatsApp(
-                                s.whatsappNumber.isNotEmpty
-                                    ? s.whatsappNumber
-                                    : s.phone,
-                              ),
+                              onPressed: () => controller.sendWishToStudent(s),
                             ),
                         ],
                       ),
@@ -1937,7 +1929,10 @@ class AdminBirthdayScreen extends GetView<AdminBirthdayController> {
   // --- Device Linking Modal Bottom Sheet ---
 
   void _showLinkDeviceSheet(BuildContext context) {
-    controller.fetchWhatsAppStatus();
+    controller.startLinkingPolling();
+    if (controller.waQr.isEmpty) {
+      controller.loadQrCode();
+    }
 
     showModalBottomSheet(
       context: context,
@@ -2289,27 +2284,74 @@ class AdminBirthdayScreen extends GetView<AdminBirthdayController> {
                     ),
                   ],
 
+                  // Option 2: Always visible Scan QR Code section
+                  const SizedBox(height: 20),
+                  const Divider(height: 1, color: Color(0xFFF1F5F9)),
+                  const SizedBox(height: 14),
+
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      const Text(
+                        'Option 2: Scan QR Code',
+                        style: TextStyle(
+                          fontSize: 13.5,
+                          fontWeight: FontWeight.w700,
+                          color: Color(0xFF0F172A),
+                        ),
+                      ),
+                      if (controller.isCheckingStatus.value)
+                        const SizedBox(
+                          width: 16,
+                          height: 16,
+                          child: CircularProgressIndicator(
+                            strokeWidth: 2,
+                            color: Color(0xFF0284C7),
+                          ),
+                        )
+                      else
+                        InkWell(
+                          onTap: controller.loadQrCode,
+                          borderRadius: BorderRadius.circular(8),
+                          child: const Padding(
+                            padding: EdgeInsets.symmetric(
+                              horizontal: 6,
+                              vertical: 3,
+                            ),
+                            child: Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                Icon(
+                                  Icons.refresh_rounded,
+                                  size: 14,
+                                  color: Color(0xFF0284C7),
+                                ),
+                                SizedBox(width: 4),
+                                Text(
+                                  'Refresh QR',
+                                  style: TextStyle(
+                                    fontSize: 11.5,
+                                    fontWeight: FontWeight.w700,
+                                    color: Color(0xFF0284C7),
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ),
+                    ],
+                  ),
+                  const SizedBox(height: 4),
+                  const Text(
+                    'Scan this QR code using WhatsApp > Linked Devices > Link a Device:',
+                    style: TextStyle(
+                      fontSize: 11.5,
+                      color: Color(0xFF64748B),
+                    ),
+                  ),
+                  const SizedBox(height: 12),
+
                   if (qr.isNotEmpty) ...[
-                    const SizedBox(height: 18),
-                    const Divider(height: 1, color: Color(0xFFF1F5F9)),
-                    const SizedBox(height: 14),
-                    const Text(
-                      'Option 2: Scan QR Code',
-                      style: TextStyle(
-                        fontSize: 13.5,
-                        fontWeight: FontWeight.w700,
-                        color: Color(0xFF0F172A),
-                      ),
-                    ),
-                    const SizedBox(height: 4),
-                    const Text(
-                      'Scan this QR code using WhatsApp > Linked Devices > Link a Device:',
-                      style: TextStyle(
-                        fontSize: 11.5,
-                        color: Color(0xFF64748B),
-                      ),
-                    ),
-                    const SizedBox(height: 12),
                     Center(
                       child: Container(
                         padding: const EdgeInsets.all(12),
@@ -2325,6 +2367,96 @@ class AdminBirthdayScreen extends GetView<AdminBirthdayController> {
                         ),
                       ),
                     ),
+                    const SizedBox(height: 8),
+                    const Center(
+                      child: Text(
+                        'Point your camera at this QR code. Will link automatically.',
+                        style: TextStyle(fontSize: 11, color: Color(0xFF64748B)),
+                      ),
+                    ),
+                  ] else ...[
+                    Container(
+                      padding: const EdgeInsets.symmetric(
+                        vertical: 20,
+                        horizontal: 16,
+                      ),
+                      decoration: BoxDecoration(
+                        color: const Color(0xFFF8FAFC),
+                        borderRadius: BorderRadius.circular(14),
+                        border: Border.all(color: const Color(0xFFE2E8F0)),
+                      ),
+                      child: Center(
+                        child: controller.isCheckingStatus.value
+                            ? const Column(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  SizedBox(
+                                    width: 24,
+                                    height: 24,
+                                    child: CircularProgressIndicator(
+                                      strokeWidth: 2.5,
+                                      color: Color(0xFF0284C7),
+                                    ),
+                                  ),
+                                  SizedBox(height: 10),
+                                  Text(
+                                    'Generating WhatsApp QR Code...',
+                                    style: TextStyle(
+                                      fontSize: 12,
+                                      color: Color(0xFF64748B),
+                                      fontWeight: FontWeight.w600,
+                                    ),
+                                  ),
+                                ],
+                              )
+                            : Column(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  const Icon(
+                                    Icons.qr_code_2_rounded,
+                                    size: 44,
+                                    color: Color(0xFF94A3B8),
+                                  ),
+                                  const SizedBox(height: 8),
+                                  const Text(
+                                    'QR code not loaded',
+                                    style: TextStyle(
+                                      fontSize: 12.5,
+                                      fontWeight: FontWeight.w600,
+                                      color: Color(0xFF475569),
+                                    ),
+                                  ),
+                                  const SizedBox(height: 10),
+                                  ElevatedButton.icon(
+                                    onPressed: controller.loadQrCode,
+                                    icon: const Icon(
+                                      Icons.qr_code_scanner_rounded,
+                                      size: 16,
+                                    ),
+                                    label: const Text(
+                                      'Load / Show QR Code',
+                                      style: TextStyle(
+                                        fontSize: 12,
+                                        fontWeight: FontWeight.w700,
+                                      ),
+                                    ),
+                                    style: ElevatedButton.styleFrom(
+                                      backgroundColor: const Color(0xFF0284C7),
+                                      foregroundColor: Colors.white,
+                                      elevation: 0,
+                                      padding: const EdgeInsets.symmetric(
+                                        horizontal: 16,
+                                        vertical: 10,
+                                      ),
+                                      shape: RoundedRectangleBorder(
+                                        borderRadius: BorderRadius.circular(10),
+                                      ),
+                                    ),
+                                  ),
+                                ],
+                              ),
+                      ),
+                    ),
                   ],
                 ],
                 const SizedBox(height: 16),
@@ -2333,7 +2465,9 @@ class AdminBirthdayScreen extends GetView<AdminBirthdayController> {
           }),
         ),
       ),
-    );
+    ).whenComplete(() {
+      controller.stopLinkingPolling();
+    });
   }
 
   // --- Shared Reusable Section Headers & Tags ---

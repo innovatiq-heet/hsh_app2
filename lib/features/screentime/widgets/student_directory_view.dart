@@ -128,9 +128,7 @@ class _SummaryStrip extends GetView<StudentScreenTimeController> {
   @override
   Widget build(BuildContext context) {
     return Obx(() {
-      final total = controller.totalStudentsCount.value > 0
-          ? controller.totalStudentsCount.value
-          : controller.directoryCount('All');
+      final total = controller.directoryCount('All');
       final online = controller.directoryCount('Online');
       final offline = controller.directoryCount('Offline');
       final locked = controller.directoryCount('Locked');
@@ -413,11 +411,17 @@ class _StudentRow extends GetView<StudentScreenTimeController> {
 
   @override
   Widget build(BuildContext context) {
-    final name = (student['name'] ?? 'Student').toString();
-    final room = (student['room'] ?? 'N/A').toString();
+    final name = (student['name'] ?? student['fullName'] ?? 'Student').toString();
+    final room = (student['room'] ?? student['room_number'] ?? student['roomNumber'] ?? 'N/A').toString();
     final isOnline = StudentScreenTimeController.isStudentOnline(student);
     final isScreenOn = StudentScreenTimeController.isStudentScreenOn(student);
-    final totalMins = StudentScreenTimeController.toInt(student['totalScreenTimeMinutes']);
+    final totalMins = StudentScreenTimeController.toInt(
+        student['totalScreenTimeMinutes'] ??
+            student['todayScreenTimeMinutes'] ??
+            student['today_minutes'] ??
+            student['total_screen_time_minutes'] ??
+            student['minutes'] ??
+            0);
     final nightMins = StudentScreenTimeController.toInt(student['nightScreenTimeMinutes']);
     final locked = StudentScreenTimeController.isStudentLocked(student);
     final restricted = StudentScreenTimeController.blockedOf(student).length;

@@ -11,6 +11,7 @@ import '../../../core/utils/app_snackbar.dart';
 import '../../../core/utils/date_formatting.dart';
 import '../../../core/models/geofence/geofence_policy_model.dart';
 import '../../../core/network/repository/geofence/geofence_repository.dart';
+import '../../phonebook/models/phonebook_models.dart';
 import '../models/screen_time_policy.dart';
 import '../services/app_icon_cache.dart';
 import '../../phonebook/services/phonebook_database_service.dart';
@@ -105,6 +106,28 @@ class StudentScreenTimeController extends GetxController with WidgetsBindingObse
 
   static bool isStudentOffline(dynamic s) => !isStudentOnline(s);
 
+  /// Returns true only if the student has an allocated hostel room (excludes Room N/A, alumni, day scholars).
+  static bool hasValidRoom(dynamic s) {
+    if (s is! Map) return false;
+    final raw = (s['room'] ?? s['room_number'] ?? s['roomNumber'] ?? '').toString().trim();
+    if (raw.isEmpty) return false;
+    final lower = raw.toLowerCase();
+    if (lower == 'n/a' ||
+        lower == 'na' ||
+        lower.contains('n/a') ||
+        lower == 'none' ||
+        lower == 'null' ||
+        lower == 'alumni' ||
+        lower == 'day scholar' ||
+        lower == 'dayscholar' ||
+        lower == 'unallocated' ||
+        lower == '0' ||
+        lower == '-') {
+      return false;
+    }
+    return true;
+  }
+
   static bool isStudentScreenOn(dynamic s) {
     if (s is! Map) return false;
     final screenVal = s['isScreenOn'] ?? s['is_screen_on'] ?? s['screenOn'] ??
@@ -119,17 +142,26 @@ class StudentScreenTimeController extends GetxController with WidgetsBindingObse
   }
 
   int directoryCount(String filter) {
+    final valid = allStudents.where(hasValidRoom).toList();
+
     if (filter == 'All') {
-      final total = totalStudentsCount.value;
-      if (total > allStudents.length) return total;
-      return allStudents.length;
+      return valid.length;
     }
-    return allStudents
+
+    if (filter == 'Offline') {
+      final onlineCount = valid.where((s) => isStudentOnline(s)).length;
+      final offlineCount = valid.length - onlineCount;
+      return offlineCount >= 0 ? offlineCount : 0;
+    }
+
+    return valid
         .where((s) => _matchesDirectoryFilter(s, filter))
         .length;
   }
 
   static bool _matchesDirectoryFilter(dynamic s, String filter) {
+    if (!hasValidRoom(s)) return false;
+
     switch (filter) {
       case 'Online':
         return isStudentOnline(s);
@@ -289,20 +321,12 @@ class StudentScreenTimeController extends GetxController with WidgetsBindingObse
   Future<void> fetchUsageForDate(String dateStr) async {
     final id = _studentId;
     if (id.isEmpty || dateStr.isEmpty) return;
+    if (dateStr == todayDateStr) {
+      await fetchLiveStatus();
+      return;
+    }
     isLoadingDateUsage.value = true;
     try {
-      // 1. First try live endpoint with ?date= (live returns appUsageBreakdown)
-      final liveResp = await _apiClient.dio.get(
-        '/screen-time/live/$id',
-        queryParameters: {'date': dateStr},
-      );
-      if (id != _studentId) return;
-      _applyDateUsageResponse(dateStr, liveResp.data);
-      if (dateSpecificApps[dateStr]?.isNotEmpty == true) return;
-    } catch (_) {}
-
-    try {
-      // 2. Also try history endpoint with ?date=
       final response = await _apiClient.dio.get(
         '/screen-time/history/$id',
         queryParameters: {'date': dateStr},
@@ -323,46 +347,45 @@ class StudentScreenTimeController extends GetxController with WidgetsBindingObse
     int? night;
 
     if (data is Map) {
-      apps = _extractAppsList(data);
-      total = toInt(
-        data['total_screen_time_minutes'] ??
-            data['totalScreenTimeMinutes'] ??
-            data['totalMinutes'] ??
-            data['total_minutes'] ??
-            data['usage_minutes'] ??
-            data['minutes'],
-      );
-      night = toInt(
-        data['night_screen_time_minutes'] ??
-            data['nightScreenTimeMinutes'] ??
-            data['nightMinutes'] ??
-            data['night_minutes'] ??
-            data['night'],
-      );
-
-      if (apps.isEmpty && data['records'] is List) {
-        for (final r in data['records']) {
+      final recordDate = extractRecordDate(data);
+      if (recordDate == dateStr) {
+        // Direct single record matching dateStr
+        apps = _extractAppsList(data);
+        total = toInt(
+          data['total_screen_time_minutes'] ??
+              data['totalScreenTimeMinutes'] ??
+              data['totalMinutes'] ??
+              data['total_minutes'] ??
+              data['usage_minutes'] ??
+              data['minutes'],
+        );
+        night = toInt(
+          data['night_screen_time_minutes'] ??
+              data['nightScreenTimeMinutes'] ??
+              data['nightMinutes'] ??
+              data['night_minutes'] ??
+              data['night'],
+        );
+      } else if (data['records'] is List || data['history'] is List) {
+        final list = (data['records'] ?? data['history']) as List;
+        for (final r in list) {
           if (r is Map && extractRecordDate(r) == dateStr) {
             apps = _extractAppsList(r);
-            if (total == null || total == 0) {
-              total = toInt(
-                r['total_screen_time_minutes'] ??
-                    r['totalScreenTimeMinutes'] ??
-                    r['totalMinutes'] ??
-                    r['total_minutes'] ??
-                    r['usage_minutes'] ??
-                    r['minutes'],
-              );
-            }
-            if (night == null || night == 0) {
-              night = toInt(
-                r['night_screen_time_minutes'] ??
-                    r['nightScreenTimeMinutes'] ??
-                    r['nightMinutes'] ??
-                    r['night_minutes'] ??
-                    r['night'],
-              );
-            }
+            total = toInt(
+              r['total_screen_time_minutes'] ??
+                  r['totalScreenTimeMinutes'] ??
+                  r['totalMinutes'] ??
+                  r['total_minutes'] ??
+                  r['usage_minutes'] ??
+                  r['minutes'],
+            );
+            night = toInt(
+              r['night_screen_time_minutes'] ??
+                  r['nightScreenTimeMinutes'] ??
+                  r['nightMinutes'] ??
+                  r['night_minutes'] ??
+                  r['night'],
+            );
             break;
           }
         }
@@ -401,10 +424,10 @@ class StudentScreenTimeController extends GetxController with WidgetsBindingObse
       dateSpecificApps[dateStr] = _sortedByMinutes(filteredApps);
       AppIconCache.ingest(filteredApps);
     }
-    if (total != null && total > 0) {
+    if (total != null && total >= 0) {
       dateSpecificTotals[dateStr] = total;
     }
-    if (night != null && night > 0) {
+    if (night != null && night >= 0) {
       dateSpecificNight[dateStr] = night;
     }
   }
@@ -463,8 +486,52 @@ class StudentScreenTimeController extends GetxController with WidgetsBindingObse
   bool _isOurApp(String pkg) => pkg == _ownPackage;
 
   int get selectedDayTotalMinutes {
+    if (isTodaySelected) {
+      final apps = appBreakdown;
+      if (apps.isNotEmpty) {
+        final sum = apps.fold<int>(0, (acc, item) {
+          if (item is Map) {
+            final pkg = (item['packageName'] ?? item['package_name'] ?? item['package'] ?? '')
+                .toString();
+            if (_isOurApp(pkg)) return acc;
+            return acc +
+                toInt(
+                  item['minutes'] ??
+                      item['total_minutes'] ??
+                      item['totalMinutes'] ??
+                      item['duration'] ??
+                      item['time'] ??
+                      item['usage_minutes'],
+                );
+          }
+          return acc;
+        });
+        if (sum > 0) return sum;
+      }
+      return totalMinutesToday.value;
+    }
+
     final targetDate = effectiveSelectedDate;
-    // 1. If we have the app list for the selected day, sum the actual tracked apps (excluding our own app)
+    // 1. Check date-specific total cache
+    if (dateSpecificTotals.containsKey(targetDate) && dateSpecificTotals[targetDate]! > 0) {
+      return dateSpecificTotals[targetDate]!;
+    }
+
+    // 2. Check history record
+    final rec = _findHistoryRecord(targetDate);
+    if (rec != null) {
+      final recTotal = toInt(
+        rec['total_screen_time_minutes'] ??
+            rec['totalScreenTimeMinutes'] ??
+            rec['totalMinutes'] ??
+            rec['total_minutes'] ??
+            rec['usage_minutes'] ??
+            rec['minutes'],
+      );
+      if (recTotal > 0) return recTotal;
+    }
+
+    // 3. Fallback to apps sum for that day if available
     final apps = currentDayRawApps;
     if (apps.isNotEmpty) {
       final sum = apps.fold<int>(0, (acc, item) {
@@ -487,27 +554,6 @@ class StudentScreenTimeController extends GetxController with WidgetsBindingObse
       if (sum > 0) return sum;
     }
 
-    if (isTodaySelected) {
-      return totalMinutesToday.value;
-    }
-
-    // 2. Check date-specific total cache
-    if (dateSpecificTotals.containsKey(targetDate) && dateSpecificTotals[targetDate]! > 0) {
-      return dateSpecificTotals[targetDate]!;
-    }
-
-    // 3. Check history record
-    final rec = _findHistoryRecord(targetDate);
-    if (rec != null) {
-      return toInt(
-        rec['total_screen_time_minutes'] ??
-            rec['totalScreenTimeMinutes'] ??
-            rec['totalMinutes'] ??
-            rec['total_minutes'] ??
-            rec['usage_minutes'] ??
-            rec['minutes'],
-      );
-    }
     return 0;
   }
 
@@ -848,9 +894,30 @@ class StudentScreenTimeController extends GetxController with WidgetsBindingObse
     return _isStudentId(id) ? id : '';
   }
 
+  /// Public read-only numeric student ID for UI keying and state inspection
+  String get studentId => _studentId;
+
   static final _studentIdPattern = RegExp(r'^[1-9]\d*$');
 
   static bool _isStudentId(String value) => _studentIdPattern.hasMatch(value);
+
+  /// True if the currently selected student has completed device setup and has an active numeric ID on the server.
+  bool get isSelectedStudentEnrolled {
+    final s = selectedStudent.value;
+    if (s is! Map) return false;
+    final id = (s['id'] ?? s['_id'] ?? '').toString().trim();
+    return _isStudentId(id);
+  }
+
+  static int _compareRoomStrings(String a, String b) {
+    final intA = int.tryParse(a.replaceAll(RegExp(r'\D'), ''));
+    final intB = int.tryParse(b.replaceAll(RegExp(r'\D'), ''));
+    if (intA != null && intB != null) {
+      return intA.compareTo(intB);
+    }
+    return a.compareTo(b);
+  }
+
   final RxString selectedAppFilter = 'All'
       .obs; // 'All', 'Used Today', 'Restricted'
   final RxString appSearchQuery = ''.obs;
@@ -878,7 +945,7 @@ class StudentScreenTimeController extends GetxController with WidgetsBindingObse
   final RxBool isLoadingMore = false.obs;
   final RxBool hasMoreStudents = true.obs;
   final RxInt visibleStudentCount = 20.obs;
-  static const int pageSize = 500;
+  static const int pageSize = 100;
   static const int uiBatchSize = 20;
 
   /// Total student count reported by server or current directory.
@@ -980,6 +1047,7 @@ class StudentScreenTimeController extends GetxController with WidgetsBindingObse
       fetchStudentsList(),
       loadGlobalCurfew(),
       _loadTotalHostelStudentCount(),
+      _mergeHostelStudentsFromDirectory(),
     ]);
   }
 
@@ -1136,9 +1204,12 @@ class StudentScreenTimeController extends GetxController with WidgetsBindingObse
           }
         }
 
-        if (loaded.length < pageSize || (serverTotal > 0 &&
-            (allStudents.length + loaded.length) >= serverTotal)) {
+        if (loaded.isEmpty) {
           hasMoreStudents.value = false;
+        } else if (serverTotal > 0) {
+          hasMoreStudents.value = (allStudents.length + loaded.length) < serverTotal;
+        } else {
+          hasMoreStudents.value = loaded.length >= pageSize;
         }
 
         if (refresh) {
@@ -1168,8 +1239,10 @@ class StudentScreenTimeController extends GetxController with WidgetsBindingObse
         filterStudents(searchFilterController.text);
 
         // Fetch remaining student pages in background if more records exist beyond the first page
-        if (query.isEmpty && hasMoreStudents.value &&
-            allStudents.length < totalStudentsCount.value) {
+        if (query.isEmpty &&
+            (hasMoreStudents.value ||
+                (totalStudentsCount.value > 0 &&
+                    allStudents.length < totalStudentsCount.value))) {
           _fetchAllRemainingStudentsInBackground();
         }
       }
@@ -1179,6 +1252,132 @@ class StudentScreenTimeController extends GetxController with WidgetsBindingObse
       isLoadingStudents.value = false;
       isSearchingServer.value = false;
     }
+
+    if (query.isEmpty) {
+      await _mergeHostelStudentsFromDirectory();
+    }
+  }
+
+  /// Merges all hostel residents with an allocated room from the local Phonebook SQLite database
+  /// so that every student who has a room number available is visible in Screen Time.
+  Future<void> _mergeHostelStudentsFromDirectory() async {
+    try {
+      var pbStudents = await PhonebookDatabaseService.instance.searchStudents(
+        status: 'active',
+        limit: 5000,
+        sortBy: 'room_asc',
+      );
+
+      if (pbStudents.isEmpty) {
+        pbStudents = await PhonebookDatabaseService.instance.searchStudents(
+          limit: 5000,
+          sortBy: 'room_asc',
+        );
+      }
+
+      if (pbStudents.isEmpty) {
+        try {
+          await PhonebookSyncService.instance.syncDirectory();
+          pbStudents = await PhonebookDatabaseService.instance.searchStudents(
+            limit: 5000,
+            sortBy: 'room_asc',
+          );
+        } catch (_) {}
+      }
+
+      if (pbStudents.isEmpty) return;
+
+      _integratePhonebookStudents(pbStudents);
+    } catch (e) {
+      debugPrint('[ScreenTime] _mergeHostelStudentsFromDirectory error: $e');
+    }
+  }
+
+  void _integratePhonebookStudents(List<PhonebookStudent> pbStudents) {
+    final existingRoomsAndNames = <String>{};
+    final existingPhones = <String>{};
+    final existingAadhars = <String>{};
+    final existingBankCodes = <String>{};
+
+    for (final s in allStudents) {
+      if (s is! Map) continue;
+      final room = (s['room'] ?? s['room_number'] ?? s['roomNumber'] ?? '').toString().trim().toLowerCase();
+      final name = (s['name'] ?? s['fullName'] ?? '').toString().trim().toLowerCase();
+      final rawPhone = (s['phone'] ?? s['phoneNumber'] ?? s['phone_number'] ?? '').toString().replaceAll(RegExp(r'\D'), '');
+      final aadhar = (s['aadhar'] ?? s['student_code'] ?? '').toString().replaceAll(RegExp(r'\D'), '');
+      final bankCode = (s['bankCode'] ?? s['bank_code'] ?? '').toString().trim().toLowerCase();
+
+      if (room.isNotEmpty && name.isNotEmpty) {
+        existingRoomsAndNames.add('$room::$name');
+      }
+      if (rawPhone.length >= 10) {
+        existingPhones.add(rawPhone.substring(rawPhone.length - 10));
+      }
+      if (aadhar.length >= 8) {
+        existingAadhars.add(aadhar);
+      }
+      if (bankCode.isNotEmpty) {
+        existingBankCodes.add(bankCode);
+      }
+    }
+
+    final toAdd = <Map<String, dynamic>>[];
+
+    for (final ps in pbStudents) {
+      if (!hasValidRoom({'room': ps.room})) continue;
+
+      final pRoom = (ps.room ?? '').trim().toLowerCase();
+      final pName = ps.name.trim().toLowerCase();
+      final pPhone = (ps.phones.isNotEmpty ? ps.phones.first.phone : '')
+          .replaceAll(RegExp(r'\D'), '');
+      final pAadhar = (ps.aadhar ?? '').replaceAll(RegExp(r'\D'), '');
+      final pBank = (ps.bankCode ?? '').trim().toLowerCase();
+
+      final roomAndNameKey = '$pRoom::$pName';
+      final hasMatchingRoomAndName = existingRoomsAndNames.contains(roomAndNameKey);
+      final hasMatchingPhone = pPhone.length >= 10 &&
+          existingPhones.contains(pPhone.substring(pPhone.length - 10));
+      final hasMatchingAadhar = pAadhar.length >= 8 && existingAadhars.contains(pAadhar);
+      final hasMatchingBank = pBank.isNotEmpty && existingBankCodes.contains(pBank);
+
+      if (hasMatchingRoomAndName || hasMatchingPhone || hasMatchingAadhar || hasMatchingBank) {
+        continue;
+      }
+
+      toAdd.add({
+        'id': '',
+        'name': ps.name,
+        'room': ps.room,
+        'room_number': ps.room,
+        'phone': ps.phones.isNotEmpty ? ps.phones.first.phone : '',
+        'aadhar': ps.aadhar ?? '',
+        'bankCode': ps.bankCode ?? '',
+        'bank_code': ps.bankCode ?? '',
+        'groupName': ps.groupName ?? '',
+        'isOnline': 0,
+        'isScreenOn': 0,
+        'totalScreenTimeMinutes': 0,
+        'nightScreenTimeMinutes': 0,
+        'currentApp': '',
+        'status': 'Offline',
+        'isDeviceEnrolled': false,
+      });
+
+      existingRoomsAndNames.add(roomAndNameKey);
+      if (pPhone.length >= 10) existingPhones.add(pPhone.substring(pPhone.length - 10));
+      if (pAadhar.length >= 8) existingAadhars.add(pAadhar);
+      if (pBank.isNotEmpty) existingBankCodes.add(pBank);
+    }
+
+    if (toAdd.isNotEmpty) {
+      allStudents.addAll(toAdd);
+      if (searchFilterController.text.trim().isEmpty) {
+        _baseStudents
+          ..clear()
+          ..addAll(allStudents);
+      }
+      filterStudents(searchFilterController.text);
+    }
   }
 
   /// Fetches subsequent student pages in background so entire directory is locally available.
@@ -1186,8 +1385,7 @@ class StudentScreenTimeController extends GetxController with WidgetsBindingObse
     if (_isFetchingRemainingStudents) return;
     _isFetchingRemainingStudents = true;
     try {
-      while (allStudents.length < totalStudentsCount.value &&
-          hasMoreStudents.value) {
+      while (allStudents.length < (totalStudentsCount.value > 0 ? totalStudentsCount.value : 5000)) {
         final baseParams = <String, dynamic>{
           'limit': pageSize,
           'offset': allStudents.length,
@@ -1199,6 +1397,7 @@ class StudentScreenTimeController extends GetxController with WidgetsBindingObse
         final data = response.data['data'] ?? response.data;
         if (data == null) break;
         List<dynamic> loaded = [];
+        int serverTotal = 0;
         if (data is List) {
           loaded = List<dynamic>.from(data);
         } else if (data is Map && data['students'] is List) {
@@ -1206,24 +1405,43 @@ class StudentScreenTimeController extends GetxController with WidgetsBindingObse
         } else if (data is Map && data['data'] is List) {
           loaded = List<dynamic>.from(data['data']);
         }
+        if (data is Map) {
+          serverTotal = toInt(
+            data['total'] ??
+                data['totalCount'] ??
+                data['count'] ??
+                data['totalStudents'],
+          );
+        }
+        if (serverTotal > 0 && serverTotal > totalStudentsCount.value) {
+          totalStudentsCount.value = serverTotal;
+        }
+
         if (loaded.isEmpty) {
           hasMoreStudents.value = false;
           break;
         }
         final existingIds = allStudents.map((s) => s['id']?.toString()).toSet();
+        int added = 0;
         for (final s in loaded) {
           final idStr = s['id']?.toString();
           if (idStr != null && !existingIds.contains(idStr)) {
             allStudents.add(s);
             existingIds.add(idStr);
+            added++;
           }
         }
-        _baseStudents
-          ..clear()
-          ..addAll(allStudents);
-        if (loaded.length < pageSize ||
-            allStudents.length >= totalStudentsCount.value) {
+        if (searchFilterController.text.trim().isEmpty) {
+          _baseStudents
+            ..clear()
+            ..addAll(allStudents);
+        }
+        filterStudents(searchFilterController.text);
+        if (added == 0 ||
+            (serverTotal > 0 && allStudents.length >= serverTotal) ||
+            (totalStudentsCount.value > 0 && allStudents.length >= totalStudentsCount.value)) {
           hasMoreStudents.value = false;
+          break;
         }
       }
       filterStudents(searchFilterController.text);
@@ -1291,9 +1509,12 @@ class StudentScreenTimeController extends GetxController with WidgetsBindingObse
 
       if (loaded.isNotEmpty || (data is Map &&
           (data.containsKey('students') || data.containsKey('data')))) {
-        if (loaded.isEmpty || loaded.length < pageSize || (serverTotal > 0 &&
-            (allStudents.length + loaded.length) >= serverTotal)) {
+        if (loaded.isEmpty) {
           hasMoreStudents.value = false;
+        } else if (serverTotal > 0) {
+          hasMoreStudents.value = (allStudents.length + loaded.length) < serverTotal;
+        } else {
+          hasMoreStudents.value = loaded.length >= pageSize;
         }
         if (loaded.isNotEmpty) {
           final existingIds = allStudents
@@ -1398,13 +1619,28 @@ class StudentScreenTimeController extends GetxController with WidgetsBindingObse
           phone.contains(q);
     }).toList();
 
-    // Students needing attention first, then heaviest users.
+    // Students needing attention first, then online students, then heaviest users, then room number.
     matched.sort((a, b) {
       final attA = isStudentTampered(a) || isStudentLocked(a);
       final attB = isStudentTampered(b) || isStudentLocked(b);
       if (attA != attB) return attA ? -1 : 1;
-      return toInt(b['totalScreenTimeMinutes']).compareTo(
-          toInt(a['totalScreenTimeMinutes']));
+
+      final onA = isStudentOnline(a);
+      final onB = isStudentOnline(b);
+      if (onA != onB) return onA ? -1 : 1;
+
+      final minsA = toInt(a['totalScreenTimeMinutes'] ?? a['todayScreenTimeMinutes'] ?? a['total_screen_time_minutes']);
+      final minsB = toInt(b['totalScreenTimeMinutes'] ?? b['todayScreenTimeMinutes'] ?? b['total_screen_time_minutes']);
+      if (minsA != minsB) return minsB.compareTo(minsA);
+
+      final roomA = (a['room'] ?? a['room_number'] ?? a['roomNumber'] ?? '').toString();
+      final roomB = (b['room'] ?? b['room_number'] ?? b['roomNumber'] ?? '').toString();
+      final roomCmp = _compareRoomStrings(roomA, roomB);
+      if (roomCmp != 0) return roomCmp;
+
+      final nameA = (a['name'] ?? a['fullName'] ?? '').toString();
+      final nameB = (b['name'] ?? b['fullName'] ?? '').toString();
+      return nameA.compareTo(nameB);
     });
     filteredStudents.assignAll(matched);
   }
@@ -1661,6 +1897,14 @@ class StudentScreenTimeController extends GetxController with WidgetsBindingObse
     final studentName = selectedStudent.value is Map
         ? (selectedStudent.value['name'] ?? 'Student')
         : 'Student';
+    final id = _studentId;
+    if (id.isEmpty) {
+      AppSnackbar.info(
+        'Device Not Setup',
+        '$studentName has not installed the monitoring app on their phone yet.',
+      );
+      return;
+    }
     final previous = currentPolicy;
     final updatedLimits = Map<String, int>.from(previous.appLimits);
     if (limitMinutes > 0) {
@@ -1673,8 +1917,6 @@ class StudentScreenTimeController extends GetxController with WidgetsBindingObse
     // Optimistic update; rolled back below if the API rejects it.
     _applyPolicy(updated);
     try {
-      final id = _studentId;
-      if (id.isEmpty) throw StateError('No student selected');
       final isBlocked = blockedPackages.contains(packageName);
       await _apiClient.dio.post('/screen-time/apps/rule', data: {
         'student_id': id,
@@ -1710,6 +1952,14 @@ class StudentScreenTimeController extends GetxController with WidgetsBindingObse
     final studentName = selectedStudent.value is Map
         ? (selectedStudent.value['name'] ?? 'Student')
         : 'Student';
+    final id = _studentId;
+    if (id.isEmpty) {
+      AppSnackbar.info(
+        'Device Not Setup',
+        '$studentName has not installed the monitoring app on their phone yet.',
+      );
+      return;
+    }
     final previous = currentPolicy;
     final updated = previous.copyWith(
       blockedPackages: block
@@ -1764,6 +2014,14 @@ class StudentScreenTimeController extends GetxController with WidgetsBindingObse
     final studentName = selectedStudent.value is Map
         ? (selectedStudent.value['name'] ?? 'Student')
         : 'Student';
+    final id = _studentId;
+    if (id.isEmpty) {
+      AppSnackbar.info(
+        'Device Not Setup',
+        '$studentName has not installed the monitoring app on their phone yet.',
+      );
+      return;
+    }
     final previous = currentPolicy;
 
     _applyPolicy(previous.copyWith(isLocked: lock));
@@ -1796,6 +2054,14 @@ class StudentScreenTimeController extends GetxController with WidgetsBindingObse
     required String startBedtime,
     required String endBedtime,
   }) async {
+    final id = _studentId;
+    if (id.isEmpty) {
+      AppSnackbar.info(
+        'Device Not Setup',
+        'This student has not completed phone onboarding yet.',
+      );
+      return;
+    }
     final previous = currentPolicy;
     _applyPolicy(previous.copyWith(
       dailyLimitMinutes: limitMinutes,

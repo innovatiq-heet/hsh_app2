@@ -20,48 +20,60 @@ class StudentScreenTimeScreen extends GetView<StudentScreenTimeController> {
   Widget build(BuildContext context) {
     return AnnotatedRegion<SystemUiOverlayStyle>(
       value: SystemUiOverlayStyle.light,
-      child: Scaffold(
-        backgroundColor: const Color(0xFFF8FAFC),
-        body: Obx(() {
-          final selected = controller.selectedStudent.value;
+      child: Obx(() {
+        final selected = controller.selectedStudent.value;
+        final direct = controller.openedWithDirectTarget.value;
+        final canPopDirectly = selected == null || direct;
 
-          return RefreshIndicator(
-            onRefresh: controller.refreshAll,
-            color: const Color(0xFF0284C7),
-            backgroundColor: Colors.white,
-            child: NotificationListener<ScrollNotification>(
-              onNotification: (scrollInfo) {
-                if (selected == null && scrollInfo.metrics.extentAfter < 350) {
-                  controller.loadMoreItems();
-                }
-                return false;
-              },
-              child: CustomScrollView(
-                physics: const AlwaysScrollableScrollPhysics(
-                  parent: BouncingScrollPhysics(),
+        return PopScope(
+          canPop: canPopDirectly,
+          onPopInvokedWithResult: (didPop, result) {
+            if (didPop) return;
+            if (controller.selectedStudent.value != null && !controller.openedWithDirectTarget.value) {
+              controller.clearSelectedStudent();
+            }
+          },
+          child: Scaffold(
+            backgroundColor: const Color(0xFFF8FAFC),
+            body: RefreshIndicator(
+              onRefresh: controller.refreshAll,
+              color: const Color(0xFF0284C7),
+              backgroundColor: Colors.white,
+              child: NotificationListener<ScrollNotification>(
+                onNotification: (scrollInfo) {
+                  if (selected == null && scrollInfo.metrics.extentAfter < 350) {
+                    controller.loadMoreItems();
+                  }
+                  return false;
+                },
+                child: CustomScrollView(
+                  key: ValueKey(selected != null ? 'detail_${controller.studentId}' : 'directory'),
+                  physics: const AlwaysScrollableScrollPhysics(
+                    parent: BouncingScrollPhysics(),
+                  ),
+                  slivers: [
+                    SliverPersistentHeader(
+                      pinned: true,
+                      delegate: _ScreenTimeHeaderDelegate(
+                        controller: controller,
+                        topPadding: MediaQuery.of(context).padding.top,
+                      ),
+                    ),
+                    SliverPadding(
+                      padding: const EdgeInsets.fromLTRB(16, 16, 16, 36),
+                      sliver: SliverToBoxAdapter(
+                        child: selected == null
+                            ? const StudentDirectoryView()
+                            : _buildDetail(context),
+                      ),
+                    ),
+                  ],
                 ),
-                slivers: [
-                  SliverPersistentHeader(
-                    pinned: true,
-                    delegate: _ScreenTimeHeaderDelegate(
-                      controller: controller,
-                      topPadding: MediaQuery.of(context).padding.top,
-                    ),
-                  ),
-                  SliverPadding(
-                    padding: const EdgeInsets.fromLTRB(16, 16, 16, 36),
-                    sliver: SliverToBoxAdapter(
-                      child: selected == null
-                          ? const StudentDirectoryView()
-                          : _buildDetail(context),
-                    ),
-                  ),
-                ],
               ),
             ),
-          );
-        }),
-      ),
+          ),
+        );
+      }),
     );
   }
 
@@ -86,6 +98,45 @@ class StudentScreenTimeScreen extends GetView<StudentScreenTimeController> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
+        if (!controller.isSelectedStudentEnrolled)
+          Container(
+            margin: const EdgeInsets.only(bottom: 10),
+            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+            decoration: BoxDecoration(
+              color: const Color(0xFFFEF3C7),
+              borderRadius: BorderRadius.circular(14),
+              border: Border.all(color: const Color(0xFFFDE68A)),
+            ),
+            child: Row(
+              children: [
+                const Icon(Icons.info_outline_rounded, color: Color(0xFFD97706), size: 20),
+                const SizedBox(width: 10),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      const Text(
+                        'Device Not Setup Yet',
+                        style: TextStyle(
+                          fontSize: 13,
+                          fontWeight: FontWeight.w700,
+                          color: Color(0xFF92400E),
+                        ),
+                      ),
+                      const SizedBox(height: 2),
+                      Text(
+                        'This student has an assigned hostel room, but has not completed phone onboarding yet. Live telemetry will begin once they log into the HSH app.',
+                        style: TextStyle(
+                          fontSize: 11.5,
+                          color: const Color(0xFF92400E).withValues(alpha: 0.9),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+          ),
         _buildDaySelectorBar(context),
         const SizedBox(height: 8),
 
@@ -913,111 +964,69 @@ class _ScreenTimeHeaderDelegate extends SliverPersistentHeaderDelegate {
       (34.0 * (1.0 - progress)).clamp(0.0, 34.0),
     );
 
-    final selected = controller.selectedStudent.value;
-    final direct = controller.openedWithDirectTarget.value;
-    final titleText = selected != null ? (selected['name'] ?? 'Student') : 'Screen Time';
-    final subtitleText = selected != null
-        ? 'Room ${selected['room'] ?? 'N/A'} • Aadhar ${selected['aadhar'] ?? ''}'
-        : 'Live device activity & parental controls';
+    return Obx(() {
+      final selected = controller.selectedStudent.value;
+      final direct = controller.openedWithDirectTarget.value;
+      final titleText = selected != null ? (selected['name'] ?? 'Student') : 'Screen Time';
+      final subtitleText = selected != null
+          ? 'Room ${selected['room'] ?? 'N/A'} • Aadhar ${selected['aadhar'] ?? ''}'
+          : 'Live device activity & parental controls';
+      final isLoading = controller.isLoading.value;
+      final isOnline = controller.isOnline.value;
+      final isLocked = controller.isDeviceLocked.value;
+      final total = controller.directoryCount('All');
+      final online = controller.directoryCount('Online');
+      final locked = controller.directoryCount('Locked');
 
-    return Container(
-      decoration: BoxDecoration(
-        gradient: const LinearGradient(
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-          colors: [
-            Color(0xFF03192E),
-            Color(0xFF032B4F),
-            Color(0xFF025A8D),
-            Color(0xFF0369A1),
-          ],
-          stops: [0.0, 0.38, 0.75, 1.0],
+      return Container(
+        decoration: BoxDecoration(
+          gradient: const LinearGradient(
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
+            colors: [
+              Color(0xFF03192E),
+              Color(0xFF032B4F),
+              Color(0xFF025A8D),
+              Color(0xFF0369A1),
+            ],
+            stops: [0.0, 0.38, 0.75, 1.0],
+          ),
+          borderRadius: BorderRadius.vertical(bottom: cornerRadius),
+          boxShadow: progress > 0.25
+              ? [
+                  BoxShadow(
+                    color: const Color(0xFF03192E).withValues(alpha: 0.22 * progress),
+                    blurRadius: 10,
+                    offset: const Offset(0, 3),
+                  ),
+                ]
+              : null,
         ),
-        borderRadius: BorderRadius.vertical(bottom: cornerRadius),
-        boxShadow: progress > 0.25
-            ? [
-                BoxShadow(
-                  color: const Color(0xFF03192E).withValues(alpha: 0.22 * progress),
-                  blurRadius: 10,
-                  offset: const Offset(0, 3),
-                ),
-              ]
-            : null,
-      ),
-      child: ClipRRect(
-        borderRadius: BorderRadius.vertical(bottom: cornerRadius),
-        child: Stack(
-          fit: StackFit.expand,
-          children: [
-            // Luminous ambient orbs & arcs
-            CustomPaint(painter: _HeaderOrbPainter()),
+        child: ClipRRect(
+          borderRadius: BorderRadius.vertical(bottom: cornerRadius),
+          child: Stack(
+            fit: StackFit.expand,
+            children: [
+              // Luminous ambient orbs & arcs
+              CustomPaint(painter: _HeaderOrbPainter()),
 
-            // Top pinned navigation bar
-            Positioned(
-              top: topPadding + 6,
-              left: 16,
-              right: 16,
-              height: 46,
-              child: Row(
-                children: [
-                  Material(
-                    color: Colors.transparent,
-                    child: InkWell(
-                      onTap: () {
-                        if (selected != null && !direct) {
-                          controller.clearSelectedStudent();
-                        } else {
-                          Get.back();
-                        }
-                      },
-                      borderRadius: BorderRadius.circular(24),
-                      child: Container(
-                        width: 42,
-                        height: 42,
-                        decoration: BoxDecoration(
-                          color: Colors.white.withValues(alpha: 0.16),
-                          shape: BoxShape.circle,
-                          border: Border.all(
-                            color: Colors.white.withValues(alpha: 0.25),
-                            width: 1,
-                          ),
-                        ),
-                        child: const Icon(
-                          Icons.arrow_back_rounded,
-                          color: Colors.white,
-                          size: 20,
-                        ),
-                      ),
-                    ),
-                  ),
-                  const SizedBox(width: 12),
-
-                  // Collapsed title that fades in on shrink
-                  Expanded(
-                    child: Opacity(
-                      opacity: collapsedTitleOpacity,
-                      child: Text(
-                        titleText,
-                        style: const TextStyle(
-                          color: Colors.white,
-                          fontSize: 18,
-                          fontWeight: FontWeight.w800,
-                          letterSpacing: -0.3,
-                        ),
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                      ),
-                    ),
-                  ),
-
-                  // "All students" button if in direct target mode
-                  if (selected != null && direct) ...[
+              // Top pinned navigation bar
+              Positioned(
+                top: topPadding + 6,
+                left: 16,
+                right: 16,
+                height: 46,
+                child: Row(
+                  children: [
                     Material(
                       color: Colors.transparent,
                       child: InkWell(
                         onTap: () {
-                          controller.openedWithDirectTarget.value = false;
-                          controller.clearSelectedStudent();
+                          if (selected != null && !direct) {
+                            controller.clearSelectedStudent();
+                          } else {
+                            Get.back();
+                          }
                         },
                         borderRadius: BorderRadius.circular(24),
                         child: Container(
@@ -1032,20 +1041,67 @@ class _ScreenTimeHeaderDelegate extends SliverPersistentHeaderDelegate {
                             ),
                           ),
                           child: const Icon(
-                            Icons.people_alt_outlined,
+                            Icons.arrow_back_rounded,
                             color: Colors.white,
                             size: 20,
                           ),
                         ),
                       ),
                     ),
-                    const SizedBox(width: 8),
-                  ],
+                    const SizedBox(width: 12),
 
-                  // Refresh button with loading spinner
-                  Obx(() {
-                    final isLoading = controller.isLoading.value;
-                    return Material(
+                    // Collapsed title that fades in on shrink
+                    Expanded(
+                      child: Opacity(
+                        opacity: collapsedTitleOpacity,
+                        child: Text(
+                          titleText,
+                          style: const TextStyle(
+                            color: Colors.white,
+                            fontSize: 18,
+                            fontWeight: FontWeight.w800,
+                            letterSpacing: -0.3,
+                          ),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                      ),
+                    ),
+
+                    // "All students" button if in direct target mode
+                    if (selected != null && direct) ...[
+                      Material(
+                        color: Colors.transparent,
+                        child: InkWell(
+                          onTap: () {
+                            controller.openedWithDirectTarget.value = false;
+                            controller.clearSelectedStudent();
+                          },
+                          borderRadius: BorderRadius.circular(24),
+                          child: Container(
+                            width: 42,
+                            height: 42,
+                            decoration: BoxDecoration(
+                              color: Colors.white.withValues(alpha: 0.16),
+                              shape: BoxShape.circle,
+                              border: Border.all(
+                                color: Colors.white.withValues(alpha: 0.25),
+                                width: 1,
+                              ),
+                            ),
+                            child: const Icon(
+                              Icons.people_alt_outlined,
+                              color: Colors.white,
+                              size: 20,
+                            ),
+                          ),
+                        ),
+                      ),
+                      const SizedBox(width: 8),
+                    ],
+
+                    // Refresh button with loading spinner
+                    Material(
                       color: Colors.transparent,
                       child: InkWell(
                         onTap: isLoading ? null : controller.refreshAll,
@@ -1076,147 +1132,138 @@ class _ScreenTimeHeaderDelegate extends SliverPersistentHeaderDelegate {
                                 ),
                         ),
                       ),
-                    );
-                  }),
-                ],
+                    ),
+                  ],
+                ),
               ),
-            ),
 
-            // Expanded content (Amber dash, Overline, Large Title, Subtitle, Frosted pills)
-            if (expandedOpacity > 0.05)
-              Positioned(
-                top: topPadding + 54,
-                left: 20,
-                right: 20,
-                bottom: 12,
-                child: Opacity(
-                  opacity: expandedOpacity,
-                  child: ClipRect(
-                    child: Transform.translate(
-                      offset: Offset(0, -progress * 18),
-                      child: SingleChildScrollView(
-                        physics: const NeverScrollableScrollPhysics(),
-                        reverse: true,
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          mainAxisAlignment: MainAxisAlignment.end,
-                          children: [
-                        Container(
-                          width: 28,
-                          height: 3.5,
-                          decoration: BoxDecoration(
-                            color: const Color(0xFFEAAB78),
-                            borderRadius: BorderRadius.circular(2),
-                          ),
-                        ),
-                        const SizedBox(height: 6),
-                        Text(
-                          selected != null
-                              ? 'PARENTAL CONTROL'
-                              : 'CAMPUS PARENTAL CONTROL & DEVICE USAGE',
-                          style: TextStyle(
-                            color: Colors.white.withValues(alpha: 0.72),
-                            fontSize: 10.5,
-                            fontWeight: FontWeight.w700,
-                            letterSpacing: 1.2,
-                          ),
-                        ),
-                        const SizedBox(height: 3),
-                        Text(
-                          titleText,
-                          style: const TextStyle(
-                            color: Colors.white,
-                            fontSize: 24,
-                            fontWeight: FontWeight.w800,
-                            letterSpacing: -0.6,
-                          ),
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                        ),
-                        const SizedBox(height: 2),
-                        Text(
-                          subtitleText,
-                          style: TextStyle(
-                            color: Colors.white.withValues(alpha: 0.85),
-                            fontSize: 12.5,
-                            fontWeight: FontWeight.w400,
-                          ),
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                        ),
-                        if (selected != null) ...[
-                          const SizedBox(height: 8),
-                          Obx(() {
-                            final isOnline = controller.isOnline.value;
-                            final isLocked = controller.isDeviceLocked.value;
-                            return Row(
-                              children: [
-                                _headerPill(
-                                  icon: isOnline
-                                      ? Icons.circle_rounded
-                                      : Icons.remove_circle_outline_rounded,
-                                  iconColor: isOnline
-                                      ? const Color(0xFF34D399)
-                                      : const Color(0xFF94A3B8),
-                                  label: isOnline ? 'Online' : 'Offline',
+              // Expanded content (Amber dash, Overline, Large Title, Subtitle, Frosted pills)
+              if (expandedOpacity > 0.05)
+                Positioned(
+                  top: topPadding + 54,
+                  left: 20,
+                  right: 20,
+                  bottom: 12,
+                  child: Opacity(
+                    opacity: expandedOpacity,
+                    child: ClipRect(
+                      child: Transform.translate(
+                        offset: Offset(0, -progress * 18),
+                        child: SingleChildScrollView(
+                          physics: const NeverScrollableScrollPhysics(),
+                          reverse: true,
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            mainAxisAlignment: MainAxisAlignment.end,
+                            children: [
+                              Container(
+                                width: 28,
+                                height: 3.5,
+                                decoration: BoxDecoration(
+                                  color: const Color(0xFFEAAB78),
+                                  borderRadius: BorderRadius.circular(2),
                                 ),
-                                const SizedBox(width: 8),
-                                _headerPill(
-                                  icon: isLocked ? Icons.lock_rounded : Icons.lock_open_rounded,
-                                  iconColor: isLocked
-                                      ? const Color(0xFFF87171)
-                                      : const Color(0xFF34D399),
-                                  label: isLocked ? 'Device Locked' : 'Unlocked',
+                              ),
+                              const SizedBox(height: 6),
+                              Text(
+                                selected != null
+                                    ? 'PARENTAL CONTROL'
+                                    : 'CAMPUS PARENTAL CONTROL & DEVICE USAGE',
+                                style: TextStyle(
+                                  color: Colors.white.withValues(alpha: 0.72),
+                                  fontSize: 10.5,
+                                  fontWeight: FontWeight.w700,
+                                  letterSpacing: 1.2,
                                 ),
-                              ],
-                            );
-                          }),
-                        ] else ...[
-                          const SizedBox(height: 8),
-                          Obx(() {
-                            final total = controller.directoryCount('All');
-                            final online = controller.directoryCount('Online');
-                            final locked = controller.directoryCount('Locked');
-                            return SingleChildScrollView(
-                              scrollDirection: Axis.horizontal,
-                              physics: const BouncingScrollPhysics(),
-                              child: Row(
-                                children: [
-                                  _headerPill(
-                                    icon: Icons.people_alt_rounded,
-                                    iconColor: const Color(0xFF38BDF8),
-                                    label: '$total Total Students',
-                                  ),
-                                  const SizedBox(width: 8),
-                                  _headerPill(
-                                    icon: Icons.circle_rounded,
-                                    iconColor: const Color(0xFF34D399),
-                                    label: '$online Online',
-                                  ),
-                                  if (locked > 0) ...[
+                              ),
+                              const SizedBox(height: 3),
+                              Text(
+                                titleText,
+                                style: const TextStyle(
+                                  color: Colors.white,
+                                  fontSize: 24,
+                                  fontWeight: FontWeight.w800,
+                                  letterSpacing: -0.6,
+                                ),
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                              ),
+                              const SizedBox(height: 2),
+                              Text(
+                                subtitleText,
+                                style: TextStyle(
+                                  color: Colors.white.withValues(alpha: 0.85),
+                                  fontSize: 12.5,
+                                  fontWeight: FontWeight.w400,
+                                ),
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                              ),
+                              if (selected != null) ...[
+                                const SizedBox(height: 8),
+                                Row(
+                                  children: [
+                                    _headerPill(
+                                      icon: isOnline
+                                          ? Icons.circle_rounded
+                                          : Icons.remove_circle_outline_rounded,
+                                      iconColor: isOnline
+                                          ? const Color(0xFF34D399)
+                                          : const Color(0xFF94A3B8),
+                                      label: isOnline ? 'Online' : 'Offline',
+                                    ),
                                     const SizedBox(width: 8),
                                     _headerPill(
-                                      icon: Icons.lock_rounded,
-                                      iconColor: const Color(0xFFF87171),
-                                      label: '$locked Locked',
+                                      icon: isLocked ? Icons.lock_rounded : Icons.lock_open_rounded,
+                                      iconColor: isLocked
+                                          ? const Color(0xFFF87171)
+                                          : const Color(0xFF34D399),
+                                      label: isLocked ? 'Device Locked' : 'Unlocked',
                                     ),
                                   ],
-                                ],
-                              ),
-                            );
-                          }),
-                        ],
-                      ],
+                                ),
+                              ] else ...[
+                                const SizedBox(height: 8),
+                                SingleChildScrollView(
+                                  scrollDirection: Axis.horizontal,
+                                  physics: const BouncingScrollPhysics(),
+                                  child: Row(
+                                    children: [
+                                      _headerPill(
+                                        icon: Icons.people_alt_rounded,
+                                        iconColor: const Color(0xFF38BDF8),
+                                        label: '$total Total Students',
+                                      ),
+                                      const SizedBox(width: 8),
+                                      _headerPill(
+                                        icon: Icons.circle_rounded,
+                                        iconColor: const Color(0xFF34D399),
+                                        label: '$online Online',
+                                      ),
+                                      if (locked > 0) ...[
+                                        const SizedBox(width: 8),
+                                        _headerPill(
+                                          icon: Icons.lock_rounded,
+                                          iconColor: const Color(0xFFF87171),
+                                          label: '$locked Locked',
+                                        ),
+                                      ],
+                                    ],
+                                  ),
+                                ),
+                              ],
+                            ],
+                          ),
+                        ),
+                      ),
                     ),
                   ),
                 ),
-              ),
-            ),
+            ],
           ),
-          ],
         ),
-      ),
-    );
+      );
+    });
   }
 
   Widget _headerPill({
@@ -1254,8 +1301,7 @@ class _ScreenTimeHeaderDelegate extends SliverPersistentHeaderDelegate {
 
   @override
   bool shouldRebuild(covariant _ScreenTimeHeaderDelegate oldDelegate) {
-    return oldDelegate.topPadding != topPadding ||
-        oldDelegate.controller != controller;
+    return true;
   }
 }
 

@@ -290,10 +290,10 @@ void main() {
   test('StudentScreenTimeController directoryCount and directoryFilter handle Online and Offline correctly', () {
     final controller = StudentScreenTimeController();
     controller.allStudents.assignAll([
-      {'id': 1, 'name': 'Alpha', 'isOnline': 1},
-      {'id': 2, 'name': 'Beta', 'isOnline': 0},
-      {'id': 3, 'name': 'Gamma', 'isOnline': true},
-      {'id': 4, 'name': 'Delta', 'isOnline': false},
+      {'id': 1, 'name': 'Alpha', 'room': '101', 'isOnline': 1},
+      {'id': 2, 'name': 'Beta', 'room': '102', 'isOnline': 0},
+      {'id': 3, 'name': 'Gamma', 'room': '103', 'isOnline': true},
+      {'id': 4, 'name': 'Delta', 'room': '104', 'isOnline': false},
     ]);
 
     expect(controller.directoryCount('Online'), 2);

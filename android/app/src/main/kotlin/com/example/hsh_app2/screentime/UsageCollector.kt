@@ -121,6 +121,7 @@ object UsageCollector {
         var fgPackage: String? = null
         var fgStart = 0L
         var lastEventTs = dayStart
+        val resumedPackages = HashMap<String, Int>()
 
         fun close(at: Long) {
             val pkg = fgPackage ?: return
@@ -135,14 +136,39 @@ object UsageCollector {
         while (events.hasNextEvent()) {
             events.getNextEvent(event)
             lastEventTs = event.timeStamp
+            val pkg = event.packageName
             when (event.eventType) {
-                ACTIVITY_RESUMED -> if (fgPackage != event.packageName) {
-                    close(event.timeStamp)
-                    fgPackage = event.packageName
-                    fgStart = event.timeStamp
+                ACTIVITY_RESUMED -> {
+                    val count = (resumedPackages[pkg] ?: 0) + 1
+                    resumedPackages[pkg] = count
+                    if (fgPackage != pkg) {
+                        close(event.timeStamp)
+                        fgPackage = pkg
+                        fgStart = event.timeStamp
+                    }
                 }
-                ACTIVITY_PAUSED -> if (fgPackage == event.packageName) close(event.timeStamp)
-                SCREEN_NON_INTERACTIVE, KEYGUARD_SHOWN, DEVICE_SHUTDOWN -> close(event.timeStamp)
+                ACTIVITY_PAUSED -> {
+                    val count = (resumedPackages[pkg] ?: 1) - 1
+                    if (count <= 0) {
+                        resumedPackages.remove(pkg)
+                        if (fgPackage == pkg) {
+                            close(event.timeStamp)
+                        }
+                    } else {
+                        resumedPackages[pkg] = count
+                    }
+                }
+                // ACTIVITY_STOPPED (23) on Android 10+
+                23 -> {
+                    resumedPackages.remove(pkg)
+                    if (fgPackage == pkg) {
+                        close(event.timeStamp)
+                    }
+                }
+                SCREEN_NON_INTERACTIVE, KEYGUARD_SHOWN, DEVICE_SHUTDOWN -> {
+                    resumedPackages.clear()
+                    close(event.timeStamp)
+                }
             }
         }
 
@@ -153,6 +179,23 @@ object UsageCollector {
         val openPackage = fgPackage
         if (openPackage != null) {
             close(if (isLive && screenOn) end else lastEventTs)
+        }
+
+        // Fallback: If queryEvents had no events (e.g. past days or cleared OS event logs)
+        // or total calculated time is 0, query Android's aggregated daily stats.
+        if (perApp.isEmpty() || perApp.values.sum() == 0L) {
+            val stats = runCatching {
+                usm.queryUsageStats(UsageStatsManager.INTERVAL_DAILY, dayStart, end)
+            }.getOrNull()
+            if (!stats.isNullOrEmpty()) {
+                for (stat in stats) {
+                    val pkg = stat.packageName
+                    val time = stat.totalTimeInForeground
+                    if (time > 0 && pkg !in ignored) {
+                        perApp[pkg] = maxOf(perApp[pkg] ?: 0L, time)
+                    }
+                }
+            }
         }
 
         val current = if (isLive && screenOn && openPackage != null && openPackage !in ignored) {
@@ -191,12 +234,17 @@ object UsageCollector {
         null
     }
 
-    /** Home-screen launchers aren't "apps being used" — exclude them. Also exclude our own app. */
+    /** Home-screen launchers aren't "apps being used" — exclude them. Also exclude our own app and system framework. */
     private fun ignoredPackages(context: Context): Set<String> {
         val intent = Intent(Intent.ACTION_MAIN).addCategory(Intent.CATEGORY_HOME)
         val launchers = context.packageManager
             .queryIntentActivities(intent, PackageManager.MATCH_DEFAULT_ONLY)
             .map { it.activityInfo.packageName }
-        return (launchers + "com.android.systemui" + context.packageName).toSet()
+        return (launchers + listOf(
+            "com.android.systemui",
+            "android",
+            "com.google.android.permissioncontroller",
+            context.packageName
+        )).toSet()
     }
 }

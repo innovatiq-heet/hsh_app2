@@ -83,10 +83,13 @@ class AppUsageCard extends GetView<StudentScreenTimeController> {
             const SizedBox(height: 10),
             SegmentedButton<String>(
               segments: [
-                ButtonSegment(value: 'All', label: Text('All (${list.length})')),
                 ButtonSegment(
                   value: 'Used',
-                  label: Text('Used (${controller.currentDayRawApps.length})'),
+                  label: Text('Used (${controller.usedAppsCount})'),
+                ),
+                ButtonSegment(
+                  value: 'All',
+                  label: Text('All (${controller.totalAvailableAppsCount})'),
                 ),
                 ButtonSegment(
                   value: 'Restricted',
@@ -94,9 +97,9 @@ class AppUsageCard extends GetView<StudentScreenTimeController> {
                 ),
               ],
               selected: {
-                filter == 'Used Today' || filter == 'Used on Day' || filter == 'Used'
-                    ? 'Used'
-                    : (filter == 'Restricted' ? 'Restricted' : 'All')
+                filter == 'All'
+                    ? 'All'
+                    : (filter == 'Restricted' ? 'Restricted' : 'Used')
               },
               onSelectionChanged: (s) => controller.selectedAppFilter.value = s.first,
               showSelectedIcon: false,
@@ -114,7 +117,21 @@ class AppUsageCard extends GetView<StudentScreenTimeController> {
             ),
             const SizedBox(height: AppDimens.gapLg),
 
-            if (list.isEmpty)
+            if (controller.isLoadingDateUsage.value && list.isEmpty)
+              const Padding(
+                padding: EdgeInsets.symmetric(vertical: 32),
+                child: Center(
+                  child: SizedBox(
+                    width: 28,
+                    height: 28,
+                    child: CircularProgressIndicator(
+                      strokeWidth: 2.5,
+                      color: AppColors.primary,
+                    ),
+                  ),
+                ),
+              )
+            else if (list.isEmpty)
               EmptyState(
                 icon: filter == 'Restricted'
                     ? Icons.verified_user_outlined
@@ -156,7 +173,7 @@ class _AppRow extends GetView<StudentScreenTimeController> {
   Widget build(BuildContext context) {
     final pkg = (item['packageName'] ?? '').toString();
     final name = (item['appName'] ?? pkg).toString();
-    final mins = StudentScreenTimeController.toInt(item['minutes']);
+    final mins = StudentScreenTimeController.extractAppMinutes(item);
     final blocked = item['isBlocked'] == true;
     final limit = (item['dailyLimitMinutes'] as int?) ?? controller.appLimits[pkg] ?? 0;
     final isLimitReached = limit > 0 && mins >= limit;
@@ -204,7 +221,9 @@ class _AppRow extends GetView<StudentScreenTimeController> {
                       ),
                       const SizedBox(width: 8),
                       Text(
-                        mins > 0 ? StudentScreenTimeController.formatMinutes(mins) : '—',
+                        mins > 0
+                            ? StudentScreenTimeController.formatMinutes(mins)
+                            : (blocked ? 'Blocked' : '0m'),
                         style: AppTextStyles.bodySm.copyWith(
                           fontWeight: FontWeight.w700,
                           color: blocked

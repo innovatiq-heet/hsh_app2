@@ -253,6 +253,9 @@ object PolicyStore {
     fun addPolicyListener(l: () -> Unit) = synchronized(listeners) { listeners.add(l) }
     fun removePolicyListener(l: () -> Unit) = synchronized(listeners) { listeners.remove(l) }
 
+    private const val KEY_LAST_SENT_YESTERDAY = "last_sent_yesterday"
+    private const val KEY_SYNCED_PAST_DATES = "synced_past_dates"
+
     // ---------- Sync bookkeeping ----------
 
     fun sentDate(context: Context): String? = prefs(context).getString(KEY_SENT_DATE, null)
@@ -272,6 +275,20 @@ object PolicyStore {
             .putString(KEY_SENT_DATE, date)
             .putString(KEY_SENT_MILLIS, JSONObject(sent as Map<*, *>).toString())
             .apply()
+    }
+
+    fun lastSentYesterday(context: Context): String? = prefs(context).getString(KEY_LAST_SENT_YESTERDAY, null)
+
+    fun saveLastSentYesterday(context: Context, date: String) {
+        prefs(context).edit().putString(KEY_LAST_SENT_YESTERDAY, date).apply()
+    }
+
+    fun isPastDateSynced(context: Context, date: String): Boolean =
+        readStringSet(prefs(context).getString(KEY_SYNCED_PAST_DATES, null)).contains(date)
+
+    fun markPastDateSynced(context: Context, date: String) {
+        val all = readStringSet(prefs(context).getString(KEY_SYNCED_PAST_DATES, null)) + date
+        prefs(context).edit().putString(KEY_SYNCED_PAST_DATES, JSONArray(all.toList()).toString()).apply()
     }
 
     /** Packages whose icon the backend already has (so we send each icon once). */
@@ -417,6 +434,8 @@ object PolicyStore {
             .remove(KEY_GEO_EVENTS)
             .remove(KEY_BLOCK_EVENTS)
             .remove(KEY_POLICY_VERSION_NUM)
+            .remove(KEY_LAST_SENT_YESTERDAY)
+            .remove(KEY_SYNCED_PAST_DATES)
             .apply()
         geoPolicyCache = null
     }

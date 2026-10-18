@@ -63,6 +63,9 @@ object ScreenTimeSync {
     fun start(context: Context, token: String, baseUrl: String) {
         PolicyStore.saveSession(context, token, baseUrl)
         schedule(context)
+        java.util.concurrent.Executors.newSingleThreadExecutor().execute {
+            syncNow(context)
+        }
     }
 
     fun stop(context: Context) {
@@ -167,7 +170,13 @@ object ScreenTimeSync {
             if (delta > 0) deltaMinutes[pkg] = delta
         }
 
-        val code = post(context, baseUrl, token, date, deltaMinutes, snap.isScreenOn, snap.currentPackage)
+        val code = post(
+            context, baseUrl, token, date,
+            appMinutes = deltaMinutes,
+            isScreenOn = snap.isScreenOn,
+            currentPackage = snap.currentPackage,
+            totalMinutes = deltaMinutes.values.sum(),
+        )
         if (handleAuth(context, code)) return STATUS_UNAUTHORIZED
         if (code !in 200..299) return STATUS_ERROR
 
@@ -196,19 +205,28 @@ object ScreenTimeSync {
         baseUrl: String,
         token: String,
         date: String,
-        deltaMinutes: Map<String, Int>,
+        appMinutes: Map<String, Int>,
         isScreenOn: Boolean,
         currentPackage: String?,
+        totalMinutes: Int = appMinutes.values.sum(),
     ): Int {
         val alreadySentIcons = PolicyStore.sentIcons(context)
         val iconsInThisPing = ArrayList<String>()
 
         val breakdown = JSONArray()
-        for ((pkg, minutes) in deltaMinutes) {
+        for ((pkg, minutes) in appMinutes) {
+            val appLabel = UsageCollector.appLabel(context, pkg)
             val entry = JSONObject()
                 .put("packageName", pkg)
-                .put("appName", UsageCollector.appLabel(context, pkg))
+                .put("package_name", pkg)
+                .put("pkg", pkg)
+                .put("appName", appLabel)
+                .put("app_name", appLabel)
+                .put("name", appLabel)
                 .put("minutes", minutes)
+                .put("usage_minutes", minutes)
+                .put("total_minutes", minutes)
+                .put("duration", minutes)
             if (pkg !in alreadySentIcons && iconsInThisPing.size < MAX_ICONS_PER_PING) {
                 UsageCollector.appIconBase64(context, pkg)?.let {
                     entry.put("icon", it)
@@ -221,17 +239,31 @@ object ScreenTimeSync {
         val blockEvents = PolicyStore.pendingBlockEvents(context)
         val geofenceEvents = PolicyStore.pendingGeofenceEvents(context)
         val policy = PolicyStore.policy(context)
+        val currentLabel = currentPackage?.let { UsageCollector.appLabel(context, it) } ?: "Idle"
 
         val body = JSONObject()
             .put("date", date)
-            .put("totalScreenTimeMinutes", deltaMinutes.values.sum())
+            .put("usage_date", date)
+            .put("totalScreenTimeMinutes", totalMinutes)
+            .put("total_screen_time_minutes", totalMinutes)
+            .put("totalMinutes", totalMinutes)
+            .put("total_minutes", totalMinutes)
+            .put("usage_minutes", totalMinutes)
             .put("isScreenOn", isScreenOn)
-            .put("currentApp", currentPackage?.let { UsageCollector.appLabel(context, it) } ?: "Idle")
+            .put("is_screen_on", isScreenOn)
+            .put("currentApp", currentLabel)
+            .put("current_app", currentLabel)
             .put("currentPackage", currentPackage ?: JSONObject.NULL)
+            .put("current_package", currentPackage ?: JSONObject.NULL)
             // Lets the backend detect a phone whose clock was moved to dodge curfew.
             .put("deviceTime", System.currentTimeMillis())
             .put("compliance", complianceJson(context, policy))
-        if (breakdown.length() > 0) body.put("appUsageBreakdown", breakdown)
+        if (breakdown.length() > 0) {
+            body.put("appUsageBreakdown", breakdown)
+            body.put("app_usage_breakdown", breakdown)
+            body.put("apps", breakdown)
+            body.put("usage_logs", breakdown)
+        }
         if (blockEvents.length() > 0) body.put("blockEvents", blockEvents)
         if (geofenceEvents.length() > 0) body.put("geofenceEvents", geofenceEvents)
 

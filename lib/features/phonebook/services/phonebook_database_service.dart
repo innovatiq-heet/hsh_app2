@@ -22,7 +22,7 @@ class PhonebookDatabaseService {
 
     return await openDatabase(
       path,
-      version: 2,
+      version: 4,
       onUpgrade: _onUpgrade,
       onCreate: (db, version) async {
         await db.execute('''
@@ -38,28 +38,34 @@ class PhonebookDatabaseService {
             phone_normalized TEXT NOT NULL,
             is_primary INTEGER DEFAULT 1,
             phone_label TEXT DEFAULT 'Mobile',
-            updated_at TEXT
+            updated_at TEXT,
+            dob TEXT,
+            aadhar TEXT,
+            address TEXT,
+            pin_code TEXT,
+            father_name TEXT,
+            mother_name TEXT,
+            father_phone TEXT,
+            mother_phone TEXT,
+            whatsapp_number TEXT,
+            status TEXT,
+            bank_code TEXT,
+            room_num TEXT,
+            group_name TEXT,
+            floor_num INTEGER
           )
         ''');
 
-        await db.execute(
-          'CREATE INDEX idx_phone ON student_cache (phone)',
-        );
-        await db.execute(
-          'CREATE INDEX idx_phone_norm ON student_cache (phone_normalized)',
-        );
-        await db.execute(
-          'CREATE INDEX idx_student_name ON student_cache (name)',
-        );
-        await db.execute(
-          'CREATE INDEX idx_student_id ON student_cache (student_id)',
-        );
+        await db.execute('CREATE INDEX idx_phone ON student_cache (phone)');
+        await db.execute('CREATE INDEX idx_phone_norm ON student_cache (phone_normalized)');
+        await db.execute('CREATE INDEX idx_student_name ON student_cache (name)');
+        await db.execute('CREATE INDEX idx_student_id ON student_cache (student_id)');
+        await db.execute('CREATE INDEX idx_room ON student_cache (room_num)');
+        await db.execute('CREATE INDEX idx_group ON student_cache (group_name)');
       },
     );
   }
 
-  /// v1 wrote the raw string into `phone_normalized`, so caller-ID lookups
-  /// (`+917984907753` vs `079849 07753`) never matched. Re-key existing rows.
   Future<void> _onUpgrade(Database db, int oldVersion, int newVersion) async {
     if (oldVersion < 2) {
       final rows = await db.query('student_cache', columns: ['id', 'phone', 'phone_normalized']);
@@ -71,6 +77,37 @@ class PhonebookDatabaseService {
         }
       }
       await batch.commit(noResult: true);
+    }
+
+    if (oldVersion < 3) {
+      final newCols = [
+        'dob TEXT',
+        'aadhar TEXT',
+        'address TEXT',
+        'pin_code TEXT',
+        'father_name TEXT',
+        'father_phone TEXT',
+        'mother_phone TEXT',
+        'whatsapp_number TEXT',
+        'status TEXT',
+        'bank_code TEXT',
+        'room_num TEXT',
+        'group_name TEXT',
+        'floor_num INTEGER'
+      ];
+      for (final col in newCols) {
+        try {
+          await db.execute('ALTER TABLE student_cache ADD COLUMN $col');
+        } catch (_) {}
+      }
+      try { await db.execute('CREATE INDEX IF NOT EXISTS idx_room ON student_cache (room_num)'); } catch (_) {}
+      try { await db.execute('CREATE INDEX IF NOT EXISTS idx_group ON student_cache (group_name)'); } catch (_) {}
+    }
+
+    if (oldVersion < 4) {
+      try {
+        await db.execute('ALTER TABLE student_cache ADD COLUMN mother_name TEXT');
+      } catch (_) {}
     }
   }
 
@@ -116,6 +153,20 @@ class PhonebookDatabaseService {
                 (r['is_primary'] == 1 || r['is_primary'] == true) ? 1 : 0,
             'phone_label': r['phone_label'] ?? 'Mobile',
             'updated_at': r['updated_at'] ?? DateTime.now().toIso8601String(),
+            'dob': r['dob'],
+            'aadhar': r['aadhar'],
+            'address': r['address'],
+            'pin_code': r['pin_code'],
+            'father_name': r['father_name'],
+            'mother_name': r['mother_name'],
+            'father_phone': r['father_phone'],
+            'mother_phone': r['mother_phone'],
+            'whatsapp_number': r['whatsapp_number'],
+            'status': r['status'],
+            'bank_code': r['bank_code'],
+            'room_num': r['room_num'],
+            'group_name': r['group_name'],
+            'floor_num': r['floor_num'],
           },
           conflictAlgorithm: ConflictAlgorithm.replace,
         );
@@ -131,7 +182,15 @@ class PhonebookDatabaseService {
   Future<List<PhonebookStudent>> searchStudents({
     String query = '',
     String? group,
-    int limit = 500,
+    int? floor,
+    String? status, // 'all', 'active', 'alumni'
+    bool? hasDob,
+    bool? hasParent,
+    bool? hasWhatsApp,
+    bool? hasAddress,
+    bool? hasAadhar,
+    String sortBy = 'name_asc', // 'name_asc', 'name_desc', 'room_asc', 'room_desc', 'floor_asc', 'floor_desc'
+    int limit = 2000,
   }) async {
     final db = await database;
     final whereClauses = <String>[];
@@ -142,7 +201,7 @@ class PhonebookDatabaseService {
       final cleanedNum = cleanQuery.replaceAll(RegExp(r'\D'), '');
       if (cleanedNum.isNotEmpty && cleanedNum.length >= 3) {
         whereClauses.add(
-          '(phone LIKE ? OR phone_normalized LIKE ? OR name LIKE ? OR student_id LIKE ? OR enrollment_number LIKE ? OR department LIKE ?)',
+          '(phone LIKE ? OR phone_normalized LIKE ? OR name LIKE ? OR student_id LIKE ? OR enrollment_number LIKE ? OR department LIKE ? OR aadhar LIKE ? OR bank_code LIKE ? OR father_name LIKE ? OR mother_name LIKE ? OR room_num LIKE ?)',
         );
         whereArgs.addAll([
           '%$cleanQuery%',
@@ -151,41 +210,117 @@ class PhonebookDatabaseService {
           '%$cleanQuery%',
           '%$cleanQuery%',
           '%$cleanQuery%',
+          '%$cleanQuery%',
+          '%$cleanQuery%',
+          '%$cleanQuery%',
+          '%$cleanQuery%',
         ]);
       } else {
         whereClauses.add(
-          '(name LIKE ? OR student_id LIKE ? OR enrollment_number LIKE ? OR department LIKE ?)',
+          '(name LIKE ? OR student_id LIKE ? OR enrollment_number LIKE ? OR department LIKE ? OR aadhar LIKE ? OR bank_code LIKE ? OR father_name LIKE ? OR mother_name LIKE ? OR room_num LIKE ?)',
         );
         whereArgs.addAll([
           '%$cleanQuery%',
           '%$cleanQuery%',
           '%$cleanQuery%',
           '%$cleanQuery%',
+          '%$cleanQuery%',
+          '%$cleanQuery%',
+          '%$cleanQuery%',
+          '%$cleanQuery%',
+          '%$cleanQuery%',
         ]);
       }
     }
 
+    // Group / Wing filter
     if (group != null && group != 'All') {
       final g = group.trim().toLowerCase();
-      if (g == 'param') {
+      if (g == 'alumni') {
+        whereClauses.add('(LOWER(department) LIKE "%alumni%" OR LOWER(status) LIKE "%left%" OR LOWER(status) LIKE "%cancel%" OR room_num IS NULL OR room_num = "" OR LOWER(room_num) = "alumni" OR LOWER(room_num) = "n/a")');
+      } else if (g == 'param') {
         whereClauses.add(
           '(LOWER(department) LIKE ? AND LOWER(department) NOT LIKE ?)',
         );
         whereArgs.addAll(['%param%', '%paramanand%']);
       } else {
-        whereClauses.add('LOWER(department) LIKE ?');
-        whereArgs.add('%$g%');
+        whereClauses.add('(LOWER(department) LIKE ? OR LOWER(group_name) LIKE ?)');
+        whereArgs.addAll(['%$g%', '%$g%']);
       }
+    }
+
+    // Floor filter
+    if (floor != null) {
+      whereClauses.add('floor_num = ?');
+      whereArgs.add(floor);
+    }
+
+    // Status filter
+    if (status != null && status != 'All') {
+      final s = status.toLowerCase().trim();
+      if (s == 'active') {
+        whereClauses.add('(room_num IS NOT NULL AND room_num != "" AND LOWER(room_num) != "alumni" AND LOWER(room_num) != "n/a" AND (status IS NULL OR (LOWER(status) NOT LIKE "%left%" AND LOWER(status) NOT LIKE "%cancel%")))');
+      } else if (s == 'alumni') {
+        whereClauses.add('(room_num IS NULL OR room_num = "" OR LOWER(room_num) = "alumni" OR LOWER(room_num) = "n/a" OR LOWER(status) LIKE "%left%" OR LOWER(status) LIKE "%cancel%")');
+      }
+    }
+
+    // Has DOB
+    if (hasDob == true) {
+      whereClauses.add('(dob IS NOT NULL AND dob != "" AND dob != "null")');
+    }
+
+    // Has Parent Contact
+    if (hasParent == true) {
+      whereClauses.add('((father_phone IS NOT NULL AND father_phone != "") OR (mother_phone IS NOT NULL AND mother_phone != ""))');
+    }
+
+    // Has WhatsApp
+    if (hasWhatsApp == true) {
+      whereClauses.add('(whatsapp_number IS NOT NULL AND whatsapp_number != "")');
+    }
+
+    // Has Permanent Address
+    if (hasAddress == true) {
+      whereClauses.add('(address IS NOT NULL AND address != "" AND address NOT LIKE "%Hari Smruti Hostel%")');
+    }
+
+    // Has Aadhar Card
+    if (hasAadhar == true) {
+      whereClauses.add('(aadhar IS NOT NULL AND aadhar != "" AND aadhar != "null")');
     }
 
     final whereString =
         whereClauses.isNotEmpty ? whereClauses.join(' AND ') : null;
 
+    String orderByClause = 'name ASC';
+    switch (sortBy) {
+      case 'name_desc':
+        orderByClause = 'name DESC';
+        break;
+      case 'room_asc':
+        orderByClause = 'CASE WHEN room_num IS NULL OR room_num = "" OR LOWER(room_num) = "alumni" THEN 1 ELSE 0 END, room_num ASC, name ASC';
+        break;
+      case 'room_desc':
+        orderByClause = 'CASE WHEN room_num IS NULL OR room_num = "" OR LOWER(room_num) = "alumni" THEN 1 ELSE 0 END, room_num DESC, name ASC';
+        break;
+      case 'floor_asc':
+        orderByClause = 'CASE WHEN floor_num IS NULL THEN 1 ELSE 0 END, floor_num ASC, room_num ASC';
+        break;
+      case 'floor_desc':
+        orderByClause = 'CASE WHEN floor_num IS NULL THEN 1 ELSE 0 END, floor_num DESC, room_num ASC';
+        break;
+      case 'name_asc':
+      default:
+        orderByClause = 'name ASC';
+        break;
+    }
+
     final rows = await db.query(
       'student_cache',
       where: whereString,
       whereArgs: whereArgs.isNotEmpty ? whereArgs : null,
-      orderBy: 'name ASC',
+      orderBy: orderByClause,
       limit: limit,
     );
 
@@ -206,6 +341,20 @@ class PhonebookDatabaseService {
           'department': row['department'],
           'batch': row['batch'],
           'email': row['email'],
+          'dob': row['dob'],
+          'aadhar': row['aadhar'],
+          'address': row['address'],
+          'pin_code': row['pin_code'],
+          'father_name': row['father_name'],
+          'mother_name': row['mother_name'],
+          'father_phone': row['father_phone'],
+          'mother_phone': row['mother_phone'],
+          'whatsapp_number': row['whatsapp_number'],
+          'status': row['status'],
+          'bank_code': row['bank_code'],
+          'room_num': row['room_num'],
+          'group_name': row['group_name'],
+          'floor_num': row['floor_num'],
           'phones': <Map<String, dynamic>>[],
           'updated_at': row['updated_at'],
         };

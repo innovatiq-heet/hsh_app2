@@ -24,11 +24,20 @@ class AdminBirthdayController extends GetxController {
   late TextEditingController testPhoneController;
   late TextEditingController adminPhoneController;
   late TextEditingController searchController;
+  late TextEditingController pairPhoneController;
 
   final RxString sendTime = '08:00'.obs;
   final RxString targetAudience = 'student_only'.obs;
   final RxBool preferWhatsApp = true.obs;
   final RxBool isAutoEnabled = true.obs;
+
+  // WhatsApp Pairing & Device linking
+  final RxString waStatus = 'disconnected'.obs;
+  final RxString waQr = ''.obs;
+  final RxString pairingCode = ''.obs;
+  final RxBool isPairingLoading = false.obs;
+  final RxBool isCheckingStatus = false.obs;
+  final RxString connectedPhone = ''.obs;
 
   @override
   void onInit() {
@@ -37,8 +46,10 @@ class AdminBirthdayController extends GetxController {
     testPhoneController = TextEditingController();
     adminPhoneController = TextEditingController();
     searchController = TextEditingController();
+    pairPhoneController = TextEditingController();
 
     loadDashboard();
+    fetchWhatsAppStatus();
   }
 
   @override
@@ -47,6 +58,7 @@ class AdminBirthdayController extends GetxController {
     testPhoneController.dispose();
     adminPhoneController.dispose();
     searchController.dispose();
+    pairPhoneController.dispose();
     super.onClose();
   }
 
@@ -64,11 +76,72 @@ class AdminBirthdayController extends GetxController {
       preferWhatsApp.value = data.config.preferWhatsAppNumber;
       templateController.text = data.config.messageTemplate;
       adminPhoneController.text = data.config.adminNotificationPhone ?? '';
+
+      // Sync WA connection state
+      if (data.senderPhone != null && data.senderPhone!.isNotEmpty) {
+        connectedPhone.value = data.senderPhone!;
+        waStatus.value = 'open';
+      }
     } catch (e) {
       debugPrint('[AdminBirthdayController] loadDashboard error: $e');
       error.value = 'Failed to load birthday dashboard. Pull down to retry.';
     } finally {
       isLoading.value = false;
+    }
+  }
+
+  Future<void> fetchWhatsAppStatus() async {
+    isCheckingStatus.value = true;
+    try {
+      final res = await _repository.getWhatsAppStatus();
+      if (res.isNotEmpty) {
+        waStatus.value = res['status']?.toString() ?? 'disconnected';
+        waQr.value = res['qr']?.toString() ?? '';
+        final user = res['user'];
+        if (user is Map && user['phone'] != null) {
+          connectedPhone.value = user['phone'].toString();
+        } else {
+          connectedPhone.value = '';
+        }
+      }
+    } catch (e) {
+      debugPrint('[AdminBirthdayController] fetchWhatsAppStatus error: $e');
+    } finally {
+      isCheckingStatus.value = false;
+    }
+  }
+
+  Future<void> requestPairingCode() async {
+    final phone = pairPhoneController.text.trim().replaceAll(RegExp(r'[^0-9]'), '');
+    if (phone.length < 10) {
+      AppSnackbar.warning('Invalid Number', 'Enter your full WhatsApp number with country code (e.g. 919876543210).');
+      return;
+    }
+
+    isPairingLoading.value = true;
+    pairingCode.value = '';
+    try {
+      final code = await _repository.requestPairingCode(phone);
+      pairingCode.value = code;
+      AppSnackbar.success('Pairing Code Ready', 'Enter code in WhatsApp > Linked Devices.');
+    } catch (e) {
+      AppSnackbar.error('Pairing Failed', e.toString().replaceAll('Exception: ', ''));
+    } finally {
+      isPairingLoading.value = false;
+    }
+  }
+
+  Future<void> disconnectWhatsAppSession() async {
+    try {
+      await _repository.disconnectWhatsApp();
+      pairingCode.value = '';
+      waStatus.value = 'disconnected';
+      connectedPhone.value = '';
+      AppSnackbar.success('Disconnected', 'WhatsApp device session unlinked.');
+      await loadDashboard();
+      await fetchWhatsAppStatus();
+    } catch (e) {
+      AppSnackbar.error('Disconnect Failed', e.toString());
     }
   }
 

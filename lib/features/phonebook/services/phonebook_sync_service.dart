@@ -72,6 +72,7 @@ class PhonebookSyncService {
         if (s is! Map) continue;
 
         final rawFirst = (s['firstName'] ?? s['first_name'] ?? '').toString().trim();
+        final rawMother = (s['motherName'] ?? s['mother_name'] ?? s['mother'] ?? '').toString().trim();
         final rawMiddle = (s['middleName'] ?? s['middle_name'] ?? s['fatherName'] ?? s['father_name'] ?? '').toString().trim();
         final rawLast = (s['lastName'] ?? s['last_name'] ?? s['surname'] ?? '').toString().trim();
         final rawFull = (s['name'] ?? s['fullName'] ?? '').toString().trim();
@@ -98,6 +99,8 @@ class PhonebookSyncService {
         final rawRoom = s['room']?.toString().trim();
         final group = s['groupName']?.toString().trim();
         final status = s['status']?.toString().toLowerCase().trim() ?? '';
+        final dob = s['dob']?.toString().trim();
+        final whatsappNumber = (s['whatsAppNumber'] ?? s['whatsappNumber'])?.toString().trim();
 
         final isRoomNa = rawRoom == null ||
             rawRoom.isEmpty ||
@@ -108,9 +111,19 @@ class PhonebookSyncService {
             status.contains('alumni') ||
             status.contains('left') ||
             status.contains('former') ||
-            status.contains('pass');
+            status.contains('pass') ||
+            status.contains('cancel');
 
         final room = isRoomNa ? null : rawRoom;
+
+        int? floorNum;
+        if (room != null) {
+          if (room.length == 5) {
+            floorNum = int.tryParse(room.substring(0, 2));
+          } else if (room.length >= 3) {
+            floorNum = int.tryParse(room.substring(0, 1));
+          }
+        }
 
         final studentCode = (bankCode != null && bankCode.isNotEmpty)
             ? 'HSH-$bankCode'
@@ -163,6 +176,14 @@ class PhonebookSyncService {
         final email = s['email']?.toString();
         uniqueStudents.add(studentCode);
 
+        final rawAddress = s['address']?.toString().trim();
+        final address = (rawAddress != null && rawAddress.isNotEmpty)
+            ? rawAddress
+            : (room != null
+                ? 'Room $room, ${cleanGroup ?? 'Hostel'} Wing, Hari Smruti Hostel (HSH), Vallabh Vidyanagar, Anand, Gujarat - 388120'
+                : 'Hari Smruti Hostel (HSH), Vallabh Vidyanagar, Anand, Gujarat - 388120');
+        final pinCode = s['pinCode']?.toString().trim() ?? s['pin_code']?.toString().trim() ?? '388120';
+
         // 1. Student Personal Mobile
         final phone = s['phone']?.toString().trim();
         if (phone != null && phone.isNotEmpty) {
@@ -179,6 +200,20 @@ class PhonebookSyncService {
             'is_primary': 1,
             'phone_label': 'Student Mobile',
             'updated_at': nowIso,
+            'dob': dob,
+            'aadhar': aadhar,
+            'address': address,
+            'pin_code': pinCode,
+            'father_name': rawMiddle.isNotEmpty ? rawMiddle : null,
+            'mother_name': rawMother.isNotEmpty ? rawMother : null,
+            'father_phone': s['fatherPhone']?.toString().trim(),
+            'mother_phone': s['motherPhone']?.toString().trim(),
+            'whatsapp_number': whatsappNumber,
+            'status': status,
+            'bank_code': bankCode,
+            'room_num': room ?? (isAlumni ? 'Alumni' : null),
+            'group_name': cleanGroup,
+            'floor_num': floorNum,
           });
         }
 
@@ -203,6 +238,19 @@ class PhonebookSyncService {
             'is_primary': 0,
             'phone_label': fatherLabel,
             'updated_at': nowIso,
+            'dob': dob,
+            'aadhar': aadhar,
+            'address': address,
+            'pin_code': pinCode,
+            'father_name': rawMiddle.isNotEmpty ? rawMiddle : null,
+            'father_phone': fatherPhone,
+            'mother_phone': s['motherPhone']?.toString().trim(),
+            'whatsapp_number': whatsappNumber,
+            'status': status,
+            'bank_code': bankCode,
+            'room_num': room ?? (isAlumni ? 'Alumni' : null),
+            'group_name': cleanGroup,
+            'floor_num': floorNum,
           });
         }
 
@@ -225,16 +273,28 @@ class PhonebookSyncService {
             'is_primary': 0,
             'phone_label': 'Mother Contact',
             'updated_at': nowIso,
+            'dob': dob,
+            'aadhar': aadhar,
+            'address': address,
+            'pin_code': pinCode,
+            'father_name': rawMiddle.isNotEmpty ? rawMiddle : null,
+            'father_phone': fatherPhone,
+            'mother_phone': motherPhone,
+            'whatsapp_number': whatsappNumber,
+            'status': status,
+            'bank_code': bankCode,
+            'room_num': room ?? (isAlumni ? 'Alumni' : null),
+            'group_name': cleanGroup,
+            'floor_num': floorNum,
           });
         }
 
-        // 4. WhatsApp Number (if distinct)
-        final whatsApp = s['whatsAppNumber']?.toString().trim();
-        if (whatsApp != null &&
-            whatsApp.isNotEmpty &&
-            whatsApp != phone &&
-            whatsApp != fatherPhone &&
-            whatsApp != motherPhone) {
+        // 4. WhatsApp Number
+        if (whatsappNumber != null &&
+            whatsappNumber.isNotEmpty &&
+            whatsappNumber != phone &&
+            whatsappNumber != fatherPhone &&
+            whatsappNumber != motherPhone) {
           records.add({
             'internal_id': 'stu_${i + 1}',
             'student_id': studentCode,
@@ -243,34 +303,47 @@ class PhonebookSyncService {
             'department': dept,
             'batch': batch,
             'email': email,
-            'phone_raw': whatsApp,
-            'phone': PhoneNumberNormalizer.normalize(whatsApp) ?? whatsApp,
+            'phone_raw': whatsappNumber,
+            'phone': PhoneNumberNormalizer.normalize(whatsappNumber) ?? whatsappNumber,
             'is_primary': 0,
-            'phone_label': 'WhatsApp',
+            'phone_label': 'WhatsApp Number',
             'updated_at': nowIso,
+            'dob': dob,
+            'aadhar': aadhar,
+            'address': address,
+            'pin_code': pinCode,
+            'father_name': rawMiddle.isNotEmpty ? rawMiddle : null,
+            'father_phone': fatherPhone,
+            'mother_phone': motherPhone,
+            'whatsapp_number': whatsappNumber,
+            'status': status,
+            'bank_code': bankCode,
+            'room_num': room ?? (isAlumni ? 'Alumni' : null),
+            'group_name': cleanGroup,
+            'floor_num': floorNum,
           });
         }
       }
 
-      // Sync into SQLite
-      final totalPhones = await PhonebookDatabaseService.instance.syncRecords(
+      final syncedCount = await PhonebookDatabaseService.instance.syncRecords(
         records,
         fullReplace: true,
       );
 
-      final studentCount = uniqueStudents.length;
-
       await _storage.write(key: _kLastSync, value: nowIso);
-      await _storage.write(key: _kCachedCount, value: studentCount.toString());
+      await _storage.write(
+        key: _kCachedCount,
+        value: uniqueStudents.length.toString(),
+      );
 
       return PhonebookSyncResult(
         success: true,
-        totalStudents: studentCount,
-        totalPhones: totalPhones,
-        syncTime: DateTime.now(),
+        totalStudents: uniqueStudents.length,
+        totalPhones: syncedCount,
+        syncTime: DateTime.parse(nowIso),
       );
-    } catch (e) {
-      developer.log('Phonebook sync error: $e', name: 'PhonebookSyncService');
+    } catch (e, stack) {
+      developer.log('Phonebook sync error: $e', stackTrace: stack);
       return PhonebookSyncResult(
         success: false,
         totalStudents: 0,

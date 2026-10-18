@@ -1,3 +1,5 @@
+import 'package:intl/intl.dart';
+
 class PhonebookContact {
   final String? id;
   final String phone;
@@ -49,6 +51,21 @@ class PhonebookStudent {
   final String? groupName;
   final String? updatedAt;
 
+  // Comprehensive profile & personal fields
+  final String? dob;
+  final String? aadhar;
+  final String? address;
+  final String? pinCode;
+  final String? bloodGroup;
+  final String? fatherName;
+  final String? motherName;
+  final String? fatherPhone;
+  final String? motherPhone;
+  final String? whatsappNumber;
+  final String? status;
+  final String? bankCode;
+  final int? floor;
+
   const PhonebookStudent({
     required this.id,
     required this.studentId,
@@ -61,6 +78,19 @@ class PhonebookStudent {
     this.room,
     this.groupName,
     this.updatedAt,
+    this.dob,
+    this.aadhar,
+    this.address,
+    this.pinCode,
+    this.bloodGroup,
+    this.fatherName,
+    this.motherName,
+    this.fatherPhone,
+    this.motherPhone,
+    this.whatsappNumber,
+    this.status,
+    this.bankCode,
+    this.floor,
   });
 
   factory PhonebookStudent.fromJson(Map<String, dynamic> json) {
@@ -98,7 +128,7 @@ class PhonebookStudent {
       derivedGroup = dept.trim();
     }
 
-    final rawRoom = json['room']?.toString().trim();
+    final rawRoom = json['room']?.toString().trim() ?? json['room_num']?.toString().trim();
     final isRoomNa = rawRoom == null ||
         rawRoom.isEmpty ||
         rawRoom.toLowerCase() == 'n/a' ||
@@ -107,6 +137,54 @@ class PhonebookStudent {
     final resolvedRoom = isRoomNa
         ? (dept.toLowerCase().contains('alumni') ? 'Alumni' : (derivedRoom ?? 'Alumni'))
         : rawRoom;
+
+    // Derive Floor
+    int? resolvedFloor;
+    if (json['floor_num'] != null) {
+      resolvedFloor = int.tryParse(json['floor_num'].toString());
+    } else if (json['floor'] != null) {
+      resolvedFloor = int.tryParse(json['floor'].toString());
+    } else if (resolvedRoom != null && resolvedRoom != 'Alumni') {
+      final digits = resolvedRoom.replaceAll(RegExp(r'\D'), '');
+      if (digits.length == 5) {
+        resolvedFloor = int.tryParse(digits.substring(0, 2));
+      } else if (digits.length >= 3) {
+        resolvedFloor = int.tryParse(digits.substring(0, 1));
+      }
+    }
+
+    final rawDob = json['dob']?.toString().trim();
+    final cleanDob = (rawDob != null && rawDob.isNotEmpty && rawDob != 'null') ? rawDob : null;
+
+    final rawAadhar = json['aadhar']?.toString().trim();
+    final cleanAadhar = (rawAadhar != null && rawAadhar.isNotEmpty && rawAadhar != 'null') ? rawAadhar : null;
+
+    final rawBankCode = json['bank_code']?.toString().trim() ?? json['bankCode']?.toString().trim();
+    final cleanBankCode = (rawBankCode != null && rawBankCode.isNotEmpty && rawBankCode != 'null') ? rawBankCode : null;
+
+    final rawFatherName = json['father_name']?.toString().trim() ?? json['middleName']?.toString().trim();
+    final cleanFatherName = (rawFatherName != null && rawFatherName.isNotEmpty && rawFatherName != 'null') ? rawFatherName : null;
+
+    final rawMotherName = json['mother_name']?.toString().trim() ?? json['motherName']?.toString().trim() ?? json['mother']?.toString().trim();
+    final cleanMotherName = (rawMotherName != null && rawMotherName.isNotEmpty && rawMotherName != 'null') ? rawMotherName : null;
+
+    final rawFatherPhone = json['father_phone']?.toString().trim() ?? json['fatherPhone']?.toString().trim();
+    final cleanFatherPhone = (rawFatherPhone != null && rawFatherPhone.isNotEmpty && rawFatherPhone != 'null') ? rawFatherPhone : null;
+
+    final rawMotherPhone = json['mother_phone']?.toString().trim() ?? json['motherPhone']?.toString().trim();
+    final cleanMotherPhone = (rawMotherPhone != null && rawMotherPhone.isNotEmpty && rawMotherPhone != 'null') ? rawMotherPhone : null;
+
+    final rawWhatsApp = json['whatsapp_number']?.toString().trim() ?? json['whatsAppNumber']?.toString().trim();
+    final cleanWhatsApp = (rawWhatsApp != null && rawWhatsApp.isNotEmpty && rawWhatsApp != 'null') ? rawWhatsApp : null;
+
+    final rawStatus = json['status']?.toString().trim();
+    final cleanStatus = (rawStatus != null && rawStatus.isNotEmpty && rawStatus != 'null') ? rawStatus : null;
+
+    final rawAddress = json['address']?.toString().trim();
+    final cleanAddress = (rawAddress != null && rawAddress.isNotEmpty && rawAddress != 'null') ? rawAddress : null;
+
+    final rawPin = json['pin_code']?.toString().trim() ?? json['pinCode']?.toString().trim();
+    final cleanPin = (rawPin != null && rawPin.isNotEmpty && rawPin != 'null') ? rawPin : null;
 
     return PhonebookStudent(
       id: json['id']?.toString() ?? json['internal_id']?.toString() ?? '',
@@ -120,6 +198,19 @@ class PhonebookStudent {
       room: resolvedRoom,
       groupName: json['group_name']?.toString() ?? derivedGroup,
       updatedAt: json['updated_at']?.toString(),
+      dob: cleanDob,
+      aadhar: cleanAadhar,
+      address: cleanAddress,
+      pinCode: cleanPin,
+      bloodGroup: json['blood_group']?.toString() ?? json['bloodGroup']?.toString(),
+      fatherName: cleanFatherName,
+      motherName: cleanMotherName,
+      fatherPhone: cleanFatherPhone,
+      motherPhone: cleanMotherPhone,
+      whatsappNumber: cleanWhatsApp,
+      status: cleanStatus,
+      bankCode: cleanBankCode,
+      floor: resolvedFloor,
     );
   }
 
@@ -128,6 +219,141 @@ class PhonebookStudent {
     final primary =
         phones.firstWhere((p) => p.isPrimary, orElse: () => phones.first);
     return primary.phone.isNotEmpty ? primary.phone : primary.phoneNormalized;
+  }
+
+  bool get isAlumni {
+    final r = (room ?? '').toLowerCase().trim();
+    final b = (batch).toLowerCase().trim();
+    final d = (department).toLowerCase().trim();
+    final s = (status ?? '').toLowerCase().trim();
+    return r == 'alumni' ||
+        r == 'n/a' ||
+        r.isEmpty ||
+        b.contains('alumni') ||
+        d.contains('alumni') ||
+        s.contains('left') ||
+        s.contains('cancel') ||
+        s.contains('alumni');
+  }
+
+  bool get hasDob => dob != null && dob!.trim().isNotEmpty;
+  bool get hasMotherName => motherName != null && motherName!.trim().isNotEmpty;
+  bool get hasFatherPhone => fatherPhone != null && fatherPhone!.trim().isNotEmpty;
+  bool get hasMotherPhone => motherPhone != null && motherPhone!.trim().isNotEmpty;
+  bool get hasWhatsApp => whatsappNumber != null && whatsappNumber!.trim().isNotEmpty;
+
+  /// Formatted Date of Birth: e.g. "29 Mar 2007"
+  String get formattedDob {
+    if (dob == null || dob!.isEmpty) return 'Not Provided';
+    try {
+      final clean = dob!.trim();
+      DateTime? parsed = DateTime.tryParse(clean);
+      if (parsed == null && clean.contains('-')) {
+        final parts = clean.split('-');
+        if (parts.length == 3) {
+          if (parts[0].length == 4) {
+            parsed = DateTime(int.parse(parts[0]), int.parse(parts[1]), int.parse(parts[2]));
+          } else {
+            parsed = DateTime(int.parse(parts[2]), int.parse(parts[1]), int.parse(parts[0]));
+          }
+        }
+      }
+      if (parsed != null) {
+        return DateFormat('d MMM yyyy').format(parsed);
+      }
+      return clean;
+    } catch (_) {
+      return dob!;
+    }
+  }
+
+  /// Calculated Age text: e.g. "19 yrs"
+  String get ageText {
+    if (dob == null || dob!.isEmpty) return '';
+    try {
+      DateTime? parsed = DateTime.tryParse(dob!.trim());
+      if (parsed != null) {
+        final now = DateTime.now();
+        int age = now.year - parsed.year;
+        if (now.month < parsed.month || (now.month == parsed.month && now.day < parsed.day)) {
+          age--;
+        }
+        if (age > 0 && age < 100) return '$age yrs';
+      }
+    } catch (_) {}
+    return '';
+  }
+
+  /// Masked Aadhar: e.g. "•••• •••• 4074"
+  String get maskedAadhar {
+    if (aadhar == null || aadhar!.isEmpty) return 'Not Provided';
+    final clean = aadhar!.replaceAll(RegExp(r'\D'), '');
+    if (clean.length >= 4) {
+      final last4 = clean.substring(clean.length - 4);
+      return '•••• •••• $last4';
+    }
+    return aadhar!;
+  }
+
+  /// Complete Display Address (permanent or campus residence)
+  String get displayAddress {
+    if (address != null && address!.trim().isNotEmpty) {
+      if (pinCode != null && pinCode!.trim().isNotEmpty && !address!.contains(pinCode!)) {
+        return '${address!.trim()}, PIN: ${pinCode!.trim()}';
+      }
+      return address!.trim();
+    }
+    final g = groupName != null
+        ? (groupName!.toLowerCase().endsWith('wing') ? groupName! : '$groupName Wing')
+        : 'HSH Wing';
+    final r = (room != null && room != 'Alumni' && room != 'N/A') ? 'Room $room, ' : '';
+    return '${r}$g, Hari Smruti Hostel (HSH), Vallabh Vidyanagar, Anand, Gujarat - 388120';
+  }
+
+  /// Formats all complete student details into a clean, shareable card for WhatsApp / SMS / Email
+  String toShareText() {
+    final buffer = StringBuffer();
+    buffer.writeln('🎓 *Student Profile - Hari Smruti Hostel (HSH)*');
+    buffer.writeln('👤 *Name:* $name');
+    final w = groupName != null
+        ? (groupName!.toLowerCase().endsWith('wing') ? groupName! : '$groupName Wing')
+        : 'Hostel';
+    if (room != null && room != 'Alumni' && room != 'N/A') {
+      buffer.writeln('🚪 *Room:* $room ($w)');
+    } else if (groupName != null) {
+      buffer.writeln('🏢 *Wing:* $w');
+    }
+    if (floor != null) {
+      buffer.writeln('📶 *Floor:* ${floor == 0 ? 'Ground Floor' : 'Floor $floor'}');
+    }
+    if (primaryPhone != 'No Phone') {
+      buffer.writeln('📞 *Mobile:* $primaryPhone');
+    }
+    if (whatsappNumber != null && whatsappNumber!.isNotEmpty) {
+      buffer.writeln('💬 *WhatsApp:* $whatsappNumber');
+    }
+    if (fatherName != null || (fatherPhone != null && fatherPhone!.isNotEmpty)) {
+      final fName = fatherName ?? 'Father';
+      final fPhone = fatherPhone != null ? ' (Ph: $fatherPhone)' : '';
+      buffer.writeln('👨 *Father:* $fName$fPhone');
+    }
+    if (motherName != null || (motherPhone != null && motherPhone!.isNotEmpty)) {
+      final mName = motherName ?? 'Mother';
+      final mPhone = motherPhone != null ? ' (Ph: $motherPhone)' : '';
+      buffer.writeln('👩 *Mother:* $mName$mPhone');
+    }
+    if (hasDob) {
+      final ageStr = ageText.isNotEmpty ? ' ($ageText)' : '';
+      buffer.writeln('🎂 *DOB:* $formattedDob$ageStr');
+    }
+    buffer.writeln('📍 *Address:* $displayAddress');
+    if (aadhar != null && aadhar!.isNotEmpty) {
+      buffer.writeln('🆔 *Aadhar:* $maskedAadhar');
+    }
+    if (studentId.isNotEmpty) {
+      buffer.writeln('🏷️ *Student ID:* $studentId');
+    }
+    return buffer.toString().trim();
   }
 }
 

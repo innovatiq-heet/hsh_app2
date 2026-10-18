@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:get/get.dart';
+import 'package:qr_flutter/qr_flutter.dart';
 import '../../../core/constants/app_colors.dart';
 import '../../../core/constants/app_dimens.dart';
 import '../../../core/constants/app_text_styles.dart';
@@ -35,9 +37,9 @@ class AdminBirthdayScreen extends GetView<AdminBirthdayController> {
               child: Column(
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  const Icon(Icons.error_outline_rounded, size: 48, color: AppColors.error),
+                  const Icon(Icons.error_outline_rounded, size: 48, color: AppColors.errorRed),
                   const SizedBox(height: AppDimens.gapMd),
-                  Text(error, textAlign: TextAlign.center, style: AppTextStyles.body),
+                  Text(error, textAlign: TextAlign.center, style: AppTextStyles.bodyMd),
                   const SizedBox(height: AppDimens.gapLg),
                   ElevatedButton(
                     onPressed: controller.loadDashboard,
@@ -50,18 +52,27 @@ class AdminBirthdayScreen extends GetView<AdminBirthdayController> {
           );
         }
 
+        final isOnline = (data?.isWhatsAppConnected ?? false) || controller.connectedPhone.isNotEmpty;
+
         return AppRefreshIndicator(
-          onRefresh: controller.loadDashboard,
+          onRefresh: () async {
+            await controller.loadDashboard();
+            await controller.fetchWhatsAppStatus();
+          },
           child: CustomScrollView(
             physics: const AlwaysScrollableScrollPhysics(parent: ClampingScrollPhysics()),
             slivers: [
-              _buildHeader(context, data),
+              _buildHeader(context, data, isOnline),
               SliverToBoxAdapter(
                 child: Padding(
                   padding: const EdgeInsets.all(AppDimens.screenPadding),
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.stretch,
                     children: [
+                      if (!isOnline) ...[
+                        _buildNotConnectedBanner(context),
+                        const SizedBox(height: AppDimens.gapLg),
+                      ],
                       _buildTabBar(),
                       const SizedBox(height: AppDimens.gapLg),
                       _buildActiveTabContent(data),
@@ -76,12 +87,13 @@ class AdminBirthdayScreen extends GetView<AdminBirthdayController> {
     );
   }
 
-  Widget _buildHeader(BuildContext context, BirthdayDashboardData? data) {
-    final isOnline = data?.isWhatsAppConnected ?? false;
-    final sender = data?.senderPhone;
+  Widget _buildHeader(BuildContext context, BirthdayDashboardData? data, bool isOnline) {
+    final sender = controller.connectedPhone.isNotEmpty
+        ? controller.connectedPhone.value
+        : data?.senderPhone;
 
     return SliverGradientHeader(
-      expandedHeight: 130,
+      expandedHeight: 135,
       overline: 'Automated Greetings & Celebrants',
       title: 'Birthday Wishes',
       titleStyle: AppTextStyles.headline.copyWith(
@@ -91,45 +103,59 @@ class AdminBirthdayScreen extends GetView<AdminBirthdayController> {
       ),
       actions: [
         IconButton(
+          icon: const Icon(Icons.phonelink_setup_rounded, color: Colors.white),
+          tooltip: 'Link WhatsApp Device',
+          onPressed: () => _showLinkDeviceSheet(context),
+        ),
+        IconButton(
           icon: const Icon(Icons.refresh_rounded, color: Colors.white),
           tooltip: 'Refresh',
-          onPressed: controller.loadDashboard,
+          onPressed: () {
+            controller.loadDashboard();
+            controller.fetchWhatsAppStatus();
+          },
         ),
       ],
       child: Row(
         children: [
-          Container(
-            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-            decoration: BoxDecoration(
-              color: isOnline
-                  ? const Color(0xFF10B981).withValues(alpha: 0.25)
-                  : Colors.red.withValues(alpha: 0.25),
-              borderRadius: BorderRadius.circular(AppDimens.radiusFull),
-              border: Border.all(
-                color: isOnline ? const Color(0xFF10B981) : Colors.redAccent,
-                width: 1,
-              ),
-            ),
-            child: Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Icon(
-                  Icons.circle,
-                  size: 8,
+          InkWell(
+            onTap: () => _showLinkDeviceSheet(context),
+            borderRadius: BorderRadius.circular(AppDimens.radiusPill),
+            child: Container(
+              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+              decoration: BoxDecoration(
+                color: isOnline
+                    ? const Color(0xFF10B981).withValues(alpha: 0.25)
+                    : Colors.red.withValues(alpha: 0.25),
+                borderRadius: BorderRadius.circular(AppDimens.radiusPill),
+                border: Border.all(
                   color: isOnline ? const Color(0xFF10B981) : Colors.redAccent,
+                  width: 1,
                 ),
-                const SizedBox(width: 6),
-                Text(
-                  isOnline
-                      ? (sender != null ? 'WA Online: +$sender' : 'WhatsApp Online')
-                      : 'WhatsApp Offline',
-                  style: const TextStyle(
-                    color: Colors.white,
-                    fontSize: 12,
-                    fontWeight: FontWeight.w600,
+              ),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Icon(
+                    Icons.circle,
+                    size: 8,
+                    color: isOnline ? const Color(0xFF10B981) : Colors.redAccent,
                   ),
-                ),
-              ],
+                  const SizedBox(width: 6),
+                  Text(
+                    isOnline
+                        ? (sender != null ? 'WA: +$sender' : 'WhatsApp Online')
+                        : 'WhatsApp Offline (Tap to link)',
+                    style: const TextStyle(
+                      color: Colors.white,
+                      fontSize: 12,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                  const SizedBox(width: 4),
+                  const Icon(Icons.chevron_right_rounded, size: 14, color: Colors.white70),
+                ],
+              ),
             ),
           ),
           const Spacer(),
@@ -154,6 +180,348 @@ class AdminBirthdayScreen extends GetView<AdminBirthdayController> {
             ),
           ),
         ],
+      ),
+    );
+  }
+
+  Widget _buildNotConnectedBanner(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.all(AppDimens.gapMd),
+      decoration: BoxDecoration(
+        color: const Color(0xFFFFFBEB),
+        borderRadius: BorderRadius.circular(AppDimens.radiusMd),
+        border: Border.all(color: const Color(0xFFFDE68A)),
+      ),
+      child: Row(
+        children: [
+          Container(
+            padding: const EdgeInsets.all(8),
+            decoration: const BoxDecoration(
+              color: Color(0xFFFEF3C7),
+              shape: BoxShape.circle,
+            ),
+            child: const Icon(Icons.phonelink_erase_rounded, color: Color(0xFFD97706), size: 22),
+          ),
+          const SizedBox(width: AppDimens.gapMd),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: const [
+                Text(
+                  'WhatsApp Not Linked',
+                  style: TextStyle(fontWeight: FontWeight.w700, fontSize: 14, color: Color(0xFF92400E)),
+                ),
+                SizedBox(height: 2),
+                Text(
+                  'Connect your mobile number to send automated greetings.',
+                  style: TextStyle(fontSize: 12, color: Color(0xFFB45309)),
+                ),
+              ],
+            ),
+          ),
+          ElevatedButton(
+            onPressed: () => _showLinkDeviceSheet(context),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: const Color(0xFF10B981),
+              foregroundColor: Colors.white,
+              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+            ),
+            child: const Text('Connect', style: TextStyle(fontWeight: FontWeight.w700, fontSize: 13)),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _showLinkDeviceSheet(BuildContext context) {
+    controller.fetchWhatsAppStatus();
+
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (ctx) => Container(
+        padding: EdgeInsets.only(
+          bottom: MediaQuery.of(ctx).viewInsets.bottom + 20,
+          left: 20,
+          right: 20,
+          top: 20,
+        ),
+        decoration: const BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+        ),
+        child: SingleChildScrollView(
+          child: Obx(() {
+            final isConnected = controller.connectedPhone.isNotEmpty;
+            final isPairing = controller.isPairingLoading.value;
+            final code = controller.pairingCode.value;
+            final qr = controller.waQr.value;
+
+            return Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                Center(
+                  child: Container(
+                    width: 40,
+                    height: 4,
+                    decoration: BoxDecoration(
+                      color: Colors.grey.shade300,
+                      borderRadius: BorderRadius.circular(2),
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 16),
+                Row(
+                  children: [
+                    Container(
+                      padding: const EdgeInsets.all(8),
+                      decoration: BoxDecoration(
+                        color: const Color(0xFF10B981).withValues(alpha: 0.15),
+                        shape: BoxShape.circle,
+                      ),
+                      child: const Icon(Icons.chat_bubble_rounded, color: Color(0xFF10B981), size: 24),
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          const Text(
+                            'WhatsApp Device Linking',
+                            style: TextStyle(fontSize: 18, fontWeight: FontWeight.w700, color: AppColors.textPrimary),
+                          ),
+                          Text(
+                            isConnected
+                                ? 'Connected as +${controller.connectedPhone.value}'
+                                : 'Link your number to dispatch greetings',
+                            style: TextStyle(
+                              fontSize: 12,
+                              color: isConnected ? const Color(0xFF10B981) : AppColors.textSecondary,
+                              fontWeight: isConnected ? FontWeight.w600 : FontWeight.normal,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    IconButton(
+                      icon: const Icon(Icons.close_rounded),
+                      onPressed: () => Navigator.pop(ctx),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 16),
+                const Divider(height: 1, color: AppColors.border),
+                const SizedBox(height: 16),
+
+                if (isConnected) ...[
+                  // Connected State
+                  Container(
+                    padding: const EdgeInsets.all(16),
+                    decoration: BoxDecoration(
+                      color: const Color(0xFFECFDF5),
+                      borderRadius: BorderRadius.circular(12),
+                      border: Border.all(color: const Color(0xFFA7F3D0)),
+                    ),
+                    child: Column(
+                      children: [
+                        const Icon(Icons.check_circle_rounded, color: Color(0xFF10B981), size: 48),
+                        const SizedBox(height: 8),
+                        const Text(
+                          'WhatsApp is Online & Linked',
+                          style: TextStyle(fontWeight: FontWeight.w700, fontSize: 16, color: Color(0xFF065F46)),
+                        ),
+                        const SizedBox(height: 4),
+                        Text(
+                          'Automated birthday wishes will be sent from +${controller.connectedPhone.value}',
+                          textAlign: TextAlign.center,
+                          style: const TextStyle(fontSize: 12, color: Color(0xFF047857)),
+                        ),
+                      ],
+                    ),
+                  ),
+                  const SizedBox(height: 20),
+                  ElevatedButton.icon(
+                    onPressed: () async {
+                      final confirmed = await showDialog<bool>(
+                        context: context,
+                        builder: (dCtx) => AlertDialog(
+                          title: const Text('Disconnect WhatsApp?'),
+                          content: const Text('This will unlink your device session. You will need to link it again to send greetings.'),
+                          actions: [
+                            TextButton(onPressed: () => Navigator.pop(dCtx, false), child: const Text('Cancel')),
+                            ElevatedButton(
+                              onPressed: () => Navigator.pop(dCtx, true),
+                              style: ElevatedButton.styleFrom(backgroundColor: AppColors.errorRed),
+                              child: const Text('Disconnect', style: TextStyle(color: Colors.white)),
+                            ),
+                          ],
+                        ),
+                      );
+                      if (confirmed == true) {
+                        await controller.disconnectWhatsAppSession();
+                        Navigator.pop(ctx);
+                      }
+                    },
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: Colors.white,
+                      foregroundColor: AppColors.errorRed,
+                      side: const BorderSide(color: AppColors.errorRed),
+                      padding: const EdgeInsets.symmetric(vertical: 12),
+                    ),
+                    icon: const Icon(Icons.link_off_rounded),
+                    label: const Text('Unlink / Disconnect Session', style: TextStyle(fontWeight: FontWeight.w700)),
+                  ),
+                ] else ...[
+                  // Not Connected State
+                  // Pairing Code method (Recommended)
+                  const Text(
+                    'Option 1: Link with Phone Number (Recommended)',
+                    style: TextStyle(fontSize: 14, fontWeight: FontWeight.w700, color: AppColors.textPrimary),
+                  ),
+                  const SizedBox(height: 4),
+                  const Text(
+                    'No camera required. Enter your phone number to get an 8-digit pairing code.',
+                    style: TextStyle(fontSize: 12, color: AppColors.textSecondary),
+                  ),
+                  const SizedBox(height: 12),
+                  Row(
+                    children: [
+                      Expanded(
+                        child: TextField(
+                          controller: controller.pairPhoneController,
+                          keyboardType: TextInputType.phone,
+                          decoration: const InputDecoration(
+                            labelText: 'WhatsApp Phone Number',
+                            hintText: 'e.g. 919876543210',
+                            prefixIcon: Icon(Icons.phone_rounded),
+                            border: OutlineInputBorder(),
+                            isDense: true,
+                          ),
+                        ),
+                      ),
+                      const SizedBox(width: 10),
+                      ElevatedButton(
+                        onPressed: isPairing ? null : controller.requestPairingCode,
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: const Color(0xFF10B981),
+                          foregroundColor: Colors.white,
+                          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+                        ),
+                        child: isPairing
+                            ? const SizedBox(
+                                width: 16,
+                                height: 16,
+                                child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2),
+                              )
+                            : const Text('Get Code', style: TextStyle(fontWeight: FontWeight.w700)),
+                      ),
+                    ],
+                  ),
+
+                  // Display Code when available
+                  if (code.isNotEmpty) ...[
+                    const SizedBox(height: 16),
+                    Container(
+                      padding: const EdgeInsets.all(16),
+                      decoration: BoxDecoration(
+                        color: const Color(0xFFEFF6FF),
+                        borderRadius: BorderRadius.circular(12),
+                        border: Border.all(color: const Color(0xFFBFDBFE)),
+                      ),
+                      child: Column(
+                        children: [
+                          const Text(
+                            'YOUR 8-CHARACTER PAIRING CODE',
+                            style: TextStyle(fontSize: 11, fontWeight: FontWeight.w700, color: Color(0xFF1E40AF), letterSpacing: 0.5),
+                          ),
+                          const SizedBox(height: 8),
+                          Row(
+                            mainAxisAlignment: MainAxisAlignment.center,
+                            children: [
+                              Text(
+                                code,
+                                style: const TextStyle(
+                                  fontSize: 28,
+                                  fontWeight: FontWeight.w800,
+                                  letterSpacing: 4,
+                                  fontFamily: 'monospace',
+                                  color: Color(0xFF1E3A8A),
+                                ),
+                              ),
+                              const SizedBox(width: 12),
+                              IconButton(
+                                icon: const Icon(Icons.copy_rounded, color: Color(0xFF1D4ED8)),
+                                tooltip: 'Copy Code',
+                                onPressed: () {
+                                  Clipboard.setData(ClipboardData(text: code));
+                                  Get.snackbar('Copied', 'Pairing code copied to clipboard', snackPosition: SnackPosition.BOTTOM);
+                                },
+                              ),
+                            ],
+                          ),
+                          const SizedBox(height: 10),
+                          Container(
+                            padding: const EdgeInsets.all(10),
+                            decoration: BoxDecoration(
+                              color: Colors.white,
+                              borderRadius: BorderRadius.circular(8),
+                            ),
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: const [
+                                Text('How to enter this code on your phone:', style: TextStyle(fontWeight: FontWeight.w700, fontSize: 12)),
+                                SizedBox(height: 4),
+                                Text('1. Open WhatsApp on your phone', style: TextStyle(fontSize: 11)),
+                                Text('2. Go to Settings > Linked Devices > Link a Device', style: TextStyle(fontSize: 11)),
+                                Text('3. Tap "Link with phone number instead" at the bottom', style: TextStyle(fontSize: 11)),
+                                Text('4. Enter the code shown above', style: TextStyle(fontSize: 11, fontWeight: FontWeight.w600, color: Color(0xFF10B981))),
+                              ],
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
+
+                  if (qr.isNotEmpty) ...[
+                    const SizedBox(height: 20),
+                    const Divider(height: 1, color: AppColors.border),
+                    const SizedBox(height: 16),
+                    const Text(
+                      'Option 2: Scan QR Code',
+                      style: TextStyle(fontSize: 14, fontWeight: FontWeight.w700, color: AppColors.textPrimary),
+                    ),
+                    const SizedBox(height: 4),
+                    const Text(
+                      'Scan this code using WhatsApp > Linked Devices > Link a Device:',
+                      style: TextStyle(fontSize: 12, color: AppColors.textSecondary),
+                    ),
+                    const SizedBox(height: 12),
+                    Center(
+                      child: Container(
+                        padding: const EdgeInsets.all(12),
+                        decoration: BoxDecoration(
+                          color: Colors.white,
+                          borderRadius: BorderRadius.circular(12),
+                          border: Border.all(color: Colors.grey.shade300),
+                        ),
+                        child: QrImageView(
+                          data: qr,
+                          version: QrVersions.auto,
+                          size: 200.0,
+                        ),
+                      ),
+                    ),
+                  ],
+                ],
+                const SizedBox(height: 20),
+              ],
+            );
+          }),
+        ),
       ),
     );
   }
@@ -191,15 +559,15 @@ class AdminBirthdayScreen extends GetView<AdminBirthdayController> {
           controller.fetchStudents();
         }
       },
-      borderRadius: BorderRadius.circular(AppDimens.radiusFull),
+      borderRadius: BorderRadius.circular(AppDimens.radiusPill),
       child: AnimatedContainer(
         duration: const Duration(milliseconds: 200),
         padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
         decoration: BoxDecoration(
           color: isSelected ? AppColors.primary : Colors.white,
-          borderRadius: BorderRadius.circular(AppDimens.radiusFull),
+          borderRadius: BorderRadius.circular(AppDimens.radiusPill),
           border: Border.all(
-            color: isSelected ? AppColors.primary : AppColors.subtleLine,
+            color: isSelected ? AppColors.primary : AppColors.border,
           ),
           boxShadow: isSelected
               ? [
@@ -266,8 +634,8 @@ class AdminBirthdayScreen extends GetView<AdminBirthdayController> {
               Container(
                 width: 64,
                 height: 64,
-                decoration: BoxDecoration(
-                  color: const Color(0xFFFEF3C7),
+                decoration: const BoxDecoration(
+                  color: Color(0xFFFEF3C7),
                   shape: BoxShape.circle,
                 ),
                 child: const Icon(Icons.cake_outlined, size: 32, color: Color(0xFFD97706)),
@@ -279,7 +647,7 @@ class AdminBirthdayScreen extends GetView<AdminBirthdayController> {
               ),
               const SizedBox(height: 6),
               const Text(
-                'No registered students have their birthday today. Check tomorrow's tab for upcoming celebrants.',
+                "No registered students have their birthday today. Check tomorrow's tab for upcoming celebrants.",
                 textAlign: TextAlign.center,
                 style: TextStyle(fontSize: 13, color: AppColors.textSecondary),
               ),
@@ -354,20 +722,20 @@ class AdminBirthdayScreen extends GetView<AdminBirthdayController> {
     final list = data?.tomorrowsBirthdays ?? [];
 
     if (list.isEmpty) {
-      return AppCard(
+      return const AppCard(
         child: Padding(
-          padding: const EdgeInsets.symmetric(vertical: 40, horizontal: 20),
+          padding: EdgeInsets.symmetric(vertical: 40, horizontal: 20),
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
-              const Icon(Icons.event_available_rounded, size: 48, color: AppColors.textSecondary),
-              const SizedBox(height: AppDimens.gapMd),
-              const Text(
+              Icon(Icons.event_available_rounded, size: 48, color: AppColors.textSecondary),
+              SizedBox(height: AppDimens.gapMd),
+              Text(
                 'No Birthdays Tomorrow',
                 style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600, color: AppColors.textPrimary),
               ),
-              const SizedBox(height: 6),
-              const Text(
+              SizedBox(height: 6),
+              Text(
                 'There are no birthdays scheduled for tomorrow.',
                 style: TextStyle(fontSize: 13, color: AppColors.textSecondary),
               ),
@@ -393,93 +761,95 @@ class AdminBirthdayScreen extends GetView<AdminBirthdayController> {
   }
 
   Widget _buildStudentCelebrantCard(BirthdayStudentModel s, {required bool isToday}) {
-    return AppCard(
-      margin: const EdgeInsets.only(bottom: AppDimens.gapMd),
-      padding: const EdgeInsets.all(AppDimens.gapMd),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          Row(
-            children: [
-              CircleAvatar(
-                radius: 20,
-                backgroundColor: const Color(0xFFFEF3C7),
-                child: Text(
-                  s.name.isNotEmpty ? s.name[0].toUpperCase() : '?',
-                  style: const TextStyle(color: Color(0xFFD97706), fontWeight: FontWeight.w700),
-                ),
-              ),
-              const SizedBox(width: AppDimens.gapMd),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      s.name,
-                      style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 15, color: AppColors.textPrimary),
-                    ),
-                    const SizedBox(height: 2),
-                    Row(
-                      children: [
-                        Container(
-                          padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                          decoration: BoxDecoration(
-                            color: AppColors.surfaceMuted,
-                            borderRadius: BorderRadius.circular(4),
-                          ),
-                          child: Text(
-                            s.room == 'N/A' ? 'Room N/A' : 'Room ${s.room}',
-                            style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w600, color: AppColors.textSecondary),
-                          ),
-                        ),
-                        if (s.studentCode.isNotEmpty) ...[
-                          const SizedBox(width: 6),
-                          Text(
-                            'ID: ${s.studentCode}',
-                            style: const TextStyle(fontSize: 12, color: AppColors.textSecondary),
-                          ),
-                        ],
-                      ],
-                    ),
-                  ],
-                ),
-              ),
-              if (isToday)
-                StatusBadge(
-                  label: s.alreadySentToday ? 'Sent Today' : 'Pending',
-                  type: s.alreadySentToday ? StatusBadgeType.success : StatusBadgeType.warning,
-                ),
-            ],
-          ),
-          const SizedBox(height: AppDimens.gapMd),
-          const Divider(height: 1, color: AppColors.subtleLine),
-          const SizedBox(height: AppDimens.gapSm),
-          Row(
-            children: [
-              if (s.dob.isNotEmpty) ...[
-                const Icon(Icons.cake_outlined, size: 14, color: Color(0xFFD97706)),
-                const SizedBox(width: 4),
-                Text(s.dob, style: const TextStyle(fontSize: 12, color: AppColors.textSecondary)),
-                const Spacer(),
-              ] else
-                const Spacer(),
-              if (s.phone.isNotEmpty)
-                IconButton(
-                  icon: const Icon(Icons.phone_rounded, size: 18, color: AppColors.primary),
-                  tooltip: 'Call Phone',
-                  onPressed: () => controller.callPhone(s.phone),
-                ),
-              if (s.whatsappNumber.isNotEmpty || s.phone.isNotEmpty)
-                IconButton(
-                  icon: const Icon(Icons.chat_bubble_rounded, size: 18, color: Color(0xFF10B981)),
-                  tooltip: 'WhatsApp Message',
-                  onPressed: () => controller.openWhatsApp(
-                    s.whatsappNumber.isNotEmpty ? s.whatsappNumber : s.phone,
+    return Padding(
+      padding: const EdgeInsets.only(bottom: AppDimens.gapMd),
+      child: AppCard(
+        padding: const EdgeInsets.all(AppDimens.gapMd),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Row(
+              children: [
+                CircleAvatar(
+                  radius: 20,
+                  backgroundColor: const Color(0xFFFEF3C7),
+                  child: Text(
+                    s.name.isNotEmpty ? s.name[0].toUpperCase() : '?',
+                    style: const TextStyle(color: Color(0xFFD97706), fontWeight: FontWeight.w700),
                   ),
                 ),
-            ],
-          ),
-        ],
+                const SizedBox(width: AppDimens.gapMd),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        s.name,
+                        style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 15, color: AppColors.textPrimary),
+                      ),
+                      const SizedBox(height: 2),
+                      Row(
+                        children: [
+                          Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                            decoration: BoxDecoration(
+                              color: AppColors.surfaceMuted,
+                              borderRadius: BorderRadius.circular(4),
+                            ),
+                            child: Text(
+                              s.room == 'N/A' ? 'Room N/A' : 'Room ${s.room}',
+                              style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w600, color: AppColors.textSecondary),
+                            ),
+                          ),
+                          if (s.studentCode.isNotEmpty) ...[
+                            const SizedBox(width: 6),
+                            Text(
+                              'ID: ${s.studentCode}',
+                              style: const TextStyle(fontSize: 12, color: AppColors.textSecondary),
+                            ),
+                          ],
+                        ],
+                      ),
+                    ],
+                  ),
+                ),
+                if (isToday)
+                  StatusBadge(
+                    label: s.alreadySentToday ? 'Sent Today' : 'Pending',
+                    color: s.alreadySentToday ? AppColors.successGreen : AppColors.warningOrange,
+                  ),
+              ],
+            ),
+            const SizedBox(height: AppDimens.gapMd),
+            const Divider(height: 1, color: AppColors.border),
+            const SizedBox(height: AppDimens.gapSm),
+            Row(
+              children: [
+                if (s.dob.isNotEmpty) ...[
+                  const Icon(Icons.cake_outlined, size: 14, color: Color(0xFFD97706)),
+                  const SizedBox(width: 4),
+                  Text(s.dob, style: const TextStyle(fontSize: 12, color: AppColors.textSecondary)),
+                  const Spacer(),
+                ] else
+                  const Spacer(),
+                if (s.phone.isNotEmpty)
+                  IconButton(
+                    icon: const Icon(Icons.phone_rounded, size: 18, color: AppColors.primary),
+                    tooltip: 'Call Phone',
+                    onPressed: () => controller.callPhone(s.phone),
+                  ),
+                if (s.whatsappNumber.isNotEmpty || s.phone.isNotEmpty)
+                  IconButton(
+                    icon: const Icon(Icons.chat_bubble_rounded, size: 18, color: Color(0xFF10B981)),
+                    tooltip: 'WhatsApp Message',
+                    onPressed: () => controller.openWhatsApp(
+                      s.whatsappNumber.isNotEmpty ? s.whatsappNumber : s.phone,
+                    ),
+                  ),
+              ],
+            ),
+          ],
+        ),
       ),
     );
   }
@@ -528,7 +898,7 @@ class AdminBirthdayScreen extends GetView<AdminBirthdayController> {
                   ),
                 ],
               ),
-              const Divider(height: 24, color: AppColors.subtleLine),
+              const Divider(height: 24, color: AppColors.border),
 
               // Target audience
               const Text('Target Audience', style: TextStyle(fontWeight: FontWeight.w600, fontSize: 13, color: AppColors.textSecondary)),
@@ -555,7 +925,7 @@ class AdminBirthdayScreen extends GetView<AdminBirthdayController> {
                   ],
                 ),
               ),
-              const Divider(height: 24, color: AppColors.subtleLine),
+              const Divider(height: 24, color: AppColors.border),
 
               // Admin notification phone
               TextField(
@@ -759,60 +1129,62 @@ class AdminBirthdayScreen extends GetView<AdminBirthdayController> {
               ),
               const SizedBox(height: AppDimens.gapSm),
               ...list.take(100).map(
-                    (s) => AppCard(
-                      margin: const EdgeInsets.only(bottom: 8),
-                      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
-                      child: Row(
-                        children: [
-                          CircleAvatar(
-                            radius: 16,
-                            backgroundColor: AppColors.surfaceMuted,
-                            child: Text(
-                              s.name.isNotEmpty ? s.name[0] : '?',
-                              style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w700),
-                            ),
-                          ),
-                          const SizedBox(width: 12),
-                          Expanded(
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                Text(
-                                  s.name,
-                                  style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 13),
-                                ),
-                                Row(
-                                  children: [
-                                    Text(
-                                      s.room == 'N/A' ? 'Room N/A' : 'Room ${s.room}',
-                                      style: TextStyle(
-                                        fontSize: 11,
-                                        color: s.room == 'N/A' ? Colors.orange.shade800 : AppColors.textSecondary,
-                                        fontWeight: s.room == 'N/A' ? FontWeight.w700 : FontWeight.w500,
-                                      ),
-                                    ),
-                                    if (s.dob.isNotEmpty) ...[
-                                      const SizedBox(width: 8),
-                                      Text('DOB: ${s.dob}', style: const TextStyle(fontSize: 11, color: AppColors.textSecondary)),
-                                    ],
-                                  ],
-                                ),
-                              ],
-                            ),
-                          ),
-                          if (s.phone.isNotEmpty)
-                            IconButton(
-                              icon: const Icon(Icons.phone_rounded, size: 16, color: AppColors.primary),
-                              onPressed: () => controller.callPhone(s.phone),
-                            ),
-                          if (s.whatsappNumber.isNotEmpty || s.phone.isNotEmpty)
-                            IconButton(
-                              icon: const Icon(Icons.chat_bubble_rounded, size: 16, color: Color(0xFF10B981)),
-                              onPressed: () => controller.openWhatsApp(
-                                s.whatsappNumber.isNotEmpty ? s.whatsappNumber : s.phone,
+                    (s) => Padding(
+                      padding: const EdgeInsets.only(bottom: 8),
+                      child: AppCard(
+                        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+                        child: Row(
+                          children: [
+                            CircleAvatar(
+                              radius: 16,
+                              backgroundColor: AppColors.surfaceMuted,
+                              child: Text(
+                                s.name.isNotEmpty ? s.name[0] : '?',
+                                style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w700),
                               ),
                             ),
-                        ],
+                            const SizedBox(width: 12),
+                            Expanded(
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Text(
+                                    s.name,
+                                    style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 13),
+                                  ),
+                                  Row(
+                                    children: [
+                                      Text(
+                                        s.room == 'N/A' ? 'Room N/A' : 'Room ${s.room}',
+                                        style: TextStyle(
+                                          fontSize: 11,
+                                          color: s.room == 'N/A' ? Colors.orange.shade800 : AppColors.textSecondary,
+                                          fontWeight: s.room == 'N/A' ? FontWeight.w700 : FontWeight.w500,
+                                        ),
+                                      ),
+                                      if (s.dob.isNotEmpty) ...[
+                                        const SizedBox(width: 8),
+                                        Text('DOB: ${s.dob}', style: const TextStyle(fontSize: 11, color: AppColors.textSecondary)),
+                                      ],
+                                    ],
+                                  ),
+                                ],
+                              ),
+                            ),
+                            if (s.phone.isNotEmpty)
+                              IconButton(
+                                icon: const Icon(Icons.phone_rounded, size: 16, color: AppColors.primary),
+                                onPressed: () => controller.callPhone(s.phone),
+                              ),
+                            if (s.whatsappNumber.isNotEmpty || s.phone.isNotEmpty)
+                              IconButton(
+                                icon: const Icon(Icons.chat_bubble_rounded, size: 16, color: Color(0xFF10B981)),
+                                onPressed: () => controller.openWhatsApp(
+                                  s.whatsappNumber.isNotEmpty ? s.whatsappNumber : s.phone,
+                                ),
+                              ),
+                          ],
+                        ),
                       ),
                     ),
                   ),
@@ -915,7 +1287,7 @@ class AdminBirthdayScreen extends GetView<AdminBirthdayController> {
                         Icon(
                           log.isSent ? Icons.check_circle_rounded : Icons.error_rounded,
                           size: 18,
-                          color: log.isSent ? const Color(0xFF10B981) : AppColors.error,
+                          color: log.isSent ? const Color(0xFF10B981) : AppColors.errorRed,
                         ),
                         const SizedBox(width: 10),
                         Expanded(
@@ -935,7 +1307,7 @@ class AdminBirthdayScreen extends GetView<AdminBirthdayController> {
                         ),
                         StatusBadge(
                           label: log.status.toUpperCase(),
-                          type: log.isSent ? StatusBadgeType.success : StatusBadgeType.error,
+                          color: log.isSent ? AppColors.successGreen : AppColors.errorRed,
                         ),
                       ],
                     ),

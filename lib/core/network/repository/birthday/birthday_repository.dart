@@ -60,4 +60,37 @@ class BirthdayRepository {
     }
     return [];
   }
+
+  /// Get WhatsApp status (status, qr, isRegistered, user)
+  Future<Map<String, dynamic>> getWhatsAppStatus() async {
+    final response = await _apiClient.dio.get('/whatsapp/status');
+    final data = response.data;
+    if (data is Map && data['data'] is Map) {
+      return Map<String, dynamic>.from(data['data']);
+    }
+    return {};
+  }
+
+  /// Request 8-digit pairing code to link phone
+  Future<String> requestPairingCode(String phone) async {
+    final response = await _apiClient.dio.post(
+      '/whatsapp/pair',
+      data: {'phone': phone.trim()},
+    );
+    final data = response.data;
+    if (data is Map && data['code'] != null) {
+      return data['code'].toString();
+    }
+    throw Exception(data['message'] ?? 'Failed to get pairing code');
+  }
+
+  /// Disconnect current WhatsApp session
+  Future<void> disconnectWhatsApp() async {
+    await _apiClient.dio.post('/whatsapp/disconnect');
+  }
+
+  /// Trigger WhatsApp reconnection
+  Future<void> connectWhatsApp() async {
+    await _apiClient.dio.post('/whatsapp/connect');
+  }
 }

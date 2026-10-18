@@ -93,6 +93,60 @@ class PhonebookStudent {
     this.floor,
   });
 
+  PhonebookStudent copyWith({
+    String? id,
+    String? studentId,
+    String? name,
+    String? enrollmentNumber,
+    String? department,
+    String? batch,
+    String? email,
+    List<PhonebookContact>? phones,
+    String? room,
+    String? groupName,
+    String? updatedAt,
+    String? dob,
+    String? aadhar,
+    String? address,
+    String? pinCode,
+    String? bloodGroup,
+    String? fatherName,
+    String? motherName,
+    String? fatherPhone,
+    String? motherPhone,
+    String? whatsappNumber,
+    String? status,
+    String? bankCode,
+    int? floor,
+  }) {
+    return PhonebookStudent(
+      id: id ?? this.id,
+      studentId: studentId ?? this.studentId,
+      name: name ?? this.name,
+      enrollmentNumber: enrollmentNumber ?? this.enrollmentNumber,
+      department: department ?? this.department,
+      batch: batch ?? this.batch,
+      email: email ?? this.email,
+      phones: phones ?? this.phones,
+      room: room ?? this.room,
+      groupName: groupName ?? this.groupName,
+      updatedAt: updatedAt ?? this.updatedAt,
+      dob: dob ?? this.dob,
+      aadhar: aadhar ?? this.aadhar,
+      address: address ?? this.address,
+      pinCode: pinCode ?? this.pinCode,
+      bloodGroup: bloodGroup ?? this.bloodGroup,
+      fatherName: fatherName ?? this.fatherName,
+      motherName: motherName ?? this.motherName,
+      fatherPhone: fatherPhone ?? this.fatherPhone,
+      motherPhone: motherPhone ?? this.motherPhone,
+      whatsappNumber: whatsappNumber ?? this.whatsappNumber,
+      status: status ?? this.status,
+      bankCode: bankCode ?? this.bankCode,
+      floor: floor ?? this.floor,
+    );
+  }
+
   factory PhonebookStudent.fromJson(Map<String, dynamic> json) {
     List<PhonebookContact> phonesList = [];
     if (json['phones'] != null && json['phones'] is List) {
@@ -144,7 +198,7 @@ class PhonebookStudent {
       resolvedFloor = int.tryParse(json['floor_num'].toString());
     } else if (json['floor'] != null) {
       resolvedFloor = int.tryParse(json['floor'].toString());
-    } else if (resolvedRoom != null && resolvedRoom != 'Alumni') {
+    } else if (resolvedRoom != 'Alumni') {
       final digits = resolvedRoom.replaceAll(RegExp(r'\D'), '');
       if (digits.length == 5) {
         resolvedFloor = int.tryParse(digits.substring(0, 2));
@@ -180,11 +234,22 @@ class PhonebookStudent {
     final rawStatus = json['status']?.toString().trim();
     final cleanStatus = (rawStatus != null && rawStatus.isNotEmpty && rawStatus != 'null') ? rawStatus : null;
 
-    final rawAddress = json['address']?.toString().trim();
-    final cleanAddress = (rawAddress != null && rawAddress.isNotEmpty && rawAddress != 'null') ? rawAddress : null;
+    final rawAddress = (json['address'] ?? json['permanent_address'] ?? json['home_address'])?.toString().trim();
+    final cleanAddress = (rawAddress != null &&
+            rawAddress.isNotEmpty &&
+            rawAddress != 'null' &&
+            !rawAddress.contains('Hari Smruti Hostel') &&
+            !rawAddress.contains('Hari Saurabh Hostel'))
+        ? rawAddress
+        : null;
 
     final rawPin = json['pin_code']?.toString().trim() ?? json['pinCode']?.toString().trim();
-    final cleanPin = (rawPin != null && rawPin.isNotEmpty && rawPin != 'null') ? rawPin : null;
+    final cleanPin = (rawPin != null &&
+            rawPin.isNotEmpty &&
+            rawPin != 'null' &&
+            (cleanAddress != null || rawPin != '388120'))
+        ? rawPin
+        : null;
 
     return PhonebookStudent(
       id: json['id']?.toString() ?? json['internal_id']?.toString() ?? '',
@@ -295,19 +360,26 @@ class PhonebookStudent {
     return aadhar!;
   }
 
-  /// Complete Display Address (permanent or campus residence)
+  /// True if the student has a registered permanent home address.
+  bool get hasAddress =>
+      address != null &&
+      address!.trim().isNotEmpty &&
+      address != 'null' &&
+      !address!.contains('Hari Smruti Hostel') &&
+      !address!.contains('Hari Saurabh Hostel');
+
+  /// Complete Display Address (permanent home address or 'Not Provided')
   String get displayAddress {
-    if (address != null && address!.trim().isNotEmpty) {
-      if (pinCode != null && pinCode!.trim().isNotEmpty && !address!.contains(pinCode!)) {
+    if (hasAddress) {
+      if (pinCode != null &&
+          pinCode!.trim().isNotEmpty &&
+          pinCode != 'null' &&
+          !address!.contains(pinCode!)) {
         return '${address!.trim()}, PIN: ${pinCode!.trim()}';
       }
       return address!.trim();
     }
-    final g = groupName != null
-        ? (groupName!.toLowerCase().endsWith('wing') ? groupName! : '$groupName Wing')
-        : 'HSH Wing';
-    final r = (room != null && room != 'Alumni' && room != 'N/A') ? 'Room $room, ' : '';
-    return '${r}$g, Hari Smruti Hostel (HSH), Vallabh Vidyanagar, Anand, Gujarat - 388120';
+    return 'Not Provided';
   }
 
   /// Formats all complete student details into a clean, shareable card for WhatsApp / SMS / Email

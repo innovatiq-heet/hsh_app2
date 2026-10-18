@@ -67,6 +67,7 @@ class PhonebookSyncService {
       final uniqueStudents = <String>{};
       final nowIso = DateTime.now().toIso8601String();
 
+
       for (int i = 0; i < rawList.length; i++) {
         final s = rawList[i];
         if (s is! Map) continue;
@@ -101,6 +102,8 @@ class PhonebookSyncService {
         final status = s['status']?.toString().toLowerCase().trim() ?? '';
         final dob = s['dob']?.toString().trim();
         final whatsappNumber = (s['whatsAppNumber'] ?? s['whatsappNumber'])?.toString().trim();
+        final phone = s['phone']?.toString().trim();
+
 
         final isRoomNa = rawRoom == null ||
             rawRoom.isEmpty ||
@@ -176,16 +179,34 @@ class PhonebookSyncService {
         final email = s['email']?.toString();
         uniqueStudents.add(studentCode);
 
-        final rawAddress = s['address']?.toString().trim();
-        final address = (rawAddress != null && rawAddress.isNotEmpty)
-            ? rawAddress
-            : (room != null
-                ? 'Room $room, ${cleanGroup ?? 'Hostel'} Wing, Hari Smruti Hostel (HSH), Vallabh Vidyanagar, Anand, Gujarat - 388120'
-                : 'Hari Smruti Hostel (HSH), Vallabh Vidyanagar, Anand, Gujarat - 388120');
-        final pinCode = s['pinCode']?.toString().trim() ?? s['pin_code']?.toString().trim() ?? '388120';
+        // Extract address only if genuinely provided (filter out fake/placeholder hostel text)
+        final rawExternalAddr = (s['address'] ?? s['permanent_address'] ?? s['home_address'])?.toString().trim();
+        final address = (rawExternalAddr != null &&
+                rawExternalAddr.isNotEmpty &&
+                rawExternalAddr != 'null' &&
+                !rawExternalAddr.contains('Hari Smruti Hostel') &&
+                !rawExternalAddr.contains('Hari Saurabh Hostel'))
+            ? rawExternalAddr
+            : null;
+
+        final rawExternalPin = (s['pinCode'] ?? s['pin_code'])?.toString().trim();
+        final pinCode = (rawExternalPin != null &&
+                rawExternalPin.isNotEmpty &&
+                rawExternalPin != 'null' &&
+                (address != null || rawExternalPin != '388120'))
+            ? rawExternalPin
+            : null;
+
+        final resolvedFatherName = rawMiddle.isNotEmpty ? rawMiddle : null;
+        final resolvedMotherName = rawMother.isNotEmpty ? rawMother : null;
+        final resolvedFatherPhone = (s['fatherPhone']?.toString().trim().isNotEmpty == true)
+            ? s['fatherPhone']?.toString().trim()
+            : null;
+        final resolvedMotherPhone = (s['motherPhone']?.toString().trim().isNotEmpty == true)
+            ? s['motherPhone']?.toString().trim()
+            : null;
 
         // 1. Student Personal Mobile
-        final phone = s['phone']?.toString().trim();
         if (phone != null && phone.isNotEmpty) {
           records.add({
             'internal_id': 'stu_${i + 1}',
@@ -204,10 +225,10 @@ class PhonebookSyncService {
             'aadhar': aadhar,
             'address': address,
             'pin_code': pinCode,
-            'father_name': rawMiddle.isNotEmpty ? rawMiddle : null,
-            'mother_name': rawMother.isNotEmpty ? rawMother : null,
-            'father_phone': s['fatherPhone']?.toString().trim(),
-            'mother_phone': s['motherPhone']?.toString().trim(),
+            'father_name': resolvedFatherName,
+            'mother_name': resolvedMotherName,
+            'father_phone': resolvedFatherPhone,
+            'mother_phone': resolvedMotherPhone,
             'whatsapp_number': whatsappNumber,
             'status': status,
             'bank_code': bankCode,

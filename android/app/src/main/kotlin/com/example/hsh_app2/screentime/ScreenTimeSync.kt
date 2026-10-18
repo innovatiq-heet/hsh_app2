@@ -1,10 +1,12 @@
 package com.example.hsh_app2.screentime
 
 import android.content.Context
+import android.location.LocationManager
 import android.net.ConnectivityManager
 import android.os.Build
 import android.os.PowerManager
 import android.util.Log
+import androidx.core.location.LocationManagerCompat
 import androidx.work.Constraints
 import androidx.work.ExistingPeriodicWorkPolicy
 import androidx.work.ExistingWorkPolicy
@@ -279,6 +281,8 @@ object ScreenTimeSync {
         } else {
             false
         }
+        val lm = context.getSystemService(Context.LOCATION_SERVICE) as? LocationManager
+        val locationEnabled = lm?.let { LocationManagerCompat.isLocationEnabled(it) } ?: false
         return JSONObject()
             .put("usageAccess", UsageCollector.hasPermission(context))
             .put("accessibilityEnabled", AppBlockerAccessibilityService.isEnabled(context))
@@ -288,6 +292,7 @@ object ScreenTimeSync {
             .put("policyAppliedAt", PolicyStore.policyAppliedAt(context))
             .put("appVersion", versionName)
             .put("sdkInt", android.os.Build.VERSION.SDK_INT)
+            .put("locationEnabled", locationEnabled)
             .put("locationPermission", LocationSampler.permission(context).name.lowercase())
             .put("geofenceState", PolicyStore.geofenceState(context).name.lowercase())
             .put("geofenceLastSampleAt", PolicyStore.lastSampleAt(context))

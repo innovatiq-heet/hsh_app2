@@ -158,7 +158,13 @@ class StudentScreenTimeController extends GetxController with WidgetsBindingObse
   static bool isStudentTampered(dynamic s) {
     final c = complianceOf(s);
     if (c == null || c.isEmpty) return false;
-    return c['usageAccess'] == false || c['accessibilityEnabled'] == false;
+    final locPerm = (c['locationPermission'] ?? '').toString().toLowerCase();
+    final locDisabled = locPerm == 'denied' || locPerm == 'foreground';
+    final locServicesOff = c['locationEnabled'] == false;
+    return c['usageAccess'] == false ||
+        c['accessibilityEnabled'] == false ||
+        locDisabled ||
+        locServicesOff;
   }
 
   static bool isStudentLocked(dynamic s) {

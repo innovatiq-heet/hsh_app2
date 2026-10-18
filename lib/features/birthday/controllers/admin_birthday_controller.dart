@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -40,6 +41,7 @@ class AdminBirthdayController extends GetxController {
   final RxBool isPairingLoading = false.obs;
   final RxBool isCheckingStatus = false.obs;
   final RxString connectedPhone = ''.obs;
+  Timer? _linkingPollTimer;
 
   static const _prefKey = 'birthday_sent_date';
 
@@ -69,6 +71,7 @@ class AdminBirthdayController extends GetxController {
 
   @override
   void onClose() {
+    stopLinkingPolling();
     templateController.dispose();
     testPhoneController.dispose();
     adminPhoneController.dispose();
@@ -123,25 +126,70 @@ class AdminBirthdayController extends GetxController {
   bool get isWhatsAppLinked =>
       (dashboard.value?.isWhatsAppConnected ?? false) || connectedPhone.isNotEmpty;
 
-  Future<void> fetchWhatsAppStatus() async {
-    isCheckingStatus.value = true;
+  Future<void> fetchWhatsAppStatus({bool showLoading = true}) async {
+    if (showLoading) isCheckingStatus.value = true;
     try {
       final res = await _repository.getWhatsAppStatus();
       if (res.isNotEmpty) {
-        waStatus.value = res['status']?.toString() ?? 'disconnected';
-        waQr.value = res['qr']?.toString() ?? '';
+        final newStatus = res['status']?.toString() ?? 'disconnected';
+        waStatus.value = newStatus;
+        final newQr = res['qr']?.toString() ?? '';
+        if (newQr.isNotEmpty) {
+          waQr.value = newQr;
+        }
         final user = res['user'];
         if (user is Map && user['phone'] != null) {
-          connectedPhone.value = user['phone'].toString();
+          final phone = user['phone'].toString();
+          if (connectedPhone.value != phone) {
+            connectedPhone.value = phone;
+            stopLinkingPolling();
+            AppSnackbar.success('WhatsApp Connected!', 'Session active as +$phone');
+            loadDashboard();
+          }
         } else {
-          connectedPhone.value = '';
+          if (newStatus == 'disconnected' && connectedPhone.isNotEmpty) {
+            connectedPhone.value = '';
+          }
         }
       }
     } catch (e) {
       debugPrint('[AdminBirthdayController] fetchWhatsAppStatus error: $e');
     } finally {
+      if (showLoading) isCheckingStatus.value = false;
+    }
+  }
+
+  /// Reconnect / trigger QR code emission from backend and update status
+  Future<void> loadQrCode() async {
+    isCheckingStatus.value = true;
+    try {
+      await _repository.connectWhatsApp();
+      await fetchWhatsAppStatus(showLoading: false);
+    } catch (e) {
+      debugPrint('[AdminBirthdayController] loadQrCode error: $e');
+      await fetchWhatsAppStatus(showLoading: false);
+    } finally {
       isCheckingStatus.value = false;
     }
+  }
+
+  /// Start polling WhatsApp connection status every 3.5 seconds while linking sheet is open
+  void startLinkingPolling() {
+    _linkingPollTimer?.cancel();
+    fetchWhatsAppStatus(showLoading: true);
+    _linkingPollTimer = Timer.periodic(const Duration(milliseconds: 3500), (_) async {
+      if (connectedPhone.isNotEmpty) {
+        stopLinkingPolling();
+        return;
+      }
+      await fetchWhatsAppStatus(showLoading: false);
+    });
+  }
+
+  /// Stop polling WhatsApp connection status
+  void stopLinkingPolling() {
+    _linkingPollTimer?.cancel();
+    _linkingPollTimer = null;
   }
 
   Future<void> requestPairingCode() async {
@@ -259,6 +307,19 @@ class AdminBirthdayController extends GetxController {
 
     isTriggering.value = true;
     try {
+      // Auto-save edited template to ensure backend dispatches with latest settings
+      if (templateController.text.trim().isNotEmpty &&
+          dashboard.value?.config != null &&
+          templateController.text.trim() != dashboard.value!.config.messageTemplate) {
+        try {
+          await _repository.saveConfig(
+            dashboard.value!.config.copyWith(
+              messageTemplate: templateController.text.trim(),
+            ),
+          );
+        } catch (_) {}
+      }
+
       final result = await _repository.triggerWishes();
       final count = result['count'] is num ? (result['count'] as num).toInt() : 0;
 
@@ -321,6 +382,19 @@ class AdminBirthdayController extends GetxController {
 
     isTriggering.value = true;
     try {
+      // Auto-save edited template to ensure backend delivers latest setting
+      if (templateController.text.trim().isNotEmpty &&
+          dashboard.value?.config != null &&
+          templateController.text.trim() != dashboard.value!.config.messageTemplate) {
+        try {
+          await _repository.saveConfig(
+            dashboard.value!.config.copyWith(
+              messageTemplate: templateController.text.trim(),
+            ),
+          );
+        } catch (_) {}
+      }
+
       final res = await _repository.triggerWishes(testPhone: phone);
       if (res['success'] == false) {
         AppSnackbar.warning(
@@ -363,10 +437,72 @@ class AdminBirthdayController extends GetxController {
     }
   }
 
+  /// Formats the greeting message for a student based on current template settings
+  String formatWishMessage(BirthdayStudentModel student) {
+    String template = templateController.text.trim();
+    if (template.isEmpty) {
+      template = dashboard.value?.config.messageTemplate ?? '';
+    }
+    if (template.isEmpty) {
+      template = 'Hare Krishna {first_name}! Wishing you a very Happy Birthday from Hari Saurabh Hostel!';
+    }
+
+    final fullName = student.name.trim();
+    final firstName = fullName.isNotEmpty ? fullName.split(' ').first : 'Student';
+    final room = (student.room.isEmpty || student.room == 'N/A') ? '' : student.room;
+    final code = student.studentCode;
+
+    return template
+        .replaceAll('{first_name}', firstName)
+        .replaceAll('{student_name}', fullName)
+        .replaceAll('{name}', fullName)
+        .replaceAll('{room}', room)
+        .replaceAll('{room_number}', room)
+        .replaceAll('{student_code}', code)
+        .replaceAll('{code}', code);
+  }
+
+  /// Sends a personalized birthday wish to a specific student via WhatsApp based on template setting
+  Future<void> sendWishToStudent(BirthdayStudentModel student) async {
+    final phone = student.whatsappNumber.isNotEmpty ? student.whatsappNumber : student.phone;
+    if (phone.trim().isEmpty) {
+      AppSnackbar.warning('No Contact Number', 'No phone number registered for ${student.name}.');
+      return;
+    }
+    final message = formatWishMessage(student);
+    await openWhatsApp(phone, customText: message);
+  }
+
   Future<void> openWhatsApp(String phone, {String? customText}) async {
     final cleanPhone = phone.replaceAll(RegExp(r'[^0-9]'), '');
-    final fullNumber = cleanPhone.startsWith('91') ? cleanPhone : '91$cleanPhone';
-    final text = Uri.encodeComponent(customText ?? 'Hare Krishna! Happy Birthday from HSH!');
+    final fullNumber = cleanPhone.startsWith('91') && cleanPhone.length > 10
+        ? cleanPhone
+        : cleanPhone.length == 10
+            ? '91$cleanPhone'
+            : cleanPhone;
+
+    final String messageText;
+    if (customText != null && customText.isNotEmpty) {
+      messageText = customText;
+    } else {
+      String template = templateController.text.trim();
+      if (template.isEmpty) {
+        template = dashboard.value?.config.messageTemplate ?? '';
+      }
+      if (template.isEmpty) {
+        template = 'Hare Krishna! Wishing you a very Happy Birthday from Hari Saurabh Hostel!';
+      }
+      messageText = template
+          .replaceAll('{first_name}', 'Student')
+          .replaceAll('{student_name}', 'Student')
+          .replaceAll('{name}', 'Student')
+          .replaceAll('{room}', '')
+          .replaceAll('{room_number}', '')
+          .replaceAll('{student_code}', '')
+          .replaceAll('{code}', '');
+    }
+
+    final text = Uri.encodeComponent(messageText);
     final uri = Uri.parse('https://wa.me/$fullNumber?text=$text');
     if (await canLaunchUrl(uri)) {
       await launchUrl(uri, mode: LaunchMode.externalApplication);

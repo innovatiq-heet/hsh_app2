@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:get/get.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import 'package:url_launcher/url_launcher.dart';
 import '../../../core/enums/user_role.dart';
 import '../../../core/storage/session_store.dart';
@@ -104,17 +105,47 @@ class PhonebookController extends GetxController {
     return count;
   }
 
+  Timer? _periodicSyncTimer;
+  DateTime? _lastSyncAttemptTime;
+
   @override
   void onInit() {
     super.onInit();
     _checkAdminAccess();
+    _startPeriodicSync();
+  }
+
+  @override
+  void onReady() {
+    super.onReady();
+    // When returning to this screen or if controller remained in memory,
+    // refresh if data hasn't been synced recently.
+    _triggerAutoSyncIfStale();
   }
 
   @override
   void onClose() {
     _debounceTimer?.cancel();
+    _periodicSyncTimer?.cancel();
     searchController.dispose();
     super.onClose();
+  }
+
+  void _startPeriodicSync() {
+    _periodicSyncTimer?.cancel();
+    // Auto-refresh contacts every 15 minutes while the screen remains open
+    _periodicSyncTimer = Timer.periodic(const Duration(minutes: 15), (_) {
+      debugPrint('[PhonebookController] ⏰ Periodic auto-sync triggered');
+      syncNow(silent: true);
+    });
+  }
+
+  void _triggerAutoSyncIfStale() {
+    if (_lastSyncAttemptTime == null ||
+        DateTime.now().difference(_lastSyncAttemptTime!) > const Duration(minutes: 5)) {
+      debugPrint('[PhonebookController] 🔄 Stale check: triggering background sync');
+      syncNow(silent: true);
+    }
   }
 
   Future<void> _checkAdminAccess() async {
@@ -129,6 +160,11 @@ class PhonebookController extends GetxController {
     }
 
     _applyLaunchArguments();
+
+    // 1. Fire live API sync immediately in the background so it fetches right away
+    syncNow(silent: true);
+
+    // 2. Concurrently load local SQLite cached data for immediate zero-latency display
     await _loadMetadata();
     await search();
     await refreshCallerIdStatus();
@@ -137,11 +173,6 @@ class PhonebookController extends GetxController {
     // the phonebook opens so labels are never stale.
     if (GetPlatform.isIOS && callerId.value.enabled) {
       CallerIdService.syncDirectory();
-    }
-
-    // If cache is empty, trigger initial sync in the background
-    if (totalCachedCount.value == 0) {
-      syncNow(silent: true);
     }
   }
 
@@ -179,6 +210,23 @@ class PhonebookController extends GetxController {
   Future<void> disableCallerId() async {
     await CallerIdService.setActive(false);
     await refreshCallerIdStatus();
+  }
+
+  bool _checkedFirstTimeSheet = false;
+
+  /// Shows the Caller ID intro/setup sheet once on the first time visiting the phonebook.
+  Future<void> checkFirstTimeCallerId(VoidCallback onShowSheet) async {
+    if (_checkedFirstTimeSheet) return;
+    _checkedFirstTimeSheet = true;
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      const key = 'phonebook_caller_id_sheet_shown';
+      final alreadyShown = prefs.getBool(key) ?? false;
+      if (!alreadyShown) {
+        await prefs.setBool(key, true);
+        onShowSheet();
+      }
+    } catch (_) {}
   }
 
   Future<void> _loadMetadata() async {
@@ -342,13 +390,22 @@ class PhonebookController extends GetxController {
   }
 
   Future<void> syncNow({bool silent = false}) async {
+    if (isSyncing.value) {
+      debugPrint('[PhonebookController] ⏳ syncNow skipped: already syncing in progress');
+      return;
+    }
+    _lastSyncAttemptTime = DateTime.now();
     isSyncing.value = true;
+    debugPrint('[PhonebookController] 🔄 Starting syncNow (silent: $silent)...');
     try {
       final res = await PhonebookSyncService.instance.syncDirectory();
       if (res.success) {
         await _loadMetadata();
         await search();
         CallerIdService.syncDirectory();
+        debugPrint(
+          '[PhonebookController] ✅ syncNow completed: ${res.totalStudents} students, ${res.totalPhones} phones',
+        );
         if (!silent) {
           AppSnackbar.success(
             'Sync Complete',
@@ -356,6 +413,7 @@ class PhonebookController extends GetxController {
           );
         }
       } else {
+        debugPrint('[PhonebookController] ⚠️ syncNow failed: ${res.errorMessage}');
         if (!silent) {
           AppSnackbar.error(
             'Sync Failed',
@@ -364,6 +422,7 @@ class PhonebookController extends GetxController {
         }
       }
     } catch (e) {
+      debugPrint('[PhonebookController] ❌ syncNow exception: $e');
       if (!silent) {
         AppSnackbar.error('Sync Error', e.toString());
       }

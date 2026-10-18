@@ -1,3 +1,5 @@
+import 'dart:developer';
+
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:get/get.dart';
@@ -5,6 +7,7 @@ import 'package:intl/intl.dart';
 import '../../../core/constants/app_routes.dart';
 import '../../shared/widgets/empty_state.dart';
 import '../../shared/widgets/staggered_slide_fade.dart';
+import '../../shared/widgets/student_contact_card.dart';
 import '../controllers/phonebook_controller.dart';
 import '../models/phonebook_models.dart';
 import '../widgets/caller_id_card.dart';
@@ -1294,6 +1297,16 @@ class PhonebookScreen extends GetView<PhonebookController> {
 
   @override
   Widget build(BuildContext context) {
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (context.mounted) {
+        controller.checkFirstTimeCallerId(() {
+          if (context.mounted) {
+            CallerIdBottomSheet.show(context);
+          }
+        });
+      }
+    });
+
     return AnnotatedRegion<SystemUiOverlayStyle>(
       value: SystemUiOverlayStyle.light,
       child: Scaffold(
@@ -1433,10 +1446,6 @@ class PhonebookScreen extends GetView<PhonebookController> {
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      // Caller ID Card Widget
-                      const CallerIdCard(),
-                      const SizedBox(height: 16),
-
                       // Search & Filter Launcher Bar
                       Row(
                         children: [
@@ -1926,10 +1935,10 @@ class _PhonebookHeaderDelegate extends SliverPersistentHeaderDelegate {
   });
 
   @override
-  double get minExtent => topPadding + 62.0;
+  double get minExtent => topPadding + 60.0;
 
   @override
-  double get maxExtent => topPadding + 224.0;
+  double get maxExtent => topPadding + 172.0;
 
   @override
   Widget build(
@@ -1942,7 +1951,7 @@ class _PhonebookHeaderDelegate extends SliverPersistentHeaderDelegate {
     final expandedOpacity = (1.0 - progress * 1.8).clamp(0.0, 1.0);
     final collapsedTitleOpacity = ((progress - 0.35) / 0.65).clamp(0.0, 1.0);
     final cornerRadius = Radius.circular(
-      (34.0 * (1.0 - progress)).clamp(0.0, 34.0),
+      (28.0 * (1.0 - progress)).clamp(0.0, 28.0),
     );
 
     return Container(
@@ -2032,6 +2041,80 @@ class _PhonebookHeaderDelegate extends SliverPersistentHeaderDelegate {
                     ),
                   ),
 
+                  // Incoming Caller ID button (connect / status)
+                  Obx(() {
+                    final status = controller.callerId.value;
+                    final isWorking = status.isWorking;
+                    final isSupported = status.supported;
+
+                    final Color bg = isWorking
+                        ? const Color(0xFF10B981).withValues(alpha: 0.22)
+                        : Colors.white.withValues(alpha: 0.16);
+                    final Color border = isWorking
+                        ? const Color(0xFF34D399).withValues(alpha: 0.6)
+                        : Colors.white.withValues(alpha: 0.25);
+                    final Color iconColor = isWorking
+                        ? const Color(0xFF34D399)
+                        : (isSupported ? Colors.white : Colors.white60);
+
+                    return Material(
+                      color: Colors.transparent,
+                      child: InkWell(
+                        onTap: () => CallerIdBottomSheet.show(context),
+                        borderRadius: BorderRadius.circular(24),
+                        child: Tooltip(
+                          message: isWorking
+                              ? 'Caller ID: Active'
+                              : (isSupported
+                                  ? 'Caller ID: Inactive (Tap to connect)'
+                                  : 'Caller ID unavailable'),
+                          child: Container(
+                            width: 42,
+                            height: 42,
+                            decoration: BoxDecoration(
+                              color: bg,
+                              shape: BoxShape.circle,
+                              border: Border.all(color: border, width: 1),
+                            ),
+                            child: Stack(
+                              alignment: Alignment.center,
+                              children: [
+                                Icon(
+                                  isWorking
+                                      ? Icons.phone_in_talk_rounded
+                                      : Icons.phone_callback_rounded,
+                                  color: iconColor,
+                                  size: 20,
+                                ),
+                                Positioned(
+                                  top: 9,
+                                  right: 9,
+                                  child: Container(
+                                    width: 7,
+                                    height: 7,
+                                    decoration: BoxDecoration(
+                                      color: isWorking
+                                          ? const Color(0xFF10B981)
+                                          : (isSupported
+                                              ? const Color(0xFFF59E0B)
+                                              : const Color(0xFF94A3B8)),
+                                      shape: BoxShape.circle,
+                                      border: Border.all(
+                                        color: const Color(0xFF032B4F),
+                                        width: 1.2,
+                                      ),
+                                    ),
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ),
+                      ),
+                    );
+                  }),
+                  const SizedBox(width: 8),
+
                   // Sync directory button
                   Obx(() {
                     final isSyncing = controller.isSyncing.value;
@@ -2076,7 +2159,7 @@ class _PhonebookHeaderDelegate extends SliverPersistentHeaderDelegate {
             Positioned(
               left: 20,
               right: 20,
-              bottom: 18,
+              bottom: 16,
               child: Opacity(
                 opacity: expandedOpacity,
                 child: Column(
@@ -2092,17 +2175,17 @@ class _PhonebookHeaderDelegate extends SliverPersistentHeaderDelegate {
                         letterSpacing: 1.2,
                       ),
                     ),
-                    const SizedBox(height: 4),
+                    const SizedBox(height: 3),
                     const Text(
                       'Hostel Phonebook',
                       style: TextStyle(
-                        fontSize: 26,
+                        fontSize: 24,
                         fontWeight: FontWeight.w800,
                         color: Colors.white,
                         letterSpacing: -0.5,
                       ),
                     ),
-                    const SizedBox(height: 12),
+                    const SizedBox(height: 10),
                     Obx(() {
                       final sync = controller.lastSync.value;
                       final count = controller.totalCachedCount.value;
@@ -2183,7 +2266,7 @@ class _HeaderOrbPainter extends CustomPainter {
   bool shouldRepaint(covariant CustomPainter oldDelegate) => false;
 }
 
-/// Modern student contact card matching the Operator console card design
+/// Student contact card in directory view, using shared [StudentContactCard].
 class _StudentPhonebookCard extends StatelessWidget {
   final PhonebookStudent student;
   final bool isSelected;
@@ -2207,255 +2290,27 @@ class _StudentPhonebookCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final primary = student.primaryPhone;
-    final isAlumni = student.isAlumni;
-
-    final gColor = isAlumni
-        ? const Color(0xFF9333EA)
-        : PhonebookScreen.groupColor(student.groupName);
-    final gBg = isAlumni
-        ? const Color(0xFFF3E8FF)
-        : PhonebookScreen.groupBgColor(student.groupName);
-
-    return Container(
-      decoration: BoxDecoration(
-        color: isSelected ? const Color(0xFFF0F9FF) : Colors.white,
-        borderRadius: BorderRadius.circular(20),
-        border: Border.all(
-          color: isSelected ? const Color(0xFF0284C7) : const Color(0xFFE2E8F0),
-          width: isSelected ? 1.6 : 1.0,
-        ),
-        boxShadow: [
-          BoxShadow(
-            color: isSelected
-                ? const Color(0xFF0284C7).withValues(alpha: 0.08)
-                : const Color(0xFF0F172A).withValues(alpha: 0.035),
-            blurRadius: 12,
-            offset: const Offset(0, 3),
-          ),
-        ],
-      ),
-      child: Material(
-        color: Colors.transparent,
-        child: InkWell(
-          onTap: onTap,
-          onLongPress: onLongPress,
-          borderRadius: BorderRadius.circular(20),
-          child: Padding(
-            padding: const EdgeInsets.all(15),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Row(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Container(
-                      width: 48,
-                      height: 48,
-                      decoration: BoxDecoration(
-                        color: isSelectionMode
-                            ? (isSelected ? const Color(0xFF0284C7) : const Color(0xFFF1F5F9))
-                            : gBg,
-                        borderRadius: BorderRadius.circular(15),
-                        border: Border.all(
-                          color: isSelectionMode
-                              ? (isSelected ? const Color(0xFF0284C7) : const Color(0xFFCBD5E1))
-                              : gColor.withValues(alpha: 0.25),
-                          width: isSelectionMode && isSelected ? 2 : 1,
-                        ),
-                      ),
-                      alignment: Alignment.center,
-                      child: isSelectionMode
-                          ? Icon(
-                              isSelected ? Icons.check_rounded : Icons.circle_outlined,
-                              color: isSelected ? Colors.white : const Color(0xFF94A3B8),
-                              size: 22,
-                            )
-                          : Text(
-                              student.name.isNotEmpty
-                                  ? student.name[0].toUpperCase()
-                                  : 'S',
-                              style: TextStyle(
-                                color: gColor,
-                                fontWeight: FontWeight.w800,
-                                fontSize: 20,
-                              ),
-                            ),
-                    ),
-                    const SizedBox(width: 12),
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(
-                            student.name,
-                            style: const TextStyle(
-                              fontSize: 15.5,
-                              fontWeight: FontWeight.w700,
-                              color: Color(0xFF0F172A),
-                              letterSpacing: -0.2,
-                            ),
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                          ),
-                          const SizedBox(height: 5),
-                          Wrap(
-                            spacing: 6,
-                            runSpacing: 4,
-                            children: [
-                              if (isAlumni)
-                                Container(
-                                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2.5),
-                                  decoration: BoxDecoration(
-                                    color: const Color(0xFFF3E8FF),
-                                    borderRadius: BorderRadius.circular(8),
-                                    border: Border.all(color: const Color(0xFFE9D5FF)),
-                                  ),
-                                  child: const Text('Alumni', style: TextStyle(color: Color(0xFF7E22CE), fontSize: 11, fontWeight: FontWeight.w700)),
-                                )
-                              else if (student.room != null && student.room!.isNotEmpty)
-                                Container(
-                                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2.5),
-                                  decoration: BoxDecoration(
-                                    color: const Color(0xFFF1F5F9),
-                                    borderRadius: BorderRadius.circular(8),
-                                    border: Border.all(color: const Color(0xFFE2E8F0)),
-                                  ),
-                                  child: Text('Room ${student.room}', style: const TextStyle(color: Color(0xFF334155), fontSize: 11, fontWeight: FontWeight.w700)),
-                                ),
-                              if (student.groupName != null)
-                                Container(
-                                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2.5),
-                                  decoration: BoxDecoration(
-                                    color: PhonebookScreen.groupBgColor(student.groupName),
-                                    borderRadius: BorderRadius.circular(8),
-                                    border: Border.all(color: PhonebookScreen.groupColor(student.groupName).withValues(alpha: 0.2)),
-                                  ),
-                                  child: Text(student.groupName!, style: TextStyle(color: PhonebookScreen.groupColor(student.groupName), fontSize: 11, fontWeight: FontWeight.w700)),
-                                ),
-                              if (student.bankCode != null && student.bankCode!.isNotEmpty)
-                                Text('ID: ${student.bankCode}', style: const TextStyle(color: Color(0xFF64748B), fontSize: 11, fontWeight: FontWeight.w600)),
-                            ],
-                          ),
-                        ],
-                      ),
-                    ),
-                  ],
-                ),
-
-                // DOB / Quick info badge row if available
-                if (student.hasDob) ...[
-                  const SizedBox(height: 8),
-                  Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-                    decoration: BoxDecoration(
-                      color: const Color(0xFFFFFBEB),
-                      borderRadius: BorderRadius.circular(6),
-                      border: Border.all(color: const Color(0xFFFDE68A)),
-                    ),
-                    child: Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        const Icon(Icons.cake_outlined, size: 12, color: Color(0xFFD97706)),
-                        const SizedBox(width: 4),
-                        Text(
-                          'DOB: ${student.formattedDob} ${student.ageText.isNotEmpty ? "(${student.ageText})" : ""}',
-                          style: const TextStyle(fontSize: 11, color: Color(0xFFB45309), fontWeight: FontWeight.w600),
-                        ),
-                      ],
-                    ),
-                  ),
-                ],
-
-                const SizedBox(height: 10),
-                const Divider(height: 1, color: Color(0xFFF1F5F9)),
-                const SizedBox(height: 8),
-
-                // Primary phone & quick communication action row
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  children: [
-                    Row(
-                      children: [
-                        const Icon(Icons.phone_rounded, size: 15, color: Color(0xFF0284C7)),
-                        const SizedBox(width: 6),
-                        Text(
-                          primary,
-                          style: const TextStyle(
-                            fontSize: 13.5,
-                            fontWeight: FontWeight.w700,
-                            color: Color(0xFF0F172A),
-                            letterSpacing: 0.2,
-                          ),
-                        ),
-                        if (student.phones.length > 1)
-                          Padding(
-                            padding: const EdgeInsets.only(left: 6),
-                            child: Container(
-                              padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 1.5),
-                              decoration: BoxDecoration(
-                                color: const Color(0xFFF1F5F9),
-                                borderRadius: BorderRadius.circular(8),
-                              ),
-                              child: Text(
-                                '+${student.phones.length - 1} more',
-                                style: const TextStyle(fontSize: 10, fontWeight: FontWeight.w700, color: Color(0xFF64748B)),
-                              ),
-                            ),
-                          ),
-                      ],
-                    ),
-                    if (primary != 'No Phone')
-                      Row(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          Material(
-                            color: Colors.transparent,
-                            child: InkWell(
-                              onTap: () => onWhatsApp(
-                                student.whatsappNumber?.isNotEmpty == true
-                                    ? student.whatsappNumber!
-                                    : primary,
-                              ),
-                              borderRadius: BorderRadius.circular(20),
-                              child: Container(
-                                width: 34,
-                                height: 34,
-                                decoration: BoxDecoration(
-                                  color: const Color(0xFFECFDF5),
-                                  borderRadius: BorderRadius.circular(10),
-                                  border: Border.all(color: const Color(0xFFA7F3D0)),
-                                ),
-                                child: const Icon(Icons.chat_rounded, size: 16, color: Color(0xFF059669)),
-                              ),
-                            ),
-                          ),
-                          const SizedBox(width: 8),
-                          Material(
-                            color: Colors.transparent,
-                            child: InkWell(
-                              onTap: () => onCall(primary),
-                              borderRadius: BorderRadius.circular(20),
-                              child: Container(
-                                width: 34,
-                                height: 34,
-                                decoration: BoxDecoration(
-                                  color: const Color(0xFF0284C7),
-                                  borderRadius: BorderRadius.circular(10),
-                                ),
-                                child: const Icon(Icons.call_rounded, size: 16, color: Colors.white),
-                              ),
-                            ),
-                          ),
-                        ],
-                      ),
-                  ],
-                ),
-              ],
-            ),
-          ),
-        ),
-      ),
+    return StudentContactCard(
+      name: student.name,
+      room: student.room,
+      groupName: student.groupName,
+      bankCode: student.bankCode,
+      dobText: student.hasDob
+          ? '${student.formattedDob}${student.ageText.isNotEmpty ? " (${student.ageText})" : ""}'
+          : null,
+      primaryPhone: student.primaryPhone,
+      alternatePhonesCount:
+          student.phones.length > 1 ? student.phones.length - 1 : 0,
+      whatsappNumber: student.whatsappNumber,
+      isAlumni: student.isAlumni,
+      isSelected: isSelected,
+      isSelectionMode: isSelectionMode,
+      onTap: onTap,
+      onLongPress: onLongPress,
+      onCall: onCall,
+      onWhatsApp: onWhatsApp,
+      onShare: onShare,
     );
   }
 }
+

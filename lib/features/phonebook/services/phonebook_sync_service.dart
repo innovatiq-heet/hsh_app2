@@ -1,6 +1,7 @@
 import 'dart:convert';
 import 'dart:developer' as developer;
 import 'package:dio/dio.dart';
+import 'package:flutter/foundation.dart';
 import 'phone_number_normalizer.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import '../models/phonebook_models.dart';
@@ -18,12 +19,47 @@ class PhonebookSyncService {
   static const _kLastSync = 'phonebook_last_sync';
   static const _kCachedCount = 'phonebook_cached_count';
 
-  final Dio _dio = Dio(
-    BaseOptions(
-      connectTimeout: const Duration(seconds: 30),
-      receiveTimeout: const Duration(seconds: 45),
-    ),
-  );
+  late final Dio _dio = _createDio();
+
+  Dio _createDio() {
+    final dio = Dio(
+      BaseOptions(
+        connectTimeout: const Duration(seconds: 30),
+        receiveTimeout: const Duration(seconds: 45),
+      ),
+    );
+    dio.interceptors.add(
+      InterceptorsWrapper(
+        onRequest: (options, handler) {
+          debugPrint('[PhonebookSync] 🚀 --> ${options.method} ${options.uri}');
+          developer.log('--> ${options.method} ${options.uri}', name: 'HTTP');
+          return handler.next(options);
+        },
+        onResponse: (response, handler) {
+          debugPrint(
+            '[PhonebookSync] ✅ <-- ${response.statusCode} ${response.requestOptions.uri}',
+          );
+          developer.log(
+            '<-- ${response.statusCode} ${response.requestOptions.uri}',
+            name: 'HTTP',
+          );
+          return handler.next(response);
+        },
+        onError: (DioException error, handler) {
+          debugPrint(
+            '[PhonebookSync] ❌ <-- ERROR ${error.response?.statusCode ?? error.type} ${error.requestOptions.uri}: ${error.message}',
+          );
+          developer.log(
+            '❌ ${error.requestOptions.uri}: ${error.message}',
+            name: 'HTTP',
+            error: error,
+          );
+          return handler.next(error);
+        },
+      ),
+    );
+    return dio;
+  }
 
   Future<DateTime?> getLastSyncTime() async {
     final raw = await _storage.read(key: _kLastSync);
@@ -42,6 +78,7 @@ class PhonebookSyncService {
   /// Pulls all student contact records from live AVD VVN directory and updates SQLite cache
   Future<PhonebookSyncResult> syncDirectory({bool force = false}) async {
     try {
+      debugPrint('[PhonebookSync] 📡 Requesting live student records from AVD VVN Directory API...');
       final response = await _dio.get(
         liveApiUrl,
         options: Options(
@@ -357,6 +394,10 @@ class PhonebookSyncService {
         value: uniqueStudents.length.toString(),
       );
 
+      debugPrint(
+        '[PhonebookSync] Successfully synced ${uniqueStudents.length} students ($syncedCount phone numbers) into SQLite.',
+      );
+
       return PhonebookSyncResult(
         success: true,
         totalStudents: uniqueStudents.length,
@@ -364,7 +405,8 @@ class PhonebookSyncService {
         syncTime: DateTime.parse(nowIso),
       );
     } catch (e, stack) {
-      developer.log('Phonebook sync error: $e', stackTrace: stack);
+      debugPrint('[PhonebookSync] Sync error: $e');
+      developer.log('Phonebook sync error: $e', name: 'PhonebookSync', stackTrace: stack);
       return PhonebookSyncResult(
         success: false,
         totalStudents: 0,

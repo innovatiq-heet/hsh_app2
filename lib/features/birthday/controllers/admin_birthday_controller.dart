@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import 'package:url_launcher/url_launcher.dart';
 import '../../../core/models/birthday/birthday_models.dart';
 import '../../../core/network/repository/birthday/birthday_repository.dart';
@@ -14,6 +15,7 @@ class AdminBirthdayController extends GetxController {
   final RxBool isLoading = false.obs;
   final RxBool isSaving = false.obs;
   final RxBool isTriggering = false.obs;
+  final RxBool hasSentToday = false.obs;
   final RxBool isLoadingStudents = false.obs;
   final RxString error = ''.obs;
 
@@ -39,6 +41,8 @@ class AdminBirthdayController extends GetxController {
   final RxBool isCheckingStatus = false.obs;
   final RxString connectedPhone = ''.obs;
 
+  static const _prefKey = 'birthday_sent_date';
+
   @override
   void onInit() {
     super.onInit();
@@ -48,8 +52,19 @@ class AdminBirthdayController extends GetxController {
     searchController = TextEditingController();
     pairPhoneController = TextEditingController();
 
+    _checkIfAlreadySentToday();
     loadDashboard();
     fetchWhatsAppStatus();
+  }
+
+  Future<void> _checkIfAlreadySentToday() async {
+    final prefs = await SharedPreferences.getInstance();
+    final savedDate = prefs.getString(_prefKey);
+    final today = DateTime.now();
+    final todayStr = '${today.year}-${today.month.toString().padLeft(2, '0')}-${today.day.toString().padLeft(2, '0')}';
+    if (savedDate == todayStr) {
+      hasSentToday.value = true;
+    }
   }
 
   @override
@@ -81,6 +96,20 @@ class AdminBirthdayController extends GetxController {
       if (data.senderPhone != null && data.senderPhone!.isNotEmpty) {
         connectedPhone.value = data.senderPhone!;
         waStatus.value = 'open';
+      } else if (!data.isWhatsAppConnected) {
+        connectedPhone.value = '';
+        waStatus.value = 'disconnected';
+      }
+
+      // If none of today's celebrants have actually been sent according to the backend,
+      // reset hasSentToday so the user is never locked out with a disabled button.
+      final todays = data.todaysBirthdays;
+      if (todays.isNotEmpty && todays.every((s) => !s.alreadySentToday)) {
+        hasSentToday.value = false;
+        final prefs = await SharedPreferences.getInstance();
+        await prefs.remove(_prefKey);
+      } else if (todays.isNotEmpty && todays.every((s) => s.alreadySentToday)) {
+        hasSentToday.value = true;
       }
     } catch (e) {
       debugPrint('[AdminBirthdayController] loadDashboard error: $e');
@@ -89,6 +118,10 @@ class AdminBirthdayController extends GetxController {
       isLoading.value = false;
     }
   }
+
+  /// True when a WhatsApp device session is confirmed online
+  bool get isWhatsAppLinked =>
+      (dashboard.value?.isWhatsAppConnected ?? false) || connectedPhone.isNotEmpty;
 
   Future<void> fetchWhatsAppStatus() async {
     isCheckingStatus.value = true;
@@ -204,15 +237,61 @@ class AdminBirthdayController extends GetxController {
     }
   }
 
-  Future<void> triggerAllToday() async {
+  Future<void> triggerAllToday({VoidCallback? onNeedLinkDevice}) async {
+    // 1. Validation: Ensure WhatsApp device is linked
+    if (!isWhatsAppLinked) {
+      AppSnackbar.warning(
+        'WhatsApp Not Connected',
+        'Please link your WhatsApp device first before sending birthday wishes.',
+      );
+      if (onNeedLinkDevice != null) {
+        onNeedLinkDevice();
+      }
+      return;
+    }
+
+    // 2. Ensure there are celebrants to send to
+    final countToTrigger = dashboard.value?.todaysBirthdays.length ?? 0;
+    if (countToTrigger == 0) {
+      AppSnackbar.info('No Celebrants', 'There are no birthdays registered for today.');
+      return;
+    }
+
     isTriggering.value = true;
     try {
       final result = await _repository.triggerWishes();
-      final count = result['count'] ?? 0;
-      AppSnackbar.success(
-        'Wishes Dispatched',
-        'Successfully dispatched birthday greetings to $count celebrant(s).',
-      );
+      final count = result['count'] is num ? (result['count'] as num).toInt() : 0;
+
+      if (count > 0) {
+        hasSentToday.value = true;
+        // Persist today's date so button stays disabled across navigation ONLY when wishes actually sent
+        final prefs = await SharedPreferences.getInstance();
+        final today = DateTime.now();
+        final todayStr =
+            '${today.year}-${today.month.toString().padLeft(2, '0')}-${today.day.toString().padLeft(2, '0')}';
+        await prefs.setString(_prefKey, todayStr);
+        AppSnackbar.success(
+          'Wishes Dispatched',
+          'Successfully dispatched birthday greetings to $count celebrant(s).',
+        );
+      } else {
+        // Dispatched to 0 — do NOT disable the button or mark as sent
+        final msg = result['message']?.toString();
+        if (msg != null && msg.toLowerCase().contains('whatsapp')) {
+          AppSnackbar.warning(
+            'WhatsApp Connection Required',
+            msg,
+          );
+          if (onNeedLinkDevice != null) {
+            onNeedLinkDevice();
+          }
+        } else {
+          AppSnackbar.warning(
+            'No Wishes Dispatched',
+            '0 greetings were sent. Please verify that your WhatsApp device session is active and linked.',
+          );
+        }
+      }
       await loadDashboard(); // Reload logs & status
     } catch (e) {
       AppSnackbar.error('Trigger Failed', e.toString());
@@ -221,17 +300,36 @@ class AdminBirthdayController extends GetxController {
     }
   }
 
-  Future<void> sendTestWish() async {
+  Future<void> sendTestWish({VoidCallback? onNeedLinkDevice}) async {
     final phone = testPhoneController.text.trim();
     if (phone.length < 10) {
       AppSnackbar.warning('Invalid Number', 'Please enter a valid 10-digit mobile number.');
       return;
     }
 
+    // Validation: Ensure WhatsApp device is linked
+    if (!isWhatsAppLinked) {
+      AppSnackbar.warning(
+        'WhatsApp Not Connected',
+        'Please link your WhatsApp device first before sending a test wish.',
+      );
+      if (onNeedLinkDevice != null) {
+        onNeedLinkDevice();
+      }
+      return;
+    }
+
     isTriggering.value = true;
     try {
-      await _repository.triggerWishes(testPhone: phone);
-      AppSnackbar.success('Test Wish Sent', 'Delivered test birthday greeting to $phone.');
+      final res = await _repository.triggerWishes(testPhone: phone);
+      if (res['success'] == false) {
+        AppSnackbar.warning(
+          'Test Wish Failed',
+          res['message']?.toString() ?? 'Failed to send test wish.',
+        );
+      } else {
+        AppSnackbar.success('Test Wish Sent', 'Delivered test birthday greeting to $phone.');
+      }
     } catch (e) {
       AppSnackbar.error('Test Wish Failed', e.toString());
     } finally {

@@ -72,16 +72,16 @@ class _OperatorHomeScreenState extends State<OperatorHomeScreen> {
         waveColor: Color(0xFFFED7AA),
         route: Routes.studentScreenTime,
       ),
-      _OperatorAction(
-        title: 'Campus Geofence',
-        subtitle: 'Curfew hours, hostel\nboundaries',
-        icon: Icons.location_on_rounded,
-        iconColor: Color(0xFFE11D48),
-        bgTint: Color(0xFFFFE4E6),
-        arrowBgTint: Color(0xFFFFF1F2),
-        waveColor: Color(0xFFFECDD3),
-        route: Routes.operatorGeofence,
-      ),
+      // _OperatorAction(
+      //   title: 'Campus Geofence',
+      //   subtitle: 'Curfew hours, hostel\nboundaries',
+      //   icon: Icons.location_on_rounded,
+      //   iconColor: Color(0xFFE11D48),
+      //   bgTint: Color(0xFFFFE4E6),
+      //   arrowBgTint: Color(0xFFFFF1F2),
+      //   waveColor: Color(0xFFFECDD3),
+      //   route: Routes.operatorGeofence,
+      // ),
       _OperatorAction(
         title: 'Student Locations',
         subtitle: 'Live student location\noverview',
@@ -293,7 +293,7 @@ class _OperatorHomeScreenState extends State<OperatorHomeScreen> {
                   children: [
                     for (final group in _primaryGroups) ...[
                       _SectionHeader(title: group.title),
-                      const SizedBox(height: 12),
+                      // const SizedBox(height: 12),
                       GridView.count(
                         crossAxisCount: 2,
                         shrinkWrap: true,
@@ -309,7 +309,7 @@ class _OperatorHomeScreenState extends State<OperatorHomeScreen> {
                             ),
                         ],
                       ),
-                      const SizedBox(height: 20),
+                      const SizedBox(height: 10),
                     ],
 
                     // Collapsible More Hostel Services (Complaints, Laundry, Attendance QR)
@@ -448,32 +448,31 @@ class _OperatorHeader extends StatelessWidget {
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
                               // Top amber dash
-                              Container(
-                                width: 28,
-                                height: 3.5,
-                                decoration: BoxDecoration(
-                                  color: const Color(0xFFEAAB78),
-                                  borderRadius: BorderRadius.circular(2),
-                                ),
-                              ),
-                              const SizedBox(height: 7),
-                              Text(
-                                'OPERATOR CONSOLE',
-                                style: TextStyle(
-                                  color: Colors.white.withValues(alpha: 0.72),
-                                  fontSize: 11,
-                                  fontWeight: FontWeight.w700,
-                                  letterSpacing: 1.2,
-                                ),
-                              ),
-                              const SizedBox(height: 4),
+                              // Container(
+                              //   width: 28,
+                              //   height: 3.5,
+                              //   decoration: BoxDecoration(
+                              //     color: const Color(0xFFEAAB78),
+                              //     borderRadius: BorderRadius.circular(2),
+                              //   ),
+                              // ),
+                              // const SizedBox(height: 7),
+                              // Text(
+                              //   'OPERATOR CONSOLE',
+                              //   style: TextStyle(
+                              //     color: Colors.white.withValues(alpha: 0.72),
+                              //     fontSize: 11,
+                              //     fontWeight: FontWeight.w700,
+                              //     letterSpacing: 1.2,
+                              //   ),
+                              // ),
+                              // const SizedBox(height: 4),
                               const Text(
                                 'Hostel admin',
                                 style: TextStyle(
                                   color: Colors.white,
                                   fontSize: 28,
                                   fontWeight: FontWeight.w800,
-                                  letterSpacing: -0.6,
                                 ),
                               ),
                               const SizedBox(height: 4),

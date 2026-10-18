@@ -439,6 +439,7 @@ class PhonebookController extends GetxController {
   /// Native OS System Share for a single student profile
   Future<void> shareStudent(PhonebookStudent student) async {
     final text = student.toShareText();
+    // ignore: deprecated_member_use
     await Share.share(
       text,
       subject: 'Hostel Student Profile - ${student.name}',
@@ -464,6 +465,7 @@ class PhonebookController extends GetxController {
       return;
     }
     final combined = selected.map((s) => s.toShareText()).join('\n\n━━━━━━━━━━━━━━━━━━━━\n\n');
+    // ignore: deprecated_member_use
     await Share.share(
       combined,
       subject: 'Student Details (${selected.length} students)',

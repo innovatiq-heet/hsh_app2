@@ -362,18 +362,22 @@ class PhonebookScreen extends GetView<PhonebookController> {
                               width: 32,
                               height: 32,
                               decoration: BoxDecoration(
-                                color: const Color(0xFFE0F2FE),
+                                color: student.hasAddress
+                                    ? const Color(0xFFE0F2FE)
+                                    : const Color(0xFFF1F5F9),
                                 borderRadius: BorderRadius.circular(8),
                               ),
-                              child: const Icon(
+                              child: Icon(
                                 Icons.home_rounded,
                                 size: 18,
-                                color: Color(0xFF0284C7),
+                                color: student.hasAddress
+                                    ? const Color(0xFF0284C7)
+                                    : const Color(0xFF94A3B8),
                               ),
                             ),
                             const SizedBox(width: 10),
                             const Text(
-                              'RESIDENCE & ADDRESS',
+                              'PERMANENT ADDRESS',
                               style: TextStyle(
                                 fontSize: 11,
                                 fontWeight: FontWeight.w800,
@@ -382,24 +386,26 @@ class PhonebookScreen extends GetView<PhonebookController> {
                               ),
                             ),
                             const Spacer(),
-                            IconButton(
-                              icon: const Icon(Icons.copy_rounded, size: 16, color: Color(0xFF64748B)),
-                              tooltip: 'Copy Address',
-                              onPressed: () => controller.copyToClipboard(
-                                student.displayAddress,
-                                'Student Address',
+                            if (student.hasAddress)
+                              IconButton(
+                                icon: const Icon(Icons.copy_rounded, size: 16, color: Color(0xFF64748B)),
+                                tooltip: 'Copy Address',
+                                onPressed: () => controller.copyToClipboard(
+                                  student.displayAddress,
+                                  'Student Address',
+                                ),
                               ),
-                            ),
                           ],
                         ),
                         const SizedBox(height: 6),
                         Text(
                           student.displayAddress,
-                          style: const TextStyle(
+                          style: TextStyle(
                             fontSize: 13,
                             height: 1.4,
-                            fontWeight: FontWeight.w500,
-                            color: Color(0xFF1E293B),
+                            fontWeight: student.hasAddress ? FontWeight.w500 : FontWeight.w400,
+                            color: student.hasAddress ? const Color(0xFF1E293B) : const Color(0xFF94A3B8),
+                            fontStyle: student.hasAddress ? FontStyle.normal : FontStyle.italic,
                           ),
                         ),
                         if (student.floor != null) ...[
@@ -1245,7 +1251,7 @@ class PhonebookScreen extends GetView<PhonebookController> {
             Switch(
               value: value,
               onChanged: onChanged,
-              activeColor: const Color(0xFF0284C7),
+              activeThumbColor: const Color(0xFF0284C7),
             ),
           ],
         ),

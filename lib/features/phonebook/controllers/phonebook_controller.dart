@@ -23,6 +23,7 @@ class PhonebookController extends GetxController {
   final isSyncing = false.obs;
   final isSearching = false.obs;
 
+
   // Primary filter
   final selectedGroup = 'All'.obs;
 
@@ -487,4 +488,6 @@ class PhonebookController extends GetxController {
     final combined = selected.map((s) => s.toShareText()).join('\n\n━━━━━━━━━━━━━━━━━━━━\n\n');
     copyToClipboard(combined, 'Details of ${selected.length} students');
   }
+
 }
+

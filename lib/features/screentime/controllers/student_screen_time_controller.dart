@@ -1026,6 +1026,7 @@ class StudentScreenTimeController extends GetxController with WidgetsBindingObse
   /// Select a student from list to inspect detailed screen time from real API
   void selectStudent(dynamic student) {
     selectedStudent.value = student;
+    selectedDate.value = '';
 
     // Retain all existing stats from the student object immediately so data is visible
     totalMinutesToday.value = toInt(student['totalScreenTimeMinutes']);
@@ -1092,6 +1093,7 @@ class StudentScreenTimeController extends GetxController with WidgetsBindingObse
     bedtimeStart.value = '';
     bedtimeEnd.value = '';
     selectedAppFilter.value = 'All';
+    selectedDate.value = '';
     appSearchQuery.value = '';
     appSearchController.clear();
   }
@@ -1467,7 +1469,7 @@ class StudentScreenTimeController extends GetxController with WidgetsBindingObse
       final isBlocked = item['isBlocked'] == true;
       final mins = (item['minutes'] as int?) ?? 0;
 
-      if (tab == 'Used Today' || tab == 'Used on Day') return mins > 0;
+      if (tab == 'Used' || tab == 'Used Today' || tab == 'Used on Day') return mins > 0;
       if (tab == 'Restricted') return isBlocked;
       return true;
     }).toList();
@@ -1606,10 +1608,14 @@ class StudentScreenTimeController extends GetxController with WidgetsBindingObse
     if (source is Map) {
       final candidates = [
         source['appUsageBreakdown'],
+        source['app_usage_breakdown'],
         source['apps'],
         source['appBreakdown'],
         source['app_breakdown'],
         source['usageBreakdown'],
+        source['usage_breakdown'],
+        source['usageLogs'],
+        source['usage_logs'],
         source['screenTime']?['appUsageBreakdown'],
         source['today']?['appUsageBreakdown'],
         source['liveStatus']?['appUsageBreakdown'],

@@ -48,6 +48,7 @@ void main() {
       expect(student.maskedAadhar, '•••• •••• 9012');
       expect(student.formattedDob, contains('2007'));
       expect(student.ageText, isNotEmpty);
+      expect(student.hasAddress, isTrue);
       expect(student.displayAddress, contains('Shanti Nagar'));
 
       // Test toShareText()
@@ -62,7 +63,7 @@ void main() {
       expect(shareText, contains('101'));
     });
 
-    test('Generates default campus residence address when explicit address is empty', () {
+    test('Returns Not Provided for address when explicit address is empty', () {
       final student = const PhonebookStudent(
         id: '102',
         studentId: '102',
@@ -81,17 +82,17 @@ void main() {
       expect(student.hasFatherPhone, isFalse);
       expect(student.hasMotherName, isFalse);
       expect(student.motherName, isNull);
+      expect(student.hasAddress, isFalse);
+      expect(student.displayAddress, 'Not Provided');
       expect(student.maskedAadhar, 'Not Provided');
       expect(student.formattedDob, 'Not Provided');
       expect(student.ageText, '');
-      expect(student.displayAddress, contains('Room A-102, A-Wing'));
-      expect(student.displayAddress, contains('Hari Smruti Hostel (HSH)'));
 
       final shareText = student.toShareText();
       expect(shareText, contains('Aakash Sharma'));
       expect(shareText, contains('A-102'));
       expect(shareText, contains('A-Wing'));
-      expect(shareText, contains('Hari Smruti Hostel (HSH)'));
+      expect(shareText, contains('📍 *Address:* Not Provided'));
     });
 
     test('Handles JSON / SQLite map deserialization via PhonebookStudent.fromJson including motherName', () {

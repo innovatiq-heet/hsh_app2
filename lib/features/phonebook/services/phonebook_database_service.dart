@@ -282,7 +282,7 @@ class PhonebookDatabaseService {
 
     // Has Permanent Address
     if (hasAddress == true) {
-      whereClauses.add('(address IS NOT NULL AND address != "" AND address NOT LIKE "%Hari Smruti Hostel%")');
+      whereClauses.add('(address IS NOT NULL AND address != "" AND address != "null" AND address NOT LIKE "%Hari Smruti Hostel%" AND address NOT LIKE "%Hari Saurabh Hostel%")');
     }
 
     // Has Aadhar Card
@@ -391,6 +391,23 @@ class PhonebookDatabaseService {
     final db = await database;
     final res = await db.rawQuery('SELECT COUNT(*) as count FROM student_cache');
     return Sqflite.firstIntValue(res) ?? 0;
+  }
+
+  Future<void> updateStudentAddress(
+    String studentId,
+    String address, {
+    String? pinCode,
+  }) async {
+    final db = await database;
+    await db.update(
+      'student_cache',
+      {
+        'address': address,
+        'pin_code': ?pinCode,
+      },
+      where: 'student_id = ?',
+      whereArgs: [studentId],
+    );
   }
 
   Future<void> clearCache() async {

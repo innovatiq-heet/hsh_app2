@@ -83,15 +83,21 @@ class AppUsageCard extends GetView<StudentScreenTimeController> {
               segments: [
                 ButtonSegment(value: 'All', label: Text('All (${list.length})')),
                 ButtonSegment(
-                  value: isToday ? 'Used Today' : 'Used on Day',
-                  label: Text('Used (${controller.currentDayRawApps.length})'),
+                  value: 'Used',
+                  label: Text(isToday
+                      ? 'Used (${controller.currentDayRawApps.length})'
+                      : 'Used on Day (${controller.currentDayRawApps.length})'),
                 ),
                 ButtonSegment(
                   value: 'Restricted',
                   label: Text('Blocked (${controller.blockedPackages.length})'),
                 ),
               ],
-              selected: {filter},
+              selected: {
+                filter == 'Used Today' || filter == 'Used on Day' || filter == 'Used'
+                    ? 'Used'
+                    : filter
+              },
               onSelectionChanged: (s) => controller.selectedAppFilter.value = s.first,
               showSelectedIcon: false,
               style: ButtonStyle(

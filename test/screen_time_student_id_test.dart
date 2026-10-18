@@ -307,6 +307,71 @@ void main() {
     expect(controller.filteredStudents.length, 2);
     expect(controller.filteredStudents.map((s) => s['name']).toList(), ['Beta', 'Delta']);
   });
+
+  test('extractRecordDate normalizes ISO strings, spaces, and diverse date keys', () {
+    expect(StudentScreenTimeController.extractRecordDate({'date': '2026-10-17'}), '2026-10-17');
+    expect(StudentScreenTimeController.extractRecordDate({'usage_date': '2026-10-17 00:00:00'}), '2026-10-17');
+    expect(StudentScreenTimeController.extractRecordDate({'created_at': '2026-10-17T08:30:00.000Z'}), '2026-10-17');
+    expect(StudentScreenTimeController.extractRecordDate('2026-10-17 14:22:00'), '2026-10-17');
+  });
+
+  test('date-wise screen time and app usage resolves previous day from history records', () {
+    final controller = StudentScreenTimeController();
+    controller.totalMinutesToday.value = 45;
+    controller.historyRecords.assignAll([
+      {
+        'usage_date': '2026-10-17 00:00:00',
+        'total_screen_time_minutes': 120,
+        'night_screen_time_minutes': 30,
+        'appUsageBreakdown': jsonEncode([
+          {'packageName': 'com.whatsapp', 'appName': 'WhatsApp', 'usage_minutes': 70},
+          {'packageName': 'com.google.android.youtube', 'appName': 'YouTube', 'usage_minutes': 50},
+        ]),
+      },
+      {
+        'date': '2026-10-16',
+        'totalMinutes': 90,
+        'nightMinutes': 0,
+        'apps': [
+          {'packageName': 'com.instagram.android', 'appName': 'Instagram', 'minutes': 90},
+        ],
+      },
+    ]);
+
+    // Select today
+    controller.selectDate(controller.todayDateStr);
+    expect(controller.isTodaySelected, isTrue);
+    expect(controller.selectedDayTotalMinutes, 45);
+
+    // Select previous day (2026-10-17)
+    controller.selectDate('2026-10-17');
+    expect(controller.isTodaySelected, isFalse);
+    expect(controller.effectiveSelectedDate, '2026-10-17');
+    expect(controller.selectedDayTotalMinutes, 120);
+    expect(controller.selectedDayNightMinutes, 30);
+    expect(controller.currentDayRawApps.length, 2);
+
+    final apps = controller.displayAppsList;
+    expect(apps.any((a) => a['packageName'] == 'com.whatsapp' && a['minutes'] == 70), isTrue);
+    expect(apps.any((a) => a['packageName'] == 'com.google.android.youtube' && a['minutes'] == 50), isTrue);
+
+    // Select earlier day (2026-10-16)
+    controller.selectDate('2026-10-16');
+    expect(controller.selectedDayTotalMinutes, 90);
+    expect(controller.currentDayRawApps.length, 1);
+    expect(controller.currentDayRawApps.first['packageName'], 'com.instagram.android');
+
+    // Select day with no breakdown array, but recorded active current_app (e.g. Settings Suggestions)
+    controller.historyRecords.add({
+      'date': '2026-10-10',
+      'total_screen_time_minutes': 621,
+      'current_app': 'Settings Suggestions',
+    });
+    controller.selectDate('2026-10-10');
+    expect(controller.selectedDayTotalMinutes, 621);
+    expect(controller.currentDayRawApps.length, 1);
+    expect(controller.currentDayRawApps.first['appName'], 'Settings Suggestions');
+  });
 }
 
 

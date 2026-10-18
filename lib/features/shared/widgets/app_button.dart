@@ -1,4 +1,4 @@
-﻿import 'package:flutter/material.dart';
+import 'package:flutter/material.dart';
 import '../../../core/constants/app_colors.dart';
 import '../../../core/constants/app_dimens.dart';
 import '../../../core/constants/app_text_styles.dart';
@@ -104,10 +104,17 @@ class AppButton extends StatelessWidget {
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
                 if (icon != null) ...[
-                  Icon(icon, size: 20, color: color),
-                  const SizedBox(width: AppDimens.gapSm),
+                  Icon(icon, size: 18, color: color),
+                  const SizedBox(width: 6),
                 ],
-                Text(label, style: AppTextStyles.button.copyWith(color: color)),
+                Flexible(
+                  child: Text(
+                    label,
+                    style: AppTextStyles.button.copyWith(color: color),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                ),
               ],
             ),
     );

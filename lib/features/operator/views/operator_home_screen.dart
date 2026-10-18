@@ -281,7 +281,7 @@ class _OperatorHomeScreenState extends State<OperatorHomeScreen> {
       child: Scaffold(
         backgroundColor: const Color(0xFFF8FAFC),
         body: SingleChildScrollView(
-          physics: const BouncingScrollPhysics(),
+          physics: const ClampingScrollPhysics(),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [

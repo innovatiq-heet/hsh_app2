@@ -59,14 +59,18 @@ class _HistoryCardState extends State<HistoryCard> {
   }
 
   Widget _row(dynamic rec, int maxMins, DateFormat fmt) {
-    final dayIso = (rec['date'] ?? '').toString().split('T').first;
+    final dayIso = StudentScreenTimeController.extractRecordDate(rec);
     String label = dayIso;
     try {
       label = fmt.format(DateTime.parse(dayIso));
     } catch (_) {}
     final mins = _mins(rec);
     final night = StudentScreenTimeController.toInt(
-      rec['night_screen_time_minutes'] ?? rec['nightScreenTimeMinutes'] ?? rec['nightMinutes'] ?? rec['night'],
+      rec['night_screen_time_minutes'] ??
+          rec['nightScreenTimeMinutes'] ??
+          rec['nightMinutes'] ??
+          rec['night_minutes'] ??
+          rec['night'],
     );
     final selected = controller.effectiveSelectedDate == dayIso;
     final share = maxMins > 0 ? mins / maxMins : 0.0;
@@ -137,7 +141,34 @@ class _HistoryCardState extends State<HistoryCard> {
     );
   }
 
-  static int _mins(dynamic rec) => StudentScreenTimeController.toInt(
-        rec['total_screen_time_minutes'] ?? rec['totalScreenTimeMinutes'] ?? rec['totalMinutes'] ?? rec['minutes'],
-      );
+  static int _mins(dynamic rec) {
+    if (rec is! Map) return 0;
+    final direct = StudentScreenTimeController.toInt(
+      rec['total_screen_time_minutes'] ??
+          rec['totalScreenTimeMinutes'] ??
+          rec['total_minutes'] ??
+          rec['totalMinutes'] ??
+          rec['usage_minutes'] ??
+          rec['minutes'],
+    );
+    if (direct > 0) return direct;
+    final apps = StudentScreenTimeController.extractAppsListStatic(rec);
+    if (apps.isNotEmpty) {
+      return apps.fold<int>(0, (sum, a) {
+        if (a is Map) {
+          return sum +
+              StudentScreenTimeController.toInt(
+                a['minutes'] ??
+                    a['total_minutes'] ??
+                    a['totalMinutes'] ??
+                    a['duration'] ??
+                    a['time'] ??
+                    a['usage_minutes'],
+              );
+        }
+        return sum;
+      });
+    }
+    return 0;
+  }
 }

@@ -128,7 +128,9 @@ class _SummaryStrip extends GetView<StudentScreenTimeController> {
   @override
   Widget build(BuildContext context) {
     return Obx(() {
-      final total = controller.directoryCount('All');
+      final total = controller.totalStudentsCount.value > 0
+          ? controller.totalStudentsCount.value
+          : controller.directoryCount('All');
       final online = controller.directoryCount('Online');
       final offline = controller.directoryCount('Offline');
       final locked = controller.directoryCount('Locked');
@@ -756,23 +758,30 @@ class _GlobalCurfewBanner extends GetView<StudentScreenTimeController> {
                     ],
                   ),
                   const SizedBox(height: 3),
-                  Row(
+                  Wrap(
+                    crossAxisAlignment: WrapCrossAlignment.center,
+                    spacing: 6,
+                    runSpacing: 2,
                     children: [
-                      const Icon(
-                        Icons.schedule_rounded,
-                        size: 13,
-                        color: Color(0xFF64748B),
+                      Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          const Icon(
+                            Icons.schedule_rounded,
+                            size: 13,
+                            color: Color(0xFF64748B),
+                          ),
+                          const SizedBox(width: 4),
+                          Text(
+                            policy.formatTimeRange(),
+                            style: const TextStyle(
+                              fontSize: 10.5,
+                              color: Color(0xFF64748B),
+                              fontWeight: FontWeight.w600,
+                            ),
+                          ),
+                        ],
                       ),
-                      const SizedBox(width: 4),
-                      Text(
-                        policy.formatTimeRange(),
-                        style: const TextStyle(
-                          fontSize: 11.5,
-                          color: Color(0xFF64748B),
-                          fontWeight: FontWeight.w600,
-                        ),
-                      ),
-                      const SizedBox(width: 6),
                       InkWell(
                         onTap: () => _showEditCurfewHours(context, controller, policy),
                         borderRadius: BorderRadius.circular(4),
@@ -781,7 +790,7 @@ class _GlobalCurfewBanner extends GetView<StudentScreenTimeController> {
                           child: Text(
                             'Edit Hours',
                             style: TextStyle(
-                              fontSize: 11.5,
+                              fontSize: 10.5,
                               color: Color(0xFF0284C7),
                               fontWeight: FontWeight.w700,
                               decoration: TextDecoration.underline,

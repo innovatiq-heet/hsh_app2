@@ -182,12 +182,16 @@ class StudentScreenTimeScreen extends GetView<StudentScreenTimeController> {
               // Pick Date Calendar button
               GestureDetector(
                 onTap: () async {
-                  final initial = DateTime.tryParse(selectedDate) ?? DateTime.now();
+                  final now = DateTime.now();
+                  final first = now.subtract(const Duration(days: 90));
+                  var initial = DateTime.tryParse(selectedDate) ?? now;
+                  if (initial.isAfter(now)) initial = now;
+                  if (initial.isBefore(first)) initial = first;
                   final picked = await showDatePicker(
                     context: context,
-                    initialDate: initial.isAfter(DateTime.now()) ? DateTime.now() : initial,
-                    firstDate: DateTime.now().subtract(const Duration(days: 90)),
-                    lastDate: DateTime.now(),
+                    initialDate: initial,
+                    firstDate: first,
+                    lastDate: now,
                   );
                   if (picked != null) {
                     final pickedStr =
@@ -1079,7 +1083,7 @@ class _ScreenTimeHeaderDelegate extends SliverPersistentHeaderDelegate {
             ),
 
             // Expanded content (Amber dash, Overline, Large Title, Subtitle, Frosted pills)
-            if (expandedOpacity > 0.02)
+            if (expandedOpacity > 0.05)
               Positioned(
                 top: topPadding + 54,
                 left: 20,
@@ -1087,12 +1091,16 @@ class _ScreenTimeHeaderDelegate extends SliverPersistentHeaderDelegate {
                 bottom: 12,
                 child: Opacity(
                   opacity: expandedOpacity,
-                  child: Transform.translate(
-                    offset: Offset(0, -progress * 18),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      mainAxisAlignment: MainAxisAlignment.end,
-                      children: [
+                  child: ClipRect(
+                    child: Transform.translate(
+                      offset: Offset(0, -progress * 18),
+                      child: SingleChildScrollView(
+                        physics: const NeverScrollableScrollPhysics(),
+                        reverse: true,
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          mainAxisAlignment: MainAxisAlignment.end,
+                          children: [
                         Container(
                           width: 28,
                           height: 3.5,
@@ -1203,6 +1211,8 @@ class _ScreenTimeHeaderDelegate extends SliverPersistentHeaderDelegate {
                   ),
                 ),
               ),
+            ),
+          ),
           ],
         ),
       ),

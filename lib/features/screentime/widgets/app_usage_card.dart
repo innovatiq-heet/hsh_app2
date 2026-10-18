@@ -36,7 +36,9 @@ class AppUsageCard extends GetView<StudentScreenTimeController> {
                       Text('Apps', style: AppTextStyles.title),
                       const SizedBox(height: 2),
                       Text(
-                        isToday ? 'Used today, most first' : 'Used on this day',
+                        isToday
+                            ? 'Used today, most first'
+                            : 'Used on ${controller.effectiveSelectedDate}, most first',
                         style: AppTextStyles.bodySm.copyWith(color: AppColors.textSecondary),
                       ),
                     ],
@@ -83,7 +85,7 @@ class AppUsageCard extends GetView<StudentScreenTimeController> {
               segments: [
                 ButtonSegment(value: 'All', label: Text('All (${list.length})')),
                 ButtonSegment(
-                  value: isToday ? 'Used Today' : 'Used on Day',
+                  value: 'Used',
                   label: Text('Used (${controller.currentDayRawApps.length})'),
                 ),
                 ButtonSegment(
@@ -91,7 +93,11 @@ class AppUsageCard extends GetView<StudentScreenTimeController> {
                   label: Text('Blocked (${controller.blockedPackages.length})'),
                 ),
               ],
-              selected: {filter},
+              selected: {
+                filter == 'Used Today' || filter == 'Used on Day' || filter == 'Used'
+                    ? 'Used'
+                    : (filter == 'Restricted' ? 'Restricted' : 'All')
+              },
               onSelectionChanged: (s) => controller.selectedAppFilter.value = s.first,
               showSelectedIcon: false,
               style: ButtonStyle(
@@ -110,11 +116,21 @@ class AppUsageCard extends GetView<StudentScreenTimeController> {
 
             if (list.isEmpty)
               EmptyState(
-                icon: filter == 'Restricted' ? Icons.verified_user_outlined : (filter == 'Limited' ? Icons.hourglass_bottom_rounded : Icons.apps_outlined),
-                title: filter == 'Restricted' ? 'Nothing blocked yet' : (filter == 'Limited' ? 'No app limits set' : 'No app usage recorded'),
+                icon: filter == 'Restricted'
+                    ? Icons.verified_user_outlined
+                    : (filter == 'Limited' ? Icons.hourglass_bottom_rounded : Icons.apps_outlined),
+                title: filter == 'Restricted'
+                    ? 'Nothing blocked yet'
+                    : (filter == 'Limited'
+                        ? 'No app limits set'
+                        : (isToday ? 'No app usage recorded' : 'No per-app breakdown for this day')),
                 message: filter == 'Restricted'
                     ? 'Use "Restrict" to block distracting apps on this phone.'
-                    : 'Usage appears once the phone reports in (every ~5 minutes).',
+                    : (isToday
+                        ? 'Usage appears once the phone reports in (every ~5 minutes).'
+                        : (total > 0
+                            ? 'Daily total is ${StudentScreenTimeController.formatMinutes(total)}. Individual app breakdown is logged live during each day.'
+                            : 'No usage was logged on this day.')),
               )
             else
               ListView.separated(

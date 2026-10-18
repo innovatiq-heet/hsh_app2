@@ -330,7 +330,7 @@ class AppPages {
       binding: AdminBirthdayBinding(),
     ),
 
-    // â”€â”€ Utility â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+
     GetPage(
       name: Routes.noInternet,
       page: () => const NoInternetScreen(showBackButton: true),

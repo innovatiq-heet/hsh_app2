@@ -8,6 +8,7 @@ import '../../shared/widgets/skeleton_loader.dart';
 import '../../shared/widgets/status_badge.dart';
 import '../controllers/student_screen_time_controller.dart';
 import 'app_brand_icon.dart';
+import 'app_requests_banner.dart';
 
 /// Warden's directory: search, quick filters and one row per student that
 /// answers "is this phone online, is it compliant, how much was it used?"
@@ -21,6 +22,7 @@ class StudentDirectoryView extends GetView<StudentScreenTimeController> {
       children: [
         const _GlobalCurfewBanner(),
         const SizedBox(height: AppDimens.gapMd),
+        const AppRequestsBanner(),
         _SummaryStrip(),
         const SizedBox(height: AppDimens.gapMd),
         _SearchField(),

@@ -261,6 +261,52 @@ class BlockedAppActivity : Activity() {
         }
         cardLayout.addView(pkgView, pkgLp)
 
+        // Request Approval Button (when app is blocked / restricted)
+        if (blockReason == BlockReason.APP_BLOCKED) {
+            val reqBtn = Button(this).apply {
+                text = "Request Approval from Warden"
+                textSize = 14f
+                setTextColor(Color.WHITE)
+                setTypeface(Typeface.DEFAULT_BOLD)
+                val bg = GradientDrawable().apply {
+                    setColor(Color.parseColor("#0284C7")) // Primary Blue
+                    cornerRadius = dp(12).toFloat()
+                }
+                background = bg
+                setOnClickListener {
+                    isEnabled = false
+                    text = "Sending Request…"
+                    PackageInstallReceiver.requestAppApproval(this@BlockedAppActivity, pkgName, appName) { success ->
+                        runOnUiThread {
+                            if (success) {
+                                text = "✓ Request Sent to Warden"
+                                val doneBg = GradientDrawable().apply {
+                                    setColor(Color.parseColor("#16A34A")) // Success Green
+                                    cornerRadius = dp(12).toFloat()
+                                }
+                                background = doneBg
+                                android.widget.Toast.makeText(
+                                    this@BlockedAppActivity,
+                                    "Approval request sent to warden. You will be able to open this app once approved.",
+                                    android.widget.Toast.LENGTH_LONG
+                                ).show()
+                            } else {
+                                text = "Request Failed (Tap to retry)"
+                                isEnabled = true
+                            }
+                        }
+                    }
+                }
+            }
+            val reqLp = LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.MATCH_PARENT,
+                dp(48)
+            ).apply {
+                topMargin = dp(20)
+            }
+            cardLayout.addView(reqBtn, reqLp)
+        }
+
         // Home Screen Button
         val homeBtn = Button(this).apply {
             text = "Return to Home Screen"
@@ -280,7 +326,7 @@ class BlockedAppActivity : Activity() {
             LinearLayout.LayoutParams.MATCH_PARENT,
             dp(48)
         ).apply {
-            topMargin = dp(24)
+            topMargin = if (blockReason == BlockReason.APP_BLOCKED) dp(10) else dp(24)
         }
         cardLayout.addView(homeBtn, btnLp)
 

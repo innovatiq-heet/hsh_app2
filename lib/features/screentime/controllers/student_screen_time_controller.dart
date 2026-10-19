@@ -49,6 +49,10 @@ class StudentScreenTimeController extends GetxController with WidgetsBindingObse
   final RxMap<String, int> dateSpecificNight = <String, int>{}.obs;
   final RxBool isLoadingDateUsage = false.obs;
 
+  /// List of student app installation requests pending warden approval
+  final RxList<Map<String, dynamic>> pendingAppRequests = <Map<String, dynamic>>[].obs;
+  final RxBool isLoadingAppRequests = false.obs;
+
   /// When the student's phone last reported in, and what it reported about
   /// its own monitoring health (Usage Access / Accessibility / battery).
   final Rx<DateTime?> lastSeenAt = Rx<DateTime?>(null);
@@ -1194,6 +1198,7 @@ class StudentScreenTimeController extends GetxController with WidgetsBindingObse
     _checkInitialArguments();
     _loadTotalHostelStudentCount();
     _loadRole();
+    fetchAppRequests();
     _refreshTimer = Timer.periodic(_refreshInterval, (_) => _autoRefresh());
   }
 
@@ -1286,11 +1291,12 @@ class StudentScreenTimeController extends GetxController with WidgetsBindingObse
     if (!currentRole.value.canViewScreenTime) return;
     if (_studentId.isNotEmpty) {
       await Future.wait(
-          [fetchLiveStatus(), fetchHistory(), fetchStudentPolicies()]);
+          [fetchLiveStatus(), fetchHistory(), fetchStudentPolicies(), fetchAppRequests(studentId: _studentId)]);
     } else {
       await Future.wait([
         fetchStudentsList(silent: true),
         loadGlobalCurfew(),
+        fetchAppRequests(),
       ]);
     }
   }
@@ -1304,10 +1310,11 @@ class StudentScreenTimeController extends GetxController with WidgetsBindingObse
       await Future.wait([
         fetchStudentsList(),
         loadGlobalCurfew(),
+        fetchAppRequests(),
       ]);
     } else {
       await Future.wait(
-          [fetchLiveStatus(), fetchHistory(), fetchStudentPolicies()]);
+          [fetchLiveStatus(), fetchHistory(), fetchStudentPolicies(), fetchAppRequests(studentId: _studentId)]);
     }
   }
 
@@ -1932,6 +1939,7 @@ class StudentScreenTimeController extends GetxController with WidgetsBindingObse
     fetchLiveStatus();
     fetchHistory();
     fetchStudentPolicies();
+    fetchAppRequests(studentId: id);
   }
 
   /// Return back to all students directory list
@@ -1940,6 +1948,7 @@ class StudentScreenTimeController extends GetxController with WidgetsBindingObse
     openedWithDirectTarget.value = false;
     _resetDetail();
     clearSearch();
+    fetchAppRequests();
   }
 
   void _resetDetail() {
@@ -2244,6 +2253,51 @@ class StudentScreenTimeController extends GetxController with WidgetsBindingObse
       return;
     }
     await toggleAppBlock(pkg, name, true);
+  }
+
+  /// Fetch pending app installation requests for all students or a specific student
+  Future<void> fetchAppRequests({String? studentId}) async {
+    try {
+      isLoadingAppRequests.value = true;
+      final qp = <String, dynamic>{'status': 'pending'};
+      if (studentId != null && studentId.isNotEmpty) {
+        qp['student_id'] = studentId;
+      }
+      final res = await _apiClient.dio.get('/screen-time/apps/requests', queryParameters: qp);
+      if (res.data is Map && res.data['data'] is List) {
+        final list = List<Map<String, dynamic>>.from(
+          (res.data['data'] as List).whereType<Map>().map((m) => Map<String, dynamic>.from(m)),
+        );
+        pendingAppRequests.assignAll(list);
+      }
+    } catch (e) {
+      debugPrint('[ScreenTime] fetchAppRequests error: $e');
+    } finally {
+      isLoadingAppRequests.value = false;
+    }
+  }
+
+  /// Approve or reject an app installation request (Warden action)
+  Future<void> reviewAppRequest(int requestId, String action) async {
+    try {
+      await _apiClient.dio.post(
+        '/screen-time/apps/request/$requestId/review',
+        data: {'action': action},
+      );
+      final isApproved = action == 'approve';
+      pendingAppRequests.removeWhere((r) => r['id'] == requestId);
+      if (isApproved) {
+        AppSnackbar.success('App Approved', 'App unlocked on student phone immediately.');
+      } else {
+        AppSnackbar.info('App Denied', 'Request rejected.');
+      }
+      if (_studentId.isNotEmpty) {
+        fetchLiveStatus();
+      }
+    } catch (e) {
+      debugPrint('[ScreenTime] reviewAppRequest error: $e');
+      AppSnackbar.error('Action Failed', 'Could not review app request: $e');
+    }
   }
 
   /// Emergency remote lock / unlock of the student's phone

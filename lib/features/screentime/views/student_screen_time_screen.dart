@@ -4,6 +4,7 @@ import 'package:get/get.dart';
 import 'package:fl_chart/fl_chart.dart';
 import '../../shared/widgets/skeleton_loader.dart';
 import '../controllers/student_screen_time_controller.dart';
+import '../widgets/app_requests_banner.dart';
 import '../widgets/app_usage_card.dart';
 import '../widgets/history_card.dart';
 import '../widgets/live_status_card.dart';
@@ -98,6 +99,7 @@ class StudentScreenTimeScreen extends GetView<StudentScreenTimeController> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
+        const AppRequestsBanner(),
         if (!controller.isSelectedStudentEnrolled)
           Container(
             margin: const EdgeInsets.only(bottom: 10),

@@ -250,6 +250,14 @@ object PolicyStore {
         return updated
     }
 
+    fun addBlockedPackage(context: Context, packageName: String) {
+        val current = policy(context)
+        if (!current.blockedPackages.contains(packageName)) {
+            val updated = current.copy(blockedPackages = current.blockedPackages + packageName)
+            savePolicy(context, updated)
+        }
+    }
+
     fun addPolicyListener(l: () -> Unit) = synchronized(listeners) { listeners.add(l) }
     fun removePolicyListener(l: () -> Unit) = synchronized(listeners) { listeners.remove(l) }
 

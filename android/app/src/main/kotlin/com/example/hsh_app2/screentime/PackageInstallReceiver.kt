@@ -66,7 +66,7 @@ class PackageInstallReceiver : BroadcastReceiver() {
         val packageName = uri.schemeSpecificPart ?: return
 
         // Skip protected packages (e.g. system, dialer, settings, own app)
-        if (PolicyEvaluator.isProtectedPackage(context, packageName) || packageName == context.packageName) {
+        if (PolicyEvaluator.isProtected(context, packageName) || packageName == context.packageName) {
             return
         }
 

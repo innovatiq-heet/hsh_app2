@@ -2278,16 +2278,19 @@ class StudentScreenTimeController extends GetxController with WidgetsBindingObse
   }
 
   /// Approve or reject an app installation request (Warden action)
-  Future<void> reviewAppRequest(int requestId, String action) async {
+  Future<void> reviewAppRequest(int requestId, String action, {int durationMinutes = 15}) async {
     try {
       await _apiClient.dio.post(
         '/screen-time/apps/request/$requestId/review',
-        data: {'action': action},
+        data: {'action': action, 'duration_minutes': durationMinutes},
       );
       final isApproved = action == 'approve';
       pendingAppRequests.removeWhere((r) => r['id'] == requestId);
       if (isApproved) {
-        AppSnackbar.success('App Approved', 'App unlocked on student phone immediately.');
+        AppSnackbar.success(
+          'App Approved',
+          'A $durationMinutes-minute install window has been granted on student device.',
+        );
       } else {
         AppSnackbar.info('App Denied', 'Request rejected.');
       }
@@ -2297,6 +2300,33 @@ class StudentScreenTimeController extends GetxController with WidgetsBindingObse
     } catch (e) {
       debugPrint('[ScreenTime] reviewAppRequest error: $e');
       AppSnackbar.error('Action Failed', 'Could not review app request: $e');
+    }
+  }
+
+  /// Submit a request for an app download/usage (Student action)
+  Future<bool> submitAppRequest({
+    required String appName,
+    required String reason,
+    String packageName = 'com.android.vending',
+  }) async {
+    try {
+      await _apiClient.dio.post(
+        '/screen-time/apps/request',
+        data: {
+          'app_name': appName.trim(),
+          'package_name': packageName.trim(),
+          'reason': reason.trim(),
+        },
+      );
+      AppSnackbar.success(
+        'Request Sent',
+        'Your request for "$appName" has been sent to your hostel warden.',
+      );
+      return true;
+    } catch (e) {
+      debugPrint('[ScreenTime] submitAppRequest error: $e');
+      AppSnackbar.error('Request Failed', 'Could not submit request: $e');
+      return false;
     }
   }
 

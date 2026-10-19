@@ -264,7 +264,7 @@ class BlockedAppActivity : Activity() {
         // Request Approval Button (when app is blocked / restricted or installer blocked)
         if (blockReason == BlockReason.APP_BLOCKED || blockReason == BlockReason.INSTALLER_BLOCKED) {
             val reqBtn = Button(this).apply {
-                text = "Request Approval from Warden"
+                text = if (blockReason == BlockReason.INSTALLER_BLOCKED) "Request App Download" else "Request Approval from Warden"
                 textSize = 14f
                 setTextColor(Color.WHITE)
                 setTypeface(Typeface.DEFAULT_BOLD)
@@ -274,28 +274,7 @@ class BlockedAppActivity : Activity() {
                 }
                 background = bg
                 setOnClickListener {
-                    isEnabled = false
-                    text = "Sending Request…"
-                    PackageInstallReceiver.requestAppApproval(this@BlockedAppActivity, pkgName, appName) { success ->
-                        runOnUiThread {
-                            if (success) {
-                                text = "✓ Request Sent to Warden"
-                                val doneBg = GradientDrawable().apply {
-                                    setColor(Color.parseColor("#16A34A")) // Success Green
-                                    cornerRadius = dp(12).toFloat()
-                                }
-                                background = doneBg
-                                android.widget.Toast.makeText(
-                                    this@BlockedAppActivity,
-                                    "Approval request sent to warden. You will be able to open this app once approved.",
-                                    android.widget.Toast.LENGTH_LONG
-                                ).show()
-                            } else {
-                                text = "Request Failed (Tap to retry)"
-                                isEnabled = true
-                            }
-                        }
-                    }
+                    showAppRequestDialog(pkgName, appName, blockReason, this)
                 }
             }
             val reqLp = LinearLayout.LayoutParams(
@@ -392,11 +371,153 @@ class BlockedAppActivity : Activity() {
         finish()
     }
 
-    @Deprecated("Deprecated in Java")
-    override fun onBackPressed() {
-        // Prevent bypassing the block with back press; send user to device launcher
-        goToHomeScreen()
+    private fun showAppRequestDialog(
+        pkgName: String,
+        defaultAppName: String,
+        reasonCode: BlockReason,
+        requestButton: Button
+    ) {
+        val isInstaller = reasonCode == BlockReason.INSTALLER_BLOCKED
+        val dialogView = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            val p = dp(20)
+            setPadding(p, p, p, p)
+            setBackgroundColor(Color.parseColor("#1E1E1E"))
+        }
+
+        val titleView = TextView(this).apply {
+            text = if (isInstaller) "Request App Download" else "Request App Access"
+            textSize = 18f
+            setTextColor(Color.WHITE)
+            setTypeface(Typeface.DEFAULT_BOLD)
+            setPadding(0, 0, 0, dp(6))
+        }
+        dialogView.addView(titleView)
+
+        val descView = TextView(this).apply {
+            text = if (isInstaller)
+                "Tell the warden which app you need to download from Play Store and why."
+            else
+                "Explain why you need access to this application."
+            textSize = 13f
+            setTextColor(Color.parseColor("#B0B0B0"))
+            setPadding(0, 0, 0, dp(14))
+        }
+        dialogView.addView(descView)
+
+        // App Name Input
+        val appNameLabel = TextView(this).apply {
+            text = "App Name"
+            textSize = 12f
+            setTextColor(Color.parseColor("#0284C7"))
+            setTypeface(Typeface.DEFAULT_BOLD)
+            setPadding(0, 0, 0, dp(4))
+        }
+        dialogView.addView(appNameLabel)
+
+        val appNameInput = android.widget.EditText(this).apply {
+            hint = if (isInstaller) "e.g. Duolingo, Zoom, Classroom" else defaultAppName
+            setText(if (isInstaller) "" else defaultAppName)
+            if (!isInstaller) isEnabled = false
+            setTextColor(Color.WHITE)
+            setHintTextColor(Color.parseColor("#666666"))
+            textSize = 14f
+            val bg = GradientDrawable().apply {
+                setColor(Color.parseColor("#2A2A2A"))
+                cornerRadius = dp(8).toFloat()
+                setStroke(dp(1), Color.parseColor("#444444"))
+            }
+            background = bg
+            val pad = dp(12)
+            setPadding(pad, pad, pad, pad)
+        }
+        dialogView.addView(appNameInput)
+
+        // Reason Input
+        val reasonLabel = TextView(this).apply {
+            text = "Reason / Purpose"
+            textSize = 12f
+            setTextColor(Color.parseColor("#0284C7"))
+            setTypeface(Typeface.DEFAULT_BOLD)
+            val lp = LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.MATCH_PARENT,
+                LinearLayout.LayoutParams.WRAP_CONTENT
+            ).apply { topMargin = dp(12); bottomMargin = dp(4) }
+            layoutParams = lp
+        }
+        dialogView.addView(reasonLabel)
+
+        val reasonInput = android.widget.EditText(this).apply {
+            hint = "e.g. Needed for college classes or exams"
+            setTextColor(Color.WHITE)
+            setHintTextColor(Color.parseColor("#666666"))
+            textSize = 14f
+            minLines = 3
+            gravity = Gravity.TOP or Gravity.START
+            val bg = GradientDrawable().apply {
+                setColor(Color.parseColor("#2A2A2A"))
+                cornerRadius = dp(8).toFloat()
+                setStroke(dp(1), Color.parseColor("#444444"))
+            }
+            background = bg
+            val pad = dp(12)
+            setPadding(pad, pad, pad, pad)
+        }
+        dialogView.addView(reasonInput)
+
+        val dialog = android.app.AlertDialog.Builder(this, android.R.style.Theme_DeviceDefault_Dialog_Alert)
+            .setView(dialogView)
+            .setPositiveButton("Submit Request", null)
+            .setNegativeButton("Cancel") { d, _ -> d.dismiss() }
+            .create()
+
+        dialog.setOnShowListener {
+            val submitBtn = dialog.getButton(android.app.AlertDialog.BUTTON_POSITIVE)
+            submitBtn.setTextColor(Color.parseColor("#0284C7"))
+            submitBtn.setOnClickListener {
+                val targetAppName = appNameInput.text.toString().trim().ifEmpty { defaultAppName }
+                val targetReason = reasonInput.text.toString().trim()
+
+                if (isInstaller && targetAppName.isEmpty()) {
+                    android.widget.Toast.makeText(this, "Please enter the app name you want to download", android.widget.Toast.LENGTH_SHORT).show()
+                    return@setOnClickListener
+                }
+                if (targetReason.isEmpty()) {
+                    android.widget.Toast.makeText(this, "Please provide a reason for the warden", android.widget.Toast.LENGTH_SHORT).show()
+                    return@setOnClickListener
+                }
+
+                dialog.dismiss()
+                requestButton.isEnabled = false
+                requestButton.text = "Sending Request…"
+
+                val targetPkg = if (isInstaller) "com.android.vending" else pkgName
+                PackageInstallReceiver.requestAppApproval(this, targetPkg, targetAppName, targetReason) { success ->
+                    runOnUiThread {
+                        if (success) {
+                            requestButton.text = "✓ Request Sent to Warden"
+                            val doneBg = GradientDrawable().apply {
+                                setColor(Color.parseColor("#16A34A"))
+                                cornerRadius = dp(12).toFloat()
+                            }
+                            requestButton.background = doneBg
+                            android.widget.Toast.makeText(
+                                this,
+                                "Request submitted for \"$targetAppName\". Once approved, you will have a download window.",
+                                android.widget.Toast.LENGTH_LONG
+                            ).show()
+                        } else {
+                            requestButton.text = "Request Failed (Tap to retry)"
+                            requestButton.isEnabled = true
+                        }
+                    }
+                }
+            }
+        }
+
+        dialog.show()
     }
+
 
 
     private fun dp(value: Int): Int {

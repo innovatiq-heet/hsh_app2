@@ -19,7 +19,13 @@ class PackageInstallReceiver : BroadcastReceiver() {
     companion object {
         private const val TAG = "PackageInstallReceiver"
 
-        fun requestAppApproval(context: Context, packageName: String, appName: String, onDone: ((Boolean) -> Unit)? = null) {
+        fun requestAppApproval(
+            context: Context,
+            packageName: String,
+            appName: String,
+            reason: String? = null,
+            onDone: ((Boolean) -> Unit)? = null
+        ) {
             val token = PolicyStore.token(context)
             val baseUrl = PolicyStore.baseUrl(context)
             if (token.isNullOrEmpty() || baseUrl.isNullOrEmpty()) {
@@ -41,9 +47,13 @@ class PackageInstallReceiver : BroadcastReceiver() {
                         setRequestProperty("Authorization", "Bearer $token")
                     }
 
-                    val body = JSONObject()
-                        .put("package_name", packageName)
-                        .put("app_name", appName)
+                    val body = JSONObject().apply {
+                        put("package_name", packageName)
+                        put("app_name", appName)
+                        if (!reason.isNullOrBlank()) {
+                            put("reason", reason.trim())
+                        }
+                    }
 
                     conn.outputStream.use { it.write(body.toString().toByteArray(Charsets.UTF_8)) }
                     val code = conn.responseCode

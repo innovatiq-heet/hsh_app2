@@ -85,7 +85,10 @@ class AppRequestsBanner extends GetView<StudentScreenTimeController> {
                   final studentName = (req['studentName'] ?? 'Student').toString();
                   final room = (req['room'] ?? '').toString();
 
+                  final reason = (req['reason'] ?? '').toString();
+
                   return Row(
+                    crossAxisAlignment: CrossAxisAlignment.center,
                     children: [
                       AppBrandIcon(
                         packageName: pkg,
@@ -111,6 +114,26 @@ class AppRequestsBanner extends GetView<StudentScreenTimeController> {
                               maxLines: 1,
                               overflow: TextOverflow.ellipsis,
                             ),
+                            if (reason.isNotEmpty) ...[
+                              const SizedBox(height: 4),
+                              Container(
+                                padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                                decoration: BoxDecoration(
+                                  color: AppColors.backgroundSecondary,
+                                  borderRadius: BorderRadius.circular(4),
+                                ),
+                                child: Text(
+                                  'Reason: "$reason"',
+                                  style: AppTextStyles.caption.copyWith(
+                                    color: AppColors.textPrimary,
+                                    fontSize: 11,
+                                    fontStyle: FontStyle.italic,
+                                  ),
+                                  maxLines: 2,
+                                  overflow: TextOverflow.ellipsis,
+                                ),
+                              ),
+                            ],
                           ],
                         ),
                       ),
@@ -127,15 +150,15 @@ class AppRequestsBanner extends GetView<StudentScreenTimeController> {
                         ),
                       ),
                       const SizedBox(width: 8),
-                      // Approve Button
+                      // Approve Button with 15-Minute Window
                       FilledButton.icon(
-                        onPressed: () => controller.reviewAppRequest(id, 'approve'),
+                        onPressed: () => controller.reviewAppRequest(id, 'approve', durationMinutes: 15),
                         icon: const Icon(Icons.check_rounded, size: 16),
-                        label: const Text('Allow'),
+                        label: const Text('Allow (15m)'),
                         style: FilledButton.styleFrom(
                           backgroundColor: AppColors.successGreen,
                           foregroundColor: Colors.white,
-                          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
                           textStyle: const TextStyle(fontSize: 12, fontWeight: FontWeight.w700),
                           minimumSize: const Size(0, 36),
                         ),

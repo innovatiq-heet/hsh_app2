@@ -19,6 +19,8 @@ data class DevicePolicy(
     val bedtimeEnd: String = "",
     /** Opaque backend marker so the warden UI can see what the device applied. */
     val version: String = "",
+    /** When true, prevents installing APKs and opening app stores without warden approval. */
+    val restrictAppInstalls: Boolean = true,
 ) {
     val hasBedtime: Boolean get() = bedtimeStart.isNotBlank() && bedtimeEnd.isNotBlank()
 }
@@ -67,6 +69,7 @@ object PolicyStore {
     private const val KEY_POLICY_VERSION = "policy_version"
     private const val KEY_POLICY_APPLIED_AT = "policy_applied_at"
     private const val KEY_POLICY_VERSION_NUM = "policy_version_num"
+    private const val KEY_RESTRICT_APP_INSTALLS = "restrict_app_installs"
     /** Longer than any policy request can be in flight (long-poll 25 s + timeouts). */
     private const val STALE_WINDOW_MS = 2 * 60 * 1000L
 
@@ -159,6 +162,7 @@ object PolicyStore {
             bedtimeStart = p.getString(KEY_BEDTIME_START, "") ?: "",
             bedtimeEnd = p.getString(KEY_BEDTIME_END, "") ?: "",
             version = p.getString(KEY_POLICY_VERSION, "") ?: "",
+            restrictAppInstalls = p.getBoolean(KEY_RESTRICT_APP_INSTALLS, true),
         ).also { policyCache = it }
     }
 
@@ -176,6 +180,7 @@ object PolicyStore {
             .putString(KEY_BEDTIME_START, policy.bedtimeStart)
             .putString(KEY_BEDTIME_END, policy.bedtimeEnd)
             .putString(KEY_POLICY_VERSION, policy.version)
+            .putBoolean(KEY_RESTRICT_APP_INSTALLS, policy.restrictAppInstalls)
             .putLong(KEY_POLICY_APPLIED_AT, System.currentTimeMillis())
             .also { if (versionNumber != null) it.putInt(KEY_POLICY_VERSION_NUM, versionNumber) }
             .apply()
@@ -245,6 +250,7 @@ object PolicyStore {
             bedtimeStart = if (bedtimeOff) "" else start ?: current.bedtimeStart,
             bedtimeEnd = if (bedtimeOff) "" else end ?: current.bedtimeEnd,
             version = optStr(pol, "updatedAt", "updated_at") ?: optStr(pol, "version", "policyVersion") ?: current.version,
+            restrictAppInstalls = optBool(pol, "restrict_app_installs", "restrictAppInstalls") ?: current.restrictAppInstalls,
         )
         savePolicy(context, updated, incomingVersion)
         return updated

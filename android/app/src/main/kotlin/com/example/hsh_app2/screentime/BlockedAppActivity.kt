@@ -261,8 +261,8 @@ class BlockedAppActivity : Activity() {
         }
         cardLayout.addView(pkgView, pkgLp)
 
-        // Request Approval Button (when app is blocked / restricted)
-        if (blockReason == BlockReason.APP_BLOCKED) {
+        // Request Approval Button (when app is blocked / restricted or installer blocked)
+        if (blockReason == BlockReason.APP_BLOCKED || blockReason == BlockReason.INSTALLER_BLOCKED) {
             val reqBtn = Button(this).apply {
                 text = "Request Approval from Warden"
                 textSize = 14f
@@ -326,7 +326,7 @@ class BlockedAppActivity : Activity() {
             LinearLayout.LayoutParams.MATCH_PARENT,
             dp(48)
         ).apply {
-            topMargin = if (blockReason == BlockReason.APP_BLOCKED) dp(10) else dp(24)
+            topMargin = if (blockReason == BlockReason.APP_BLOCKED || blockReason == BlockReason.INSTALLER_BLOCKED) dp(10) else dp(24)
         }
         cardLayout.addView(homeBtn, btnLp)
 

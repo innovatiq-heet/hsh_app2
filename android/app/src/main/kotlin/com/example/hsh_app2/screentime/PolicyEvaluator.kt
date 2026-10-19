@@ -20,6 +20,10 @@ enum class BlockReason(val wireName: String, val tag: String, val title: String,
         "app_blocked", "HOSTEL POLICY ENFORCEMENT", "App Restricted",
         "This app has been restricted by hostel policy.",
     ),
+    INSTALLER_BLOCKED(
+        "installer_blocked", "APP INSTALLATION RESTRICTED", "Installation Blocked",
+        "Downloading or installing apps from Play Store or APK files is restricted by hostel administration. Please request approval from your Warden.",
+    ),
     BEDTIME(
         "bedtime", "CURFEW HOURS", "Curfew Active",
         "Phone use is not allowed during hostel curfew hours.",
@@ -43,6 +47,19 @@ object PolicyEvaluator {
     private const val PROTECTED_CACHE_MS = 5 * 60 * 1000L
     private const val USAGE_CACHE_MS = 60 * 1000L
 
+    /** App stores and package installer packages restricted to prevent unapproved installs. */
+    val INSTALLER_PACKAGES = setOf(
+        "com.android.packageinstaller",
+        "com.google.android.packageinstaller",
+        "com.samsung.android.packageinstaller",
+        "com.android.vending",
+        "com.sec.android.app.samsungapps",
+        "com.xiaomi.mipicks",
+        "com.heytap.market",
+        "com.vivo.appstore",
+        "com.huawei.appmarket",
+    )
+
     /** Packages that must always stay reachable: no phone becomes a brick. */
     private val ALWAYS_PROTECTED = setOf(
         "android",
@@ -60,8 +77,6 @@ object PolicyEvaluator {
         "com.samsung.android.dialer",
         "com.android.permissioncontroller",
         "com.google.android.permissioncontroller",
-        "com.android.packageinstaller",
-        "com.google.android.packageinstaller",
         "com.google.android.gms",
     )
 
@@ -78,6 +93,9 @@ object PolicyEvaluator {
 
         val policy = PolicyStore.policy(context)
         if (policy.isLocked) return BlockReason.DEVICE_LOCKED
+        if (policy.restrictAppInstalls && packageName in INSTALLER_PACKAGES) {
+            return BlockReason.INSTALLER_BLOCKED
+        }
         if (packageName in policy.blockedPackages) return BlockReason.APP_BLOCKED
         if (policy.hasBedtime && isInBedtime(policy, context = context)) return BlockReason.BEDTIME
         if (policy.dailyLimitMinutes > 0 && todayMinutes(context) >= policy.dailyLimitMinutes) {
@@ -142,6 +160,8 @@ object PolicyEvaluator {
     }
 
     // ---------- Protected apps ----------
+
+    fun isProtectedPackage(context: Context, packageName: String): Boolean = isProtected(context, packageName)
 
     fun isProtected(context: Context, packageName: String): Boolean =
         packageName in ALWAYS_PROTECTED || packageName in protectedPackages(context)

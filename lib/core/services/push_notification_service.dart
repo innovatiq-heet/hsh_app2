@@ -304,7 +304,15 @@ class PushNotificationService extends GetxService {
         break;
       case 'screentime':
       case 'screen_time':
-        Get.toNamed(Routes.studentScreenTime);
+      case 'app_request':
+        if (Get.isRegistered<SessionStore>() && Get.find<SessionStore>().canOperate) {
+          Get.toNamed(Routes.studentScreenTime, arguments: data);
+        } else {
+          Get.toNamed(Routes.studentHome, arguments: data);
+        }
+        break;
+      case 'app_request_decision':
+        Get.toNamed(Routes.studentHome, arguments: data);
         break;
       default:
         break;

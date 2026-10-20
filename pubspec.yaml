@@ -2,7 +2,7 @@ name: hsh_app2
 description: "Hari Saurabh Hostel App"
 publish_to: "none"
 
-version: 1.0.2+13
+version: 1.2.1+14
 
 environment:
   sdk: ^3.11.4
@@ -37,7 +37,7 @@ dependencies:
   intl: ^0.20.2
 
   # Markdown rendering
-  flutter_markdown: ^0.7.7+1
+  flutter_markdown_plus: ^1.0.12
 
   # Typography without bundling font files
   google_fonts: ^6.2.1

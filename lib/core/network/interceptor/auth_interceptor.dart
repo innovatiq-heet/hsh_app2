@@ -45,16 +45,19 @@ class AuthInterceptor extends Interceptor {
         path.contains('/auth/register') ||
         path.contains('/auth/me');
 
-    final isInactiveAccountResponse = err.response?.data is Map &&
+    // An inactive *student* record is shown in place (alumni/unlinked
+    // accounts). A deactivated or deleted staff user ("Staff account not
+    // found or inactive.") must be signed out like any expired token.
+    final isInactiveStudentResponse = err.response?.data is Map &&
         (err.response!.data['message']
                 ?.toString()
                 .toLowerCase()
-                .contains('not found or inactive') ==
+                .contains('student account not found or inactive') ==
             true);
 
     if (err.response?.statusCode == 401 &&
         !isAuthCall &&
-        !isInactiveAccountResponse) {
+        !isInactiveStudentResponse) {
       if (Get.currentRoute != Routes.login) {
         _session.clear();
         Get.offAllNamed(Routes.login);

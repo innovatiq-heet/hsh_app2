@@ -1,19 +1,17 @@
-import 'package:flutter/material.dart';
 import 'package:get/get.dart';
+import '../../../core/abstracts/mixins/load_state_mixin.dart';
 import '../../../core/enums/complaint_status.dart';
+import '../../../core/network/api_exception.dart';
 import '../../../core/network/repository/complaints/complaints_repository.dart';
-import '../../../core/network/request/complaints/update_complaint_request.dart';
 import '../../../core/network/responses/complaints/complaint_response.dart';
 import '../../../core/utils/app_snackbar.dart';
 
-class ComplainAdminDetailController extends GetxController {
+/// Solver view of one complaint: details, student and status change.
+class ComplainAdminDetailController extends GetxController with LoadStateMixin {
   final ComplaintsRepository _repository = Get.find();
-  late final String complaintId = (Get.arguments ?? '').toString();
+  late final String complaintId = '${Get.arguments ?? ''}';
 
-  final isLoading = true.obs;
   final complaint = Rxn<ComplaintResponse>();
-  final feedbackController = TextEditingController();
-  final reviewController = TextEditingController();
   final isSaving = false.obs;
 
   @override
@@ -22,64 +20,20 @@ class ComplainAdminDetailController extends GetxController {
     load();
   }
 
-  @override
-  void onClose() {
-    feedbackController.dispose();
-    reviewController.dispose();
-    super.onClose();
-  }
-
-  Future<void> load() async {
-    isLoading.value = true;
-    try {
-      final res = await _repository.detail(complaintId);
-      complaint.value = res;
-      if (res.feedback != null) feedbackController.text = res.feedback!;
-      if (res.review != null) reviewController.text = res.review!;
-    } finally {
-      isLoading.value = false;
-    }
-  }
+  Future<void> load({bool showLoading = true}) => guard(() async {
+        complaint.value = await _repository.detail(complaintId);
+      }, showLoading: showLoading);
 
   Future<void> setStatus(ComplaintStatus status) async {
+    if (complaint.value?.status == status || isSaving.value) return;
     isSaving.value = true;
     try {
-      complaint.value = await _repository.updateComplaint(
-        complaintId,
-        UpdateComplaintRequest(status: status),
-      );
-      AppSnackbar.success('Status Updated', 'Moved to ${status.label}.');
-    } finally {
-      isSaving.value = false;
-    }
-  }
-
-  Future<void> submitReviewNote() async {
-    if (reviewController.text.trim().isEmpty) return;
-    isSaving.value = true;
-    try {
-      complaint.value = await _repository.updateComplaint(
-        complaintId,
-        UpdateComplaintRequest(
-          status: ComplaintStatus.reviewed,
-          review: reviewController.text.trim(),
-        ),
-      );
-      AppSnackbar.success('Saved', 'Staff review note logged.');
-    } finally {
-      isSaving.value = false;
-    }
-  }
-
-  Future<void> submitFeedback() async {
-    if (feedbackController.text.trim().isEmpty) return;
-    isSaving.value = true;
-    try {
-      complaint.value = await _repository.solveComplaint(
-        complaintId,
-        feedbackController.text.trim(),
-      );
-      AppSnackbar.success('Resolved', 'Resolution note saved & closed.');
+      complaint.value = await _repository.updateStatus(complaintId, status);
+      AppSnackbar.success('Status updated', 'Moved to ${status.staffLabel}.');
+    } on ApiException catch (e) {
+      AppSnackbar.error('Update failed', e.message);
+    } catch (_) {
+      AppSnackbar.error('Update failed', 'Something went wrong, try again');
     } finally {
       isSaving.value = false;
     }

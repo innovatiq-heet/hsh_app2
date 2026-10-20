@@ -5,7 +5,7 @@ import '../../../core/constants/app_dimens.dart';
 import '../../../core/constants/app_text_styles.dart';
 import '../../shared/widgets/app_button.dart';
 import '../controllers/student_screen_time_controller.dart';
-import 'sheet_scaffold.dart';
+import '../../shared/widgets/sheet_scaffold.dart';
 
 /// Bottom sheet for the daily allowance and curfew window.
 class CurfewSettingsSheet extends StatefulWidget {

@@ -6,7 +6,7 @@ import '../../../core/constants/app_text_styles.dart';
 import '../../shared/widgets/app_button.dart';
 import '../controllers/student_screen_time_controller.dart';
 import 'app_brand_icon.dart';
-import 'sheet_scaffold.dart';
+import '../../shared/widgets/sheet_scaffold.dart';
 
 /// Bottom sheet to view and configure the daily screen-time limit for a specific app.
 class AppLimitSheet extends StatefulWidget {

@@ -4,8 +4,8 @@ import '../../../core/constants/app_colors.dart';
 import '../../../core/constants/app_dimens.dart';
 import '../../../core/constants/app_text_styles.dart';
 
-/// Consistent chrome for the screen-time bottom sheets: grab handle, title
-/// row with close button, keyboard-safe padding, scrollable body.
+/// Consistent chrome for bottom sheets (screen time, manage users): grab
+/// handle, title row with close button, keyboard-safe padding, scrollable body.
 class SheetScaffold extends StatelessWidget {
   final String title;
   final String? subtitle;

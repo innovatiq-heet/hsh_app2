@@ -6,313 +6,171 @@ import '../../../core/constants/app_dimens.dart';
 import '../../../core/constants/app_text_styles.dart';
 import '../../../core/network/responses/complaints/complaint_response.dart';
 import '../../../core/utils/date_formatting.dart';
-import '../../shared/utils/complaint_category_style.dart';
-import '../../shared/widgets/app_button.dart';
 import '../../shared/widgets/app_card.dart';
 import '../../shared/widgets/app_refresh_indicator.dart';
-import '../../shared/widgets/app_text_field.dart';
+import '../../shared/widgets/async_state_view.dart';
 import '../../shared/widgets/gradient_header.dart';
-import '../../shared/widgets/icon_badge.dart';
 import '../../shared/widgets/info_row.dart';
 import '../../shared/widgets/section_header.dart';
 import '../../shared/widgets/skeleton_loader.dart';
-import '../../shared/widgets/status_badge.dart';
-import '../../shared/widgets/stepper_timeline.dart';
 import '../controllers/complaint_admin_detail_controller.dart';
+import '../widgets/complaint_detail_cards.dart';
 
-class ComplainAdminDetailScreen
-    extends GetView<ComplainAdminDetailController> {
+/// Solver/admin view of a complaint, with the status control.
+class ComplainAdminDetailScreen extends GetView<ComplainAdminDetailController> {
   const ComplainAdminDetailScreen({super.key});
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      body: Obx(() {
-        if (controller.isLoading.value) {
-          return const Scaffold(
-            body: SafeArea(
-              child: Padding(
-                padding: EdgeInsets.all(AppDimens.screenPadding),
-                child: SkeletonList(),
-              ),
-            ),
-          );
-        }
-
-        final c = controller.complaint.value;
-        if (c == null) {
-          return Scaffold(
-            appBar: AppBar(title: const Text('Complaint Details')),
-            body: const Center(child: Text('Complaint not found')),
-          );
-        }
-
-        return AppRefreshIndicator(
-          onRefresh: controller.load,
-          child: CustomScrollView(
-            physics: const AlwaysScrollableScrollPhysics(),
-            slivers: [
-              // Hero Gradient Header
-              SliverGradientHeader(
-                overline: 'Complaint #${c.id.toUpperCase()}',
-                title: 'Complaint Review',
-                subtitle: '${c.category} Â· Room ${c.room}',
-                expandedHeight: 220.0,
-                leading: HeaderIconButton(
-                  icon: Icons.arrow_back_rounded,
-                  tooltip: 'Back',
-                  onPressed: () => Get.back(),
-                ),
-                child: Row(
-                  children: [
-                    HeaderPill(
-                      icon: Icons.calendar_today_rounded,
-                      label:
-                          'Submitted ${DateFormatting.dateOnly(c.submittedAt)}',
+    return Obx(
+      () => Scaffold(
+        // The back button lives in the sliver header, which an error hides.
+        appBar: controller.hasError.value
+            ? AppBar(title: const Text('Complaint Review'))
+            : null,
+        body: AsyncStateView(
+          isLoading: controller.isLoading.value,
+          hasError: controller.hasError.value,
+          errorMessage: controller.errorMessage.value,
+          onRetry: controller.load,
+          loadingWidget: const SafeArea(child: SkeletonList()),
+          builder: (context) => Obx(() {
+            final c = controller.complaint.value!;
+            return AppRefreshIndicator(
+              onRefresh: () => controller.load(showLoading: false),
+              child: CustomScrollView(
+                physics: const AlwaysScrollableScrollPhysics(),
+                slivers: [
+                  SliverGradientHeader(
+                    overline: 'Complaint #${c.id}',
+                    title: 'Complaint Review',
+                    subtitle: '${c.category} · ${c.item}',
+                    expandedHeight: 220.0,
+                    leading: HeaderIconButton(
+                      icon: Icons.arrow_back_rounded,
+                      tooltip: 'Back',
+                      onPressed: () => Get.back(),
                     ),
-                    const SizedBox(width: AppDimens.gapSm),
-                    HeaderPill(
-                      icon: Icons.meeting_room_outlined,
-                      label: 'Room ${c.room}',
+                    child: Row(
+                      children: [
+                        HeaderPill(
+                          icon: Icons.calendar_today_rounded,
+                          label: 'Submitted ${DateFormatting.dateOnly(c.createdAt)}',
+                        ),
+                        const SizedBox(width: AppDimens.gapSm),
+                        HeaderPill(
+                          icon: Icons.meeting_room_outlined,
+                          label: 'Room ${c.roomId}',
+                        ),
+                      ],
                     ),
-                  ],
-                ),
-              ),
-
-              // Content Body
-              SliverToBoxAdapter(
-                child: Padding(
-                  padding: const EdgeInsets.fromLTRB(
-                    AppDimens.screenPadding,
-                    AppDimens.gapLg,
-                  AppDimens.screenPadding,
-                  60,
-                ),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.stretch,
-                  children: [
-                    // Section 1: Resolution Timeline
-                    const SectionHeader(title: 'Resolution progress'),
-                    _StatusTimelineCard(complaint: c),
-                    const SizedBox(height: AppDimens.gapXl),
-
-                    // Section 2: Issue Summary
-                    const SectionHeader(title: 'Issue summary'),
-                    _IssueSummaryCard(complaint: c),
-                    const SizedBox(height: AppDimens.gapXl),
-
-                    // Section 3: Student Details
-                    const SectionHeader(title: 'Student information'),
-                    AppCard(
+                  ),
+                  SliverToBoxAdapter(
+                    child: Padding(
+                      padding: const EdgeInsets.fromLTRB(
+                        AppDimens.screenPadding,
+                        AppDimens.gapLg,
+                        AppDimens.screenPadding,
+                        60,
+                      ),
                       child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.stretch,
                         children: [
-                          InfoRow(
-                            icon: Icons.person_outline_rounded,
-                            label: 'Student Name',
-                            value: c.studentName,
-                          ),
-                          const Divider(height: AppDimens.gapLg),
-                          InfoRow(
-                            icon: Icons.badge_outlined,
-                            label: 'Aadhar Number',
-                            value: c.studentAadhar,
-                          ),
-                          const Divider(height: AppDimens.gapLg),
-                          InfoRow(
-                            icon: Icons.meeting_room_outlined,
-                            label: 'Hostel Room',
-                            value: 'Room ${c.room}',
-                          ),
-                          if (c.phone != null && c.phone!.isNotEmpty) ...[
-                            const Divider(height: AppDimens.gapLg),
-                            InfoRow(
-                              icon: Icons.phone_outlined,
-                              label: 'Contact Phone',
-                              value: c.phone!,
-                            ),
+                          const SectionHeader(title: 'Update status'),
+                          _StatusControlCard(complaint: c),
+                          const SizedBox(height: AppDimens.gapXl),
+                          const SectionHeader(title: 'Resolution progress'),
+                          ComplaintTimelineCard(complaint: c),
+                          const SizedBox(height: AppDimens.gapXl),
+                          const SectionHeader(title: 'Issue summary'),
+                          ComplaintIssueCard(complaint: c),
+                          if (c.hasImage) ...[
+                            const SizedBox(height: AppDimens.gapXl),
+                            const SectionHeader(title: 'Attached photo'),
+                            ComplaintPhotoCard(complaint: c),
                           ],
+                          const SizedBox(height: AppDimens.gapXl),
+                          const SectionHeader(title: 'Student information'),
+                          _StudentCard(complaint: c),
                         ],
                       ),
                     ),
-                    const SizedBox(height: AppDimens.gapXl),
-
-                    // Section 4: Lifecycle Status Controls
-                    const SectionHeader(title: 'Quick status change'),
-                    AppCard(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(
-                            'Update Current Stage',
-                            style: AppTextStyles.subtitle.copyWith(
-                              fontWeight: FontWeight.w700,
-                            ),
-                          ),
-                          const SizedBox(height: 4),
-                          Text(
-                            'Select the current resolution state for this ticket.',
-                            style: AppTextStyles.bodySm.copyWith(
-                              color: AppColors.textSecondary,
-                            ),
-                          ),
-                          const SizedBox(height: AppDimens.gapMd),
-                          Wrap(
-                            spacing: AppDimens.gapSm,
-                            runSpacing: AppDimens.gapSm,
-                            children: ComplaintStatus.values.map((s) {
-                              final isSelected = c.status == s;
-                              return ChoiceChip(
-                                label: Text(s.label),
-                                selected: isSelected,
-                                selectedColor: s.color,
-                                labelStyle: TextStyle(
-                                  color: isSelected
-                                      ? Colors.white
-                                      : AppColors.textPrimary,
-                                  fontWeight: isSelected
-                                      ? FontWeight.w700
-                                      : FontWeight.w500,
-                                ),
-                                onSelected: (_) => controller.setStatus(s),
-                              );
-                            }).toList(),
-                          ),
-                        ],
-                      ),
-                    ),
-                    const SizedBox(height: AppDimens.gapXl),
-
-                    // Section 5: Staff Review / Assignment Note
-                    const SectionHeader(title: 'Staff review & inspection note'),
-                    AppCard(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.stretch,
-                        children: [
-                          Text(
-                            'Internal Review / Assignee',
-                            style: AppTextStyles.subtitle.copyWith(
-                              fontWeight: FontWeight.w700,
-                            ),
-                          ),
-                          const SizedBox(height: 4),
-                          Text(
-                            'Log technician details, inspection timings or internal instructions.',
-                            style: AppTextStyles.bodySm.copyWith(
-                              color: AppColors.textSecondary,
-                            ),
-                          ),
-                          const SizedBox(height: AppDimens.gapMd),
-                          AppTextField(
-                            controller: controller.reviewController,
-                            label: 'Staff Note / Assignee',
-                            hint: 'e.g. Electrician Ramesh assigned. Visit at 4:30 PM.',
-                            maxLines: 2,
-                          ),
-                          const SizedBox(height: AppDimens.gapMd),
-                          AppButton(
-                            label: 'Save Review Note',
-                            icon: Icons.assignment_turned_in_outlined,
-                            isLoading: controller.isSaving.value,
-                            onPressed: controller.submitReviewNote,
-                          ),
-                        ],
-                      ),
-                    ),
-                    const SizedBox(height: AppDimens.gapXl),
-
-                    // Section 6: Resolution Feedback
-                    const SectionHeader(title: 'Resolution explanation'),
-                    AppCard(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.stretch,
-                        children: [
-                          Text(
-                            'Closing Feedback to Student',
-                            style: AppTextStyles.subtitle.copyWith(
-                              fontWeight: FontWeight.w700,
-                            ),
-                          ),
-                          const SizedBox(height: 4),
-                          Text(
-                            'Explain how the issue was fixed. This will be visible to the student.',
-                            style: AppTextStyles.bodySm.copyWith(
-                              color: AppColors.textSecondary,
-                            ),
-                          ),
-                          const SizedBox(height: AppDimens.gapMd),
-                          AppTextField(
-                            controller: controller.feedbackController,
-                            label: 'Resolution Note',
-                            hint: 'e.g. Replaced capacitor and cleaned motor. Tested fan speed.',
-                            maxLines: 3,
-                          ),
-                          const SizedBox(height: AppDimens.gapMd),
-                          AppButton(
-                            label: 'Submit Resolution & Mark Closed',
-                            icon: Icons.check_circle_outline_rounded,
-                            isLoading: controller.isSaving.value,
-                            onPressed: controller.submitFeedback,
-                          ),
-                        ],
-                      ),
-                    ),
-                  ],
-                ),
+                  ),
+                ],
               ),
-            ),
-          ],
+            );
+          }),
         ),
-      );
-    }),
-  );
-}
+      ),
+    );
+  }
 }
 
-class _StatusTimelineCard extends StatelessWidget {
+/// One chip per status; any status may move to any other.
+class _StatusControlCard extends GetView<ComplainAdminDetailController> {
   final ComplaintResponse complaint;
 
-  const _StatusTimelineCard({required this.complaint});
+  const _StatusControlCard({required this.complaint});
 
   @override
   Widget build(BuildContext context) {
+    return Obx(() => _card(controller.isSaving.value));
+  }
+
+  Widget _card(bool saving) {
     return AppCard(
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              Text(
-                'Stage Status',
-                style: AppTextStyles.label.copyWith(
-                  color: AppColors.textSecondary,
+              Expanded(
+                child: Text(
+                  'Current stage',
+                  style: AppTextStyles.subtitle.copyWith(
+                    fontWeight: FontWeight.w700,
+                  ),
                 ),
               ),
-              StatusBadge(
-                label: complaint.status.label,
-                color: complaint.status.color,
-              ),
+              if (saving)
+                const SizedBox(
+                  width: 18,
+                  height: 18,
+                  child: CircularProgressIndicator(strokeWidth: 2),
+                ),
             ],
           ),
-          const SizedBox(height: AppDimens.gapLg),
-          StepperTimeline(
-            stages: [
-              TimelineStage(
-                label: 'Submitted',
-                timestamp: complaint.submittedAt,
-                isDone: true,
-              ),
-              TimelineStage(
-                label: 'Under Review',
-                timestamp: complaint.reviewTime,
-                isDone: complaint.status == ComplaintStatus.reviewed ||
-                    complaint.status == ComplaintStatus.resolved,
-              ),
-              TimelineStage(
-                label: 'Resolved',
-                timestamp: complaint.resolveTime,
-                isDone: complaint.status == ComplaintStatus.resolved,
-              ),
+          const SizedBox(height: 4),
+          Text(
+            'The student sees the new status straight away.',
+            style: AppTextStyles.bodySm.copyWith(color: AppColors.textSecondary),
+          ),
+          const SizedBox(height: AppDimens.gapMd),
+          Wrap(
+            spacing: AppDimens.gapSm,
+            runSpacing: AppDimens.gapSm,
+            children: [
+              for (final s in ComplaintStatus.values)
+                ChoiceChip(
+                  avatar: Icon(
+                    s.icon,
+                    size: 16,
+                    color: complaint.status == s ? Colors.white : s.color,
+                  ),
+                  label: Text(s.staffLabel),
+                  selected: complaint.status == s,
+                  selectedColor: s.color,
+                  showCheckmark: false,
+                  labelStyle: TextStyle(
+                    color: complaint.status == s
+                        ? Colors.white
+                        : AppColors.textPrimary,
+                    fontWeight: complaint.status == s
+                        ? FontWeight.w700
+                        : FontWeight.w500,
+                  ),
+                  onSelected: saving ? null : (_) => controller.setStatus(s),
+                ),
             ],
           ),
         ],
@@ -321,90 +179,42 @@ class _StatusTimelineCard extends StatelessWidget {
   }
 }
 
-class _IssueSummaryCard extends StatelessWidget {
+class _StudentCard extends StatelessWidget {
   final ComplaintResponse complaint;
 
-  const _IssueSummaryCard({required this.complaint});
+  const _StudentCard({required this.complaint});
 
   @override
   Widget build(BuildContext context) {
-    final catStyle = ComplaintCategoryStyle.of(complaint.category);
-
+    final student = complaint.student;
     return AppCard(
       child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Row(
-            children: [
-              IconBadge(icon: catStyle.icon, color: catStyle.color),
-              const SizedBox(width: AppDimens.gapMd),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      complaint.title,
-                      style: AppTextStyles.subtitle.copyWith(
-                        fontWeight: FontWeight.w700,
-                      ),
-                    ),
-                    const SizedBox(height: 2),
-                    Text(
-                      'Category: ${complaint.category}',
-                      style: AppTextStyles.bodySm.copyWith(
-                        color: AppColors.textSecondary,
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            ],
+          InfoRow(
+            icon: Icons.person_outline_rounded,
+            label: 'Student Name',
+            value: student?.name.isNotEmpty == true ? student!.name : '—',
           ),
-          const Divider(height: AppDimens.gapLg),
-          Text(
-            'Description',
-            style: AppTextStyles.caption.copyWith(
-              color: AppColors.textMuted,
-              fontWeight: FontWeight.w600,
-            ),
-          ),
-          const SizedBox(height: 4),
-          Text(
-            complaint.description,
-            style: AppTextStyles.bodyMd.copyWith(
-              color: AppColors.textPrimary,
-              height: 1.5,
-            ),
-          ),
-          if (complaint.imagesCount > 0) ...[
-            const SizedBox(height: AppDimens.gapMd),
-            Container(
-              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-              decoration: BoxDecoration(
-                color: AppColors.surfaceMuted,
-                borderRadius: BorderRadius.circular(AppDimens.radiusSm),
-                border: Border.all(color: AppColors.border),
-              ),
-              child: Row(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  const Icon(
-                    Icons.photo_library_outlined,
-                    size: 16,
-                    color: AppColors.textSecondary,
-                  ),
-                  const SizedBox(width: 6),
-                  Text(
-                    '${complaint.imagesCount} photo attachment${complaint.imagesCount > 1 ? 's' : ''} on record',
-                    style: AppTextStyles.caption.copyWith(
-                      color: AppColors.textSecondary,
-                      fontWeight: FontWeight.w600,
-                    ),
-                  ),
-                ],
-              ),
+          if (student != null && student.studentCode.isNotEmpty) ...[
+            const Divider(height: AppDimens.gapLg),
+            InfoRow(
+              icon: Icons.badge_outlined,
+              label: 'Student Code',
+              value: student.studentCode,
             ),
           ],
+          const Divider(height: AppDimens.gapLg),
+          InfoRow(
+            icon: Icons.meeting_room_outlined,
+            label: 'Hostel Room',
+            value: 'Room ${complaint.roomId}',
+          ),
+          const Divider(height: AppDimens.gapLg),
+          InfoRow(
+            icon: Icons.update_rounded,
+            label: 'Last Updated',
+            value: DateFormatting.dateTime(complaint.updatedAt),
+          ),
         ],
       ),
     );

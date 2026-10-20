@@ -1,5 +1,6 @@
 import 'dart:convert';
 import 'package:dio/dio.dart';
+import '../api_exception.dart';
 
 /// Base class for all repositories.
 ///
@@ -37,5 +38,15 @@ abstract class BaseRepository {
       return fallback;
     }
     return e.message ?? fallback;
+  }
+
+  /// Wraps [e] as an [ApiException] carrying the backend's message, except
+  /// 5xx, whose body ("Server error") is not useful to show.
+  ApiException toApiException(DioException e) {
+    final code = e.response?.statusCode;
+    final message = code != null && code >= 500
+        ? 'Something went wrong, try again'
+        : errorMessage(e);
+    return ApiException(message, statusCode: code);
   }
 }

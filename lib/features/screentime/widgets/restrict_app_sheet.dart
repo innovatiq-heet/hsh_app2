@@ -8,7 +8,7 @@ import '../../../core/utils/app_snackbar.dart';
 import '../../shared/widgets/app_button.dart';
 import '../controllers/student_screen_time_controller.dart';
 import 'app_brand_icon.dart';
-import 'sheet_scaffold.dart';
+import '../../shared/widgets/sheet_scaffold.dart';
 
 /// Bottom sheet to block apps: common presets as tappable tiles, the apps
 /// this student actually used today, and a custom package fallback.

@@ -36,19 +36,19 @@ class ServicesScreen extends StatelessWidget {
           'Attendance',
           Icons.fact_check_outlined,
           AppColors.primary,
-          () => _goToTab(3),
+          () => _goToTab(HomeController.attendanceTab),
         ),
-        _ServiceItem(
-          'Laundry',
-          Icons.local_laundry_service_outlined,
-          AppColors.secondary,
-          () => _goToTab(2),
-        ),
+        // _ServiceItem(                                    // Commented out — laundry tab disabled for now
+        //   'Laundry',
+        //   Icons.local_laundry_service_outlined,
+        //   AppColors.secondary,
+        //   () => _goToTab(...),
+        // ),
         _ServiceItem(
           'Complaints',
           Icons.support_agent_outlined,
           AppColors.warningOrange,
-          () => _goToTab(1),
+          () => _goToTab(HomeController.complaintsTab),
         ),
       ],
       'Requests & money': [

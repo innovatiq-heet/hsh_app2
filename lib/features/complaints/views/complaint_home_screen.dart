@@ -30,8 +30,8 @@ class ComplainHomeScreen extends GetView<ComplainHomeController> {
         hasError: controller.hasError.value,
         errorMessage: controller.errorMessage.value,
         onRetry: controller.load,
-        builder: (context) => AppRefreshIndicator(
-          onRefresh: controller.load,
+        builder: (context) => Obx(() => AppRefreshIndicator(
+          onRefresh: () => controller.load(showLoading: false),
           child: CustomScrollView(
             physics: const AlwaysScrollableScrollPhysics(),
             slivers: [
@@ -57,9 +57,8 @@ class ComplainHomeScreen extends GetView<ComplainHomeController> {
                 child: Row(
                   children: [
                     HeaderPill(
-                      icon: Icons.assignment_rounded,
-                      label:
-                          '${controller.totalComplaints.value} Total Complaints',
+                      icon: Icons.pending_actions_rounded,
+                      label: '${controller.activeCount} Active',
                     ),
                     const SizedBox(width: AppDimens.gapSm),
                     HeaderPill(
@@ -92,7 +91,9 @@ class ComplainHomeScreen extends GetView<ComplainHomeController> {
                                 crossAxisAlignment: CrossAxisAlignment.start,
                                 children: [
                                   Text(
-                                    'Total Complaints',
+                                    controller.isCapped.value
+                                        ? 'Latest Complaints'
+                                        : 'Total Complaints',
                                     style: AppTextStyles.bodySm.copyWith(
                                       color: AppColors.textSecondary,
                                     ),
@@ -138,55 +139,43 @@ class ComplainHomeScreen extends GetView<ComplainHomeController> {
                           ],
                         ),
                       ),
+                      if (controller.isCapped.value) ...[
+                        const SizedBox(height: AppDimens.gapSm),
+                        Text(
+                          'Figures cover the latest ${ComplainHomeController.sampleSize} complaints.',
+                          style: AppTextStyles.caption.copyWith(
+                            color: AppColors.textMuted,
+                          ),
+                        ),
+                      ],
                       const SizedBox(height: AppDimens.gapLg),
 
                       // 4 Status Cards Grid
                       const SectionHeader(title: 'Queue Breakdown'),
                       const SizedBox(height: AppDimens.gapSm),
-
-                      Row(
-                        children: [
-                          Expanded(
-                            child: _StatusStatCard(
-                              title: 'Pending Intake',
-                              count: controller.pendingCount.value,
-                              color: ComplaintStatus.pending.color,
-                              icon: Icons.hourglass_top_rounded,
-                            ),
-                          ),
-                          const SizedBox(width: AppDimens.gapMd),
-                          Expanded(
-                            child: _StatusStatCard(
-                              title: 'Under Review',
-                              count: controller.reviewedCount.value,
-                              color: ComplaintStatus.reviewed.color,
-                              icon: Icons.sync_rounded,
-                            ),
-                          ),
-                        ],
-                      ),
-                      const SizedBox(height: AppDimens.gapMd),
-                      Row(
-                        children: [
-                          Expanded(
-                            child: _StatusStatCard(
-                              title: 'Resolved & Closed',
-                              count: controller.resolvedCount.value,
-                              color: ComplaintStatus.resolved.color,
-                              icon: Icons.check_circle_outline_rounded,
-                            ),
-                          ),
-                          const SizedBox(width: AppDimens.gapMd),
-                          Expanded(
-                            child: _StatusStatCard(
-                              title: 'Active Queue',
-                              count: controller.activeCount.value,
-                              color: const Color(0xFF8B5CF6),
-                              icon: Icons.pending_actions_rounded,
-                            ),
-                          ),
-                        ],
-                      ),
+                      for (final row in [
+                        [ComplaintStatus.open, ComplaintStatus.inProgress],
+                        [ComplaintStatus.resolved, ComplaintStatus.closed],
+                      ]) ...[
+                        if (row.first != ComplaintStatus.open)
+                          const SizedBox(height: AppDimens.gapMd),
+                        Row(
+                          children: [
+                            for (final status in row) ...[
+                              if (status != row.first)
+                                const SizedBox(width: AppDimens.gapMd),
+                              Expanded(
+                                child: _StatusStatCard(
+                                  title: status.staffLabel,
+                                  count: controller.countOf(status),
+                                  color: status.color,
+                                  icon: status.icon,
+                                ),
+                              ),
+                            ],
+                          ],
+                        ),
+                      ],
                       const SizedBox(height: AppDimens.gapXl),
 
                       // Category Breakdown Chart
@@ -213,7 +202,7 @@ class ComplainHomeScreen extends GetView<ComplainHomeController> {
               ),
             ],
           ),
-        ),
+        )),
       ),
     );
   }

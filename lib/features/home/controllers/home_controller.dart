@@ -8,6 +8,11 @@ import '../../../core/services/screen_time_service.dart';
 import '../../../core/storage/session_store.dart';
 
 class HomeController extends GetxController with WidgetsBindingObserver {
+  /// Bottom-navigation tab indices (see `HomeScreen._tabs`).
+  static const dashboardTab = 0;
+  static const complaintsTab = 1;
+  static const attendanceTab = 2;
+
   final tabIndex = 0.obs;
 
   bool _setupOpen = false;

@@ -54,6 +54,7 @@ class Routes {
   static const operatorStudentLocations = '/operator/geofence/locations';
   static const operatorAlumni = '/operator/alumni';
   static const operatorBirthdayWishes = '/operator/birthday-wishes';
+  static const operatorManageUsers = '/operator/manage-users';
 
   static const noInternet = '/no-internet';
 }

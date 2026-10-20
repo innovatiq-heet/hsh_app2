@@ -1,195 +1,97 @@
-﻿import '../../../enums/complaint_status.dart';
-import '../../../models/attachments/attachment_model.dart';
-import '../../../constants/app_config.dart';
+﻿import '../../../constants/app_config.dart';
+import '../../../enums/complaint_status.dart';
 
-class ComplaintResponse {
-  final String id;
-  final String studentAadhar;
-  final String studentName;
-  final String room;
-  final String category;
-  final String title;
-  final String description;
-  final ComplaintStatus status;
-  final DateTime submittedAt;
-  final List<AttachmentModel> attachments;
-  final String? feedback;
-  final String? review;
-  final String? phone;
-  final int imagesCount;
-  final DateTime? reviewTime;
-  final DateTime? resolveTime;
+/// The student a complaint belongs to. Only solver/admin responses carry it.
+class ComplaintStudent {
+  final int id;
+  final String name;
+  final String studentCode;
 
-  const ComplaintResponse({
+  const ComplaintStudent({
     required this.id,
-    required this.studentAadhar,
-    required this.studentName,
-    required this.room,
-    required this.category,
-    required this.title,
-    required this.description,
-    required this.status,
-    required this.submittedAt,
-    this.attachments = const [],
-    this.feedback,
-    this.review,
-    this.phone,
-    this.imagesCount = 0,
-    this.reviewTime,
-    this.resolveTime,
+    required this.name,
+    this.studentCode = '',
   });
 
-  factory ComplaintResponse.fromJson(Map<String, dynamic> json) {
-    final rawId = (json['id'] ?? '').toString();
-    final aadhar = (json['aadhar'] ?? json['studentAadhar'] ?? '').toString();
-    final name = (json['fullName'] ?? json['studentName'])?.toString() ??
-        (aadhar.isNotEmpty ? 'Student #$aadhar' : 'Unknown Student');
-    final room = (json['room'] ?? '').toString();
-    final category = (json['compType'] ?? json['category'] ?? 'Other').toString();
-    final description = (json['compDesc'] ?? json['description'] ?? '').toString();
-    
-    // Auto-generate clean title if missing
-    String title = (json['title'] ?? '').toString().trim();
-    if (title.isEmpty) {
-      if (description.isNotEmpty) {
-        final firstLine = description.split('\n').first.trim();
-        title = firstLine.length > 40 ? '${firstLine.substring(0, 37)}...' : firstLine;
-      } else {
-        title = '$category Issue';
-      }
-    }
-
-    final rawStatus = (json['status'] ?? 'pending').toString();
-    final status = ComplaintStatusX.fromApi(rawStatus);
-
-    DateTime submittedAt = DateTime.now();
-    final rawSubmit = json['submitTime'] ?? json['submittedAt'];
-    if (rawSubmit != null) {
-      final parsed = DateTime.tryParse(rawSubmit.toString());
-      if (parsed != null) submittedAt = parsed;
-    }
-
-    DateTime? reviewTime;
-    if (json['reviewTime'] != null) {
-      reviewTime = DateTime.tryParse(json['reviewTime'].toString());
-    }
-
-    DateTime? resolveTime;
-    if (json['resolveTime'] != null) {
-      resolveTime = DateTime.tryParse(json['resolveTime'].toString());
-    }
-
-    final imagesCount = (json['images'] is num)
-        ? (json['images'] as num).toInt()
-        : (json['imagesCount'] is num ? (json['imagesCount'] as num).toInt() : 0);
-
-    final feedback = (json['response'] ?? json['feedback'])?.toString();
-    final review = json['review']?.toString();
-    final phone = json['phone']?.toString();
-
-    List<AttachmentModel> attachments = const [];
-    if (json['attachments'] is List) {
-      attachments = (json['attachments'] as List)
-          .map((a) => a is AttachmentModel ? a : null)
-          .whereType<AttachmentModel>()
-          .toList();
-    } else if (imagesCount > 0 && rawId.isNotEmpty) {
-      // The backend never returns a URL list — createComplain() only tracks
-      // an image *count* on the row — but it renames uploads to a fixed,
-      // predictable pattern (complain_<id>_<index>.<ext>) and serves them
-      // statically from /uploads (see complain.service.ts, server.ts). Our
-      // own upload always sends `.jpg` filenames (ComplaintsRepository.
-      // submit), so that's the extension the server ends up storing under.
-      attachments = List.generate(
-        imagesCount,
-        (index) => AttachmentModel(
-          url: '${AppConfig.mediaBaseUrl}/uploads/complains/complain_${rawId}_$index.jpg',
-        ),
-      );
-    }
-
-    return ComplaintResponse(
-      id: rawId,
-      studentAadhar: aadhar,
-      studentName: name,
-      room: room,
-      category: category,
-      title: title,
-      description: description,
-      status: status,
-      submittedAt: submittedAt,
-      attachments: attachments,
-      feedback: feedback,
-      review: review,
-      phone: phone,
-      imagesCount: imagesCount,
-      reviewTime: reviewTime,
-      resolveTime: resolveTime,
-    );
-  }
-
-  Map<String, dynamic> toJson() {
-    return {
-      'id': id,
-      'aadhar': studentAadhar,
-      'studentAadhar': studentAadhar,
-      'fullName': studentName,
-      'studentName': studentName,
-      'room': room,
-      'compType': category,
-      'category': category,
-      'title': title,
-      'compDesc': description,
-      'description': description,
-      'status': status.apiValue,
-      'submitTime': submittedAt.toIso8601String(),
-      'submittedAt': submittedAt.toIso8601String(),
-      'response': feedback,
-      'feedback': feedback,
-      'review': review,
-      'phone': phone,
-      'images': imagesCount,
-      'imagesCount': imagesCount,
-      'reviewTime': reviewTime?.toIso8601String(),
-      'resolveTime': resolveTime?.toIso8601String(),
-    };
-  }
-
-  ComplaintResponse copyWith({
-    String? id,
-    String? studentAadhar,
-    String? studentName,
-    String? room,
-    String? category,
-    String? title,
-    String? description,
-    ComplaintStatus? status,
-    DateTime? submittedAt,
-    List<AttachmentModel>? attachments,
-    String? feedback,
-    String? review,
-    String? phone,
-    int? imagesCount,
-    DateTime? reviewTime,
-    DateTime? resolveTime,
-  }) {
-    return ComplaintResponse(
-      id: id ?? this.id,
-      studentAadhar: studentAadhar ?? this.studentAadhar,
-      studentName: studentName ?? this.studentName,
-      room: room ?? this.room,
-      category: category ?? this.category,
-      title: title ?? this.title,
-      description: description ?? this.description,
-      status: status ?? this.status,
-      submittedAt: submittedAt ?? this.submittedAt,
-      attachments: attachments ?? this.attachments,
-      feedback: feedback ?? this.feedback,
-      review: review ?? this.review,
-      phone: phone ?? this.phone,
-      imagesCount: imagesCount ?? this.imagesCount,
-      reviewTime: reviewTime ?? this.reviewTime,
-      resolveTime: resolveTime ?? this.resolveTime,
+  factory ComplaintStudent.fromJson(Map<String, dynamic> json) {
+    return ComplaintStudent(
+      id: _asInt(json['id']),
+      name: (json['name'] ?? '').toString(),
+      studentCode: (json['student_code'] ?? '').toString(),
     );
   }
 }
+
+/// A room complaint from `/api/complaints` and `/api/admin/complaints`.
+class ComplaintResponse {
+  final String id;
+  final String roomId;
+  final int categoryId;
+  final String category;
+  final int itemId;
+  final String item;
+  final String itemCode;
+  final String? comment;
+
+  /// Server-relative path (`/api/complaints/:id/image`) that needs the
+  /// bearer token; `null` when no photo was attached.
+  final String? imageUrl;
+  final ComplaintStatus status;
+  final DateTime createdAt;
+  final DateTime updatedAt;
+  final ComplaintStudent? student;
+
+  const ComplaintResponse({
+    required this.id,
+    required this.roomId,
+    required this.categoryId,
+    required this.category,
+    required this.itemId,
+    required this.item,
+    this.itemCode = '',
+    this.comment,
+    this.imageUrl,
+    required this.status,
+    required this.createdAt,
+    required this.updatedAt,
+    this.student,
+  });
+
+  bool get hasImage => imageUrl != null && imageUrl!.isNotEmpty;
+
+  bool get hasComment => comment != null && comment!.trim().isNotEmpty;
+
+  /// Absolute URL for the photo. [AppConfig.mediaBaseUrl] is the host
+  /// without `/api`, because [imageUrl] already starts with `/api`.
+  String? get absoluteImageUrl =>
+      hasImage ? '${AppConfig.mediaBaseUrl}$imageUrl' : null;
+
+  factory ComplaintResponse.fromJson(Map<String, dynamic> json) {
+    final createdAt = _asDate(json['created_at']) ?? DateTime.now();
+    final rawImage = json['image_url']?.toString();
+    final rawComment = json['comment']?.toString();
+    return ComplaintResponse(
+      id: (json['id'] ?? '').toString(),
+      roomId: (json['room_id'] ?? '').toString(),
+      categoryId: _asInt(json['category_id']),
+      category: (json['category'] ?? '').toString(),
+      itemId: _asInt(json['item_id']),
+      item: (json['item'] ?? '').toString(),
+      itemCode: (json['item_code'] ?? '').toString(),
+      comment: rawComment == null || rawComment.trim().isEmpty ? null : rawComment,
+      imageUrl: rawImage == null || rawImage.isEmpty ? null : rawImage,
+      status: ComplaintStatusX.fromApi(json['status']?.toString()),
+      createdAt: createdAt,
+      updatedAt: _asDate(json['updated_at']) ?? createdAt,
+      student: json['student'] is Map
+          ? ComplaintStudent.fromJson(Map<String, dynamic>.from(json['student'] as Map))
+          : null,
+    );
+  }
+}
+
+int _asInt(Object? value) =>
+    value is num ? value.toInt() : int.tryParse('${value ?? ''}') ?? 0;
+
+DateTime? _asDate(Object? value) =>
+    value == null ? null : DateTime.tryParse(value.toString());

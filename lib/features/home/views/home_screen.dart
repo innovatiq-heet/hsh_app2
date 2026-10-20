@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import '../../../core/constants/app_colors.dart';
 import '../../attendance/views/attendance_screen.dart';
-// import '../../complaints/views/complaints_screen.dart';  // Commented out — feature disabled for now
+import '../../complaints/views/complaints_screen.dart';
 // import '../../laundry/views/laundry_screen.dart';          // Commented out — feature disabled for now
 import '../../student_profile/views/student_profile_screen.dart';
 import '../controllers/home_controller.dart';
@@ -10,9 +10,10 @@ import '../controllers/home_controller.dart';
 class HomeScreen extends GetView<HomeController> {
   const HomeScreen({super.key});
 
+  /// Order must match the `HomeController.*Tab` indices.
   static const _tabs = [
     StudentProfileScreen(),
-    // ComplaintsScreen(),   // Commented out — feature disabled for now
+    ComplaintsScreen(),
     // LaundryScreen(),      // Commented out — feature disabled for now
     AttendanceScreen(),
   ];
@@ -58,11 +59,11 @@ class HomeScreen extends GetView<HomeController> {
                 selectedIcon: Icon(Icons.person_rounded),
                 label: 'Dashboard',
               ),
-              // NavigationDestination(                          // Commented out — feature disabled for now
-              //   icon: Icon(Icons.support_agent_outlined),
-              //   selectedIcon: Icon(Icons.support_agent_rounded),
-              //   label: 'Complaints',
-              // ),
+              NavigationDestination(
+                icon: Icon(Icons.support_agent_outlined),
+                selectedIcon: Icon(Icons.support_agent_rounded),
+                label: 'Complaints',
+              ),
               // NavigationDestination(                          // Commented out — feature disabled for now
               //   icon: Icon(Icons.local_laundry_service_outlined),
               //   selectedIcon: Icon(Icons.local_laundry_service_rounded),
@@ -80,4 +81,3 @@ class HomeScreen extends GetView<HomeController> {
     );
   }
 }
-

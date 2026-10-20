@@ -373,15 +373,17 @@ class LoginController extends GetxController {
           ? session.phone
           : (lower == 'admin' ? '7778885383' : (rawInput.length >= 10 ? rawInput : ''));
 
-      final isAlumni = session.isAlumni ||
-          UserSession.isAlumniRoomOrId(
-            room: session.room.isNotEmpty ? session.room : (verifiedProfile?.room ?? ''),
-            profileRoom: verifiedProfile?.room,
-            studentCode: session.studentCode.isNotEmpty
-                ? session.studentCode
-                : studentIdController.text.trim(),
-            id: session.id,
-          );
+      // Staff (complain-solver, laundry-man) have no room; that is not alumni.
+      final isAlumni = session.role.isStudentOrLeader &&
+          (session.isAlumni ||
+              UserSession.isAlumniRoomOrId(
+                room: session.room.isNotEmpty ? session.room : (verifiedProfile?.room ?? ''),
+                profileRoom: verifiedProfile?.room,
+                studentCode: session.studentCode.isNotEmpty
+                    ? session.studentCode
+                    : studentIdController.text.trim(),
+                id: session.id,
+              ));
 
       await _session.saveSession(
         token: session.token,

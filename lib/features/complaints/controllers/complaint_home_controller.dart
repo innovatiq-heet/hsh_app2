@@ -3,19 +3,29 @@ import '../../../core/abstracts/mixins/load_state_mixin.dart';
 import '../../../core/enums/complaint_status.dart';
 import '../../../core/models/charts/chart_point.dart';
 import '../../../core/network/repository/complaints/complaints_repository.dart';
-import '../../../core/network/responses/complaints/complaint_response.dart';
+import '../../../core/network/responses/complaints/complaint_catalog.dart';
 
+/// Complaints overview. The API has no count endpoint and returns at most
+/// 200 complaints per request, so the figures cover the latest 200.
 class ComplainHomeController extends GetxController with LoadStateMixin {
   final ComplaintsRepository _repository = Get.find();
 
+  static const sampleSize = 200;
+
   final statusCounts = <ChartPoint>[].obs;
   final categoryCounts = <ChartPoint>[].obs;
+  final counts = <ComplaintStatus, int>{}.obs;
   final totalComplaints = 0.obs;
-  final pendingCount = 0.obs;
-  final reviewedCount = 0.obs;
-  final resolvedCount = 0.obs;
-  final activeCount = 0.obs;
   final resolutionRate = 0.0.obs;
+
+  /// True when there may be more complaints than the [sampleSize] counted.
+  final isCapped = false.obs;
+
+  int countOf(ComplaintStatus status) => counts[status] ?? 0;
+
+  /// Open + in progress: what still needs a solver.
+  int get activeCount =>
+      countOf(ComplaintStatus.open) + countOf(ComplaintStatus.inProgress);
 
   @override
   void onInit() {
@@ -23,55 +33,38 @@ class ComplainHomeController extends GetxController with LoadStateMixin {
     load();
   }
 
-  Future<void> load() => guard(() async {
-    final List<ComplaintResponse> list = await _repository.adminComplaints();
-    totalComplaints.value = list.length;
-    pendingCount.value =
-        list.where((c) => c.status == ComplaintStatus.pending).length;
-    reviewedCount.value =
-        list.where((c) => c.status == ComplaintStatus.reviewed).length;
-    resolvedCount.value =
-        list.where((c) => c.status == ComplaintStatus.resolved).length;
-    activeCount.value =
-        list.where((c) => c.status != ComplaintStatus.resolved).length;
+  Future<void> load({bool showLoading = true}) => guard(() async {
+        final list = await _repository.adminComplaints(limit: sampleSize);
+        var categories = await _repository
+            .categories()
+            .catchError((_) => <ComplaintCategory>[]);
+        if (categories.isEmpty) {
+          // Fall back to the categories seen in the complaints themselves.
+          final seen = <int, String>{for (final c in list) c.categoryId: c.category};
+          categories = [
+            for (final e in seen.entries) ComplaintCategory(id: e.key, name: e.value),
+          ];
+        }
 
-    if (totalComplaints.value > 0) {
-      resolutionRate.value =
-          (resolvedCount.value / totalComplaints.value) * 100;
-    } else {
-      resolutionRate.value = 0.0;
-    }
+        totalComplaints.value = list.length;
+        isCapped.value = list.length >= sampleSize;
+        counts.assignAll({
+          for (final s in ComplaintStatus.values)
+            s: list.where((c) => c.status == s).length,
+        });
+        final done = countOf(ComplaintStatus.resolved) + countOf(ComplaintStatus.closed);
+        resolutionRate.value = list.isEmpty ? 0.0 : done / list.length * 100;
 
-    // Status breakdown chart points
-    statusCounts.assignAll(
-      ComplaintStatus.values.map(
-        (s) => ChartPoint(
-          label: s.label,
-          value: list.where((c) => c.status == s).length.toDouble(),
-        ),
-      ),
-    );
-
-    // Category breakdown chart points
-    final categories = [
-      'Electrical',
-      'Plumbing',
-      'Furniture',
-      'Housekeeping',
-      'Internet/Wifi',
-      'Other',
-    ];
-
-    categoryCounts.assignAll(
-      categories.map(
-        (cat) => ChartPoint(
-          label: cat == 'Internet/Wifi' ? 'Wifi' : cat,
-          value: list
-              .where((c) => c.category.toLowerCase() == cat.toLowerCase())
-              .length
-              .toDouble(),
-        ),
-      ),
-    );
-  });
+        statusCounts.assignAll([
+          for (final s in ComplaintStatus.values)
+            ChartPoint(label: s.staffLabel, value: countOf(s).toDouble()),
+        ]);
+        categoryCounts.assignAll([
+          for (final cat in categories)
+            ChartPoint(
+              label: cat.name,
+              value: list.where((c) => c.categoryId == cat.id).length.toDouble(),
+            ),
+        ]);
+      }, showLoading: showLoading);
 }

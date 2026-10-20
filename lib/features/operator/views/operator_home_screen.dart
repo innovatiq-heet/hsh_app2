@@ -6,6 +6,7 @@ import '../../../core/constants/app_config.dart';
 import '../../../core/constants/app_dimens.dart';
 import '../../../core/constants/app_routes.dart';
 import '../../../core/constants/app_text_styles.dart';
+import '../../../core/enums/user_role.dart';
 import '../../../core/services/shorebird_service.dart';
 import '../../../core/storage/session_store.dart';
 import '../../shared/widgets/staggered_slide_fade.dart';
@@ -20,6 +21,9 @@ class _OperatorAction {
   final Color waveColor;
   final String route;
 
+  /// Shown to platform admins only (e.g. Manage Users).
+  final bool adminOnly;
+
   const _OperatorAction({
     required this.title,
     required this.subtitle,
@@ -29,6 +33,7 @@ class _OperatorAction {
     required this.arrowBgTint,
     required this.waveColor,
     required this.route,
+    this.adminOnly = false,
   });
 }
 
@@ -103,6 +108,29 @@ class _OperatorHomeScreenState extends State<OperatorHomeScreen> {
         route: Routes.operatorBirthdayWishes,
       ),
     ]),
+    _OperatorGroup('Hostel Services & Staff', [
+      _OperatorAction(
+        title: 'Complaints Desk',
+        subtitle: 'Room complaints &\nstatus updates',
+        icon: Icons.handyman_rounded,
+        iconColor: Color(0xFF7C3AED),
+        bgTint: Color(0xFFF5F3FF),
+        arrowBgTint: Color(0xFFEDE9FE),
+        waveColor: Color(0xFFDDD6FE),
+        route: Routes.complainSolverModule,
+      ),
+      _OperatorAction(
+        title: 'Manage User',
+        subtitle: 'Complaint solvers &\nlaundry staff',
+        icon: Icons.manage_accounts_rounded,
+        iconColor: Color(0xFF4F46E5),
+        bgTint: Color(0xFFE0E7FF),
+        arrowBgTint: Color(0xFFEEF2FF),
+        waveColor: Color(0xFFC7D2FE),
+        route: Routes.operatorManageUsers,
+        adminOnly: true,
+      ),
+    ]),
     /*
     _OperatorGroup('Alumni Network & Community', [
       _OperatorAction(
@@ -131,16 +159,6 @@ class _OperatorHomeScreenState extends State<OperatorHomeScreen> {
 
   /*
   static const _additionalActions = [
-    _OperatorAction(
-      title: 'Complaints Desk',
-      subtitle: 'Inspect & resolve student complaints',
-      icon: Icons.handyman_rounded,
-      iconColor: Color(0xFF7C3AED),
-      bgTint: Color(0xFFF5F3FF),
-      arrowBgTint: Color(0xFFEDE9FE),
-      waveColor: Color(0xFFDDD6FE),
-      route: Routes.complainSolverModule,
-    ),
     _OperatorAction(
       title: 'Laundry Desk',
       subtitle: 'Manage wash cycles & student tokens',
@@ -274,6 +292,18 @@ class _OperatorHomeScreenState extends State<OperatorHomeScreen> {
     );
   }
 
+  /// Groups with the cards this role may open; empty groups are dropped.
+  List<_OperatorGroup> get _visibleGroups {
+    final isAdmin = Get.find<SessionStore>().currentSession?.role == UserRole.admin;
+    return [
+      for (final group in _primaryGroups)
+        _OperatorGroup(group.title, [
+          for (final action in group.actions)
+            if (!action.adminOnly || isAdmin) action,
+        ]),
+    ].where((group) => group.actions.isNotEmpty).toList();
+  }
+
   @override
   Widget build(BuildContext context) {
     return AnnotatedRegion<SystemUiOverlayStyle>(
@@ -291,7 +321,7 @@ class _OperatorHomeScreenState extends State<OperatorHomeScreen> {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    for (final group in _primaryGroups) ...[
+                    for (final group in _visibleGroups) ...[
                       _SectionHeader(title: group.title),
                       // const SizedBox(height: 12),
                       GridView.count(

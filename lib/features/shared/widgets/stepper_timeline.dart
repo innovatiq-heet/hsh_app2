@@ -21,14 +21,27 @@ class TimelineStage {
 
 /// Horizontal stage tracker for flows with a fixed set of ordered
 /// timestamps (laundry pending→accepted→washed→received, complaint
-/// pending→reviewed→resolved).
+/// submitted→in progress→resolved→closed).
 class StepperTimeline extends StatelessWidget {
   final List<TimelineStage> stages;
 
   const StepperTimeline({super.key, required this.stages});
 
+  static const _labelWidth = 72.0;
+
   @override
   Widget build(BuildContext context) {
+    // Four 72px labels don't fit a phone-width card; shrink them only then.
+    return LayoutBuilder(
+      builder: (context, constraints) => _row(
+        constraints.maxWidth.isFinite
+            ? (constraints.maxWidth / stages.length).clamp(0.0, _labelWidth)
+            : _labelWidth,
+      ),
+    );
+  }
+
+  Widget _row(double labelWidth) {
     return Row(
       children: List.generate(stages.length * 2 - 1, (i) {
         if (i.isOdd) {
@@ -102,7 +115,7 @@ class StepperTimeline extends StatelessWidget {
             circleWidget,
             const SizedBox(height: AppDimens.gapXs),
             SizedBox(
-              width: 72,
+              width: labelWidth,
               child: Text(
                 stage.label,
                 textAlign: TextAlign.center,

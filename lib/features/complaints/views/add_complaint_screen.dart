@@ -5,54 +5,23 @@ import 'package:image_picker/image_picker.dart';
 import '../../../core/constants/app_colors.dart';
 import '../../../core/constants/app_dimens.dart';
 import '../../../core/constants/app_text_styles.dart';
-import '../../../core/utils/validators.dart';
 import '../../shared/utils/complaint_category_style.dart';
 import '../../shared/widgets/app_button.dart';
 import '../../shared/widgets/app_card.dart';
+import '../../shared/widgets/empty_state.dart';
 import '../../shared/widgets/gradient_header.dart';
 import '../../shared/widgets/section_header.dart';
+import '../../shared/widgets/skeleton_loader.dart';
 import '../controllers/add_complaint_controller.dart';
 
 class AddComplaintScreen extends GetView<AddComplaintController> {
   const AddComplaintScreen({super.key});
-
-  static const Map<String, List<String>> _quickTitles = {
-    'Electrical': [
-      'Fan not working',
-      'Light not working',
-      'Switchboard loose',
-      'Socket damaged',
-    ],
-    'Plumbing': [
-      'Tap leaking',
-      'Flush not working',
-      'Drainage blocked',
-      'Geyser not heating',
-    ],
-    'Furniture': [
-      'Study chair broken',
-      'Wardrobe door stuck',
-      'Bed frame loose',
-      'Table drawer broken',
-    ],
-    'Housekeeping': [
-      'Room cleaning needed',
-      'Washroom cleaning',
-      'Dustbin replacement',
-    ],
-    'Other': [
-      'Door lock jammed',
-      'Window glass damaged',
-      'Pest control needed',
-    ],
-  };
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       body: CustomScrollView(
         slivers: [
-          // Hero Header
           SliverGradientHeader(
             overline: 'Help Desk',
             title: 'New Complaint',
@@ -63,13 +32,15 @@ class AddComplaintScreen extends GetView<AddComplaintController> {
               tooltip: 'Back',
               onPressed: () => Get.back(),
             ),
-            child: const HeaderPill(
-              icon: Icons.timer_outlined,
-              label: 'Standard resolution: 24 - 48 business hours',
+            child: Obx(
+              () => HeaderPill(
+                icon: Icons.meeting_room_outlined,
+                label: controller.hasRoom
+                    ? 'Room ${controller.room.value}'
+                    : 'Standard resolution: 24 - 48 business hours',
+              ),
             ),
           ),
-
-          // Form Body
           SliverToBoxAdapter(
             child: Padding(
               padding: const EdgeInsets.fromLTRB(
@@ -78,52 +49,29 @@ class AddComplaintScreen extends GetView<AddComplaintController> {
                 AppDimens.screenPadding,
                 40,
               ),
-              child: Form(
-                key: controller.formKey,
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.stretch,
-                  children: [
-                    // Section 1: Category Selection
-                    const SectionHeader(title: 'Select category'),
-                    _CategoryGrid(controller: controller),
-
-                    const SizedBox(height: AppDimens.gapXl),
-
-                    // Section 2: Issue Details
-                    const SectionHeader(title: 'Issue details'),
-                    _IssueDetailsCard(
-                      controller: controller,
-                      quickTitles: _quickTitles,
-                    ),
-
-                    const SizedBox(height: AppDimens.gapXl),
-
-                    // Section 3: Photos / Attachments
-                    const SectionHeader(title: 'Attach photos (Optional)'),
-                    _PhotosCard(controller: controller),
-
-                    const SizedBox(height: AppDimens.gapXl),
-
-                    // Section 4: Notice & Guidance
-                    _NoticeCard(),
-
-                    const SizedBox(height: AppDimens.gapXxl),
-
-                    // Submit Button
-                    Obx(
-                      () => AppButton(
-                        label: 'Submit Complaint',
-                        icon: Icons.send_rounded,
-                        isLoading: controller.isSaving.value,
-                        onPressed: () async {
-                          final ok = await controller.submit();
-                          if (ok) Get.back();
-                        },
-                      ),
-                    ),
-                  ],
-                ),
-              ),
+              child: Obx(() {
+                if (controller.isLoading.value) {
+                  return const SkeletonList(count: 4, padding: EdgeInsets.zero);
+                }
+                if (controller.loadError.value.isNotEmpty) {
+                  return EmptyState(
+                    icon: Icons.error_outline,
+                    title: 'Could not load the form',
+                    message: controller.loadError.value,
+                    actionLabel: 'Retry',
+                    onAction: controller.load,
+                  );
+                }
+                if (!controller.hasRoom) {
+                  return const EmptyState(
+                    icon: Icons.meeting_room_outlined,
+                    title: 'No room assigned',
+                    message:
+                        'Only students with an assigned room can submit complaints.',
+                  );
+                }
+                return const _ComplaintForm();
+              }),
             ),
           ),
         ],
@@ -132,24 +80,90 @@ class AddComplaintScreen extends GetView<AddComplaintController> {
   }
 }
 
-/// Visual grid of categories featuring category-specific icons and colors.
-class _CategoryGrid extends StatelessWidget {
-  final AddComplaintController controller;
+class _ComplaintForm extends GetView<AddComplaintController> {
+  const _ComplaintForm();
 
-  const _CategoryGrid({required this.controller});
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        const SectionHeader(title: 'Select category'),
+        const _CategoryGrid(),
+        const SizedBox(height: AppDimens.gapXl),
+        const SectionHeader(title: 'What needs fixing?'),
+        const _ItemPicker(),
+        const SizedBox(height: AppDimens.gapXl),
+        const SectionHeader(title: 'Details'),
+        AppCard(
+          padding: const EdgeInsets.all(AppDimens.cardPadding),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              // The API only accepts the student's own room, so it is shown
+              // but never editable.
+              TextFormField(
+                initialValue: controller.room.value,
+                enabled: false,
+                decoration: const InputDecoration(
+                  labelText: 'Room',
+                  prefixIcon: Icon(Icons.meeting_room_outlined, size: 20),
+                  suffixIcon: Icon(Icons.lock_outline_rounded, size: 18),
+                ),
+              ),
+              const SizedBox(height: AppDimens.gapMd),
+              TextFormField(
+                controller: controller.commentController,
+                maxLines: 4,
+                maxLength: AddComplaintController.maxCommentLength,
+                decoration: const InputDecoration(
+                  labelText: 'Comment (optional)',
+                  hintText: 'e.g. AC not cooling since last night',
+                  alignLabelWithHint: true,
+                ),
+              ),
+            ],
+          ),
+        ),
+        const SizedBox(height: AppDimens.gapXl),
+        const SectionHeader(title: 'Attach a photo (optional)'),
+        const _PhotoCard(),
+        const SizedBox(height: AppDimens.gapXl),
+        const _NoticeCard(),
+        const SizedBox(height: AppDimens.gapXxl),
+        Obx(
+          () => AppButton(
+            label: 'Submit Complaint',
+            icon: Icons.send_rounded,
+            isLoading: controller.isSaving.value,
+            onPressed: controller.selectedItem.value == null
+                ? null
+                : () async {
+                    final ok = await controller.submit();
+                    // Not Get.back(): with the success snackbar open it
+                    // would only close the snackbar.
+                    if (ok && context.mounted) Navigator.of(context).pop(true);
+                  },
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+/// Category tiles from `/complaint-categories`, with category icons/colors.
+class _CategoryGrid extends GetView<AddComplaintController> {
+  const _CategoryGrid();
 
   @override
   Widget build(BuildContext context) {
     return Obx(() {
       final categories = controller.categories;
-      final selected = controller.selectedCategory.value;
-
+      final selectedId = controller.selectedCategory.value?.id;
       if (categories.isEmpty) {
-        return const Center(
-          child: Padding(
-            padding: EdgeInsets.all(AppDimens.gapLg),
-            child: CircularProgressIndicator(),
-          ),
+        return const EmptyState(
+          icon: Icons.category_outlined,
+          title: 'No categories available',
         );
       }
 
@@ -165,8 +179,8 @@ class _CategoryGrid extends StatelessWidget {
         ),
         itemBuilder: (context, index) {
           final category = categories[index];
-          final isSelected = selected == category;
-          final style = ComplaintCategoryStyle.of(category);
+          final isSelected = selectedId == category.id;
+          final style = ComplaintCategoryStyle.of(category.name);
 
           return Material(
             color: isSelected
@@ -181,12 +195,9 @@ class _CategoryGrid extends StatelessWidget {
             ),
             child: InkWell(
               borderRadius: BorderRadius.circular(AppDimens.radiusSm + 2),
-              onTap: () => controller.selectedCategory.value = category,
+              onTap: () => controller.selectCategory(category),
               child: Padding(
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 4,
-                  vertical: 6,
-                ),
+                padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 6),
                 child: Column(
                   mainAxisAlignment: MainAxisAlignment.center,
                   children: [
@@ -207,7 +218,7 @@ class _CategoryGrid extends StatelessWidget {
                     ),
                     const SizedBox(height: 5),
                     Text(
-                      category,
+                      category.name,
                       textAlign: TextAlign.center,
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
@@ -231,181 +242,81 @@ class _CategoryGrid extends StatelessWidget {
   }
 }
 
-/// Card containing title, description, and dynamic quick-suggestion chips.
-class _IssueDetailsCard extends StatelessWidget {
-  final AddComplaintController controller;
-  final Map<String, List<String>> quickTitles;
-
-  const _IssueDetailsCard({
-    required this.controller,
-    required this.quickTitles,
-  });
+/// Items of the chosen category from `/complaint-items?categoryId=`.
+class _ItemPicker extends GetView<AddComplaintController> {
+  const _ItemPicker();
 
   @override
   Widget build(BuildContext context) {
     return AppCard(
       padding: const EdgeInsets.all(AppDimens.cardPadding),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          // Dynamic suggestions based on selected category
-          Obx(() {
-            final category = controller.selectedCategory.value ?? '';
-            final suggestions = quickTitles[category] ?? [];
-
-            if (suggestions.isEmpty) return const SizedBox.shrink();
-
-            return Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Row(
-                  children: [
-                    const Icon(
-                      Icons.auto_awesome_outlined,
-                      size: 14,
-                      color: AppColors.primary,
-                    ),
-                    const SizedBox(width: 5),
-                    Text(
-                      'Common $category issues:',
-                      style: AppTextStyles.caption.copyWith(
-                        color: AppColors.textSecondary,
-                        fontWeight: FontWeight.w600,
-                      ),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: AppDimens.gapSm),
-                Wrap(
-                  spacing: AppDimens.gapSm,
-                  runSpacing: AppDimens.gapSm,
-                  children: suggestions.map((title) {
-                    return Material(
-                      color: AppColors.surfaceMuted,
-                      borderRadius: BorderRadius.circular(
-                        AppDimens.radiusPill,
-                      ),
-                      child: InkWell(
-                        borderRadius: BorderRadius.circular(
-                          AppDimens.radiusPill,
-                        ),
-                        onTap: () => controller.setQuickTitle(title),
-                        child: Padding(
-                          padding: const EdgeInsets.symmetric(
-                            horizontal: 10,
-                            vertical: 5,
-                          ),
-                          child: Text(
-                            title,
-                            style: AppTextStyles.caption.copyWith(
-                              color: AppColors.textPrimary,
-                              fontWeight: FontWeight.w600,
-                              fontSize: 11.5,
-                            ),
-                          ),
-                        ),
-                      ),
-                    );
-                  }).toList(),
-                ),
-                const Padding(
-                  padding: EdgeInsets.symmetric(vertical: AppDimens.gapMd),
-                  child: Divider(height: 1),
-                ),
-              ],
-            );
-          }),
-
-          // Title field
-          Text('Title', style: AppTextStyles.label),
-          const SizedBox(height: AppDimens.gapXs),
-          TextFormField(
-            controller: controller.titleController,
-            validator: Validators.required,
-            style: AppTextStyles.bodyMd.copyWith(color: AppColors.textPrimary),
-            decoration: InputDecoration(
-              hintText: 'e.g. Washroom tap is leaking continuously',
-              hintStyle: AppTextStyles.bodyMd.copyWith(
-                color: AppColors.textMuted,
-              ),
-              prefixIcon: const Icon(
-                Icons.title_rounded,
-                size: 20,
-                color: AppColors.textSecondary,
-              ),
-              filled: true,
-              fillColor: AppColors.surfaceMuted,
-              contentPadding: const EdgeInsets.symmetric(
-                horizontal: AppDimens.gapMd,
-                vertical: 14,
-              ),
-              border: OutlineInputBorder(
-                borderRadius: BorderRadius.circular(AppDimens.radiusMd),
-                borderSide: BorderSide.none,
-              ),
-              focusedBorder: OutlineInputBorder(
-                borderRadius: BorderRadius.circular(AppDimens.radiusMd),
-                borderSide: const BorderSide(
-                  color: AppColors.primaryLight,
-                  width: 1.5,
-                ),
-              ),
+      child: Obx(() {
+        final category = controller.selectedCategory.value;
+        if (category == null) {
+          return _hint('Choose a category above to see its items.');
+        }
+        if (controller.isLoadingItems.value) {
+          return const Center(
+            child: Padding(
+              padding: EdgeInsets.all(AppDimens.gapMd),
+              child: CircularProgressIndicator(),
             ),
-          ),
+          );
+        }
+        if (controller.itemsError.value.isNotEmpty) {
+          return Row(
+            children: [
+              Expanded(child: _hint(controller.itemsError.value)),
+              TextButton(
+                onPressed: controller.loadItems,
+                child: const Text('Retry'),
+              ),
+            ],
+          );
+        }
+        if (controller.items.isEmpty) {
+          return _hint('No items in ${category.name}.');
+        }
 
-          const SizedBox(height: AppDimens.gapMd),
-
-          // Description field
-          Text('Description', style: AppTextStyles.label),
-          const SizedBox(height: AppDimens.gapXs),
-          TextFormField(
-            controller: controller.descriptionController,
-            maxLines: 4,
-            validator: Validators.required,
-            style: AppTextStyles.bodyMd.copyWith(color: AppColors.textPrimary),
-            decoration: InputDecoration(
-              hintText:
-                  'Provide details such as exact room location, when the issue started, and any urgency...',
-              hintStyle: AppTextStyles.bodyMd.copyWith(
-                color: AppColors.textMuted,
-              ),
-              prefixIcon: const Padding(
-                padding: EdgeInsets.only(bottom: 52),
-                child: Icon(
-                  Icons.notes_rounded,
-                  size: 20,
-                  color: AppColors.textSecondary,
+        final style = ComplaintCategoryStyle.of(category.name);
+        final selectedId = controller.selectedItem.value?.id;
+        return Wrap(
+          spacing: AppDimens.gapSm,
+          runSpacing: AppDimens.gapSm,
+          children: [
+            for (final item in controller.items)
+              ChoiceChip(
+                label: Text(item.name),
+                selected: selectedId == item.id,
+                selectedColor: style.color,
+                showCheckmark: false,
+                labelStyle: AppTextStyles.label.copyWith(
+                  color: selectedId == item.id
+                      ? Colors.white
+                      : AppColors.textPrimary,
+                  fontWeight: selectedId == item.id
+                      ? FontWeight.w700
+                      : FontWeight.w500,
                 ),
+                onSelected: (_) => controller.selectItem(item),
               ),
-              filled: true,
-              fillColor: AppColors.surfaceMuted,
-              contentPadding: const EdgeInsets.all(AppDimens.gapMd),
-              border: OutlineInputBorder(
-                borderRadius: BorderRadius.circular(AppDimens.radiusMd),
-                borderSide: BorderSide.none,
-              ),
-              focusedBorder: OutlineInputBorder(
-                borderRadius: BorderRadius.circular(AppDimens.radiusMd),
-                borderSide: const BorderSide(
-                  color: AppColors.primaryLight,
-                  width: 1.5,
-                ),
-              ),
-            ),
-          ),
-        ],
-      ),
+          ],
+        );
+      }),
     );
   }
+
+  Widget _hint(String text) => Text(
+        text,
+        style: AppTextStyles.bodySm.copyWith(color: AppColors.textSecondary),
+      );
 }
 
-/// Attach photos card with gallery/camera picker and rounded image preview tiles.
-class _PhotosCard extends StatelessWidget {
-  final AddComplaintController controller;
+/// One optional photo (JPEG/PNG/WebP, ≤ 5 MB) from the camera or gallery.
+class _PhotoCard extends GetView<AddComplaintController> {
+  const _PhotoCard();
 
-  const _PhotosCard({required this.controller});
-
-  void _showImageSourceSheet(BuildContext context) {
+  void _showImageSourceSheet() {
     Get.bottomSheet(
       Container(
         padding: const EdgeInsets.all(AppDimens.gapLg),
@@ -426,46 +337,38 @@ class _PhotosCard extends StatelessWidget {
                 textAlign: TextAlign.center,
               ),
               const SizedBox(height: AppDimens.gapMd),
-              ListTile(
-                leading: Container(
-                  padding: const EdgeInsets.all(8),
-                  decoration: const BoxDecoration(
-                    color: AppColors.primarySoft,
-                    shape: BoxShape.circle,
-                  ),
-                  child: const Icon(
-                    Icons.camera_alt_outlined,
-                    color: AppColors.primary,
-                  ),
-                ),
-                title: const Text('Take photo with camera'),
-                onTap: () {
-                  Get.back();
-                  controller.pickImageFromSource(ImageSource.camera);
-                },
+              _sourceTile(
+                Icons.camera_alt_outlined,
+                'Take photo with camera',
+                ImageSource.camera,
               ),
-              ListTile(
-                leading: Container(
-                  padding: const EdgeInsets.all(8),
-                  decoration: const BoxDecoration(
-                    color: AppColors.primarySoft,
-                    shape: BoxShape.circle,
-                  ),
-                  child: const Icon(
-                    Icons.photo_library_outlined,
-                    color: AppColors.primary,
-                  ),
-                ),
-                title: const Text('Choose from gallery'),
-                onTap: () {
-                  Get.back();
-                  controller.pickImageFromSource(ImageSource.gallery);
-                },
+              _sourceTile(
+                Icons.photo_library_outlined,
+                'Choose from gallery',
+                ImageSource.gallery,
               ),
             ],
           ),
         ),
       ),
+    );
+  }
+
+  Widget _sourceTile(IconData icon, String title, ImageSource source) {
+    return ListTile(
+      leading: Container(
+        padding: const EdgeInsets.all(8),
+        decoration: const BoxDecoration(
+          color: AppColors.primarySoft,
+          shape: BoxShape.circle,
+        ),
+        child: Icon(icon, color: AppColors.primary),
+      ),
+      title: Text(title),
+      onTap: () {
+        Get.back();
+        controller.pickImage(source);
+      },
     );
   }
 
@@ -477,27 +380,15 @@ class _PhotosCard extends StatelessWidget {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Text(
-            'Visual evidence helps technicians bring the right tools and spare parts.',
-            style: AppTextStyles.bodySm.copyWith(
-              color: AppColors.textSecondary,
-            ),
+            'A photo helps technicians bring the right tools. JPEG, PNG or WebP, up to 5 MB.',
+            style: AppTextStyles.bodySm.copyWith(color: AppColors.textSecondary),
           ),
           const SizedBox(height: AppDimens.gapMd),
           Obx(() {
-            final images = controller.images;
-            return Wrap(
-              spacing: AppDimens.gapMd,
-              runSpacing: AppDimens.gapMd,
-              children: [
-                for (int i = 0; i < images.length; i++)
-                  _ImageThumbnail(
-                    file: images[i],
-                    onRemove: () => controller.removeImage(i),
-                  ),
-                if (images.length < 4)
-                  _AddPhotoButton(onTap: () => _showImageSourceSheet(context)),
-              ],
-            );
+            final image = controller.image.value;
+            return image == null
+                ? _AddPhotoButton(onTap: _showImageSourceSheet)
+                : _ImageThumbnail(file: image, onRemove: controller.removeImage);
           }),
         ],
       ),
@@ -509,10 +400,7 @@ class _ImageThumbnail extends StatelessWidget {
   final File file;
   final VoidCallback onRemove;
 
-  const _ImageThumbnail({
-    required this.file,
-    required this.onRemove,
-  });
+  const _ImageThumbnail({required this.file, required this.onRemove});
 
   @override
   Widget build(BuildContext context) {
@@ -521,12 +409,7 @@ class _ImageThumbnail extends StatelessWidget {
       children: [
         ClipRRect(
           borderRadius: BorderRadius.circular(AppDimens.radiusMd),
-          child: Image.file(
-            file,
-            width: 86,
-            height: 86,
-            fit: BoxFit.cover,
-          ),
+          child: Image.file(file, width: 110, height: 110, fit: BoxFit.cover),
         ),
         Positioned(
           top: -6,
@@ -546,11 +429,7 @@ class _ImageThumbnail extends StatelessWidget {
                   ),
                 ],
               ),
-              child: const Icon(
-                Icons.close,
-                size: 14,
-                color: Colors.white,
-              ),
+              child: const Icon(Icons.close, size: 14, color: Colors.white),
             ),
           ),
         ),
@@ -570,15 +449,12 @@ class _AddPhotoButton extends StatelessWidget {
       onTap: onTap,
       borderRadius: BorderRadius.circular(AppDimens.radiusMd),
       child: Container(
-        width: 86,
-        height: 86,
+        width: 110,
+        height: 110,
         decoration: BoxDecoration(
           color: AppColors.surfaceMuted,
           borderRadius: BorderRadius.circular(AppDimens.radiusMd),
-          border: Border.all(
-            color: AppColors.border,
-            width: 1.2,
-          ),
+          border: Border.all(color: AppColors.border, width: 1.2),
         ),
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
@@ -606,6 +482,8 @@ class _AddPhotoButton extends StatelessWidget {
 
 /// Guidance card regarding technician visits and hostel rules.
 class _NoticeCard extends StatelessWidget {
+  const _NoticeCard();
+
   @override
   Widget build(BuildContext context) {
     return Container(

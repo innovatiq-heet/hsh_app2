@@ -6,19 +6,15 @@ import '../../../core/constants/app_dimens.dart';
 import '../../../core/constants/app_routes.dart';
 import '../../../core/constants/app_text_styles.dart';
 import '../../../core/network/responses/complaints/complaint_response.dart';
-import '../../../core/utils/date_formatting.dart';
-import '../../shared/utils/complaint_category_style.dart';
-import '../../shared/widgets/app_card.dart';
 import '../../shared/widgets/app_refresh_indicator.dart';
 import '../../shared/widgets/async_state_view.dart';
 import '../../shared/widgets/empty_state.dart';
 import '../../shared/widgets/gradient_header.dart';
-import '../../shared/widgets/icon_badge.dart';
 import '../../shared/widgets/section_header.dart';
 import '../../shared/widgets/skeleton_loader.dart';
 import '../../shared/widgets/staggered_slide_fade.dart';
-import '../../shared/widgets/status_badge.dart';
 import '../controllers/complaints_controller.dart';
+import '../widgets/complaint_card.dart';
 
 class ComplaintsScreen extends GetView<ComplaintsController> {
   const ComplaintsScreen({super.key});
@@ -33,7 +29,7 @@ class ComplaintsScreen extends GetView<ComplaintsController> {
           errorMessage: controller.errorMessage.value,
           onRetry: controller.load,
           loadingWidget: const _ComplaintsShimmer(),
-          builder: (context) => AppRefreshIndicator(
+          builder: (context) => Obx(() => AppRefreshIndicator(
             onRefresh: controller.load,
             child: CustomScrollView(
               physics: const AlwaysScrollableScrollPhysics(),
@@ -62,16 +58,17 @@ class ComplaintsScreen extends GetView<ComplaintsController> {
                       100,
                     ),
                     child: controller.complaints.isEmpty
-                        ? const EmptyState(
+                        ? EmptyState(
                             icon: Icons.support_agent_outlined,
                             title: 'No complaints yet',
-                            message:
-                                'Something not working? Raise a complaint and the maintenance team will pick it up.',
+                            message: controller.canSubmit
+                                ? 'Something not working? Raise a complaint and the maintenance team will pick it up.'
+                                : 'Room complaints are available to students with an assigned room.',
                           )
                         : Column(
                             crossAxisAlignment: CrossAxisAlignment.stretch,
                             children: [
-                              const SectionHeader(title: 'Your complaints'),
+                              const SectionHeader(title: 'My complaints'),
                               for (int i = 0; i < controller.complaints.length; i++)
                                 StaggeredSlideFade(
                                   index: i,
@@ -79,8 +76,12 @@ class ComplaintsScreen extends GetView<ComplaintsController> {
                                     padding: const EdgeInsets.only(
                                       bottom: AppDimens.gapMd,
                                     ),
-                                    child: _ComplaintCard(
+                                    child: ComplaintCard(
                                       complaint: controller.complaints[i],
+                                      onTap: () => Get.toNamed(
+                                        Routes.complaintDetail,
+                                        arguments: controller.complaints[i].id,
+                                      ),
                                     ),
                                   ),
                                 ),
@@ -90,16 +91,19 @@ class ComplaintsScreen extends GetView<ComplaintsController> {
                 ),
               ],
             ),
-          ),
+          )),
         ),
       ),
-      floatingActionButton: FloatingActionButton.extended(
-        heroTag: null,
-        onPressed: () =>
-            Get.toNamed(Routes.complaintAdd)?.then((_) => controller.load()),
-        icon: const Icon(Icons.add_rounded),
-        label: const Text('New complaint'),
-      ),
+      floatingActionButton: controller.canSubmit
+          ? FloatingActionButton.extended(
+              heroTag: null,
+              onPressed: () => Get.toNamed(Routes.complaintAdd)?.then((saved) {
+                if (saved == true) controller.load(showLoading: false);
+              }),
+              icon: const Icon(Icons.add_rounded),
+              label: const Text('New complaint'),
+            )
+          : null,
     );
   }
 }
@@ -124,7 +128,7 @@ class _StatusSummary extends StatelessWidget {
   Widget _countTile(ComplaintStatus status) {
     final count = complaints.where((c) => c.status == status).length;
     return Container(
-      padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 12),
+      padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 10),
       decoration: BoxDecoration(
         color: Colors.white.withValues(alpha: 0.12),
         borderRadius: BorderRadius.circular(AppDimens.radiusMd),
@@ -145,133 +149,6 @@ class _StatusSummary extends StatelessWidget {
             style: AppTextStyles.caption.copyWith(
               color: Colors.white.withValues(alpha: 0.75),
               fontSize: 12,
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-class _ComplaintCard extends StatelessWidget {
-  final ComplaintResponse complaint;
-
-  const _ComplaintCard({required this.complaint});
-
-  @override
-  Widget build(BuildContext context) {
-    final style = ComplaintCategoryStyle.of(complaint.category);
-    final statusColor = complaint.status.color;
-    final hasImages =
-        complaint.imagesCount > 0 || complaint.attachments.isNotEmpty;
-    final imageCount = complaint.imagesCount > 0
-        ? complaint.imagesCount
-        : complaint.attachments.length;
-
-    return AppCard(
-      onTap: () =>
-          Get.toNamed(Routes.complaintDetail, arguments: complaint.id),
-      padding: EdgeInsets.zero,
-      child: Stack(
-        children: [
-          // Left vertical status accent indicator
-          Positioned(
-            top: 14,
-            bottom: 14,
-            left: 0,
-            child: Container(
-              width: 3.5,
-              decoration: BoxDecoration(
-                color: statusColor,
-                borderRadius: const BorderRadius.horizontal(
-                  right: Radius.circular(3),
-                ),
-              ),
-            ),
-          ),
-          Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Row(
-                  crossAxisAlignment: CrossAxisAlignment.center,
-                  children: [
-                    IconBadge(
-                      icon: style.icon,
-                      color: style.color,
-                      size: 38,
-                    ),
-                    const SizedBox(width: AppDimens.gapMd),
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(
-                            complaint.category,
-                            style: AppTextStyles.subtitle.copyWith(
-                              fontWeight: FontWeight.w700,
-                              fontSize: 15,
-                            ),
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                          ),
-                          const SizedBox(height: 3),
-                          Row(
-                            children: [
-                              Text(
-                                DateFormatting.dateOnly(complaint.submittedAt),
-                                style: AppTextStyles.caption.copyWith(
-                                  color: AppColors.textMuted,
-                                ),
-                              ),
-                              if (hasImages) ...[
-                                const SizedBox(width: 8),
-                                const Icon(
-                                  Icons.image_outlined,
-                                  size: 12,
-                                  color: AppColors.textMuted,
-                                ),
-                                const SizedBox(width: 3),
-                                Text(
-                                  '$imageCount',
-                                  style: AppTextStyles.caption.copyWith(
-                                    fontSize: 10.5,
-                                    color: AppColors.textMuted,
-                                  ),
-                                ),
-                              ],
-                            ],
-                          ),
-                        ],
-                      ),
-                    ),
-                    const SizedBox(width: AppDimens.gapSm),
-                    StatusBadge(
-                      label: complaint.status.label,
-                      color: statusColor,
-                    ),
-                    const SizedBox(width: 2),
-                    Icon(
-                      Icons.chevron_right_rounded,
-                      size: 18,
-                      color: AppColors.textLight,
-                    ),
-                  ],
-                ),
-                if (complaint.description.trim().isNotEmpty) ...[
-                  const SizedBox(height: 10),
-                  Text(
-                    complaint.description,
-                    maxLines: 2,
-                    overflow: TextOverflow.ellipsis,
-                    style: AppTextStyles.bodySm.copyWith(
-                      color: AppColors.textSecondary,
-                      height: 1.4,
-                    ),
-                  ),
-                ],
-              ],
             ),
           ),
         ],
@@ -309,7 +186,7 @@ class _ComplaintsShimmer extends StatelessWidget {
           ],
           child: Row(
             children: [
-              for (int i = 0; i < 3; i++) ...[
+              for (int i = 0; i < ComplaintStatus.values.length; i++) ...[
                 if (i > 0) const SizedBox(width: AppDimens.gapSm),
                 Expanded(
                   child: Container(

@@ -7,8 +7,6 @@ import '../../../core/constants/app_routes.dart';
 import '../../../core/constants/app_text_styles.dart';
 import '../../../core/network/responses/complaints/complaint_response.dart';
 import '../../../core/storage/session_store.dart';
-import '../../../core/utils/date_formatting.dart';
-import '../../shared/utils/complaint_category_style.dart';
 import '../../shared/widgets/app_button.dart';
 import '../../shared/widgets/app_card.dart';
 import '../../shared/widgets/app_refresh_indicator.dart';
@@ -16,13 +14,13 @@ import '../../shared/widgets/app_text_field.dart';
 import '../../shared/widgets/async_state_view.dart';
 import '../../shared/widgets/empty_state.dart';
 import '../../shared/widgets/gradient_header.dart';
-import '../../shared/widgets/icon_badge.dart';
 import '../../shared/widgets/section_header.dart';
 import '../../shared/widgets/skeleton_loader.dart';
-import '../../shared/widgets/status_badge.dart';
 import '../controllers/complaint_orders_controller.dart';
-import '../../../core/utils/app_snackbar.dart';
+import '../widgets/complaint_card.dart';
 
+/// Complaints Desk: the solver queue with status tabs, a category filter
+/// and a room search, all applied by the API.
 class ComplainOrdersScreen extends GetView<ComplainOrdersController> {
   const ComplainOrdersScreen({super.key});
 
@@ -33,6 +31,9 @@ class ComplainOrdersScreen extends GetView<ComplainOrdersController> {
 
   @override
   Widget build(BuildContext context) {
+    // Solvers land here as their home screen; admins arrive from the
+    // console and go back instead of logging out.
+    final isRoot = !Navigator.canPop(context);
     return Scaffold(
       body: Obx(
         () => AsyncStateView(
@@ -42,88 +43,58 @@ class ComplainOrdersScreen extends GetView<ComplainOrdersController> {
           onRetry: controller.load,
           loadingWidget: const _ComplainOrdersShimmer(),
           builder: (context) => Obx(() {
-            final list = controller.filtered;
+            final list = controller.complaints;
+            final status = controller.statusFilter.value;
+            final more = controller.hasMore.value ? '+' : '';
             return AppRefreshIndicator(
-              onRefresh: controller.load,
+              onRefresh: () => controller.load(showLoading: false),
               child: CustomScrollView(
                 physics: const AlwaysScrollableScrollPhysics(),
                 slivers: [
-                  // Hero Gradient Header
                   SliverGradientHeader(
                     overline: 'Staff Operations',
                     title: 'Complaints Desk',
-                    subtitle: 'Review reports, assign maintenance & resolve issues',
+                    subtitle: 'Review room complaints and move them to done',
                     expandedHeight: 270.0,
-                    leading: Navigator.canPop(context)
-                        ? HeaderIconButton(
+                    leading: isRoot
+                        ? null
+                        : HeaderIconButton(
                             icon: Icons.arrow_back_rounded,
                             tooltip: 'Back',
                             onPressed: () => Get.back(),
-                          )
-                        : null,
+                          ),
                     actions: [
                       HeaderIconButton(
                         icon: Icons.refresh_rounded,
                         tooltip: 'Refresh',
                         onPressed: controller.load,
                       ),
-                      HeaderIconButton(
-                        icon: Icons.logout_rounded,
-                        tooltip: 'Log out',
-                        onPressed: _logout,
-                      ),
+                      if (isRoot)
+                        HeaderIconButton(
+                          icon: Icons.logout_rounded,
+                          tooltip: 'Log out',
+                          onPressed: _logout,
+                        ),
                     ],
                     child: SingleChildScrollView(
                       scrollDirection: Axis.horizontal,
                       child: Row(
                         children: [
-                          GestureDetector(
-                            onTap: () {
-                              controller.statusFilter.value =
-                                  controller.statusFilter.value ==
-                                          ComplaintStatus.pending
-                                      ? null
-                                      : ComplaintStatus.pending;
-                            },
-                            child: HeaderPill(
-                              icon: Icons.hourglass_top_rounded,
-                              label: '${controller.pendingCount} Pending',
-                            ),
+                          HeaderPill(
+                            icon: status?.icon ?? Icons.assignment_rounded,
+                            label: '${list.length}$more ${status?.staffLabel ?? 'All'}',
                           ),
-                          const SizedBox(width: AppDimens.gapSm),
-                          GestureDetector(
-                            onTap: () {
-                              controller.statusFilter.value =
-                                  controller.statusFilter.value ==
-                                          ComplaintStatus.reviewed
-                                      ? null
-                                      : ComplaintStatus.reviewed;
-                            },
-                            child: HeaderPill(
-                              icon: Icons.sync_rounded,
-                              label: '${controller.reviewedCount} Under Review',
+                          if (controller.roomFilter.value.isNotEmpty) ...[
+                            const SizedBox(width: AppDimens.gapSm),
+                            HeaderPill(
+                              icon: Icons.meeting_room_outlined,
+                              label: 'Room ${controller.roomFilter.value}',
                             ),
-                          ),
-                          const SizedBox(width: AppDimens.gapSm),
-                          GestureDetector(
-                            onTap: () {
-                              controller.statusFilter.value =
-                                  controller.statusFilter.value ==
-                                          ComplaintStatus.resolved
-                                      ? null
-                                      : ComplaintStatus.resolved;
-                            },
-                            child: HeaderPill(
-                              icon: Icons.check_circle_rounded,
-                              label: '${controller.resolvedCount} Resolved',
-                            ),
-                          ),
+                          ],
                         ],
                       ),
                     ),
                   ),
-
-                  // Main Content
                   SliverToBoxAdapter(
                     child: Padding(
                       padding: const EdgeInsets.fromLTRB(
@@ -133,182 +104,62 @@ class ComplainOrdersScreen extends GetView<ComplainOrdersController> {
                         100,
                       ),
                       child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.stretch,
-                      children: [
-                        // Search & Quick Filter Card
-                        AppCard(
-                          padding: const EdgeInsets.all(AppDimens.gapMd),
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.stretch,
-                            children: [
-                              AppTextField(
-                                label: 'Search Complaints',
-                                hint: 'Search by room, name, category, title or ID...',
-                                prefixIcon: Icons.search_rounded,
-                                onChanged: (val) =>
-                                    controller.searchQuery.value = val,
-                              ),
-                              const SizedBox(height: AppDimens.gapMd),
-
-                              // Status Filter Chips
-                              Text(
-                                'Status Filter',
-                                style: AppTextStyles.label.copyWith(
-                                  color: AppColors.textSecondary,
-                                  fontSize: 12,
-                                ),
-                              ),
-                              const SizedBox(height: AppDimens.gapXs),
-                              SingleChildScrollView(
-                                scrollDirection: Axis.horizontal,
-                                child: Row(
-                                  children: [
-                                    _FilterChip(
-                                      label: 'All',
-                                      count: controller.complaints.length,
-                                      isSelected:
-                                          controller.statusFilter.value == null,
-                                      onSelected: () =>
-                                          controller.statusFilter.value = null,
-                                    ),
-                                    const SizedBox(width: AppDimens.gapSm),
-                                    ...ComplaintStatus.values.map(
-                                      (status) => Padding(
-                                        padding: const EdgeInsets.only(
-                                          right: AppDimens.gapSm,
-                                        ),
-                                        child: _FilterChip(
-                                          label: status.label,
-                                          count:
-                                              controller.countForStatus(status),
-                                          isSelected:
-                                              controller.statusFilter.value ==
-                                                  status,
-                                          statusColor: status.color,
-                                          onSelected: () {
-                                            if (controller.statusFilter.value ==
-                                                status) {
-                                              controller.statusFilter.value =
-                                                  null;
-                                            } else {
-                                              controller.statusFilter.value =
-                                                  status;
-                                            }
-                                          },
-                                        ),
-                                      ),
-                                    ),
-                                  ],
-                                ),
-                              ),
-                              const SizedBox(height: AppDimens.gapMd),
-
-                              // Category Filter Chips
-                              Text(
-                                'Category Filter',
-                                style: AppTextStyles.label.copyWith(
-                                  color: AppColors.textSecondary,
-                                  fontSize: 12,
-                                ),
-                              ),
-                              const SizedBox(height: AppDimens.gapXs),
-                              SingleChildScrollView(
-                                scrollDirection: Axis.horizontal,
-                                child: Row(
-                                  children: [
-                                    _CategoryChip(
-                                      label: 'All Categories',
-                                      isSelected:
-                                          controller.categoryFilter.value == null,
-                                      onSelected: () =>
-                                          controller.categoryFilter.value = null,
-                                    ),
-                                    const SizedBox(width: AppDimens.gapSm),
-                                    ...[
-                                      'Electrical',
-                                      'Plumbing',
-                                      'Furniture',
-                                      'Housekeeping',
-                                      'Internet/Wifi',
-                                      'Other'
-                                    ].map(
-                                      (cat) => Padding(
-                                        padding: const EdgeInsets.only(
-                                          right: AppDimens.gapSm,
-                                        ),
-                                        child: _CategoryChip(
-                                          label: cat,
-                                          count: controller.countForCategory(cat),
-                                          isSelected:
-                                              controller.categoryFilter.value
-                                                      ?.toLowerCase() ==
-                                                  cat.toLowerCase(),
-                                          onSelected: () {
-                                            if (controller.categoryFilter.value
-                                                    ?.toLowerCase() ==
-                                                cat.toLowerCase()) {
-                                              controller.categoryFilter.value =
-                                                  null;
-                                            } else {
-                                              controller.categoryFilter.value =
-                                                  cat;
-                                            }
-                                          },
-                                        ),
-                                      ),
-                                    ),
-                                  ],
-                                ),
-                              ),
-                            ],
+                        crossAxisAlignment: CrossAxisAlignment.stretch,
+                        children: [
+                          const _FiltersCard(),
+                          const SizedBox(height: AppDimens.gapLg),
+                          SectionHeader(
+                            title: status == null
+                                ? 'All complaints'
+                                : '${status.staffLabel} complaints',
                           ),
-                        ),
-                        const SizedBox(height: AppDimens.gapLg),
-
-                        // Section Header with count
-                        SectionHeader(
-                          title: controller.statusFilter.value == null
-                              ? 'All Complaints (${list.length})'
-                              : '${controller.statusFilter.value!.label} Complaints (${list.length})',
-                        ),
-                        const SizedBox(height: AppDimens.gapSm),
-
-                        // Complaints List
-                        if (list.isEmpty)
-                          Padding(
-                            padding: const EdgeInsets.symmetric(vertical: 40),
-                            child: EmptyState(
-                              icon: Icons.assignment_outlined,
-                              title: 'No complaints found',
-                              message: controller.searchQuery.value.isNotEmpty ||
-                                      controller.statusFilter.value != null ||
-                                      controller.categoryFilter.value != null
-                                  ? 'No complaints match your current filters. Try resetting search or filter chips.'
-                                  : 'There are currently no maintenance complaints in the system.',
-                            ),
-                          )
-                        else
-                          ListView.separated(
-                            shrinkWrap: true,
-                            physics: const NeverScrollableScrollPhysics(),
-                            itemCount: list.length,
-                            separatorBuilder: (_, _) =>
-                                const SizedBox(height: AppDimens.gapMd),
-                            itemBuilder: (context, i) {
-                              final c = list[i];
-                              return _StaffComplaintCard(
-                                complaint: c,
-                                controller: controller,
-                              );
-                            },
-                          ),
-                      ],
+                          const SizedBox(height: AppDimens.gapSm),
+                          if (list.isEmpty)
+                            Padding(
+                              padding: const EdgeInsets.symmetric(vertical: 40),
+                              child: EmptyState(
+                                icon: Icons.assignment_outlined,
+                                title: 'No complaints found',
+                                message: controller.hasFilters
+                                    ? 'No complaints match these filters.'
+                                    : 'There are no room complaints yet.',
+                              ),
+                            )
+                          else ...[
+                            for (final c in list)
+                              Padding(
+                                padding: const EdgeInsets.only(
+                                  bottom: AppDimens.gapMd,
+                                ),
+                                child: ComplaintCard(
+                                  complaint: c,
+                                  showStudent: true,
+                                  staffLabels: true,
+                                  onTap: () => Get.toNamed(
+                                    Routes.complainAdminDetail,
+                                    arguments: c.id,
+                                  )?.then(
+                                    (_) => controller.load(showLoading: false),
+                                  ),
+                                  trailing: _StatusMenu(complaint: c),
+                                ),
+                              ),
+                            if (controller.hasMore.value)
+                              AppButton(
+                                label: 'Load more',
+                                icon: Icons.expand_more_rounded,
+                                variant: AppButtonVariant.outline,
+                                isLoading: controller.isLoadingMore.value,
+                                onPressed: controller.loadMore,
+                              ),
+                          ],
+                        ],
+                      ),
                     ),
                   ),
-                ),
-              ],
-            ),
-          );
+                ],
+              ),
+            );
           }),
         ),
       ),
@@ -316,28 +167,171 @@ class ComplainOrdersScreen extends GetView<ComplainOrdersController> {
   }
 }
 
+/// Room search plus status and category chips.
+class _FiltersCard extends GetView<ComplainOrdersController> {
+  const _FiltersCard();
+
+  @override
+  Widget build(BuildContext context) {
+    return AppCard(
+      padding: const EdgeInsets.all(AppDimens.gapMd),
+      child: Obx(() {
+        final status = controller.statusFilter.value;
+        final category = controller.categoryFilter.value;
+        return Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            AppTextField(
+              controller: controller.roomController,
+              label: 'Room',
+              hint: 'Exact room number, e.g. 101',
+              prefixIcon: Icons.meeting_room_outlined,
+              onChanged: (value) => controller.roomQuery.value = value,
+              suffix: controller.roomQuery.value.isEmpty
+                  ? null
+                  : IconButton(
+                      icon: const Icon(Icons.close_rounded, size: 20),
+                      tooltip: 'Clear room',
+                      onPressed: controller.clearRoom,
+                    ),
+            ),
+            const SizedBox(height: AppDimens.gapMd),
+            _label('Status'),
+            const SizedBox(height: AppDimens.gapXs),
+            SingleChildScrollView(
+              scrollDirection: Axis.horizontal,
+              child: Row(
+                children: [
+                  for (final s in ComplaintStatus.values) ...[
+                    _FilterChip(
+                      label: s.staffLabel,
+                      isSelected: status == s,
+                      statusColor: s.color,
+                      onSelected: () => controller.setStatusFilter(s),
+                    ),
+                    const SizedBox(width: AppDimens.gapSm),
+                  ],
+                  _FilterChip(
+                    label: 'All',
+                    isSelected: status == null,
+                    onSelected: () => controller.setStatusFilter(null),
+                  ),
+                ],
+              ),
+            ),
+            if (controller.categories.isNotEmpty) ...[
+              const SizedBox(height: AppDimens.gapMd),
+              _label('Category'),
+              const SizedBox(height: AppDimens.gapXs),
+              SingleChildScrollView(
+                scrollDirection: Axis.horizontal,
+                child: Row(
+                  children: [
+                    _FilterChip(
+                      label: 'All Categories',
+                      isSelected: category == null,
+                      activeColor: AppColors.secondary,
+                      onSelected: () => controller.setCategoryFilter(null),
+                    ),
+                    for (final cat in controller.categories) ...[
+                      const SizedBox(width: AppDimens.gapSm),
+                      _FilterChip(
+                        label: cat.name,
+                        isSelected: category?.id == cat.id,
+                        activeColor: AppColors.secondary,
+                        onSelected: () => controller.setCategoryFilter(
+                          category?.id == cat.id ? null : cat,
+                        ),
+                      ),
+                    ],
+                  ],
+                ),
+              ),
+            ],
+          ],
+        );
+      }),
+    );
+  }
+
+  Widget _label(String text) => Text(
+        text,
+        style: AppTextStyles.label.copyWith(
+          color: AppColors.textSecondary,
+          fontSize: 12,
+        ),
+      );
+}
+
+/// Quick status change on a queue row; any status may move to any other.
+class _StatusMenu extends GetView<ComplainOrdersController> {
+  final ComplaintResponse complaint;
+
+  const _StatusMenu({required this.complaint});
+
+  @override
+  Widget build(BuildContext context) {
+    return Obx(() {
+      if (controller.updatingId.value == complaint.id) {
+        return const Padding(
+          padding: EdgeInsets.all(12),
+          child: SizedBox(
+            width: 18,
+            height: 18,
+            child: CircularProgressIndicator(strokeWidth: 2),
+          ),
+        );
+      }
+      return PopupMenuButton<ComplaintStatus>(
+        tooltip: 'Change status',
+        icon: const Icon(
+          Icons.more_vert_rounded,
+          size: 20,
+          color: AppColors.textSecondary,
+        ),
+        onSelected: (s) => controller.changeStatus(complaint, s),
+        itemBuilder: (_) => [
+          for (final s in ComplaintStatus.values)
+            PopupMenuItem(
+              value: s,
+              enabled: s != complaint.status,
+              child: Row(
+                children: [
+                  Icon(s.icon, size: 18, color: s.color),
+                  const SizedBox(width: AppDimens.gapSm),
+                  Text(
+                    s == complaint.status
+                        ? '${s.staffLabel} (current)'
+                        : 'Move to ${s.staffLabel}',
+                  ),
+                ],
+              ),
+            ),
+        ],
+      );
+    });
+  }
+}
+
 class _FilterChip extends StatelessWidget {
   final String label;
-  final int count;
   final bool isSelected;
   final VoidCallback onSelected;
   final Color? statusColor;
+  final Color activeColor;
 
   const _FilterChip({
     required this.label,
-    required this.count,
     required this.isSelected,
     required this.onSelected,
     this.statusColor,
+    this.activeColor = AppColors.primary,
   });
 
   @override
   Widget build(BuildContext context) {
-    final activeBg = isSelected ? AppColors.primary : AppColors.surfaceMuted;
+    final activeBg = isSelected ? activeColor : AppColors.surfaceMuted;
     final activeText = isSelected ? Colors.white : AppColors.textPrimary;
-    final countBg = isSelected
-        ? Colors.white.withValues(alpha: 0.22)
-        : AppColors.border;
 
     return Material(
       color: activeBg,
@@ -350,7 +344,7 @@ class _FilterChip extends StatelessWidget {
           decoration: BoxDecoration(
             borderRadius: BorderRadius.circular(AppDimens.radiusPill),
             border: Border.all(
-              color: isSelected ? AppColors.primary : AppColors.border,
+              color: isSelected ? activeColor : AppColors.border,
             ),
           ),
           child: Row(
@@ -374,654 +368,8 @@ class _FilterChip extends StatelessWidget {
                   fontWeight: isSelected ? FontWeight.w700 : FontWeight.w500,
                 ),
               ),
-              const SizedBox(width: 6),
-              Container(
-                padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                decoration: BoxDecoration(
-                  color: countBg,
-                  borderRadius: BorderRadius.circular(AppDimens.radiusPill),
-                ),
-                child: Text(
-                  '$count',
-                  style: AppTextStyles.caption.copyWith(
-                    color: activeText,
-                    fontSize: 11,
-                    fontWeight: FontWeight.w700,
-                  ),
-                ),
-              ),
             ],
           ),
-        ),
-      ),
-    );
-  }
-}
-
-class _CategoryChip extends StatelessWidget {
-  final String label;
-  final int? count;
-  final bool isSelected;
-  final VoidCallback onSelected;
-
-  const _CategoryChip({
-    required this.label,
-    this.count,
-    required this.isSelected,
-    required this.onSelected,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    final activeBg = isSelected ? AppColors.secondary : AppColors.surfaceMuted;
-    final activeText = isSelected ? Colors.white : AppColors.textPrimary;
-    final countBg = isSelected
-        ? Colors.white.withValues(alpha: 0.22)
-        : AppColors.border;
-
-    return Material(
-      color: activeBg,
-      borderRadius: BorderRadius.circular(AppDimens.radiusPill),
-      child: InkWell(
-        borderRadius: BorderRadius.circular(AppDimens.radiusPill),
-        onTap: onSelected,
-        child: Container(
-          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
-          decoration: BoxDecoration(
-            borderRadius: BorderRadius.circular(AppDimens.radiusPill),
-            border: Border.all(
-              color: isSelected ? AppColors.secondary : AppColors.border,
-            ),
-          ),
-          child: Row(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Text(
-                label,
-                style: AppTextStyles.label.copyWith(
-                  color: activeText,
-                  fontWeight: isSelected ? FontWeight.w700 : FontWeight.w500,
-                ),
-              ),
-              if (count != null) ...[
-                const SizedBox(width: 6),
-                Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                  decoration: BoxDecoration(
-                    color: countBg,
-                    borderRadius: BorderRadius.circular(AppDimens.radiusPill),
-                  ),
-                  child: Text(
-                    '$count',
-                    style: AppTextStyles.caption.copyWith(
-                      color: activeText,
-                      fontSize: 11,
-                      fontWeight: FontWeight.w700,
-                    ),
-                  ),
-                ),
-              ],
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-}
-
-class _StaffComplaintCard extends StatelessWidget {
-  final ComplaintResponse complaint;
-  final ComplainOrdersController controller;
-
-  const _StaffComplaintCard({
-    required this.complaint,
-    required this.controller,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    final catStyle = ComplaintCategoryStyle.of(complaint.category);
-
-    return AppCard(
-      onTap: () => Get.toNamed(
-        Routes.complainAdminDetail,
-        arguments: complaint.id,
-      )?.then((_) => controller.load()),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          // Student Info & Status
-          Row(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              // Category Icon Badge
-              IconBadge(
-                icon: catStyle.icon,
-                color: catStyle.color,
-              ),
-              const SizedBox(width: AppDimens.gapMd),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Row(
-                      children: [
-                        Expanded(
-                          child: Text(
-                            complaint.studentName.isNotEmpty
-                                ? complaint.studentName
-                                : 'Student #${complaint.studentAadhar}',
-                            style: AppTextStyles.subtitle.copyWith(
-                              fontWeight: FontWeight.w700,
-                            ),
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                          ),
-                        ),
-                        if (complaint.room.isNotEmpty) ...[
-                          const SizedBox(width: 6),
-                          Container(
-                            padding: const EdgeInsets.symmetric(
-                              horizontal: 7,
-                              vertical: 3,
-                            ),
-                            decoration: BoxDecoration(
-                              color: AppColors.surfaceMuted,
-                              borderRadius:
-                                  BorderRadius.circular(AppDimens.radiusSm),
-                              border: Border.all(color: AppColors.border),
-                            ),
-                            child: Row(
-                              mainAxisSize: MainAxisSize.min,
-                              children: [
-                                const Icon(
-                                  Icons.meeting_room_outlined,
-                                  size: 12,
-                                  color: AppColors.textSecondary,
-                                ),
-                                const SizedBox(width: 3),
-                                Text(
-                                  complaint.room,
-                                  style: AppTextStyles.caption.copyWith(
-                                    fontWeight: FontWeight.w600,
-                                    color: AppColors.textPrimary,
-                                    fontSize: 11,
-                                  ),
-                                ),
-                              ],
-                            ),
-                          ),
-                        ],
-                      ],
-                    ),
-                    const SizedBox(height: 3),
-                    Row(
-                      children: [
-                        Text(
-                          'Complaint #${complaint.id.toUpperCase()}',
-                          style: AppTextStyles.caption.copyWith(
-                            color: AppColors.textMuted,
-                            fontWeight: FontWeight.w600,
-                          ),
-                        ),
-                        if (complaint.studentAadhar.isNotEmpty) ...[
-                          const Text(
-                            ' Ãƒâ€šÃ‚Â· ',
-                            style: TextStyle(color: AppColors.textMuted),
-                          ),
-                          Text(
-                            complaint.studentAadhar,
-                            style: AppTextStyles.caption.copyWith(
-                              color: AppColors.textSecondary,
-                            ),
-                          ),
-                        ],
-                      ],
-                    ),
-                  ],
-                ),
-              ),
-              const SizedBox(width: 8),
-              StatusBadge(
-                label: complaint.status.label,
-                color: complaint.status.color,
-              ),
-            ],
-          ),
-          const SizedBox(height: AppDimens.gapMd),
-
-          // Title & Description
-          Text(
-            complaint.title,
-            style: AppTextStyles.subtitle.copyWith(
-              fontWeight: FontWeight.w700,
-            ),
-          ),
-          const SizedBox(height: 4),
-          Text(
-            complaint.description,
-            maxLines: 2,
-            overflow: TextOverflow.ellipsis,
-            style: AppTextStyles.bodyMd.copyWith(
-              color: AppColors.textSecondary,
-              height: 1.4,
-            ),
-          ),
-          const SizedBox(height: AppDimens.gapSm),
-
-          // Category pill & photos indicator
-          Row(
-            children: [
-              Container(
-                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-                decoration: BoxDecoration(
-                  color: catStyle.color.withValues(alpha: 0.12),
-                  borderRadius: BorderRadius.circular(AppDimens.radiusSm),
-                ),
-                child: Text(
-                  complaint.category,
-                  style: AppTextStyles.caption.copyWith(
-                    color: catStyle.color,
-                    fontWeight: FontWeight.w700,
-                  ),
-                ),
-              ),
-              if (complaint.imagesCount > 0) ...[
-                const SizedBox(width: AppDimens.gapSm),
-                Container(
-                  padding:
-                      const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-                  decoration: BoxDecoration(
-                    color: AppColors.surfaceMuted,
-                    borderRadius: BorderRadius.circular(AppDimens.radiusSm),
-                    border: Border.all(color: AppColors.border),
-                  ),
-                  child: Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      const Icon(
-                        Icons.photo_library_outlined,
-                        size: 13,
-                        color: AppColors.textSecondary,
-                      ),
-                      const SizedBox(width: 4),
-                      Text(
-                        '${complaint.imagesCount} photo${complaint.imagesCount > 1 ? 's' : ''}',
-                        style: AppTextStyles.caption.copyWith(
-                          color: AppColors.textSecondary,
-                          fontSize: 11,
-                          fontWeight: FontWeight.w600,
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-              ],
-              const Spacer(),
-              Text(
-                DateFormatting.dateTime(complaint.submittedAt),
-                style: AppTextStyles.caption.copyWith(
-                  color: AppColors.textMuted,
-                ),
-              ),
-            ],
-          ),
-
-          // Staff review note if present
-          if (complaint.review != null && complaint.review!.isNotEmpty) ...[
-            const SizedBox(height: AppDimens.gapSm),
-            Container(
-              padding: const EdgeInsets.all(AppDimens.gapSm + 2),
-              decoration: BoxDecoration(
-                color: AppColors.pendingBlue.withValues(alpha: 0.08),
-                borderRadius: BorderRadius.circular(AppDimens.radiusSm),
-                border: Border.all(
-                  color: AppColors.pendingBlue.withValues(alpha: 0.25),
-                ),
-              ),
-              child: Row(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  const Icon(
-                    Icons.assignment_ind_outlined,
-                    size: 16,
-                    color: AppColors.pendingBlue,
-                  ),
-                  const SizedBox(width: 6),
-                  Expanded(
-                    child: Text(
-                      'Review note: ${complaint.review}',
-                      style: AppTextStyles.caption.copyWith(
-                        color: AppColors.textPrimary,
-                        fontWeight: FontWeight.w500,
-                      ),
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          ],
-
-          // Resolution note if present
-          if (complaint.feedback != null && complaint.feedback!.isNotEmpty) ...[
-            const SizedBox(height: AppDimens.gapSm),
-            Container(
-              padding: const EdgeInsets.all(AppDimens.gapSm + 2),
-              decoration: BoxDecoration(
-                color: AppColors.successGreen.withValues(alpha: 0.08),
-                borderRadius: BorderRadius.circular(AppDimens.radiusSm),
-                border: Border.all(
-                  color: AppColors.successGreen.withValues(alpha: 0.25),
-                ),
-              ),
-              child: Row(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  const Icon(
-                    Icons.check_circle_outline_rounded,
-                    size: 16,
-                    color: AppColors.successGreen,
-                  ),
-                  const SizedBox(width: 6),
-                  Expanded(
-                    child: Text(
-                      'Resolution: ${complaint.feedback}',
-                      style: AppTextStyles.caption.copyWith(
-                        color: AppColors.textPrimary,
-                        fontWeight: FontWeight.w500,
-                      ),
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          ],
-
-          const Divider(height: AppDimens.gapLg),
-
-          // Actions Row based on Lifecycle
-          Obx(() {
-            final isAdvancing =
-                controller.advancingComplaintId.value == complaint.id;
-            if (isAdvancing) {
-              return const Center(
-                child: Padding(
-                  padding: EdgeInsets.symmetric(vertical: 8),
-                  child: SizedBox(
-                    height: 24,
-                    width: 24,
-                    child: CircularProgressIndicator(strokeWidth: 2),
-                  ),
-                ),
-              );
-            }
-
-            return Row(
-              children: [
-                Expanded(
-                  child: _buildLifecycleButton(context),
-                ),
-                if (controller.isAdmin.value) ...[
-                  const SizedBox(width: AppDimens.gapSm),
-                  IconButton(
-                    tooltip: 'Delete Complaint',
-                    icon: const Icon(
-                      Icons.delete_outline_rounded,
-                      color: AppColors.cancelledRed,
-                    ),
-                    onPressed: () => _confirmDelete(context),
-                  ),
-                ],
-              ],
-            );
-          }),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildLifecycleButton(BuildContext context) {
-    switch (complaint.status) {
-      case ComplaintStatus.pending:
-        return Row(
-          children: [
-            Expanded(
-              child: AppButton(
-                label: 'Mark Review',
-                icon: Icons.sync_rounded,
-                onPressed: () => _showReviewSheet(context),
-              ),
-            ),
-            const SizedBox(width: AppDimens.gapSm),
-            Expanded(
-              child: AppButton(
-                label: 'Quick Resolve',
-                icon: Icons.check_circle_outline_rounded,
-                variant: AppButtonVariant.outline,
-                onPressed: () => _showResolveSheet(context),
-              ),
-            ),
-          ],
-        );
-      case ComplaintStatus.reviewed:
-        return AppButton(
-          label: 'Resolve & Close Issue',
-          icon: Icons.done_all_rounded,
-          onPressed: () => _showResolveSheet(context),
-        );
-      case ComplaintStatus.resolved:
-        return Row(
-          children: [
-            Expanded(
-              child: Container(
-                padding: const EdgeInsets.symmetric(vertical: 10),
-                alignment: Alignment.center,
-                decoration: BoxDecoration(
-                  color: AppColors.successGreen.withValues(alpha: 0.12),
-                  borderRadius: BorderRadius.circular(AppDimens.radiusMd),
-                  border: Border.all(
-                    color: AppColors.successGreen.withValues(alpha: 0.25),
-                  ),
-                ),
-                child: Row(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    const Icon(
-                      Icons.check_circle_rounded,
-                      size: 18,
-                      color: AppColors.successGreen,
-                    ),
-                    const SizedBox(width: 8),
-                    Text(
-                      'Resolved & Closed',
-                      style: AppTextStyles.bodySm.copyWith(
-                        color: AppColors.successGreen,
-                        fontWeight: FontWeight.w700,
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            ),
-            const SizedBox(width: AppDimens.gapSm),
-            AppButton(
-              label: 'Update',
-              icon: Icons.edit_note_rounded,
-              variant: AppButtonVariant.outline,
-              onPressed: () => _showResolveSheet(context),
-            ),
-          ],
-        );
-    }
-  }
-
-  void _confirmDelete(BuildContext context) {
-    Get.dialog(
-      AlertDialog(
-        title: const Text('Delete Complaint'),
-        content: Text(
-          'Are you sure you want to delete complaint #${complaint.id}? This action cannot be undone.',
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Get.back(),
-            child: const Text('Cancel'),
-          ),
-          TextButton(
-            style: TextButton.styleFrom(foregroundColor: AppColors.cancelledRed),
-            onPressed: () {
-              Get.back();
-              controller.deleteComplaint(complaint.id);
-            },
-            child: const Text('Delete'),
-          ),
-        ],
-      ),
-    );
-  }
-
-  void _showReviewSheet(BuildContext context) {
-    final noteController = TextEditingController(text: complaint.review ?? '');
-    showModalBottomSheet(
-      context: context,
-      isScrollControlled: true,
-      backgroundColor: Colors.transparent,
-      builder: (_) => Container(
-        padding: EdgeInsets.fromLTRB(
-          AppDimens.screenPadding,
-          AppDimens.gapLg,
-          AppDimens.screenPadding,
-          MediaQuery.of(context).viewInsets.bottom + AppDimens.gapXl,
-        ),
-        decoration: const BoxDecoration(
-          color: AppColors.surface,
-          borderRadius: BorderRadius.vertical(
-            top: Radius.circular(AppDimens.radiusXl),
-          ),
-        ),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            Center(
-              child: Container(
-                width: 40,
-                height: 4,
-                decoration: BoxDecoration(
-                  color: AppColors.border,
-                  borderRadius: BorderRadius.circular(2),
-                ),
-              ),
-            ),
-            const SizedBox(height: AppDimens.gapLg),
-            Text(
-              'Move to Under Review',
-              style: AppTextStyles.title.copyWith(fontSize: 18),
-            ),
-            const SizedBox(height: 4),
-            Text(
-              'Assign maintenance staff or add an internal inspection remark for Room ${complaint.room}.',
-              style: AppTextStyles.bodySm.copyWith(
-                color: AppColors.textSecondary,
-              ),
-            ),
-            const SizedBox(height: AppDimens.gapLg),
-            AppTextField(
-              controller: noteController,
-              label: 'Review Note / Assigned Technician',
-              hint: 'e.g. Electrician Ramesh assigned. Visit at 4:30 PM.',
-              maxLines: 3,
-            ),
-            const SizedBox(height: AppDimens.gapLg),
-            AppButton(
-              label: 'Confirm Under Review',
-              icon: Icons.check_circle_rounded,
-              onPressed: () {
-                Get.back();
-                controller.markReviewed(
-                  complaint.id,
-                  reviewNote: noteController.text.trim(),
-                );
-              },
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  void _showResolveSheet(BuildContext context) {
-    final noteController = TextEditingController(text: complaint.feedback ?? '');
-    showModalBottomSheet(
-      context: context,
-      isScrollControlled: true,
-      backgroundColor: Colors.transparent,
-      builder: (_) => Container(
-        padding: EdgeInsets.fromLTRB(
-          AppDimens.screenPadding,
-          AppDimens.gapLg,
-          AppDimens.screenPadding,
-          MediaQuery.of(context).viewInsets.bottom + AppDimens.gapXl,
-        ),
-        decoration: const BoxDecoration(
-          color: AppColors.surface,
-          borderRadius: BorderRadius.vertical(
-            top: Radius.circular(AppDimens.radiusXl),
-          ),
-        ),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            Center(
-              child: Container(
-                width: 40,
-                height: 4,
-                decoration: BoxDecoration(
-                  color: AppColors.border,
-                  borderRadius: BorderRadius.circular(2),
-                ),
-              ),
-            ),
-            const SizedBox(height: AppDimens.gapLg),
-            Text(
-              'Resolve Complaint #${complaint.id.toUpperCase()}',
-              style: AppTextStyles.title.copyWith(fontSize: 18),
-            ),
-            const SizedBox(height: 4),
-            Text(
-              'Provide feedback explaining how the issue was resolved for the student.',
-              style: AppTextStyles.bodySm.copyWith(
-                color: AppColors.textSecondary,
-              ),
-            ),
-            const SizedBox(height: AppDimens.gapLg),
-            AppTextField(
-              controller: noteController,
-              label: 'Resolution Explanation',
-              hint: 'e.g. Replaced leaking valve and tested pressure.',
-              maxLines: 3,
-            ),
-            const SizedBox(height: AppDimens.gapLg),
-            AppButton(
-              label: 'Submit Resolution & Close',
-              icon: Icons.done_all_rounded,
-              onPressed: () {
-                if (noteController.text.trim().isEmpty) {
-                  AppSnackbar.warning(
-                    'Input Required',
-                    'Please describe the resolution before closing the complaint.',
-                  );
-                  return;
-                }
-                Get.back();
-                controller.markResolved(
-                  complaint.id,
-                  feedback: noteController.text.trim(),
-                );
-              },
-            ),
-          ],
         ),
       ),
     );
@@ -1039,7 +387,7 @@ class _ComplainOrdersShimmer extends StatelessWidget {
         SliverGradientHeader(
           overline: 'Staff Operations',
           title: 'Complaints Desk',
-          subtitle: 'Review reports, assign maintenance & resolve issues',
+          subtitle: 'Review room complaints and move them to done',
           expandedHeight: 270.0,
           leading: Navigator.canPop(context)
               ? HeaderIconButton(
@@ -1054,11 +402,12 @@ class _ComplainOrdersShimmer extends StatelessWidget {
               tooltip: 'Refresh',
               onPressed: () {},
             ),
-            HeaderIconButton(
-              icon: Icons.logout_rounded,
-              tooltip: 'Log out',
-              onPressed: () {},
-            ),
+            if (!Navigator.canPop(context))
+              HeaderIconButton(
+                icon: Icons.logout_rounded,
+                tooltip: 'Log out',
+                onPressed: () {},
+              ),
           ],
           child: Row(
             children: [

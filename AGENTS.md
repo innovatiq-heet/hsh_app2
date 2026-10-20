@@ -7,7 +7,7 @@ Rules and context for anyone (human or AI agent) changing this repo. Read this b
 - Flutter app (GetX) for Hari Saurabh Hostel: students, leaders, wardens / operator console, staff.
 - Backend is the separate **`hsh_api`** repo (Node + Express + MySQL). It has its own `AGENTS.md`.
 - Background behaviour on student phones (screen time, app blocking, geofence, location) is **native Android Kotlin**, so it runs with the Flutter UI closed. Caller ID is native on Android and iOS.
-- Feature docs: [docs/GEOFENCING_DOCS.md](docs/GEOFENCING_DOCS.md), [docs/PARENT_CONTROL_DOCS.md](docs/PARENT_CONTROL_DOCS.md), [docs/PHONEBOOK_DOCS.md](docs/PHONEBOOK_DOCS.md).
+- Feature docs: [docs/GEOFENCING_DOCS.md](docs/GEOFENCING_DOCS.md), [docs/PARENT_CONTROL_DOCS.md](docs/PARENT_CONTROL_DOCS.md), [docs/PHONEBOOK_DOCS.md](docs/PHONEBOOK_DOCS.md), [docs/COMPLAINTS_DOCS.md](docs/COMPLAINTS_DOCS.md).
 
 ## 2. Commands
 
@@ -40,7 +40,8 @@ test/                  unit tests (offline); tag tests that hit real APIs with @
 - **HTTP:** always `Get.find<ApiClient>().dio` (adds the token). Repositories throw on failure; controllers show the error and roll back optimistic UI.
 - **Platform code:** one Dart service per MethodChannel (`ScreenTimeService`, `GeofenceDeviceService`, `CallerIdService`), each a no-op on unsupported platforms. Keep channel method names in sync on both sides.
 - **Reuse before adding:** shared widgets live in `lib/features/shared/widgets`, and date helpers in `lib/core/utils/date_formatting.dart`.
-- **Roles:** gate screens with `UserRole` helpers: `canOperate` (admin/warden: phonebook, caller ID, operator console) and `canViewScreenTime` (admin/warden).
+- **Roles:** gate screens with `UserRole` helpers: `canOperate` (admin/warden: phonebook, caller ID, operator console) and `canViewScreenTime` (admin/warden). Manage Users is admin-only.
+- **Closing after a snackbar:** in GetX 4, `Get.back()` closes an open snackbar instead of the route. After showing a success snackbar, close the page or sheet with `Navigator.of(context).pop()`.
 - **Never commit** `android/key.properties`, keystores, `.env` files or new credentials.
 
 ## 4. Feature invariants (do not break)
@@ -72,10 +73,18 @@ test/                  unit tests (offline); tag tests that hit real APIs with @
 - Android reads the phonebook SQLite file **read-only**; Dart and Kotlin number normalization must stay identical.
 - iOS directory entries must be sorted ascending with no duplicate numbers, or CallKit rejects the whole batch.
 
+**Complaints and staff users**
+
+- A complaint's room is the student's own room from `/auth/me`, shown read-only. `POST /complaints` never carries `status` or `image_url`; a photo goes in the multipart `image` field with its real MIME type (the API checks it against the bytes).
+- Complaint photos need the bearer token: pass the `Authorization` header to `Image.network`.
+- Staff (`complain-solver`, `laundry-man`) have no room and are never alumni. A `401 "Staff account not found or inactive."` (deactivated or deleted) must sign them out.
+- `PUT /admin/users/:id` is a partial update: send only the changed fields.
+
 ## 5. Tests
 
 - `test/screen_time_student_id_test.dart`: drives `StudentScreenTimeController` with fake HTTP (a Dio interceptor) and asserts no request ever carries a bank code. Copy this pattern for controller tests.
 - `test/geofence_location_models_test.dart`, `test/parental_geofence_contract_test.dart`: payload contracts with `hsh_api`.
+- `test/complaints_flow_test.dart`, `test/manage_users_test.dart`, `test/staff_login_test.dart` use `test/support/fake_api.dart`, a fake Dio adapter, so the real interceptors and 4xx/5xx handling run. Prefer it for new repository/controller tests.
 - Tests that call real services are tagged `live` and skipped in CI. Prefer offline tests.
 - Backend behaviour (auth, breaches, gate passes, locations, long-poll sync, id-only resolution) is covered by `hsh_api/tests/e2e/screentime-geofence.e2e.test.ts` (`npm run test:e2e` there).
 - A new rule or a bug fix gets a test that fails without the change.

@@ -1,128 +1,136 @@
+import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import '../../../core/abstracts/mixins/load_state_mixin.dart';
 import '../../../core/enums/complaint_status.dart';
-import '../../../core/enums/user_role.dart';
+import '../../../core/network/api_exception.dart';
 import '../../../core/network/repository/complaints/complaints_repository.dart';
-import '../../../core/network/request/complaints/update_complaint_request.dart';
+import '../../../core/network/responses/complaints/complaint_catalog.dart';
 import '../../../core/network/responses/complaints/complaint_response.dart';
-import '../../../core/storage/session_store.dart';
 import '../../../core/utils/app_snackbar.dart';
 
+/// Complaints Desk (complain-solver / admin): the queue filtered on the
+/// server by status, category and room, a page at a time.
 class ComplainOrdersController extends GetxController with LoadStateMixin {
   final ComplaintsRepository _repository = Get.find();
 
+  final roomController = TextEditingController();
+
   final complaints = <ComplaintResponse>[].obs;
-  final Rxn<ComplaintStatus> statusFilter = Rxn<ComplaintStatus>();
-  final RxnString categoryFilter = RxnString();
-  final searchQuery = ''.obs;
-  final advancingComplaintId = RxnString();
-  final isAdmin = false.obs;
+  final categories = <ComplaintCategory>[].obs;
 
-  int get pendingCount =>
-      complaints.where((c) => c.status == ComplaintStatus.pending).length;
-  int get reviewedCount =>
-      complaints.where((c) => c.status == ComplaintStatus.reviewed).length;
-  int get resolvedCount =>
-      complaints.where((c) => c.status == ComplaintStatus.resolved).length;
-  int get activeCount =>
-      complaints.where((c) => c.status != ComplaintStatus.resolved).length;
+  /// `null` means all statuses. The desk opens on the open queue.
+  final statusFilter = Rxn<ComplaintStatus>(ComplaintStatus.open);
+  final categoryFilter = Rxn<ComplaintCategory>();
+  final roomFilter = ''.obs;
 
-  int countForStatus(ComplaintStatus? status) {
-    if (status == null) return complaints.length;
-    return complaints.where((c) => c.status == status).length;
-  }
+  /// What is typed in the room box; applied as [roomFilter] after a pause.
+  final roomQuery = ''.obs;
 
-  int countForCategory(String? category) {
-    if (category == null) return complaints.length;
-    return complaints.where((c) => c.category.toLowerCase() == category.toLowerCase()).length;
-  }
-
-  List<ComplaintResponse> get filtered {
-    return complaints.where((c) {
-      if (statusFilter.value != null && c.status != statusFilter.value) {
-        return false;
-      }
-      if (categoryFilter.value != null &&
-          categoryFilter.value!.isNotEmpty &&
-          c.category.toLowerCase() != categoryFilter.value!.toLowerCase()) {
-        return false;
-      }
-      final query = searchQuery.value.trim().toLowerCase();
-      if (query.isEmpty) return true;
-      final cid = c.id.toLowerCase();
-      return cid.contains(query) ||
-          c.studentAadhar.toLowerCase().contains(query) ||
-          c.studentName.toLowerCase().contains(query) ||
-          c.room.toLowerCase().contains(query) ||
-          c.category.toLowerCase().contains(query) ||
-          c.title.toLowerCase().contains(query) ||
-          c.description.toLowerCase().contains(query);
-    }).toList();
-  }
+  final hasMore = false.obs;
+  final isLoadingMore = false.obs;
+  final updatingId = RxnString();
 
   @override
   void onInit() {
     super.onInit();
-    _checkRole();
+    debounce<String>(roomQuery, searchRoom, time: const Duration(milliseconds: 500));
+    load();
+    _loadCategories();
+  }
+
+  @override
+  void onClose() {
+    roomController.dispose();
+    super.onClose();
+  }
+
+  Future<void> _loadCategories() async {
+    try {
+      categories.assignAll(await _repository.categories());
+    } catch (_) {
+      // The category filter is optional; the queue still works without it.
+    }
+  }
+
+  Future<List<ComplaintResponse>> _page(int offset) => _repository.adminComplaints(
+        status: statusFilter.value,
+        categoryId: categoryFilter.value?.id,
+        roomId: roomFilter.value,
+        offset: offset,
+      );
+
+  Future<void> load({bool showLoading = true}) => guard(() async {
+        final page = await _page(0);
+        complaints.assignAll(page);
+        hasMore.value = page.length == ComplaintsRepository.pageSize;
+      }, showLoading: showLoading);
+
+  Future<void> loadMore() async {
+    if (isLoadingMore.value || !hasMore.value) return;
+    isLoadingMore.value = true;
+    try {
+      final page = await _page(complaints.length);
+      complaints.addAll(page);
+      hasMore.value = page.length == ComplaintsRepository.pageSize;
+    } on ApiException catch (e) {
+      AppSnackbar.error('Could not load more', e.message);
+    } catch (_) {
+      AppSnackbar.error('Could not load more', 'Something went wrong, try again');
+    } finally {
+      isLoadingMore.value = false;
+    }
+  }
+
+  void setStatusFilter(ComplaintStatus? status) {
+    if (statusFilter.value == status) return;
+    statusFilter.value = status;
     load();
   }
 
-  Future<void> _checkRole() async {
-    final role = await Get.find<SessionStore>().role;
-    isAdmin.value = role == UserRole.admin;
+  void setCategoryFilter(ComplaintCategory? category) {
+    if (categoryFilter.value?.id == category?.id) return;
+    categoryFilter.value = category;
+    load();
   }
 
-  Future<void> load() => guard(() async {
-    complaints.assignAll(await _repository.adminComplaints());
-  });
+  /// Rooms are matched exactly by the API (e.g. "101").
+  void searchRoom(String room) {
+    final clean = room.trim();
+    if (clean == roomFilter.value) return;
+    roomFilter.value = clean;
+    load();
+  }
 
-  Future<void> markReviewed(String complaintId, {String? reviewNote}) async {
-    advancingComplaintId.value = complaintId;
+  void clearRoom() {
+    roomController.clear();
+    roomQuery.value = '';
+    searchRoom('');
+  }
+
+  bool get hasFilters =>
+      statusFilter.value != null ||
+      categoryFilter.value != null ||
+      roomFilter.value.isNotEmpty;
+
+  /// Any status may move to any other; the row is replaced with the
+  /// server's copy.
+  Future<void> changeStatus(ComplaintResponse complaint, ComplaintStatus status) async {
+    if (complaint.status == status || updatingId.value != null) return;
+    updatingId.value = complaint.id;
     try {
-      final updated = await _repository.updateComplaint(
-        complaintId,
-        UpdateComplaintRequest(
-          status: ComplaintStatus.reviewed,
-          review: reviewNote,
-        ),
+      final updated = await _repository.updateStatus(complaint.id, status);
+      final index = complaints.indexWhere((c) => c.id == complaint.id);
+      if (index != -1) complaints[index] = updated;
+      AppSnackbar.success(
+        'Status updated',
+        'Complaint #${complaint.id} is now ${status.staffLabel}.',
       );
-      final idx = complaints.indexWhere((c) => c.id == complaintId);
-      if (idx != -1) complaints[idx] = updated;
-      AppSnackbar.success('Success', 'Complaint #$complaintId moved to Under Review.');
-    } catch (e) {
-      AppSnackbar.error('Error', 'Failed to update complaint: $e');
+    } on ApiException catch (e) {
+      AppSnackbar.error('Update failed', e.message);
+    } catch (_) {
+      AppSnackbar.error('Update failed', 'Something went wrong, try again');
     } finally {
-      advancingComplaintId.value = null;
-    }
-  }
-
-  Future<void> markResolved(String complaintId, {required String feedback}) async {
-    advancingComplaintId.value = complaintId;
-    try {
-      final updated = await _repository.solveComplaint(
-        complaintId,
-        feedback,
-      );
-      final idx = complaints.indexWhere((c) => c.id == complaintId);
-      if (idx != -1) complaints[idx] = updated;
-      AppSnackbar.success('Resolved', 'Complaint #$complaintId has been marked as resolved.');
-    } catch (e) {
-      AppSnackbar.error('Error', 'Failed to resolve complaint: $e');
-    } finally {
-      advancingComplaintId.value = null;
-    }
-  }
-
-  Future<void> deleteComplaint(String complaintId) async {
-    advancingComplaintId.value = complaintId;
-    try {
-      await _repository.deleteComplaint(complaintId);
-      complaints.removeWhere((c) => c.id == complaintId);
-      AppSnackbar.success('Deleted', 'Complaint #$complaintId has been removed.');
-    } catch (e) {
-      AppSnackbar.error('Error', 'Failed to delete complaint: $e');
-    } finally {
-      advancingComplaintId.value = null;
+      updatingId.value = null;
     }
   }
 }

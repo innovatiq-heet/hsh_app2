@@ -23,7 +23,7 @@ class ComplaintCategoryStyle {
         AppColors.secondary,
       );
     }
-    if (key.contains('furniture')) {
+    if (key.contains('furniture') || key.contains('carpent')) {
       return const ComplaintCategoryStyle(
         Icons.chair_outlined,
         Color(0xFF8B5CF6),

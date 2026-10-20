@@ -113,12 +113,15 @@ class SessionStore extends GetxService {
   }) async {
     final effectiveProfile = studentProfile ?? _cachedStudentProfile;
 
-    final computedIsAlumni = isAlumni == true ||
-        UserSession.isAlumniRoomOrId(
-          room: room,
-          profileRoom: effectiveProfile?.room,
-          studentCode: studentCode,
-        );
+    // Staff (complain-solver, laundry-man) have no room; that is not alumni.
+    final canBeAlumni = role.isStudentOrLeader || role == UserRole.unknown;
+    final computedIsAlumni = canBeAlumni &&
+        (isAlumni == true ||
+            UserSession.isAlumniRoomOrId(
+              room: room,
+              profileRoom: effectiveProfile?.room,
+              studentCode: studentCode,
+            ));
 
     final session = UserSession(
       token: token,
@@ -129,7 +132,7 @@ class SessionStore extends GetxService {
       studentCode: studentCode ?? '',
       room: (computedIsAlumni && (room == null || room.isEmpty || UserSession.isAlumniRoomOrId(room: room))) ? 'N/A' : (room ?? ''),
       studentProfile: effectiveProfile,
-      isAlumniFlag: computedIsAlumni ? true : isAlumni,
+      isAlumniFlag: canBeAlumni ? (computedIsAlumni ? true : isAlumni) : false,
     );
 
     _cachedToken = token;

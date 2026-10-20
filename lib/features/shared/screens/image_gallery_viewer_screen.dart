@@ -42,7 +42,11 @@ class _ImageGalleryViewerScreenState extends State<ImageGalleryViewerScreen> {
             child: Center(
               child: attachment.isLocal
                   ? Image.file(attachment.file!, fit: BoxFit.contain)
-                  : Image.network(attachment.url!, fit: BoxFit.contain),
+                  : Image.network(
+                      attachment.url!,
+                      headers: attachment.headers,
+                      fit: BoxFit.contain,
+                    ),
             ),
           );
         },

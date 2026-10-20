@@ -2,7 +2,6 @@ import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import '../../../core/constants/app_colors.dart';
 import 'complaint_home_screen.dart';
-import 'complaint_management_screen.dart';
 import '../controllers/complaint_module_controller.dart';
 import 'complaint_orders_screen.dart';
 
@@ -11,7 +10,6 @@ class ComplainModuleScreen extends GetView<ComplainModuleController> {
 
   static const _tabs = [
     ComplainOrdersScreen(),
-    ComplainManagementScreen(),
     ComplainHomeScreen(),
   ];
 
@@ -44,12 +42,6 @@ class ComplainModuleScreen extends GetView<ComplainModuleController> {
                 selectedIcon:
                     Icon(Icons.assignment_rounded, color: AppColors.primary),
                 label: 'Desk',
-              ),
-              NavigationDestination(
-                icon: Icon(Icons.meeting_room_outlined),
-                selectedIcon:
-                    Icon(Icons.meeting_room_rounded, color: AppColors.primary),
-                label: 'Inspect',
               ),
               NavigationDestination(
                 icon: Icon(Icons.insights_outlined),

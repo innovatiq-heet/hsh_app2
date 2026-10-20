@@ -1,313 +1,159 @@
-import 'dart:developer' as developer;
+import 'dart:io';
 import 'package:dio/dio.dart';
 import 'package:get/get.dart' hide FormData, MultipartFile;
 import '../../../enums/complaint_status.dart';
+import '../../../utils/image_type.dart';
 import '../../api_client.dart';
 import '../../api_exception.dart';
+import '../base_repository.dart';
 import '../../request/complaints/submit_complaint_request.dart';
-import '../../request/complaints/update_complaint_request.dart';
+import '../../responses/complaints/complaint_catalog.dart';
 import '../../responses/complaints/complaint_response.dart';
 
-class ComplaintsRepository {
+/// Room complaints: the category/item catalog, a student's own complaints,
+/// and the solver queue (`/admin/complaints`, complain-solver + admin).
+class ComplaintsRepository extends BaseRepository {
   Dio get _dio => Get.find<ApiClient>().dio;
 
-  String _message(DioException e) {
-    final data = e.response?.data;
-    if (data is Map && data['message'] is String) {
-      return data['message'] as String;
-    }
-    return e.message ??
-        'Server communication error. Please check your network connection.';
-  }
+  static const int pageSize = 50;
 
-  // --- Categories (GET /complains/categories) ---
-  Future<List<String>> categories() async {
+  Future<List<ComplaintCategory>> categories() async {
     try {
-      final response = await _dio.get('/complains/categories');
-      final data = response.data;
-      if (data is Map &&
-          data['data'] is Map &&
-          data['data']['categories'] is List) {
-        return (data['data']['categories'] as List)
-            .map((e) => e.toString())
-            .toList();
-      }
+      final response = await _dio.get('/complaint-categories');
+      return _dataList(response.data).map(ComplaintCategory.fromJson).toList();
     } on DioException catch (e) {
-      developer.log(
-        'GET /complains/categories error: ${e.message}',
-        name: 'ComplaintsRepository',
-      );
-      throw ApiException(_message(e), statusCode: e.response?.statusCode);
-    } catch (e) {
-      developer.log(
-        'GET /complains/categories error: $e',
-        name: 'ComplaintsRepository',
-      );
+      throw toApiException(e);
     }
-    return const [
-      'Electrical',
-      'Plumbing',
-      'Furniture',
-      'Housekeeping',
-      'Other',
-    ];
   }
 
-  // --- List Own Complaints (Student: GET /complains) ---
-  Future<List<ComplaintResponse>> list({String? studentAadhar}) async {
+  Future<List<ComplaintItem>> items(int categoryId) async {
     try {
-      final query = <String, dynamic>{};
-      if (studentAadhar != null && studentAadhar.isNotEmpty) {
-        query['aadhar'] = studentAadhar;
-      }
-      final response = await _dio.get('/complains', queryParameters: query);
-      return _extractComplaintList(response.data);
+      final response = await _dio.get(
+        '/complaint-items',
+        queryParameters: {'categoryId': categoryId},
+      );
+      return _dataList(response.data).map(ComplaintItem.fromJson).toList();
     } on DioException catch (e) {
-      developer.log(
-        'GET /complains error: ${e.message}',
-        name: 'ComplaintsRepository',
-      );
-      throw ApiException(_message(e), statusCode: e.response?.statusCode);
-    } catch (e) {
-      developer.log(
-        'GET /complains parsing error: $e',
-        name: 'ComplaintsRepository',
-      );
-      throw ApiException('Failed to load complaints: $e');
+      throw toApiException(e);
     }
   }
 
-  // --- List All Complaints (Admin/Solver: GET /complains) ---
-  Future<List<ComplaintResponse>> adminComplaints({
-    ComplaintStatus? status,
-    String? room,
-    String? aadhar,
-  }) async {
-    try {
-      final query = <String, dynamic>{};
-      if (status != null) query['status'] = status.apiValue;
-      if (room != null && room.isNotEmpty) query['room'] = room;
-      if (aadhar != null && aadhar.isNotEmpty) query['aadhar'] = aadhar;
-
-      final response = await _dio.get('/complains', queryParameters: query);
-      return _extractComplaintList(response.data);
-    } on DioException catch (e) {
-      developer.log(
-        'GET /complains (admin) error: ${e.message}',
-        name: 'ComplaintsRepository',
-      );
-      throw ApiException(_message(e), statusCode: e.response?.statusCode);
-    } catch (e) {
-      developer.log(
-        'GET /complains (admin) parsing error: $e',
-        name: 'ComplaintsRepository',
-      );
-      throw ApiException('Failed to load complaints: $e');
-    }
-  }
-
-  // --- Complaint Details (GET /complains/:id) ---
-  Future<ComplaintResponse> detail(String id) async {
-    try {
-      final response = await _dio.get('/complains/$id');
-      final data = response.data;
-      if (data is Map && data['data'] is Map) {
-        final compJson = data['data']['complain'] ?? data['data'];
-        if (compJson is Map) {
-          return ComplaintResponse.fromJson(Map<String, dynamic>.from(compJson));
-        }
-      }
-      throw ApiException('Unexpected server response format');
-    } on DioException catch (e) {
-      developer.log(
-        'GET /complains/$id error: ${e.message}',
-        name: 'ComplaintsRepository',
-      );
-      throw ApiException(_message(e), statusCode: e.response?.statusCode);
-    } catch (e) {
-      developer.log(
-        'GET /complains/$id error: $e',
-        name: 'ComplaintsRepository',
-      );
-      throw ApiException('Failed to load complaint details: $e');
-    }
-  }
-
-  // --- Submit Complaint (POST /complains) ---
+  /// Sends multipart (photo in the `image` field) when there is a photo,
+  /// plain JSON otherwise.
   Future<ComplaintResponse> submit(SubmitComplaintRequest request) async {
     try {
-      final formData = FormData.fromMap({
-        'aadhar': request.studentAadhar,
-        'room': request.room,
-        'compType': request.category,
-        'compDesc': request.description,
-      });
-
-      for (int i = 0; i < request.images.length; i++) {
-        final f = request.images[i];
-        formData.files.add(
-          MapEntry(
-            'images',
-            await MultipartFile.fromFile(f.path, filename: 'photo_$i.jpg'),
+      final Object body;
+      final image = request.image;
+      if (image == null) {
+        body = request.toJson();
+      } else {
+        // The API checks the declared type against the file's bytes, so the
+        // part must carry the real type rather than octet-stream.
+        final mimeType = ImageType.sniffMimeType(await _header(image));
+        if (mimeType == null) {
+          throw const ApiException('Photo must be a JPEG, PNG or WebP image');
+        }
+        body = FormData.fromMap({
+          ...request.toJson().map((k, v) => MapEntry(k, v.toString())),
+          'image': await MultipartFile.fromFile(
+            image.path,
+            filename: 'complaint.${mimeType.split('/').last}',
+            contentType: DioMediaType.parse(mimeType),
           ),
-        );
+        });
       }
-
-      final response = await _dio.post('/complains', data: formData);
-      final data = response.data;
-      if (data is Map && data['data'] is Map) {
-        final compJson = data['data']['complain'] ?? data['data'];
-        if (compJson is Map) {
-          return ComplaintResponse.fromJson(Map<String, dynamic>.from(compJson));
-        }
-      }
-      throw ApiException('Unexpected server response format');
+      final response = await _dio.post('/complaints', data: body);
+      return ComplaintResponse.fromJson(_dataMap(response.data));
     } on DioException catch (e) {
-      developer.log(
-        'POST /complains error: ${e.message}',
-        name: 'ComplaintsRepository',
-      );
-      throw ApiException(_message(e), statusCode: e.response?.statusCode);
-    } catch (e) {
-      developer.log(
-        'POST /complains error: $e',
-        name: 'ComplaintsRepository',
-      );
-      throw ApiException('Failed to submit complaint: $e');
+      throw toApiException(e);
     }
   }
 
-  // --- Update Complaint (PATCH /complains/:id) ---
-  Future<ComplaintResponse> updateComplaint(
-    String id,
-    UpdateComplaintRequest request,
-  ) async {
-    try {
-      final response = await _dio.patch(
-        '/complains/$id',
-        data: request.toJson(),
-      );
-      final data = response.data;
-      if (data is Map && data['data'] is Map) {
-        final compJson = data['data']['complain'] ?? data['data'];
-        if (compJson is Map) {
-          return ComplaintResponse.fromJson(Map<String, dynamic>.from(compJson));
-        }
-      }
-      throw ApiException('Unexpected server response format');
-    } on DioException catch (e) {
-      developer.log(
-        'PATCH /complains/$id error: ${e.message}',
-        name: 'ComplaintsRepository',
-      );
-      throw ApiException(_message(e), statusCode: e.response?.statusCode);
-    } catch (e) {
-      developer.log(
-        'PATCH /complains/$id error: $e',
-        name: 'ComplaintsRepository',
-      );
-      throw ApiException('Failed to update complaint: $e');
-    }
-  }
-
-  // --- Solve Complaint (PATCH /complains/:id/solve) ---
-  Future<ComplaintResponse> solveComplaint(String id, String responseText) async {
-    try {
-      final response = await _dio.patch(
-        '/complains/$id/solve',
-        data: {'response': responseText},
-      );
-      final data = response.data;
-      if (data is Map && data['data'] is Map) {
-        final compJson = data['data']['complain'] ?? data['data'];
-        if (compJson is Map) {
-          return ComplaintResponse.fromJson(Map<String, dynamic>.from(compJson));
-        }
-      }
-      return detail(id);
-    } on DioException catch (e) {
-      developer.log(
-        'PATCH /complains/$id/solve error: ${e.message}',
-        name: 'ComplaintsRepository',
-      );
-      return updateComplaint(
-        id,
-        UpdateComplaintRequest(
-          status: ComplaintStatus.resolved,
-          response: responseText,
-        ),
-      );
-    }
-  }
-
-  // --- Student Confirmation / Feedback (POST /complains/:id/feedback) ---
-  Future<void> submitStudentFeedback(
-    String id, {
-    required bool isResolved,
-    String? feedback,
-    int? rating,
+  /// The signed-in student's complaints, newest first.
+  Future<List<ComplaintResponse>> myComplaints({
+    int limit = pageSize,
+    int offset = 0,
   }) async {
     try {
-      final payload = <String, dynamic>{
-        'is_resolved': isResolved,
-      };
-      if (feedback != null && feedback.isNotEmpty) {
-        payload['feedback'] = feedback;
-      }
-      if (rating != null) {
-        payload['rating'] = rating;
-      }
-      await _dio.post(
-        '/complains/$id/feedback',
-        data: payload,
+      final response = await _dio.get(
+        '/complaints/my',
+        queryParameters: {'limit': limit, 'offset': offset},
       );
+      return _dataList(response.data).map(ComplaintResponse.fromJson).toList();
     } on DioException catch (e) {
-      developer.log(
-        'POST /complains/$id/feedback error: ${e.message}',
-        name: 'ComplaintsRepository',
-      );
-      throw ApiException(_message(e), statusCode: e.response?.statusCode);
+      throw toApiException(e);
     }
   }
 
-  // --- Delete Complaint (DELETE /complains/:id) ---
-  Future<void> deleteComplaint(String id) async {
+  /// Students get only their own (404 otherwise); solvers get any, with
+  /// the `student` field.
+  Future<ComplaintResponse> detail(String id) async {
     try {
-      await _dio.delete('/complains/$id');
+      final response = await _dio.get('/complaints/$id');
+      return ComplaintResponse.fromJson(_dataMap(response.data));
     } on DioException catch (e) {
-      developer.log(
-        'DELETE /complains/$id error: ${e.message}',
-        name: 'ComplaintsRepository',
+      throw toApiException(e);
+    }
+  }
+
+  /// Solver queue. Every filter is optional; [roomId] is an exact match.
+  Future<List<ComplaintResponse>> adminComplaints({
+    ComplaintStatus? status,
+    int? categoryId,
+    String? roomId,
+    int? studentId,
+    int limit = pageSize,
+    int offset = 0,
+  }) async {
+    try {
+      final response = await _dio.get(
+        '/admin/complaints',
+        queryParameters: {
+          if (status != null) 'status': status.apiValue,
+          'categoryId': ?categoryId,
+          if (roomId != null && roomId.trim().isNotEmpty) 'room_id': roomId.trim(),
+          'studentId': ?studentId,
+          'limit': limit,
+          'offset': offset,
+        },
       );
-      throw ApiException(_message(e), statusCode: e.response?.statusCode);
+      return _dataList(response.data).map(ComplaintResponse.fromJson).toList();
+    } on DioException catch (e) {
+      throw toApiException(e);
     }
   }
 
-  // --- Backward compatibility helpers ---
-  Future<ComplaintResponse> updateStatus(String id, ComplaintStatus status) {
-    return updateComplaint(id, UpdateComplaintRequest(status: status));
-  }
-
-  Future<ComplaintResponse> addFeedback(String id, String feedback) {
-    return solveComplaint(id, feedback);
-  }
-
-  List<ComplaintResponse> _extractComplaintList(dynamic body) {
-    if (body is! Map) return const [];
-    final data = body['data'];
-    List? rawList;
-    if (data is Map && data['complains'] is List) {
-      rawList = data['complains'] as List;
-    } else if (body['complains'] is List) {
-      rawList = body['complains'] as List;
-    } else if (data is List) {
-      rawList = data;
+  /// Any status may move to any other. Returns the updated complaint.
+  Future<ComplaintResponse> updateStatus(String id, ComplaintStatus status) async {
+    try {
+      final response = await _dio.patch(
+        '/admin/complaints/$id/status',
+        data: {'status': status.apiValue},
+      );
+      return ComplaintResponse.fromJson(_dataMap(response.data));
+    } on DioException catch (e) {
+      throw toApiException(e);
     }
-    if (rawList == null) return const [];
+  }
 
-    return rawList
-        .whereType<Map>()
-        .map((j) => ComplaintResponse.fromJson(Map<String, dynamic>.from(j)))
-        .toList();
+  Future<List<int>> _header(File file) async {
+    final raf = await file.open();
+    try {
+      return await raf.read(16);
+    } finally {
+      await raf.close();
+    }
+  }
+
+  Iterable<Map<String, dynamic>> _dataList(dynamic body) {
+    final data = body is Map ? body['data'] : null;
+    if (data is! List) return const [];
+    return data.whereType<Map>().map((e) => Map<String, dynamic>.from(e));
+  }
+
+  Map<String, dynamic> _dataMap(dynamic body) {
+    final data = body is Map ? body['data'] : null;
+    if (data is! Map) throw const ApiException('Unexpected server response');
+    return Map<String, dynamic>.from(data);
   }
 }

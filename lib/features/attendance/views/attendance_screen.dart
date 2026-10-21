@@ -14,6 +14,7 @@ import '../../shared/widgets/app_refresh_indicator.dart';
 import '../../shared/widgets/async_state_view.dart';
 import '../../shared/widgets/gradient_header.dart';
 import '../../shared/widgets/namedrop_attendance_overlay.dart';
+import '../../shared/widgets/radar_animation.dart';
 import '../../shared/widgets/skeleton_loader.dart';
 import '../controllers/attendance_controller.dart';
 
@@ -111,6 +112,37 @@ class _AttendanceScreenState extends State<AttendanceScreen>
         // Overnight window crossing past midnight (e.g. 23:00 to 02:00)
         return curMins >= startMins || curMins <= endMins;
       }
+    } catch (_) {
+      return false;
+    }
+  }
+
+  bool _isSessionFuture(String startTime, String endTime) {
+    try {
+      if (startTime == '00:00' && endTime == '00:00') return false;
+      final now = DateTime.now();
+      final curMins = now.hour * 60 + now.minute;
+      final startParts = startTime
+          .split(':')
+          .map((e) => int.parse(e.trim()))
+          .toList();
+      final endParts = endTime
+          .split(':')
+          .map((e) => int.parse(e.trim()))
+          .toList();
+      if (startParts.length < 2 || endParts.length < 2) return false;
+
+      final startMins = startParts[0] * 60 + startParts[1];
+      int endMins = endParts[0] * 60 + endParts[1];
+      if (endMins == 0 && startMins > 0) {
+        endMins = 1440;
+      }
+      if (startMins == endMins) return false;
+
+      if (startMins > curMins) {
+        return true;
+      }
+      return false;
     } catch (_) {
       return false;
     }
@@ -420,10 +452,125 @@ class _AttendanceScreenState extends State<AttendanceScreen>
     );
   }
 
+  void _showScanningDialog({
+    required BuildContext context,
+    required String sessionName,
+    required String floorName,
+  }) {
+    showGeneralDialog(
+      context: context,
+      barrierDismissible: false,
+      barrierLabel: 'Scanning',
+      barrierColor: Colors.black.withValues(alpha: 0.50),
+      transitionDuration: const Duration(milliseconds: 250),
+      pageBuilder: (ctx, anim1, anim2) {
+        return PopScope(
+          canPop: false,
+          child: Dialog(
+            backgroundColor: Colors.transparent,
+            elevation: 0,
+            insetPadding: const EdgeInsets.symmetric(horizontal: 24),
+            child: Container(
+              padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 28),
+              decoration: BoxDecoration(
+                color: Colors.white,
+                borderRadius: BorderRadius.circular(AppDimens.radiusXl),
+                border: Border.all(color: AppColors.borderLight),
+                boxShadow: [
+                  BoxShadow(
+                    color: AppColors.shadow.withValues(alpha: 0.16),
+                    blurRadius: 28,
+                    offset: const Offset(0, 10),
+                  ),
+                ],
+              ),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  SizedBox(
+                    width: 120,
+                    height: 120,
+                    child: Center(
+                      child: RadarAnimation(
+                        isScanning: true,
+                        color: AppColors.primary,
+                        child: Container(
+                          width: 58,
+                          height: 58,
+                          decoration: BoxDecoration(
+                            gradient: AppColors.heroGradient,
+                            shape: BoxShape.circle,
+                            boxShadow: [
+                              BoxShadow(
+                                color: AppColors.primary.withValues(alpha: 0.35),
+                                blurRadius: 14,
+                                offset: const Offset(0, 4),
+                              ),
+                            ],
+                          ),
+                          child: const Icon(
+                            Icons.bluetooth_searching_rounded,
+                            color: Colors.white,
+                            size: 28,
+                          ),
+                        ),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 18),
+                  Text(
+                    'Verifying Presence...',
+                    style: AppTextStyles.headline.copyWith(
+                      fontSize: 18,
+                      fontWeight: FontWeight.w800,
+                      color: const Color(0xFF22333C),
+                    ),
+                  ),
+                  const SizedBox(height: 8),
+                  Text(
+                    'Scanning for $floorName beacon for $sessionName.\nPlease make sure you are near your floor device.',
+                    textAlign: TextAlign.center,
+                    style: AppTextStyles.bodyMd.copyWith(
+                      color: AppColors.textSecondary,
+                      height: 1.45,
+                      fontSize: 13.5,
+                    ),
+                  ),
+                  const SizedBox(height: 20),
+                  ClipRRect(
+                    borderRadius: BorderRadius.circular(4),
+                    child: const SizedBox(
+                      width: 140,
+                      height: 4,
+                      child: LinearProgressIndicator(
+                        backgroundColor: Color(0xFFE8EEF2),
+                        valueColor: AlwaysStoppedAnimation<Color>(AppColors.primary),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        );
+      },
+      transitionBuilder: (ctx, anim, secondaryAnim, child) {
+        return ScaleTransition(
+          scale: CurvedAnimation(parent: anim, curve: Curves.easeOutBack),
+          child: child,
+        );
+      },
+    );
+  }
+
   Future<void> _performBleScan(
     AttendanceType type, {
+    String? sessionKey,
+    String? sessionName,
     required bool isAttendanceOpen,
   }) async {
+    if (controller.isMarking.value) return;
+
     if (controller.alreadyMarked.value) {
       _showResultDialog(
         title: 'Already Marked',
@@ -447,21 +594,51 @@ class _AttendanceScreenState extends State<AttendanceScreen>
       return;
     }
 
+    final displayName = (sessionName != null && sessionName.isNotEmpty)
+        ? sessionName
+        : type.label;
+    final floorName = controller.assignedFloorName.value.isNotEmpty
+        ? controller.assignedFloorName.value
+        : 'Floor ${controller.assignedFloorId.value}';
+
+    bool isDialogOpen = false;
+    _showScanningDialog(
+      context: context,
+      sessionName: displayName,
+      floorName: floorName,
+    );
+    isDialogOpen = true;
+
     try {
-      final record = await controller.markWithBle(type);
+      final record = await controller.markWithBle(type, sessionKey: sessionKey);
+
+      if (isDialogOpen && mounted) {
+        if (Navigator.of(context, rootNavigator: true).canPop()) {
+          Navigator.of(context, rootNavigator: true).pop();
+        }
+        isDialogOpen = false;
+      }
+
       if (record != null) {
         if (mounted) {
           NamedropAttendanceOverlay.show(
             context,
             title: 'Attendance Marked!',
-            sessionName: type.label,
+            sessionName: displayName,
             eventType: type,
             subtitle:
-                'Your attendance for ${type.label} has been recorded successfully.',
+                'Your attendance for $displayName has been recorded successfully.',
           );
         }
       }
     } catch (e) {
+      if (isDialogOpen && mounted) {
+        if (Navigator.of(context, rootNavigator: true).canPop()) {
+          Navigator.of(context, rootNavigator: true).pop();
+        }
+        isDialogOpen = false;
+      }
+
       final err = e.toString().toLowerCase();
       if (err.contains('bluetooth') ||
           err.contains('adapter') ||
@@ -490,7 +667,7 @@ class _AttendanceScreenState extends State<AttendanceScreen>
       final initials = _getInitials(sName);
 
       return SliverGradientHeader(
-        expandedHeight: 185.0,
+        expandedHeight: 154.0,
         overline: DateFormat('EEEE, d MMMM')
             .format(DateTime.now())
             .toUpperCase(),
@@ -585,7 +762,12 @@ class _AttendanceScreenState extends State<AttendanceScreen>
               subtitle: 'Attendance verified for ${item.sessionName}.',
             );
           } else if (isActiveNow) {
-            _performBleScan(item.attendanceType, isAttendanceOpen: true);
+            _performBleScan(
+              item.attendanceType,
+              sessionKey: item.sessionKey,
+              sessionName: item.sessionName,
+              isAttendanceOpen: true,
+            );
           } else if (!item.isScheduledToday) {
             ScaffoldMessenger.of(context).showSnackBar(
               SnackBar(
@@ -730,31 +912,60 @@ class _AttendanceScreenState extends State<AttendanceScreen>
                   ),
                 )
               else if (isActiveNow)
-                Container(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 9,
-                    vertical: 5.5,
-                  ),
-                  decoration: BoxDecoration(
-                    gradient: AppColors.heroGradient,
-                    borderRadius: BorderRadius.circular(16),
-                    boxShadow: [
-                      BoxShadow(
-                        color: AppColors.primary.withValues(alpha: 0.25),
-                        blurRadius: 8,
-                        offset: const Offset(0, 3),
-                      ),
-                    ],
-                  ),
-                  child: Text(
-                    'Open Now',
-                    style: AppTextStyles.caption.copyWith(
-                      color: Colors.white,
-                      fontSize: 12,
-                      fontWeight: FontWeight.w700,
+                Obx(() {
+                  final isThisMarking = controller.isMarking.value &&
+                      controller.markingSessionKey.value ==
+                          item.sessionKey.toLowerCase().trim();
+                  return Container(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 9,
+                      vertical: 5.5,
                     ),
-                  ),
-                )
+                    decoration: BoxDecoration(
+                      gradient: AppColors.heroGradient,
+                      borderRadius: BorderRadius.circular(16),
+                      boxShadow: [
+                        BoxShadow(
+                          color: AppColors.primary.withValues(alpha: 0.25),
+                          blurRadius: 8,
+                          offset: const Offset(0, 3),
+                        ),
+                      ],
+                    ),
+                    child: isThisMarking
+                        ? Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              const SizedBox(
+                                width: 11,
+                                height: 11,
+                                child: CircularProgressIndicator(
+                                  strokeWidth: 2,
+                                  valueColor:
+                                      AlwaysStoppedAnimation<Color>(Colors.white),
+                                ),
+                              ),
+                              const SizedBox(width: 5),
+                              Text(
+                                'Verifying...',
+                                style: AppTextStyles.caption.copyWith(
+                                  color: Colors.white,
+                                  fontSize: 11.5,
+                                  fontWeight: FontWeight.w700,
+                                ),
+                              ),
+                            ],
+                          )
+                        : Text(
+                            'Open Now',
+                            style: AppTextStyles.caption.copyWith(
+                              color: Colors.white,
+                              fontSize: 12,
+                              fontWeight: FontWeight.w700,
+                            ),
+                          ),
+                  );
+                })
               else if (!item.isScheduledToday)
                 Container(
                   padding: const EdgeInsets.symmetric(
@@ -815,7 +1026,7 @@ class _AttendanceScreenState extends State<AttendanceScreen>
             final statusData = controller.studentStatus.value;
 
             // Resolve list of session schedules
-            final schedules = controller.schedulesList.isNotEmpty
+            final allSchedules = controller.schedulesList.isNotEmpty
                 ? controller.schedulesList.toList()
                 : const [
                     AttendanceScheduleItem(
@@ -842,6 +1053,64 @@ class _AttendanceScreenState extends State<AttendanceScreen>
                       endTime: '23:05',
                     ),
                   ];
+
+            bool isScheduleItemMarked(AttendanceScheduleItem item) {
+              if (item.isMarked) return true;
+
+              final key = item.sessionKey.toLowerCase().trim();
+
+              // 1. Check controller's todaySessionStatus for this specific session key
+              final markedTime = controller.todaySessionStatus[key];
+              if (markedTime != null) {
+                try {
+                  final startParts = item.startTime.split(':').map(int.parse).toList();
+                  final startMins = startParts[0] * 60 + startParts[1];
+                  final markedMins = markedTime.hour * 60 + markedTime.minute;
+                  // If marked before this session's start time by more than 10 mins, it was from an earlier session!
+                  if (markedMins < startMins - 10) {
+                    return false;
+                  }
+                } catch (_) {}
+                return true;
+              }
+
+              // 2. Only check enum todayStatus if the sessionKey actually matches an enum value!
+              final isStandardEnum = AttendanceType.values.any((e) => e.name.toLowerCase() == key);
+              if (isStandardEnum) {
+                if (controller.todayStatus[item.attendanceType] != null) {
+                  return true;
+                }
+                if (controller.alreadyMarked.value &&
+                    (statusData?.activeSessionType?.toLowerCase() == key ||
+                     statusData?.activeType == item.attendanceType)) {
+                  return true;
+                }
+              }
+
+              return false;
+            }
+
+            // Filter strictly to upcoming sessions (sessions scheduled today that are open now or scheduled later today, and not already marked)
+            final upcomingSchedules = allSchedules.where((item) {
+              if (!item.isScheduledToday) return false;
+
+              final isMarked = isScheduleItemMarked(item);
+              if (isMarked) return false;
+
+              final isWindowOpen = _isTimingActiveNow(
+                item.startTime,
+                item.endTime,
+              );
+              final isActiveNow = isWindowOpen ||
+                  (controller.attendanceActive.value &&
+                      statusData?.activeSessionType?.toLowerCase() == item.sessionKey);
+              final isFuture = _isSessionFuture(
+                item.startTime,
+                item.endTime,
+              );
+
+              return isActiveNow || isFuture;
+            }).toList();
 
             return AppRefreshIndicator(
               onRefresh: controller.load,
@@ -884,7 +1153,9 @@ class _AttendanceScreenState extends State<AttendanceScreen>
                                 ),
                                 const Spacer(),
                                 Text(
-                                  '${schedules.length} sessions',
+                                  upcomingSchedules.isEmpty
+                                      ? 'All caught up'
+                                      : '${upcomingSchedules.length} ${upcomingSchedules.length == 1 ? "session" : "sessions"}',
                                   style: AppTextStyles.caption.copyWith(
                                     fontSize: 13,
                                     color: const Color(0xFF8C9BA5),
@@ -894,102 +1165,173 @@ class _AttendanceScreenState extends State<AttendanceScreen>
                               ],
                             ),
                           ),
-                          const SizedBox(height: 16),
+                          const SizedBox(height: 14),
 
-                          // 2. Side Timing & Schedule Cards List
+                          // 2. Side Timing & Schedule Cards List or Empty State
                           Padding(
                             padding: const EdgeInsets.symmetric(horizontal: 10),
-                            child: Column(
-                              children: [
-                                for (int i = 0; i < schedules.length; i++) ...[
-                                  Builder(
-                                    builder: (context) {
-                                      final item = schedules[i];
-                                      final type = item.attendanceType;
-                                      final markedTime =
-                                          controller.todayStatus[type];
-                                      final isMarked =
-                                          markedTime != null ||
-                                          (controller.alreadyMarked.value &&
-                                              statusData?.activeType == type);
-                                      final isWindowOpen =
-                                          item.isScheduledToday &&
-                                              _isTimingActiveNow(
-                                                item.startTime,
-                                                item.endTime,
-                                              );
-                                      final isActiveNow = !isMarked &&
-                                          item.isScheduledToday &&
-                                          (isWindowOpen ||
-                                              (controller.attendanceActive.value &&
-                                                  statusData?.activeType == type));
-
-                                      return Padding(
-                                        padding: const EdgeInsets.only(bottom: 12),
-                                        child: IntrinsicHeight(
-                                          child: Row(
-                                            crossAxisAlignment:
-                                                CrossAxisAlignment.stretch,
-                                            children: [
-                                              // Left side timing (horizontal, strictly on one line)
-                                              Padding(
-                                                padding: const EdgeInsets.only(
-                                                  top: 19,
-                                                ),
-                                                child: SizedBox(
-                                                  width: 38,
-                                                  child: Text(
-                                                    item.startTime,
-                                                    maxLines: 1,
-                                                    softWrap: false,
-                                                    textAlign: TextAlign.right,
-                                                    style: AppTextStyles.caption
-                                                        .copyWith(
-                                                          color: const Color(
-                                                            0xFF8C9BA5,
-                                                          ),
-                                                          fontSize: 12,
-                                                          fontWeight:
-                                                              FontWeight.w400,
-                                                          letterSpacing: -0.2,
-                                                        ),
-                                                  ),
-                                                ),
-                                              ),
-                                              const SizedBox(width: 4),
-
-                                              // Vertical connecting line and dot
-                                              CustomPaint(
-                                                painter: _TimelinePainter(
-                                                  isFirst: i == 0,
-                                                  isLast: i == schedules.length - 1,
-                                                  lineColor: const Color(
-                                                    0xFFE5E2DA,
-                                                  ),
-                                                  dotColor: const Color(0xFF376682),
-                                                  dotCenterY: 29,
-                                                ),
-                                                child: const SizedBox(width: 10),
-                                              ),
-                                              const SizedBox(width: 6),
-
-                                              // Schedule Card
-                                              Expanded(
-                                                child: _buildScheduleCard(
-                                                  item: item,
-                                                  isMarked: isMarked,
-                                                  isActiveNow: isActiveNow,
-                                                ),
-                                              ),
-                                            ],
+                            child: upcomingSchedules.isEmpty
+                                ? Container(
+                                    width: double.infinity,
+                                    margin: const EdgeInsets.symmetric(horizontal: 6, vertical: 4),
+                                    padding: const EdgeInsets.symmetric(
+                                      horizontal: 24,
+                                      vertical: 36,
+                                    ),
+                                    decoration: BoxDecoration(
+                                      color: Colors.white,
+                                      borderRadius: BorderRadius.circular(20),
+                                      border: Border.all(
+                                        color: const Color(0xFFF3F1EC),
+                                      ),
+                                      boxShadow: [
+                                        BoxShadow(
+                                          color: Colors.black
+                                              .withValues(alpha: 0.02),
+                                          blurRadius: 10,
+                                          offset: const Offset(0, 3),
+                                        ),
+                                      ],
+                                    ),
+                                    child: Column(
+                                      mainAxisSize: MainAxisSize.min,
+                                      children: [
+                                        Container(
+                                          width: 58,
+                                          height: 58,
+                                          decoration: const BoxDecoration(
+                                            color: Color(0xFFE8F5E9),
+                                            shape: BoxShape.circle,
+                                          ),
+                                          child: const Icon(
+                                            Icons.verified_rounded,
+                                            color: Color(0xFF2E7D32),
+                                            size: 32,
                                           ),
                                         ),
-                                      );
-                                    },
+                                        const SizedBox(height: 14),
+                                        Text(
+                                          'All Caught Up!',
+                                          style: AppTextStyles.headline.copyWith(
+                                            fontSize: 17,
+                                            fontWeight: FontWeight.w700,
+                                            color: const Color(0xFF22333C),
+                                          ),
+                                        ),
+                                        const SizedBox(height: 6),
+                                        Text(
+                                          'No upcoming attendance sessions left for today. Check back tomorrow!',
+                                          textAlign: TextAlign.center,
+                                          style: AppTextStyles.bodySm.copyWith(
+                                            color: const Color(0xFF8C9BA5),
+                                            height: 1.4,
+                                          ),
+                                        ),
+                                      ],
+                                    ),
+                                  )
+                                : Column(
+                                    children: [
+                                      for (int i = 0;
+                                          i < upcomingSchedules.length;
+                                          i++) ...[
+                                        Builder(
+                                          builder: (context) {
+                                            final item = upcomingSchedules[i];
+                                            final isMarked = isScheduleItemMarked(item);
+                                            final isWindowOpen =
+                                                item.isScheduledToday &&
+                                                    _isTimingActiveNow(
+                                                      item.startTime,
+                                                      item.endTime,
+                                                    );
+                                            final isActiveNow = !isMarked &&
+                                                item.isScheduledToday &&
+                                                (isWindowOpen ||
+                                                    (controller
+                                                            .attendanceActive
+                                                            .value &&
+                                                        statusData?.activeSessionType?.toLowerCase() ==
+                                                            item.sessionKey));
+
+                                            return Padding(
+                                              padding: const EdgeInsets.only(
+                                                bottom: 12,
+                                              ),
+                                              child: IntrinsicHeight(
+                                                child: Row(
+                                                  crossAxisAlignment:
+                                                      CrossAxisAlignment.stretch,
+                                                  children: [
+                                                    // Left side timing (horizontal, strictly on one line)
+                                                    Padding(
+                                                      padding:
+                                                          const EdgeInsets.only(
+                                                        top: 19,
+                                                      ),
+                                                      child: SizedBox(
+                                                        width: 38,
+                                                        child: Text(
+                                                          item.startTime,
+                                                          maxLines: 1,
+                                                          softWrap: false,
+                                                          textAlign:
+                                                              TextAlign.right,
+                                                          style: AppTextStyles
+                                                              .caption
+                                                              .copyWith(
+                                                            color: const Color(
+                                                              0xFF8C9BA5,
+                                                            ),
+                                                            fontSize: 12,
+                                                            fontWeight:
+                                                                FontWeight.w400,
+                                                            letterSpacing: -0.2,
+                                                          ),
+                                                        ),
+                                                      ),
+                                                    ),
+                                                    const SizedBox(width: 4),
+
+                                                    // Vertical connecting line and dot
+                                                    CustomPaint(
+                                                      painter: _TimelinePainter(
+                                                        isFirst: i == 0,
+                                                        isLast: i ==
+                                                            upcomingSchedules
+                                                                    .length -
+                                                                1,
+                                                        lineColor: const Color(
+                                                          0xFFE5E2DA,
+                                                        ),
+                                                        dotColor: const Color(
+                                                          0xFF376682,
+                                                        ),
+                                                        dotCenterY: 29,
+                                                      ),
+                                                      child: const SizedBox(
+                                                        width: 10,
+                                                      ),
+                                                    ),
+                                                    const SizedBox(width: 6),
+
+                                                    // Schedule Card
+                                                    Expanded(
+                                                      child: _buildScheduleCard(
+                                                        item: item,
+                                                        isMarked: isMarked,
+                                                        isActiveNow: isActiveNow,
+                                                      ),
+                                                    ),
+                                                  ],
+                                                ),
+                                              ),
+                                            );
+                                          },
+                                        ),
+                                      ],
+                                    ],
                                   ),
-                                ],
-                              ],
-                            ),
                           ),
                           const SizedBox(height: 36),
                         ],
@@ -1024,7 +1366,7 @@ class _AttendanceSkeleton extends StatelessWidget {
             letterSpacing: -0.2,
           ),
           subtitle: 'Daily routine & verification',
-          expandedHeight: 145.0,
+          expandedHeight: 154.0,
           actions: [
             HeaderIconButton(
               icon: Icons.refresh_rounded,
@@ -1207,13 +1549,14 @@ class _TimelinePainter extends CustomPainter {
       ..strokeWidth = 1.5
       ..style = PaintingStyle.stroke;
 
-    // Draw line above dot (short top line for first item, full top for others)
-    final topY = isFirst ? 10.0 : 0.0;
-    canvas.drawLine(
-      Offset(centerX, topY),
-      Offset(centerX, dotCenterY),
-      linePaint,
-    );
+    // Draw line above dot (only if not first item)
+    if (!isFirst) {
+      canvas.drawLine(
+        Offset(centerX, 0.0),
+        Offset(centerX, dotCenterY),
+        linePaint,
+      );
+    }
 
     // Draw line from dot to bottom (if not last)
     if (!isLast) {

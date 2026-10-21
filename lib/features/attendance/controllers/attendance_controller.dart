@@ -225,7 +225,9 @@ class AttendanceController extends GetxController with LoadStateMixin {
         final localMarkedTime = await store.getMarkedSessionTime(key);
         if (localMarkedTime != null) {
           todaySessionStatus[key] = localMarkedTime;
-          todayStatus[s.attendanceType] = localMarkedTime;
+          if (AttendanceType.values.any((e) => e.name.toLowerCase() == key)) {
+            todayStatus[s.attendanceType] = localMarkedTime;
+          }
         }
       }
 
@@ -239,7 +241,9 @@ class AttendanceController extends GetxController with LoadStateMixin {
         for (final log in logs) {
           final sKey = log.sessionKey.toLowerCase().trim();
           todaySessionStatus[sKey] = log.time;
-          todayStatus[log.type] = log.time;
+          if (AttendanceType.values.any((e) => e.name.toLowerCase() == sKey)) {
+            todayStatus[log.type] = log.time;
+          }
         }
       } catch (_) {}
 
@@ -248,6 +252,9 @@ class AttendanceController extends GetxController with LoadStateMixin {
         final activeKey = sStatus.activeSessionType!.toLowerCase().trim();
         if (todaySessionStatus[activeKey] == null) {
           todaySessionStatus[activeKey] = DateTime.now();
+        }
+        if (sStatus.activeType != null && AttendanceType.values.any((e) => e.name.toLowerCase() == activeKey)) {
+          todayStatus[sStatus.activeType!] = DateTime.now();
         }
       }
 

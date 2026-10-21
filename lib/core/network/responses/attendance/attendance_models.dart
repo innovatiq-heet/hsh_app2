@@ -8,6 +8,7 @@ class AttendanceRecord {
   final DateTime date;
   final DateTime time;
   final AttendanceType type;
+  final String? rawSessionKey;
   final bool viaCode;
   final String? ip;
 
@@ -17,6 +18,7 @@ class AttendanceRecord {
     required this.date,
     required this.time,
     required this.type,
+    this.rawSessionKey,
     required this.viaCode,
     this.ip,
   });
@@ -25,7 +27,9 @@ class AttendanceRecord {
   DateTime get markedAt => time;
 
   /// Getter for session key from attendance type.
-  String get sessionKey => type.apiValue;
+  String get sessionKey => (rawSessionKey != null && rawSessionKey!.isNotEmpty)
+      ? rawSessionKey!
+      : type.apiValue;
 
   factory AttendanceRecord.fromJson(Map<String, dynamic> json) {
     DateTime parseDate(dynamic v) {
@@ -62,6 +66,7 @@ class AttendanceRecord {
       date: dateVal,
       time: timeVal,
       type: AttendanceTypeX.fromApi(rawType),
+      rawSessionKey: rawType.toLowerCase().trim(),
       viaCode: json['viaCode'] == true,
       ip: json['ip']?.toString(),
     );
@@ -73,6 +78,7 @@ class AttendanceRecord {
     'date': date.toIso8601String(),
     'time': time.toIso8601String(),
     'type': type.apiValue,
+    'session_key': sessionKey,
     'viaCode': viaCode,
     if (ip != null) 'ip': ip,
   };
@@ -90,6 +96,7 @@ class AttendanceScheduleItem {
   final bool isForAllStudents;
   final bool isActive;
   final bool isScheduledToday;
+  final bool isMarked;
 
   const AttendanceScheduleItem({
     this.id,
@@ -102,6 +109,7 @@ class AttendanceScheduleItem {
     this.isForAllStudents = true,
     this.isActive = true,
     this.isScheduledToday = true,
+    this.isMarked = false,
   });
 
   AttendanceType get attendanceType => AttendanceTypeX.fromApi(sessionKey);
@@ -184,6 +192,7 @@ class AttendanceScheduleItem {
       isForAllStudents: json['is_for_all_students'] as bool? ?? true,
       isActive: json['is_active'] as bool? ?? true,
       isScheduledToday: isScheduledToday,
+      isMarked: json['is_marked'] == true || json['is_present'] == true,
     );
   }
 

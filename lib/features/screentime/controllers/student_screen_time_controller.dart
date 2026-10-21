@@ -1186,6 +1186,7 @@ class StudentScreenTimeController extends GetxController with WidgetsBindingObse
   /// Total student count reported by server or current directory.
   final RxInt totalStudentsCount = 0.obs;
   bool _isFetchingRemainingStudents = false;
+  int _serverLoadedCount = 0;
 
   /// Cache of base directory loaded without a search query,
   /// so clearing search restores the whole directory without an extra network roundtrip.
@@ -1385,6 +1386,113 @@ class StudentScreenTimeController extends GetxController with WidgetsBindingObse
     }
   }
 
+  static String _normalizeRoomNumber(dynamic room) {
+    if (room == null) return '';
+    var r = room.toString().trim().toLowerCase();
+    r = r.replaceAll(RegExp(r'^(room|rm|r)\s*[-:]*\s*', caseSensitive: false), '');
+    return r.trim();
+  }
+
+  static String _normalizeStudentName(dynamic name) {
+    if (name == null) return '';
+    return name.toString().trim().toLowerCase().replaceAll(RegExp(r'\s+'), ' ');
+  }
+
+  void _mergeServerStudents(List<dynamic> loaded, {bool isRefresh = false}) {
+    if (isRefresh) {
+      allStudents.clear();
+      final seenIds = <String>{};
+      final seenKeys = <String>{};
+      for (final s in loaded) {
+        if (s is! Map) continue;
+        final idStr = s['id']?.toString().trim() ?? '';
+        final name = _normalizeStudentName(s['name'] ?? s['fullName']);
+        final room = _normalizeRoomNumber(s['room'] ?? s['room_number'] ?? s['roomNumber']);
+        final key = (name.isNotEmpty && room.isNotEmpty) ? '$room::$name' : name;
+
+        if (idStr.isNotEmpty && seenIds.contains(idStr)) continue;
+        if (key.isNotEmpty && seenKeys.contains(key)) continue;
+
+        if (idStr.isNotEmpty) seenIds.add(idStr);
+        if (key.isNotEmpty) seenKeys.add(key);
+        allStudents.add(Map<String, dynamic>.from(s));
+      }
+      return;
+    }
+
+    for (final s in loaded) {
+      if (s is! Map) continue;
+      final idStr = s['id']?.toString().trim() ?? '';
+      final name = _normalizeStudentName(s['name'] ?? s['fullName']);
+      final room = _normalizeRoomNumber(s['room'] ?? s['room_number'] ?? s['roomNumber']);
+      final key = (name.isNotEmpty && room.isNotEmpty) ? '$room::$name' : name;
+      final rawPhone = (s['phone'] ?? s['phoneNumber'] ?? s['phone_number'] ?? '')
+          .toString()
+          .replaceAll(RegExp(r'\D'), '');
+      final phone = rawPhone.length >= 10 ? rawPhone.substring(rawPhone.length - 10) : '';
+
+      int existingIndex = -1;
+      for (int i = 0; i < allStudents.length; i++) {
+        final existing = allStudents[i];
+        if (existing is! Map) continue;
+        final existingId = existing['id']?.toString().trim() ?? '';
+        if (idStr.isNotEmpty && existingId.isNotEmpty && existingId == idStr) {
+          existingIndex = i;
+          break;
+        }
+
+        final existingName = _normalizeStudentName(existing['name'] ?? existing['fullName']);
+        final existingRoom = _normalizeRoomNumber(existing['room'] ?? existing['room_number'] ?? existing['roomNumber']);
+
+        if (existingName.isNotEmpty && existingName == name) {
+          if (room.isEmpty || existingRoom.isEmpty || room == existingRoom) {
+            existingIndex = i;
+            break;
+          }
+        }
+
+        if (phone.isNotEmpty) {
+          final existingRawPhone = (existing['phone'] ?? existing['phoneNumber'] ?? existing['phone_number'] ?? '')
+              .toString()
+              .replaceAll(RegExp(r'\D'), '');
+          final existingPhone =
+              existingRawPhone.length >= 10 ? existingRawPhone.substring(existingRawPhone.length - 10) : '';
+          if (existingPhone.isNotEmpty && existingPhone == phone) {
+            existingIndex = i;
+            break;
+          }
+        }
+
+        final sAadhar = (s['aadhar'] ?? s['student_code'] ?? '').toString().replaceAll(RegExp(r'\D'), '');
+        final existingAadhar = (existing['aadhar'] ?? existing['student_code'] ?? '').toString().replaceAll(RegExp(r'\D'), '');
+        if (sAadhar.length >= 8 && existingAadhar.length >= 8 && sAadhar == existingAadhar) {
+          existingIndex = i;
+          break;
+        }
+
+        final sBank = (s['bankCode'] ?? s['bank_code'] ?? '').toString().trim().toLowerCase();
+        final existingBank = (existing['bankCode'] ?? existing['bank_code'] ?? '').toString().trim().toLowerCase();
+        if (sBank.isNotEmpty && existingBank.isNotEmpty && sBank == existingBank) {
+          existingIndex = i;
+          break;
+        }
+      }
+
+      if (existingIndex >= 0) {
+        final existing = allStudents[existingIndex];
+        final merged = Map<String, dynamic>.from(existing is Map ? existing : {});
+        for (final entry in s.entries) {
+          if (entry.value != null && entry.value.toString().isNotEmpty) {
+            merged[entry.key.toString()] = entry.value;
+          }
+        }
+        allStudents[existingIndex] = merged;
+      } else {
+        allStudents.add(Map<String, dynamic>.from(s));
+      }
+    }
+  }
+
   /// Leader/Staff fetches directory of all students with today screen time overview from real API.
   Future<void> fetchStudentsList(
       {String? search, bool silent = false, bool refresh = true}) async {
@@ -1394,6 +1502,7 @@ class StudentScreenTimeController extends GetxController with WidgetsBindingObse
     }
     if (!silent) isLoadingStudents.value = true;
     if (refresh) {
+      _serverLoadedCount = 0;
       hasMoreStudents.value = true;
       visibleStudentCount.value = uiBatchSize;
     }
@@ -1401,7 +1510,7 @@ class StudentScreenTimeController extends GetxController with WidgetsBindingObse
     try {
       final baseParams = <String, dynamic>{
         'limit': pageSize,
-        'offset': refresh ? 0 : allStudents.length,
+        'offset': refresh ? 0 : _serverLoadedCount,
         if (query.isNotEmpty) 'search': query,
       };
 
@@ -1432,6 +1541,8 @@ class StudentScreenTimeController extends GetxController with WidgetsBindingObse
         );
       }
 
+      _serverLoadedCount += loaded.length;
+
       if (loaded.isNotEmpty || (data is Map &&
           (data.containsKey('students') || data.containsKey('data')))) {
         if (query.isEmpty) {
@@ -1445,42 +1556,26 @@ class StudentScreenTimeController extends GetxController with WidgetsBindingObse
         if (loaded.isEmpty) {
           hasMoreStudents.value = false;
         } else if (serverTotal > 0) {
-          hasMoreStudents.value = (allStudents.length + loaded.length) < serverTotal;
+          hasMoreStudents.value = _serverLoadedCount < serverTotal;
         } else {
           hasMoreStudents.value = loaded.length >= pageSize;
         }
 
-        if (refresh) {
-          if (query.isEmpty) {
-            _baseStudents
-              ..clear()
-              ..addAll(loaded);
-          }
-          allStudents.assignAll(loaded);
-        } else {
-          final existingIds = allStudents
-              .map((s) => s['id']?.toString())
-              .toSet();
-          for (final s in loaded) {
-            final idStr = s['id']?.toString();
-            if (idStr != null && !existingIds.contains(idStr)) {
-              allStudents.add(s);
-              existingIds.add(idStr);
-            }
-          }
-          if (query.isEmpty) {
-            _baseStudents
-              ..clear()
-              ..addAll(allStudents);
-          }
+        _mergeServerStudents(loaded, isRefresh: refresh);
+
+        if (query.isEmpty) {
+          _baseStudents
+            ..clear()
+            ..addAll(allStudents);
         }
+
         filterStudents(searchFilterController.text);
 
         // Fetch remaining student pages in background if more records exist beyond the first page
         if (query.isEmpty &&
             (hasMoreStudents.value ||
                 (totalStudentsCount.value > 0 &&
-                    allStudents.length < totalStudentsCount.value))) {
+                    _serverLoadedCount < totalStudentsCount.value))) {
           _fetchAllRemainingStudentsInBackground();
         }
       }
@@ -1532,21 +1627,28 @@ class StudentScreenTimeController extends GetxController with WidgetsBindingObse
   }
 
   void _integratePhonebookStudents(List<PhonebookStudent> pbStudents) {
-    final existingRoomsAndNames = <String>{};
+    final existingKeys = <String>{};
     final existingPhones = <String>{};
     final existingAadhars = <String>{};
     final existingBankCodes = <String>{};
 
     for (final s in allStudents) {
       if (s is! Map) continue;
-      final room = (s['room'] ?? s['room_number'] ?? s['roomNumber'] ?? '').toString().trim().toLowerCase();
-      final name = (s['name'] ?? s['fullName'] ?? '').toString().trim().toLowerCase();
-      final rawPhone = (s['phone'] ?? s['phoneNumber'] ?? s['phone_number'] ?? '').toString().replaceAll(RegExp(r'\D'), '');
-      final aadhar = (s['aadhar'] ?? s['student_code'] ?? '').toString().replaceAll(RegExp(r'\D'), '');
+      final room = _normalizeRoomNumber(s['room'] ?? s['room_number'] ?? s['roomNumber']);
+      final name = _normalizeStudentName(s['name'] ?? s['fullName']);
+      final rawPhone = (s['phone'] ?? s['phoneNumber'] ?? s['phone_number'] ?? '')
+          .toString()
+          .replaceAll(RegExp(r'\D'), '');
+      final aadhar = (s['aadhar'] ?? s['student_code'] ?? '')
+          .toString()
+          .replaceAll(RegExp(r'\D'), '');
       final bankCode = (s['bankCode'] ?? s['bank_code'] ?? '').toString().trim().toLowerCase();
 
-      if (room.isNotEmpty && name.isNotEmpty) {
-        existingRoomsAndNames.add('$room::$name');
+      if (name.isNotEmpty && room.isNotEmpty) {
+        existingKeys.add('$room::$name');
+      }
+      if (name.isNotEmpty) {
+        existingKeys.add(name);
       }
       if (rawPhone.length >= 10) {
         existingPhones.add(rawPhone.substring(rawPhone.length - 10));
@@ -1560,27 +1662,43 @@ class StudentScreenTimeController extends GetxController with WidgetsBindingObse
     }
 
     final toAdd = <Map<String, dynamic>>[];
+    final addedKeysInThisBatch = <String>{};
 
     for (final ps in pbStudents) {
       if (!hasValidRoom({'room': ps.room})) continue;
 
-      final pRoom = (ps.room ?? '').trim().toLowerCase();
-      final pName = ps.name.trim().toLowerCase();
+      final pRoom = _normalizeRoomNumber(ps.room);
+      final pName = _normalizeStudentName(ps.name);
       final pPhone = (ps.phones.isNotEmpty ? ps.phones.first.phone : '')
           .replaceAll(RegExp(r'\D'), '');
       final pAadhar = (ps.aadhar ?? '').replaceAll(RegExp(r'\D'), '');
       final pBank = (ps.bankCode ?? '').trim().toLowerCase();
 
       final roomAndNameKey = '$pRoom::$pName';
-      final hasMatchingRoomAndName = existingRoomsAndNames.contains(roomAndNameKey);
+      final hasMatchingRoomAndName =
+          existingKeys.contains(roomAndNameKey) || addedKeysInThisBatch.contains(roomAndNameKey);
+      final hasMatchingName =
+          existingKeys.contains(pName) || addedKeysInThisBatch.contains(pName);
       final hasMatchingPhone = pPhone.length >= 10 &&
           existingPhones.contains(pPhone.substring(pPhone.length - 10));
-      final hasMatchingAadhar = pAadhar.length >= 8 && existingAadhars.contains(pAadhar);
-      final hasMatchingBank = pBank.isNotEmpty && existingBankCodes.contains(pBank);
+      final hasMatchingAadhar =
+          pAadhar.length >= 8 && existingAadhars.contains(pAadhar);
+      final hasMatchingBank =
+          pBank.isNotEmpty && existingBankCodes.contains(pBank);
 
-      if (hasMatchingRoomAndName || hasMatchingPhone || hasMatchingAadhar || hasMatchingBank) {
+      if (hasMatchingRoomAndName ||
+          hasMatchingName ||
+          hasMatchingPhone ||
+          hasMatchingAadhar ||
+          hasMatchingBank) {
         continue;
       }
+
+      addedKeysInThisBatch.add(roomAndNameKey);
+      addedKeysInThisBatch.add(pName);
+      if (pPhone.length >= 10) existingPhones.add(pPhone.substring(pPhone.length - 10));
+      if (pAadhar.length >= 8) existingAadhars.add(pAadhar);
+      if (pBank.isNotEmpty) existingBankCodes.add(pBank);
 
       toAdd.add({
         'id': '',
@@ -1600,11 +1718,6 @@ class StudentScreenTimeController extends GetxController with WidgetsBindingObse
         'status': 'Offline',
         'isDeviceEnrolled': false,
       });
-
-      existingRoomsAndNames.add(roomAndNameKey);
-      if (pPhone.length >= 10) existingPhones.add(pPhone.substring(pPhone.length - 10));
-      if (pAadhar.length >= 8) existingAadhars.add(pAadhar);
-      if (pBank.isNotEmpty) existingBankCodes.add(pBank);
     }
 
     if (toAdd.isNotEmpty) {
@@ -1623,10 +1736,10 @@ class StudentScreenTimeController extends GetxController with WidgetsBindingObse
     if (_isFetchingRemainingStudents) return;
     _isFetchingRemainingStudents = true;
     try {
-      while (allStudents.length < (totalStudentsCount.value > 0 ? totalStudentsCount.value : 5000)) {
+      while (_serverLoadedCount < (totalStudentsCount.value > 0 ? totalStudentsCount.value : 5000)) {
         final baseParams = <String, dynamic>{
           'limit': pageSize,
-          'offset': allStudents.length,
+          'offset': _serverLoadedCount,
         };
         final response = await _apiClient.dio.get(
           '/screen-time/students',
@@ -1659,25 +1772,19 @@ class StudentScreenTimeController extends GetxController with WidgetsBindingObse
           hasMoreStudents.value = false;
           break;
         }
-        final existingIds = allStudents.map((s) => s['id']?.toString()).toSet();
-        int added = 0;
-        for (final s in loaded) {
-          final idStr = s['id']?.toString();
-          if (idStr != null && !existingIds.contains(idStr)) {
-            allStudents.add(s);
-            existingIds.add(idStr);
-            added++;
-          }
-        }
+
+        _serverLoadedCount += loaded.length;
+        _mergeServerStudents(loaded, isRefresh: false);
+
         if (searchFilterController.text.trim().isEmpty) {
           _baseStudents
             ..clear()
             ..addAll(allStudents);
         }
         filterStudents(searchFilterController.text);
-        if (added == 0 ||
-            (serverTotal > 0 && allStudents.length >= serverTotal) ||
-            (totalStudentsCount.value > 0 && allStudents.length >= totalStudentsCount.value)) {
+        if (loaded.isEmpty ||
+            (serverTotal > 0 && _serverLoadedCount >= serverTotal) ||
+            (totalStudentsCount.value > 0 && _serverLoadedCount >= totalStudentsCount.value)) {
           hasMoreStudents.value = false;
           break;
         }
@@ -1713,7 +1820,7 @@ class StudentScreenTimeController extends GetxController with WidgetsBindingObse
       final query = searchFilterController.text.trim();
       final baseParams = <String, dynamic>{
         'limit': pageSize,
-        'offset': allStudents.length,
+        'offset': _serverLoadedCount,
         if (query.isNotEmpty) 'search': query,
       };
 
@@ -1745,26 +1852,19 @@ class StudentScreenTimeController extends GetxController with WidgetsBindingObse
         totalStudentsCount.value = serverTotal;
       }
 
+      _serverLoadedCount += loaded.length;
+
       if (loaded.isNotEmpty || (data is Map &&
           (data.containsKey('students') || data.containsKey('data')))) {
         if (loaded.isEmpty) {
           hasMoreStudents.value = false;
         } else if (serverTotal > 0) {
-          hasMoreStudents.value = (allStudents.length + loaded.length) < serverTotal;
+          hasMoreStudents.value = _serverLoadedCount < serverTotal;
         } else {
           hasMoreStudents.value = loaded.length >= pageSize;
         }
         if (loaded.isNotEmpty) {
-          final existingIds = allStudents
-              .map((s) => s['id']?.toString())
-              .toSet();
-          for (final s in loaded) {
-            final idStr = s['id']?.toString();
-            if (idStr != null && !existingIds.contains(idStr)) {
-              allStudents.add(s);
-              existingIds.add(idStr);
-            }
-          }
+          _mergeServerStudents(loaded, isRefresh: false);
           if (query.isEmpty) {
             _baseStudents
               ..clear()
@@ -1880,7 +1980,27 @@ class StudentScreenTimeController extends GetxController with WidgetsBindingObse
       final nameB = (b['name'] ?? b['fullName'] ?? '').toString();
       return nameA.compareTo(nameB);
     });
-    filteredStudents.assignAll(matched);
+
+    final seen = <String>{};
+    final seenIds = <String>{};
+    final deduplicated = <dynamic>[];
+
+    for (final s in matched) {
+      if (s is! Map) continue;
+      final id = s['id']?.toString().trim() ?? '';
+      final name = _normalizeStudentName(s['name'] ?? s['fullName']);
+      final room = _normalizeRoomNumber(s['room'] ?? s['room_number'] ?? s['roomNumber']);
+      final key = room.isNotEmpty && name.isNotEmpty ? '$room::$name' : name;
+
+      if (id.isNotEmpty && seenIds.contains(id)) continue;
+      if (key.isNotEmpty && seen.contains(key)) continue;
+
+      if (id.isNotEmpty) seenIds.add(id);
+      if (key.isNotEmpty) seen.add(key);
+      deduplicated.add(s);
+    }
+
+    filteredStudents.assignAll(deduplicated);
   }
 
   /// Select a student from list to inspect detailed screen time from real API

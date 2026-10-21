@@ -1,4 +1,4 @@
-﻿import 'package:intl/intl.dart';
+import 'package:intl/intl.dart';
 import '../../../enums/attendance_type.dart';
 
 /// Student self-attendance request.
@@ -25,6 +25,7 @@ class MarkAttendanceRequest {
 
   Map<String, dynamic> toJson() => {
     'type': type.apiValue,
+    'session_key': sessionKey ?? type.apiValue,
     'session_type': sessionKey ?? type.apiValue,
     if (qrToken != null && qrToken!.isNotEmpty) 'qrToken': qrToken,
     if (rssi != null) 'rssi': rssi,

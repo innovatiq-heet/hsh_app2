@@ -49,9 +49,9 @@ class AttendanceController extends GetxController with LoadStateMixin {
   final studentDetails = Rxn<StudentProfileModel>();
   final studentId = RxnInt();
   final isDetailsLoading = false.obs;
-  final assignedFloorId = 0.obs;
-  final assignedFloorName = 'Ground Floor'.obs;
-  final currentFloorServiceUuid = 'FLR0-QFPH-HEYE'.obs;
+  final assignedFloorId = 9.obs;
+  final assignedFloorName = 'Floor 9'.obs;
+  final currentFloorServiceUuid = 'FLR9-64QN-XHW5'.obs;
 
   // Student identity details for Attendance Screen header
   final studentName = 'Harshil Vijaybhai Patel'.obs;
@@ -318,8 +318,9 @@ class AttendanceController extends GetxController with LoadStateMixin {
             studentGroup.value = p.groupName.trim();
           }
           if (p.room.trim().isNotEmpty) {
-            studentRoom.value =
-                p.room.startsWith('Room') ? p.room : 'Room ${p.room}';
+            studentRoom.value = p.room.startsWith('Room')
+                ? p.room
+                : 'Room ${p.room}';
             assignedRoom.value = studentRoom.value;
             final digits = p.room.replaceAll(RegExp(r'[^0-9]'), '');
             if (digits.isNotEmpty) {
@@ -619,6 +620,11 @@ class AttendanceController extends GetxController with LoadStateMixin {
               tokenUpper == 'GLOBAL' ||
               tokenUpper == 'GLOBAL_ALL_FLOORS' ||
               tokenUpper == 'HAMS_GLOBAL' ||
+              tokenUpper == 'ACTIVE_ROOM_TOKEN' ||
+              tokenUpper == 'ACTIVE_FLOOR_TOKEN' ||
+              tokenUpper == 'ROOM_TOKEN' ||
+              tokenUpper.contains('ACTIVE_ROOM') ||
+              tokenUpper.contains('ACTIVE_FLOOR') ||
               tokenUpper.startsWith('GLOBAL_');
 
           final isTargetFloor =

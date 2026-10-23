@@ -4,7 +4,7 @@
 class AppStrings {
   AppStrings._();
 
-  static const String appName = 'Hari Saurabh Hostel App';
+  static const String appName = 'HSH Connect';
 
   // Generic
   static const String save = 'Save';

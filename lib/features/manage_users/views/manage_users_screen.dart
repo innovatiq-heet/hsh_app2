@@ -465,7 +465,7 @@ class _StaffUserCard extends GetView<ManageUsersController> {
                 children: [
                   Switch.adaptive(
                     value: user.isActive,
-                    activeColor: const Color(0xFF0369A1),
+                    activeTrackColor: const Color(0xFF0369A1),
                     onChanged:
                         busy ? null : (v) => controller.setActive(user, v),
                   ),

@@ -1,6 +1,6 @@
 {
-    "name": "hsh_app2",
-    "short_name": "hsh_app2",
+    "name": "HSH Connect",
+    "short_name": "HSH Connect",
     "start_url": ".",
     "display": "standalone",
     "background_color": "#FFFFFF",

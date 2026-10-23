@@ -344,7 +344,7 @@ class StudentContactCard extends StatelessWidget {
                             borderColor: const Color(0xFFFDE68A),
                             textColor: const Color(0xFFD97706),
                           ),
-                        if (extraChips != null) ...extraChips!,
+                        ...?extraChips,
                       ],
                     ),
 

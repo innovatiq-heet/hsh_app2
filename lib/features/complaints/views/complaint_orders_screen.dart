@@ -47,7 +47,6 @@ class ComplainOrdersScreen extends GetView<ComplainOrdersController> {
             builder: (context) => Obx(() {
               final list = controller.complaints;
               final status = controller.statusFilter.value;
-              final more = controller.hasMore.value ? '+' : '';
               return AppRefreshIndicator(
                 onRefresh: () => controller.load(showLoading: false),
                 child: CustomScrollView(

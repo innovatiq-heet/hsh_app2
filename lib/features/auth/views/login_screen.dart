@@ -226,33 +226,37 @@ class _FormPanel extends StatelessWidget {
             // const SizedBox(height: 20),
             // const _AlumniPortalCard(),
             const SizedBox(height: 20),
-            Container(
-              padding: const EdgeInsets.all(14),
-              decoration: BoxDecoration(
-                color: AppColors.headerBlue.withValues(alpha: 0.08),
-                borderRadius: BorderRadius.circular(14),
-              ),
-              child: Row(
-                children: [
-                  Icon(
-                    Platform.isIOS ? Icons.login_rounded : Icons.sim_card_outlined,
-                    color: AppColors.headerBlue,
-                    size: 22,
-                  ),
-                  const SizedBox(width: 12),
-                  Expanded(
-                    child: Text(
-                      Platform.isIOS
-                          // ? 'Enter your Student ID, Alumni Code, or mobile number to sign in manually.'
-                          ? 'Enter your Student ID or mobile number to sign in manually.'
-                          : 'Auto-login will automatically authenticate when your registered SIM card is detected.',
-                      style: AppTextStyles.bodySm.copyWith(
-                        color: AppColors.textSecondary,
-                        height: 1.3,
+            InkWell(
+              onTap: Platform.isAndroid ? controller.retryAutoLogin : null,
+              borderRadius: BorderRadius.circular(14),
+              child: Container(
+                padding: const EdgeInsets.all(14),
+                decoration: BoxDecoration(
+                  color: AppColors.headerBlue.withValues(alpha: 0.08),
+                  borderRadius: BorderRadius.circular(14),
+                ),
+                child: Row(
+                  children: [
+                    Icon(
+                      Platform.isIOS ? Icons.login_rounded : Icons.sim_card_outlined,
+                      color: AppColors.headerBlue,
+                      size: 22,
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: Text(
+                        Platform.isIOS
+                            // ? 'Enter your Student ID, Alumni Code, or mobile number to sign in manually.'
+                            ? 'Enter your Student ID or mobile number to sign in manually.'
+                            : 'Auto-login will automatically authenticate when your registered SIM card is detected.',
+                        style: AppTextStyles.bodySm.copyWith(
+                          color: AppColors.textSecondary,
+                          height: 1.3,
+                        ),
                       ),
                     ),
-                  ),
-                ],
+                  ],
+                ),
               ),
             ),
           ],

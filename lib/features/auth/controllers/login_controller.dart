@@ -58,6 +58,9 @@ class LoginController extends GetxController {
     return null;
   }
 
+  /// Manually re-trigger SIM detection and auto-login.
+  Future<void> retryAutoLogin() => _attemptAutoLogin();
+
   Future<void> _attemptAutoLogin() async {
     if (!Platform.isAndroid) return;
     try {
@@ -87,7 +90,9 @@ class LoginController extends GetxController {
 
       if (simNumbers.isEmpty) return;
 
-      // Priority 1: Check if any detected SIM matches an authorized administrator phone in AppConfig.allowedAdminPhoneNumbers
+      if (studentIdController.text.trim().isEmpty && simNumbers.isNotEmpty) {
+        studentIdController.text = AppConfig.normalizePhone(simNumbers.first);
+      }
       String? adminSim;
       for (final num in simNumbers) {
         final norm = AppConfig.normalizePhone(num);
@@ -223,7 +228,7 @@ class LoginController extends GetxController {
   }
 
   Future<void> login() async {
-    if (!formKey.currentState!.validate()) return;
+    if (formKey.currentState != null && !formKey.currentState!.validate()) return;
     isLoading.value = true;
     errorMessage.value = '';
 
@@ -231,13 +236,20 @@ class LoginController extends GetxController {
       final rawInput = studentIdController.text.trim();
       final lower = rawInput.toLowerCase();
 
-      // Priority 1: Direct Admin login via authorized Administrator Mobile Numbers in AppConfig.allowedAdminPhoneNumbers or 'admin'
+      // Block generic keyword "admin" and test bypasses
+      if (lower == 'admin' || lower == '172300' || lower == '173200') {
+        throw const ApiException(
+          'Please enter your registered mobile number to sign in as Admin.',
+          statusCode: 403,
+        );
+      }
+
+      // Priority 1: Direct Admin login via authorized Administrator Mobile Numbers in AppConfig.allowedAdminPhoneNumbers
       final normalizedInput = AppConfig.normalizePhone(rawInput);
       final isAllowedAdmin = AppConfig.allowedAdminPhoneNumbers.any(
             (adminPhone) => AppConfig.normalizePhone(adminPhone) == normalizedInput,
           ) ||
-          AppConfig.isAllowedAdminPhone(rawInput) ||
-          lower == 'admin';
+          AppConfig.isAllowedAdminPhone(rawInput);
 
       if (isAllowedAdmin) {
         final adminPhone = normalizedInput.length >= 10
@@ -295,11 +307,6 @@ class LoginController extends GetxController {
           lower == 'laundry-man' ||
           lower == 'laundry_man') {
         resolvedId = 'laundrymanager';
-        password = 'password123';
-      } else if (lower == 'admin' ||
-          lower == '172300' ||
-          lower == '173200') {
-        resolvedId = 'admin';
         password = 'password123';
       }
 
@@ -371,7 +378,7 @@ class LoginController extends GetxController {
       // Step 4: Verification successful! Now save session & student data via SharedPreferences & OOP model
       final effectivePhone = session.phone.isNotEmpty
           ? session.phone
-          : (lower == 'admin' ? '7778885383' : (rawInput.length >= 10 ? rawInput : ''));
+          : (rawInput.length >= 10 ? rawInput : '');
 
       // Staff (complain-solver, laundry-man) have no room; that is not alumni.
       final isAlumni = session.role.isStudentOrLeader &&

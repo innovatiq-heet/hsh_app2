@@ -76,7 +76,7 @@ class AppRequestsBanner extends GetView<StudentScreenTimeController> {
                 shrinkWrap: true,
                 physics: const NeverScrollableScrollPhysics(),
                 itemCount: requests.length,
-                separatorBuilder: (_, __) => const Divider(height: 16),
+                separatorBuilder: (_, _) => const Divider(height: 16),
                 itemBuilder: (ctx, i) {
                   final req = requests[i];
                   final id = req['id'] as int? ?? 0;

@@ -71,7 +71,7 @@ class CallerIdCard extends GetView<PhonebookController> {
       // Not working yet
       final body = isIOS
           ? (s.iosState == 'disabled'
-              ? 'Turn on "HSH App" under Settings → Phone → Call Blocking & Identification.'
+              ? 'Turn on "HSH Connect" under Settings → Phone → Call Blocking & Identification.'
               : 'Identify incoming calls from students and parents directly on screen.')
           : 'Instant caller ID — identify student name, room or alumni relation before answering.';
 

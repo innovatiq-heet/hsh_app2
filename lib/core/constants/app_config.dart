@@ -49,9 +49,7 @@ class AppConfig {
   /// Checks if a given phone number belongs to an authorized administrator.
   static bool isAllowedAdminPhone(String? phone) {
     if (phone == null || phone.trim().isEmpty) return false;
-    final trimmed = phone.trim().toLowerCase();
-    if (trimmed == 'admin') return true;
-    final norm = normalizePhone(trimmed);
+    final norm = normalizePhone(phone.trim());
     if (norm.isEmpty) return false;
     return allowedAdminPhoneNumbers.any((p) {
       final pNorm = normalizePhone(p);

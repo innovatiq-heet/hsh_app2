@@ -1425,7 +1425,6 @@ class StudentScreenTimeController extends GetxController with WidgetsBindingObse
       final idStr = s['id']?.toString().trim() ?? '';
       final name = _normalizeStudentName(s['name'] ?? s['fullName']);
       final room = _normalizeRoomNumber(s['room'] ?? s['room_number'] ?? s['roomNumber']);
-      final key = (name.isNotEmpty && room.isNotEmpty) ? '$room::$name' : name;
       final rawPhone = (s['phone'] ?? s['phoneNumber'] ?? s['phone_number'] ?? '')
           .toString()
           .replaceAll(RegExp(r'\D'), '');

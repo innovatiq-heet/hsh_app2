@@ -2,7 +2,7 @@ name: hsh_app2
 description: "Hari Saurabh Hostel App"
 publish_to: "none"
 
-version: 1.2.1+14
+version: 1.2.1+15
 
 environment:
   sdk: ^3.11.4
@@ -24,7 +24,7 @@ dependencies:
 
   # Media / scanning
   image_picker: ^1.1.2
-  mobile_scanner: ^5.2.3
+  mobile_scanner: ^7.4.2
   qr_flutter: ^4.1.0
 
   # Notes (local rich text)

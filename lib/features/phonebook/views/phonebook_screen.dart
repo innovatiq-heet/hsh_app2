@@ -12,7 +12,8 @@ import '../widgets/caller_id_card.dart';
 
 /// Modern Campus Directory & Caller ID Console
 class PhonebookScreen extends GetView<PhonebookController> {
-  const PhonebookScreen({super.key});
+  final bool showBackButton;
+  const PhonebookScreen({super.key, this.showBackButton = true});
 
   static Color groupColor(String? group) {
     switch (group?.toLowerCase().trim()) {
@@ -1436,6 +1437,7 @@ class PhonebookScreen extends GetView<PhonebookController> {
                 delegate: _PhonebookHeaderDelegate(
                   controller: controller,
                   topPadding: MediaQuery.of(context).padding.top,
+                  showBackButton: showBackButton,
                 ),
               ),
               SliverToBoxAdapter(
@@ -1926,10 +1928,12 @@ class PhonebookScreen extends GetView<PhonebookController> {
 class _PhonebookHeaderDelegate extends SliverPersistentHeaderDelegate {
   final PhonebookController controller;
   final double topPadding;
+  final bool showBackButton;
 
   _PhonebookHeaderDelegate({
     required this.controller,
     required this.topPadding,
+    this.showBackButton = true,
   });
 
   @override
@@ -1993,7 +1997,7 @@ class _PhonebookHeaderDelegate extends SliverPersistentHeaderDelegate {
               height: 46,
               child: Row(
                 children: [
-                  if (Navigator.canPop(context)) ...[
+                  if (showBackButton && Navigator.canPop(context)) ...[
                     Material(
                       color: Colors.transparent,
                       child: InkWell(

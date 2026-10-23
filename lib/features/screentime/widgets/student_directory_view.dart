@@ -5,7 +5,6 @@ import '../../../core/models/geofence/geofence_policy_model.dart';
 import '../../shared/widgets/app_card.dart';
 import '../../shared/widgets/empty_state.dart';
 import '../../shared/widgets/skeleton_loader.dart';
-import '../../shared/widgets/status_badge.dart';
 import '../controllers/student_screen_time_controller.dart';
 import 'app_brand_icon.dart';
 import 'app_requests_banner.dart';
@@ -28,7 +27,7 @@ class StudentDirectoryView extends GetView<StudentScreenTimeController> {
         _SearchField(),
         const SizedBox(height: AppDimens.gapSm),
         _FilterChips(),
-        const SizedBox(height: AppDimens.gapMd),
+        const SizedBox(height: 8),
         Obx(() {
           if (controller.isLoadingStudents.value && controller.allStudents.isEmpty) {
             return const SkeletonList(
@@ -78,6 +77,7 @@ class StudentDirectoryView extends GetView<StudentScreenTimeController> {
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
               ListView.separated(
+                padding: EdgeInsets.zero,
                 shrinkWrap: true,
                 physics: const NeverScrollableScrollPhysics(),
                 itemCount: displayed.length,
@@ -755,12 +755,12 @@ class _GlobalCurfewBanner extends GetView<StudentScreenTimeController> {
                           overflow: TextOverflow.ellipsis,
                         ),
                       ),
-                      const SizedBox(width: 8),
-                      StatusBadge(
-                        label: isActive ? 'ACTIVE' : 'TURNED OFF',
-                        color: accentColor,
-                        icon: isActive ? Icons.check_circle_rounded : Icons.pause_circle_rounded,
-                      ),
+                      // const SizedBox(width: 8),
+                      // StatusBadge(
+                      //   label: isActive ? 'ACTIVE' : 'TURNED OFF',
+                      //   color: accentColor,
+                      //   icon: isActive ? Icons.check_circle_rounded : Icons.pause_circle_rounded,
+                      // ),
                     ],
                   ),
                   const SizedBox(height: 3),

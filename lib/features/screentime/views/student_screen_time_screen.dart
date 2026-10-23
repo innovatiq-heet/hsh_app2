@@ -15,7 +15,8 @@ import '../widgets/usage_hero_card.dart';
 /// Warden's screen-time console styled with the signature deep navy header,
 /// sky-blue accents, and slate card styling from the Phonebook screen.
 class StudentScreenTimeScreen extends GetView<StudentScreenTimeController> {
-  const StudentScreenTimeScreen({super.key});
+  final bool showBackButton;
+  const StudentScreenTimeScreen({super.key, this.showBackButton = true});
 
   @override
   Widget build(BuildContext context) {
@@ -58,10 +59,11 @@ class StudentScreenTimeScreen extends GetView<StudentScreenTimeController> {
                       delegate: _ScreenTimeHeaderDelegate(
                         controller: controller,
                         topPadding: MediaQuery.of(context).padding.top,
+                        showBackButton: showBackButton,
                       ),
                     ),
                     SliverPadding(
-                      padding: const EdgeInsets.fromLTRB(16, 16, 16, 36),
+                      padding: const EdgeInsets.fromLTRB(16, 12, 16, 16),
                       sliver: SliverToBoxAdapter(
                         child: selected == null
                             ? const StudentDirectoryView()
@@ -939,10 +941,12 @@ class StudentScreenTimeScreen extends GetView<StudentScreenTimeController> {
 class _ScreenTimeHeaderDelegate extends SliverPersistentHeaderDelegate {
   final StudentScreenTimeController controller;
   final double topPadding;
+  final bool showBackButton;
 
   _ScreenTimeHeaderDelegate({
     required this.controller,
     required this.topPadding,
+    this.showBackButton = true,
   });
 
   @override
@@ -970,9 +974,8 @@ class _ScreenTimeHeaderDelegate extends SliverPersistentHeaderDelegate {
       final selected = controller.selectedStudent.value;
       final direct = controller.openedWithDirectTarget.value;
       final titleText = selected != null ? (selected['name'] ?? 'Student') : 'Screen Time';
-      final subtitleText = selected != null
-          ? 'Room ${selected['room'] ?? 'N/A'} • Aadhar ${selected['aadhar'] ?? ''}'
-          : 'Live device activity & parental controls';
+      final subtitleText =
+          'Room ${selected?['room'] ?? ''} • Aadhar ${selected?['aadhar'] ?? ''}';
       final isLoading = controller.isLoading.value;
       final isOnline = controller.isOnline.value;
       final isLocked = controller.isDeviceLocked.value;
@@ -1020,37 +1023,39 @@ class _ScreenTimeHeaderDelegate extends SliverPersistentHeaderDelegate {
                 height: 46,
                 child: Row(
                   children: [
-                    Material(
-                      color: Colors.transparent,
-                      child: InkWell(
-                        onTap: () {
-                          if (selected != null && !direct) {
-                            controller.clearSelectedStudent();
-                          } else {
-                            Get.back();
-                          }
-                        },
-                        borderRadius: BorderRadius.circular(24),
-                        child: Container(
-                          width: 42,
-                          height: 42,
-                          decoration: BoxDecoration(
-                            color: Colors.white.withValues(alpha: 0.16),
-                            shape: BoxShape.circle,
-                            border: Border.all(
-                              color: Colors.white.withValues(alpha: 0.25),
-                              width: 1,
+                    if (selected != null || (showBackButton && Navigator.canPop(context))) ...[
+                      Material(
+                        color: Colors.transparent,
+                        child: InkWell(
+                          onTap: () {
+                            if (selected != null && !direct) {
+                              controller.clearSelectedStudent();
+                            } else {
+                              Get.back();
+                            }
+                          },
+                          borderRadius: BorderRadius.circular(24),
+                          child: Container(
+                            width: 42,
+                            height: 42,
+                            decoration: BoxDecoration(
+                              color: Colors.white.withValues(alpha: 0.16),
+                              shape: BoxShape.circle,
+                              border: Border.all(
+                                color: Colors.white.withValues(alpha: 0.25),
+                                width: 1,
+                              ),
                             ),
-                          ),
-                          child: const Icon(
-                            Icons.arrow_back_rounded,
-                            color: Colors.white,
-                            size: 20,
+                            child: const Icon(
+                              Icons.arrow_back_rounded,
+                              color: Colors.white,
+                              size: 20,
+                            ),
                           ),
                         ),
                       ),
-                    ),
-                    const SizedBox(width: 12),
+                      const SizedBox(width: 12),
+                    ],
 
                     // Collapsed title that fades in on shrink
                     Expanded(
@@ -1158,24 +1163,24 @@ class _ScreenTimeHeaderDelegate extends SliverPersistentHeaderDelegate {
                             crossAxisAlignment: CrossAxisAlignment.start,
                             mainAxisAlignment: MainAxisAlignment.end,
                             children: [
-                              Container(
-                                width: 28,
-                                height: 3.5,
-                                decoration: BoxDecoration(
-                                  color: const Color(0xFFEAAB78),
-                                  borderRadius: BorderRadius.circular(2),
-                                ),
-                              ),
+                              // Container(
+                              //   width: 28,
+                              //   height: 3.5,
+                              //   decoration: BoxDecoration(
+                              //     color: const Color(0xFFEAAB78),
+                              //     borderRadius: BorderRadius.circular(2),
+                              //   ),
+                              // ),
                               const SizedBox(height: 6),
                               Text(
                                 selected != null
                                     ? 'PARENTAL CONTROL'
-                                    : 'CAMPUS PARENTAL CONTROL & DEVICE USAGE',
+                                    : 'PARENTAL CONTROL & DEVICE USAGE',
                                 style: TextStyle(
-                                  color: Colors.white.withValues(alpha: 0.72),
-                                  fontSize: 10.5,
-                                  fontWeight: FontWeight.w700,
-                                  letterSpacing: 1.2,
+                                  fontSize: 11,
+                                  fontWeight: FontWeight.w800,
+                                  color: Color(0xFFF59E0B),
+                                  letterSpacing: 0.5,
                                 ),
                               ),
                               const SizedBox(height: 3),
@@ -1191,16 +1196,17 @@ class _ScreenTimeHeaderDelegate extends SliverPersistentHeaderDelegate {
                                 overflow: TextOverflow.ellipsis,
                               ),
                               const SizedBox(height: 2),
-                              Text(
-                                subtitleText,
-                                style: TextStyle(
-                                  color: Colors.white.withValues(alpha: 0.85),
-                                  fontSize: 12.5,
-                                  fontWeight: FontWeight.w400,
+                              if (selected != null)
+                                Text(
+                                  subtitleText,
+                                  style: TextStyle(
+                                    color: Colors.white.withValues(alpha: 0.85),
+                                    fontSize: 12.5,
+                                    fontWeight: FontWeight.w400,
+                                  ),
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
                                 ),
-                                maxLines: 1,
-                                overflow: TextOverflow.ellipsis,
-                              ),
                               if (selected != null) ...[
                                 const SizedBox(height: 8),
                                 Row(

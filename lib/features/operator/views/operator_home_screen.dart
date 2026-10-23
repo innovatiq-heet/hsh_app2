@@ -9,6 +9,10 @@ import '../../../core/constants/app_text_styles.dart';
 import '../../../core/enums/user_role.dart';
 import '../../../core/services/shorebird_service.dart';
 import '../../../core/storage/session_store.dart';
+import '../../phonebook/bindings/phonebook_binding.dart';
+import '../../phonebook/views/phonebook_screen.dart';
+import '../../screentime/bindings/student_screen_time_binding.dart';
+import '../../screentime/views/student_screen_time_screen.dart';
 import '../../shared/widgets/staggered_slide_fade.dart';
 
 class _OperatorAction {
@@ -55,132 +59,15 @@ class OperatorHomeScreen extends StatefulWidget {
 class _OperatorHomeScreenState extends State<OperatorHomeScreen> {
   int _currentNavIndex = 0;
 
-  static const _primaryGroups = [
-    _OperatorGroup('Student Management & Safety', [
-      _OperatorAction(
-        title: 'Student Phonebook',
-        subtitle: 'Campus contacts &\ncommunication',
-        icon: Icons.groups_rounded,
-        iconColor: Color(0xFF0284C7),
-        bgTint: Color(0xFFE0F2FE),
-        arrowBgTint: Color(0xFFF0F9FF),
-        waveColor: Color(0xFFBAE6FD),
-        route: Routes.operatorDirectory,
-      ),
-      _OperatorAction(
-        title: 'Screen Time',
-        subtitle: 'Telemetry, app\nrestrictions',
-        icon: Icons.phone_android_rounded,
-        iconColor: Color(0xFFEA580C),
-        bgTint: Color(0xFFFFEDD5),
-        arrowBgTint: Color(0xFFFFF7ED),
-        waveColor: Color(0xFFFED7AA),
-        route: Routes.studentScreenTime,
-      ),
-      // _OperatorAction(
-      //   title: 'Campus Geofence',
-      //   subtitle: 'Curfew hours, hostel\nboundaries',
-      //   icon: Icons.location_on_rounded,
-      //   iconColor: Color(0xFFE11D48),
-      //   bgTint: Color(0xFFFFE4E6),
-      //   arrowBgTint: Color(0xFFFFF1F2),
-      //   waveColor: Color(0xFFFECDD3),
-      //   route: Routes.operatorGeofence,
-      // ),
-      _OperatorAction(
-        title: 'Student Locations',
-        subtitle: 'Live student location\noverview',
-        icon: Icons.radar_rounded,
-        iconColor: Color(0xFF0D9488),
-        bgTint: Color(0xFFCCFBF1),
-        arrowBgTint: Color(0xFFF0FDFA),
-        waveColor: Color(0xFF99F6E4),
-        route: Routes.operatorStudentLocations,
-      ),
-      _OperatorAction(
-        title: 'Birthday Wishes',
-        subtitle: 'Automated greetings &\ncelebrants',
-        icon: Icons.cake_rounded,
-        iconColor: Color(0xFFD97706),
-        bgTint: Color(0xFFFEF3C7),
-        arrowBgTint: Color(0xFFFFFBEB),
-        waveColor: Color(0xFFFDE68A),
-        route: Routes.operatorBirthdayWishes,
-      ),
-    ]),
-    _OperatorGroup('Hostel Services & Staff', [
-      _OperatorAction(
-        title: 'Complaints Desk',
-        subtitle: 'Room complaints &\nstatus updates',
-        icon: Icons.handyman_rounded,
-        iconColor: Color(0xFF7C3AED),
-        bgTint: Color(0xFFF5F3FF),
-        arrowBgTint: Color(0xFFEDE9FE),
-        waveColor: Color(0xFFDDD6FE),
-        route: Routes.complainSolverModule,
-      ),
-      _OperatorAction(
-        title: 'Manage User',
-        subtitle: 'Complaint solvers &\nlaundry staff',
-        icon: Icons.manage_accounts_rounded,
-        iconColor: Color(0xFF4F46E5),
-        bgTint: Color(0xFFE0E7FF),
-        arrowBgTint: Color(0xFFEEF2FF),
-        waveColor: Color(0xFFC7D2FE),
-        route: Routes.operatorManageUsers,
-        adminOnly: true,
-      ),
-    ]),
-    /*
-    _OperatorGroup('Alumni Network & Community', [
-      _OperatorAction(
-        title: 'Alumni Console',
-        subtitle: 'Manage alumni network,\nevents and community',
-        icon: Icons.forum_rounded,
-        iconColor: Color(0xFF9333EA),
-        bgTint: Color(0xFFF3E8FF),
-        arrowBgTint: Color(0xFFFAF5FF),
-        waveColor: Color(0xFFE9D5FF),
-        route: Routes.operatorAlumni,
-      ),
-      _OperatorAction(
-        title: 'Alumni Directory',
-        subtitle: 'Search alumni by batch,\ndegree, company or city',
-        icon: Icons.people_alt_rounded,
-        iconColor: Color(0xFF2563EB),
-        bgTint: Color(0xFFE0F2FE),
-        arrowBgTint: Color(0xFFEFF6FF),
-        waveColor: Color(0xFFBFDBFE),
-        route: Routes.alumniDirectory,
-      ),
-    ]),
-    */
-  ];
+  @override
+  void initState() {
+    super.initState();
+    // Pre-initialise controllers for the in-shell tabs so they are ready
+    // when the user switches tabs without navigating away.
+    PhonebookBinding().dependencies();
+    StudentScreenTimeBinding().dependencies();
+  }
 
-  /*
-  static const _additionalActions = [
-    _OperatorAction(
-      title: 'Laundry Desk',
-      subtitle: 'Manage wash cycles & student tokens',
-      icon: Icons.local_laundry_service_rounded,
-      iconColor: Color(0xFF0284C7),
-      bgTint: Color(0xFFE0F2FE),
-      arrowBgTint: Color(0xFFF0F9FF),
-      waveColor: Color(0xFFBAE6FD),
-      route: Routes.laundryModule,
-    ),
-    _OperatorAction(
-      title: 'Dynamic QR Attendance',
-      subtitle: 'Display rotating QR code for roll call',
-      icon: Icons.qr_code_2_rounded,
-      iconColor: Color(0xFF0D9488),
-      bgTint: Color(0xFFCCFBF1),
-      arrowBgTint: Color(0xFFF0FDFA),
-      waveColor: Color(0xFF99F6E4),
-      route: Routes.operatorAttendanceQrDisplay,
-    ),
-  ];
-  */
 
   Future<void> _logout() async {
     final confirmed = await Get.dialog<bool>(
@@ -292,134 +179,46 @@ class _OperatorHomeScreenState extends State<OperatorHomeScreen> {
     );
   }
 
-  /// Groups with the cards this role may open; empty groups are dropped.
-  List<_OperatorGroup> get _visibleGroups {
-    final isAdmin = Get.find<SessionStore>().currentSession?.role == UserRole.admin;
-    return [
-      for (final group in _primaryGroups)
-        _OperatorGroup(group.title, [
-          for (final action in group.actions)
-            if (!action.adminOnly || isAdmin) action,
-        ]),
-    ].where((group) => group.actions.isNotEmpty).toList();
-  }
 
   @override
   Widget build(BuildContext context) {
     return AnnotatedRegion<SystemUiOverlayStyle>(
       value: SystemUiOverlayStyle.light,
-      child: Scaffold(
-        backgroundColor: const Color(0xFFF8FAFC),
-        body: SingleChildScrollView(
-          physics: const ClampingScrollPhysics(),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
+      child: PopScope(
+        canPop: _currentNavIndex == 0,
+        onPopInvokedWithResult: (didPop, result) {
+          if (didPop) return;
+          if (_currentNavIndex != 0) {
+            setState(() => _currentNavIndex = 0);
+          }
+        },
+        child: Scaffold(
+          backgroundColor: const Color(0xFFF8FAFC),
+          // IndexedStack keeps all tab widgets alive; no route push → no back button.
+          body: IndexedStack(
+            index: _currentNavIndex,
             children: [
-              _OperatorHeader(onLogout: _logout),
-              Padding(
-                padding: const EdgeInsets.fromLTRB(20, 16, 20, 32),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    for (final group in _visibleGroups) ...[
-                      _SectionHeader(title: group.title),
-                      // const SizedBox(height: 12),
-                      GridView.count(
-                        crossAxisCount: 2,
-                        shrinkWrap: true,
-                        physics: const NeverScrollableScrollPhysics(),
-                        mainAxisSpacing: 14,
-                        crossAxisSpacing: 14,
-                        childAspectRatio: 1.08,
-                        children: [
-                          for (int i = 0; i < group.actions.length; i++)
-                            StaggeredSlideFade(
-                              index: i,
-                              child: _OperatorCard(action: group.actions[i]),
-                            ),
-                        ],
-                      ),
-                      const SizedBox(height: 10),
-                    ],
-
-                    // Collapsible More Hostel Services (Complaints, Laundry, Attendance QR)
-                    /*
-                    Theme(
-                      data: Theme.of(context).copyWith(dividerColor: Colors.transparent),
-                      child: ExpansionTile(
-                        tilePadding: EdgeInsets.zero,
-                        childrenPadding: const EdgeInsets.only(top: 8),
-                        leading: Container(
-                          width: 20,
-                          height: 3.5,
-                          decoration: BoxDecoration(
-                            color: const Color(0xFF0284C7),
-                            borderRadius: BorderRadius.circular(2),
-                          ),
-                        ),
-                        title: const Text(
-                          'More Hostel Services (Laundry, Complaints)',
-                          style: TextStyle(
-                            fontSize: 15.5,
-                            fontWeight: FontWeight.w700,
-                            color: Color(0xFF0F172A),
-                          ),
-                        ),
-                        children: [
-                          GridView.count(
-                            crossAxisCount: 2,
-                            shrinkWrap: true,
-                            physics: const NeverScrollableScrollPhysics(),
-                            mainAxisSpacing: 14,
-                            crossAxisSpacing: 14,
-                            childAspectRatio: 1.08,
-                            children: [
-                              for (int i = 0; i < _additionalActions.length; i++)
-                                StaggeredSlideFade(
-                                  index: i,
-                                  child: _OperatorCard(action: _additionalActions[i]),
-                                ),
-                            ],
-                          ),
-                        ],
-                      ),
-                    ),
-                    */
-
-                    const SizedBox(height: 28),
-                    Center(
-                      child: FutureBuilder<String>(
-                        future: ShorebirdService.instance.getFullVersionInfo(),
-                        builder: (context, snapshot) {
-                          final info = snapshot.data ?? AppConfig.appVersionDisplay;
-                          return Text(
-                            'Hostel Admin Console • $info',
-                            style: AppTextStyles.caption.copyWith(
-                              color: const Color(0xFF94A3B8),
-                              fontWeight: FontWeight.w500,
-                            ),
-                          );
-                        },
-                      ),
-                    ),
-                  ],
-                ),
+              // Tab 0 – Home Dashboard
+              _OperatorHomeDashboard(
+                onSelectTab: (index) => setState(() => _currentNavIndex = index),
+                onLogout: _logout,
               ),
+              // Tab 1 – Students (Phonebook)
+              const PhonebookScreen(showBackButton: false),
+              // Tab 2 – Safety (Screen Time)
+              const StudentScreenTimeScreen(showBackButton: false),
             ],
           ),
-        ),
-        bottomNavigationBar: _BottomNavBar(
-          currentIndex: _currentNavIndex,
-          onTap: (index) {
-            setState(() => _currentNavIndex = index);
-            if (index == 1) {
-              Get.toNamed(Routes.operatorDirectory);
-            } else if (index == 2) {
-              Get.toNamed(Routes.studentScreenTime);
-            } else if (index == 3) {
-              _showProfileSheet(context);
-            }
-          },
+          bottomNavigationBar: _OperatorBottomNavBar(
+            currentIndex: _currentNavIndex,
+            onTap: (index) {
+              if (index == 3) {
+                _showProfileSheet(context);
+              } else {
+                setState(() => _currentNavIndex = index);
+              }
+            },
+          ),
         ),
       ),
     );
@@ -427,157 +226,208 @@ class _OperatorHomeScreenState extends State<OperatorHomeScreen> {
 }
 
 /// Deep navy header with luminous curved arcs, calendar pill, building image, and logout button.
-class _OperatorHeader extends StatelessWidget {
+/// Collapsible shrinking deep navy header with luminous arcs, matching Phonebook header.
+class _OperatorHeaderDelegate extends SliverPersistentHeaderDelegate {
+  final double topPadding;
   final VoidCallback onLogout;
 
-  const _OperatorHeader({required this.onLogout});
+  _OperatorHeaderDelegate({
+    required this.topPadding,
+    required this.onLogout,
+  });
 
   @override
-  Widget build(BuildContext context) {
-    final dateStr = DateFormat('EEE, d MMM yyyy').format(DateTime.now());
+  double get minExtent => topPadding + 60.0;
 
-    return ClipRRect(
-      borderRadius: const BorderRadius.vertical(bottom: Radius.circular(34)),
-      child: Container(
-        decoration: const BoxDecoration(
-          gradient: LinearGradient(
-            begin: Alignment.topLeft,
-            end: Alignment.bottomRight,
-            colors: [
-              Color(0xFF03192E),
-              Color(0xFF032B4F),
-              Color(0xFF025A8D),
-              Color(0xFF0369A1),
-            ],
-            stops: [0.0, 0.38, 0.75, 1.0],
-          ),
+  @override
+  double get maxExtent => topPadding + 172.0;
+
+  @override
+  Widget build(
+    BuildContext context,
+    double shrinkOffset,
+    bool overlapsContent,
+  ) {
+    final dateStr = DateFormat('EEE, d MMM yyyy').format(DateTime.now());
+    final progress = (shrinkOffset / (maxExtent - minExtent)).clamp(0.0, 1.0);
+    final expandedOpacity = (1.0 - progress * 1.8).clamp(0.0, 1.0);
+    final collapsedTitleOpacity = ((progress - 0.35) / 0.65).clamp(0.0, 1.0);
+    final cornerRadius = Radius.circular(
+      (28.0 * (1.0 - progress)).clamp(0.0, 28.0),
+    );
+
+    return Container(
+      decoration: BoxDecoration(
+        gradient: const LinearGradient(
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+          colors: [
+            Color(0xFF03192E),
+            Color(0xFF032B4F),
+            Color(0xFF025A8D),
+            Color(0xFF0369A1),
+          ],
+          stops: [0.0, 0.38, 0.75, 1.0],
         ),
+        borderRadius: BorderRadius.vertical(bottom: cornerRadius),
+        boxShadow: progress > 0.25
+            ? [
+                BoxShadow(
+                  color: const Color(0xFF03192E).withValues(alpha: 0.22 * progress),
+                  blurRadius: 10,
+                  offset: const Offset(0, 3),
+                ),
+              ]
+            : null,
+      ),
+      child: ClipRRect(
+        borderRadius: BorderRadius.vertical(bottom: cornerRadius),
         child: Stack(
+          fit: StackFit.expand,
           children: [
-            // Glowing decorative arcs and luminous ambient orbs
-            Positioned.fill(
-              child: CustomPaint(
-                painter: _HeaderOrbPainter(),
+            // Luminous decorative ambient glow & arcs
+            CustomPaint(painter: _HeaderOrbPainter()),
+
+            // Top pinned navigation bar (Collapsed title + right top logout icon)
+            Positioned(
+              top: topPadding + 6,
+              left: 16,
+              right: 16,
+              height: 46,
+              child: Row(
+                children: [
+                  // Collapsed title that fades in on shrink
+                  Expanded(
+                    child: Opacity(
+                      opacity: collapsedTitleOpacity,
+                      child: const Text(
+                        'Hostel Admin',
+                        style: TextStyle(
+                          color: Colors.white,
+                          fontSize: 18,
+                          fontWeight: FontWeight.w800,
+                          letterSpacing: -0.3,
+                        ),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                    ),
+                  ),
+
+                  // Right top Logout Button
+                  Material(
+                    color: Colors.transparent,
+                    child: InkWell(
+                      onTap: onLogout,
+                      borderRadius: BorderRadius.circular(24),
+                      child: Tooltip(
+                        message: 'Sign Out',
+                        child: Container(
+                          width: 42,
+                          height: 42,
+                          decoration: BoxDecoration(
+                            color: Colors.white.withValues(alpha: 0.16),
+                            shape: BoxShape.circle,
+                            border: Border.all(
+                              color: Colors.white.withValues(alpha: 0.25),
+                              width: 1,
+                            ),
+                          ),
+                          child: const Icon(
+                            Icons.logout_rounded,
+                            color: Colors.white,
+                            size: 20,
+                          ),
+                        ),
+                      ),
+                    ),
+                  ),
+                ],
               ),
             ),
 
-            // Header Content
-            SafeArea(
-              bottom: false,
-              child: Padding(
-                padding: const EdgeInsets.fromLTRB(20, 14, 20, 24),
+            // Hero expanded text & date pill below (fades out as you scroll down)
+            Positioned(
+              left: 20,
+              right: 20,
+              bottom: 16,
+              child: Opacity(
+                opacity: expandedOpacity,
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
+                  mainAxisSize: MainAxisSize.min,
                   children: [
-                    Row(
-                      crossAxisAlignment: CrossAxisAlignment.start,
+                    const Text(
+                      'OPERATOR CONSOLE',
+                      style: TextStyle(
+                        fontSize: 11,
+                        fontWeight: FontWeight.w800,
+                        color: Color(0xFFF59E0B),
+                        letterSpacing: 1.2,
+                      ),
+                    ),
+                    const SizedBox(height: 3),
+                    const Text(
+                      'Hostel Admin',
+                      style: TextStyle(
+                        fontSize: 24,
+                        fontWeight: FontWeight.w800,
+                        color: Colors.white,
+                        letterSpacing: -0.5,
+                      ),
+                    ),
+                    const SizedBox(height: 8),
+                    Wrap(
+                      spacing: 8,
+                      runSpacing: 6,
                       children: [
-                        // Left Info
-                        Expanded(
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
+                        Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                          decoration: BoxDecoration(
+                            color: Colors.white.withValues(alpha: 0.14),
+                            borderRadius: BorderRadius.circular(12),
+                            border: Border.all(color: Colors.white.withValues(alpha: 0.2)),
+                          ),
+                          child: Row(
+                            mainAxisSize: MainAxisSize.min,
                             children: [
-                              // Top amber dash
-                              // Container(
-                              //   width: 28,
-                              //   height: 3.5,
-                              //   decoration: BoxDecoration(
-                              //     color: const Color(0xFFEAAB78),
-                              //     borderRadius: BorderRadius.circular(2),
-                              //   ),
-                              // ),
-                              // const SizedBox(height: 7),
-                              // Text(
-                              //   'OPERATOR CONSOLE',
-                              //   style: TextStyle(
-                              //     color: Colors.white.withValues(alpha: 0.72),
-                              //     fontSize: 11,
-                              //     fontWeight: FontWeight.w700,
-                              //     letterSpacing: 1.2,
-                              //   ),
-                              // ),
-                              // const SizedBox(height: 4),
-                              const Text(
-                                'Hostel admin',
-                                style: TextStyle(
-                                  color: Colors.white,
-                                  fontSize: 28,
-                                  fontWeight: FontWeight.w800,
-                                ),
-                              ),
-                              const SizedBox(height: 4),
+                              const Icon(Icons.calendar_today_rounded, size: 12, color: Colors.white70),
+                              const SizedBox(width: 6),
                               Text(
-                                'Manage students, approvals and finance',
-                                style: TextStyle(
-                                  color: Colors.white.withValues(alpha: 0.85),
-                                  fontSize: 13.5,
-                                  fontWeight: FontWeight.w400,
+                                dateStr,
+                                style: const TextStyle(
+                                  color: Colors.white,
+                                  fontSize: 11.5,
+                                  fontWeight: FontWeight.w600,
                                 ),
                               ),
                             ],
                           ),
                         ),
-
-                        // Right Logout Button
-                        Material(
-                          color: Colors.transparent,
-                          child: InkWell(
-                            onTap: onLogout,
-                            borderRadius: BorderRadius.circular(24),
-                            child: Container(
-                              width: 46,
-                              height: 46,
-                              decoration: BoxDecoration(
-                                color: Colors.white.withValues(alpha: 0.16),
-                                shape: BoxShape.circle,
-                                border: Border.all(
-                                  color: Colors.white.withValues(alpha: 0.25),
-                                  width: 1,
+                        Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                          decoration: BoxDecoration(
+                            color: Colors.white.withValues(alpha: 0.14),
+                            borderRadius: BorderRadius.circular(12),
+                            border: Border.all(color: Colors.white.withValues(alpha: 0.2)),
+                          ),
+                          child: const Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Icon(Icons.shield_outlined, size: 13, color: Colors.white70),
+                              SizedBox(width: 5),
+                              Text(
+                                'Manage & Approvals',
+                                style: TextStyle(
+                                  color: Colors.white,
+                                  fontSize: 11.5,
+                                  fontWeight: FontWeight.w600,
                                 ),
                               ),
-                              child: const Icon(
-                                Icons.logout_rounded,
-                                color: Colors.white,
-                                size: 21,
-                              ),
-                            ),
+                            ],
                           ),
                         ),
                       ],
-                    ),
-
-                    const SizedBox(height: 14),
-
-                    // Frosted calendar pill
-                    Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 7.5),
-                      decoration: BoxDecoration(
-                        color: Colors.white.withValues(alpha: 0.12),
-                        borderRadius: BorderRadius.circular(20),
-                        border: Border.all(
-                          color: Colors.white.withValues(alpha: 0.22),
-                          width: 1,
-                        ),
-                      ),
-                      child: Row(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          const Icon(
-                            Icons.calendar_today_rounded,
-                            size: 14,
-                            color: Colors.white,
-                          ),
-                          const SizedBox(width: 8),
-                          Text(
-                            dateStr,
-                            style: const TextStyle(
-                              color: Colors.white,
-                              fontSize: 12.5,
-                              fontWeight: FontWeight.w600,
-                            ),
-                          ),
-                        ],
-                      ),
                     ),
                   ],
                 ),
@@ -588,6 +438,10 @@ class _OperatorHeader extends StatelessWidget {
       ),
     );
   }
+
+  @override
+  bool shouldRebuild(covariant _OperatorHeaderDelegate oldDelegate) =>
+      oldDelegate.topPadding != topPadding || oldDelegate.onLogout != onLogout;
 }
 
 /// Custom painter for luminous concentric arcs and ambient light orbs in the header background.
@@ -672,15 +526,19 @@ class _SectionHeader extends StatelessWidget {
 /// Interactive 2x2 card with pastel squircle icon, circle arrow, and organic corner wave.
 class _OperatorCard extends StatelessWidget {
   final _OperatorAction action;
+  final VoidCallback? onTap;
 
-  const _OperatorCard({required this.action});
+  const _OperatorCard({
+    required this.action,
+    this.onTap,
+  });
 
   @override
   Widget build(BuildContext context) {
     return Material(
       color: Colors.transparent,
       child: InkWell(
-        onTap: () => Get.toNamed(action.route),
+        onTap: onTap ?? () => Get.toNamed(action.route),
         borderRadius: BorderRadius.circular(22),
         child: Container(
           decoration: BoxDecoration(
@@ -818,62 +676,236 @@ class _CornerWavePainter extends CustomPainter {
   bool shouldRepaint(covariant _CornerWavePainter oldDelegate) => oldDelegate.color != color;
 }
 
-/// Floating bottom navigation bar matching the design screenshot.
-class _BottomNavBar extends StatelessWidget {
+// ---------------------------------------------------------------------------
+// Home-tab dashboard
+// ---------------------------------------------------------------------------
+class _OperatorHomeDashboard extends StatelessWidget {
+  final ValueChanged<int>? onSelectTab;
+  final VoidCallback? onLogout;
+
+  const _OperatorHomeDashboard({
+    this.onSelectTab,
+    this.onLogout,
+  });
+
+  static const _primaryGroups = [
+    _OperatorGroup('Student Management & Safety', [
+      _OperatorAction(
+        title: 'Student Phonebook',
+        subtitle: 'Campus contacts &\ncommunication',
+        icon: Icons.groups_rounded,
+        iconColor: Color(0xFF0284C7),
+        bgTint: Color(0xFFE0F2FE),
+        arrowBgTint: Color(0xFFF0F9FF),
+        waveColor: Color(0xFFBAE6FD),
+        route: Routes.operatorDirectory,
+      ),
+      _OperatorAction(
+        title: 'Screen Time',
+        subtitle: 'Telemetry, app\nrestrictions',
+        icon: Icons.phone_android_rounded,
+        iconColor: Color(0xFFEA580C),
+        bgTint: Color(0xFFFFEDD5),
+        arrowBgTint: Color(0xFFFFF7ED),
+        waveColor: Color(0xFFFED7AA),
+        route: Routes.studentScreenTime,
+      ),
+      _OperatorAction(
+        title: 'Student Locations',
+        subtitle: 'Live student location\noverview',
+        icon: Icons.radar_rounded,
+        iconColor: Color(0xFF0D9488),
+        bgTint: Color(0xFFCCFBF1),
+        arrowBgTint: Color(0xFFF0FDFA),
+        waveColor: Color(0xFF99F6E4),
+        route: Routes.operatorStudentLocations,
+      ),
+      _OperatorAction(
+        title: 'Birthday Wishes',
+        subtitle: 'Automated greetings &\ncelebrants',
+        icon: Icons.cake_rounded,
+        iconColor: Color(0xFFD97706),
+        bgTint: Color(0xFFFEF3C7),
+        arrowBgTint: Color(0xFFFFFBEB),
+        waveColor: Color(0xFFFDE68A),
+        route: Routes.operatorBirthdayWishes,
+      ),
+    ]),
+    _OperatorGroup('Hostel Services & Staff', [
+      _OperatorAction(
+        title: 'Complaints Desk',
+        subtitle: 'Room complaints &\nstatus updates',
+        icon: Icons.handyman_rounded,
+        iconColor: Color(0xFF7C3AED),
+        bgTint: Color(0xFFF5F3FF),
+        arrowBgTint: Color(0xFFEDE9FE),
+        waveColor: Color(0xFFDDD6FE),
+        route: Routes.complainSolverModule,
+      ),
+      _OperatorAction(
+        title: 'Manage User',
+        subtitle: 'Complaint solvers &\nlaundry staff',
+        icon: Icons.manage_accounts_rounded,
+        iconColor: Color(0xFF4F46E5),
+        bgTint: Color(0xFFE0E7FF),
+        arrowBgTint: Color(0xFFEEF2FF),
+        waveColor: Color(0xFFC7D2FE),
+        route: Routes.operatorManageUsers,
+        adminOnly: true,
+      ),
+    ]),
+  ];
+
+  List<_OperatorGroup> _visibleGroups(BuildContext context) {
+    final isAdmin = Get.find<SessionStore>().currentSession?.role == UserRole.admin;
+    return [
+      for (final group in _primaryGroups)
+        _OperatorGroup(group.title, [
+          for (final action in group.actions)
+            if (!action.adminOnly || isAdmin) action,
+        ]),
+    ].where((group) => group.actions.isNotEmpty).toList();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final groups = _visibleGroups(context);
+    final topPadding = MediaQuery.of(context).padding.top;
+
+    return CustomScrollView(
+      physics: const AlwaysScrollableScrollPhysics(
+        parent: BouncingScrollPhysics(),
+      ),
+      slivers: [
+        if (onLogout != null)
+          SliverPersistentHeader(
+            pinned: true,
+            delegate: _OperatorHeaderDelegate(
+              topPadding: topPadding,
+              onLogout: onLogout!,
+            ),
+          ),
+        SliverToBoxAdapter(
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(20, 14, 20, 10),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                for (int g = 0; g < groups.length; g++) ...[
+                  _SectionHeader(title: groups[g].title),
+                  const SizedBox(height: 8),
+                  GridView.count(
+                    padding: EdgeInsets.zero,
+                    crossAxisCount: 2,
+                    shrinkWrap: true,
+                    physics: const NeverScrollableScrollPhysics(),
+                    mainAxisSpacing: 12,
+                    crossAxisSpacing: 12,
+                    childAspectRatio: 1.10,
+                    children: [
+                      for (int i = 0; i < groups[g].actions.length; i++)
+                        StaggeredSlideFade(
+                          index: i,
+                          child: _OperatorCard(
+                            action: groups[g].actions[i],
+                            onTap: () {
+                              if (groups[g].actions[i].route == Routes.operatorDirectory) {
+                                onSelectTab?.call(1);
+                              } else if (groups[g].actions[i].route == Routes.studentScreenTime) {
+                                onSelectTab?.call(2);
+                              } else {
+                                Get.toNamed(groups[g].actions[i].route);
+                              }
+                            },
+                          ),
+                        ),
+                    ],
+                  ),
+                  if (g < groups.length - 1) const SizedBox(height: 14),
+                ],
+                const SizedBox(height: 10),
+                Center(
+                  child: FutureBuilder<String>(
+                    future: ShorebirdService.instance.getFullVersionInfo(),
+                    builder: (context, snapshot) {
+                      final info = snapshot.data ?? AppConfig.appVersionDisplay;
+                      return Text(
+                        'Hostel Admin Console • $info',
+                        style: AppTextStyles.caption.copyWith(
+                          color: const Color(0xFF94A3B8),
+                          fontWeight: FontWeight.w500,
+                        ),
+                      );
+                    },
+                  ),
+                ),
+                const SizedBox(height: 6),
+              ],
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Modern bottom nav bar – floating pill indicator style
+// ---------------------------------------------------------------------------
+
+class _OperatorBottomNavBar extends StatelessWidget {
   final int currentIndex;
   final ValueChanged<int> onTap;
 
-  const _BottomNavBar({
+  const _OperatorBottomNavBar({
     required this.currentIndex,
     required this.onTap,
   });
+
+  static const _items = [
+    _NavItemData(icon: Icons.home_outlined, activeIcon: Icons.home_rounded, label: 'Home'),
+    _NavItemData(icon: Icons.people_outline_rounded, activeIcon: Icons.people_rounded, label: 'Students'),
+    _NavItemData(icon: Icons.shield_outlined, activeIcon: Icons.shield_rounded, label: 'Safety'),
+    _NavItemData(icon: Icons.person_outline_rounded, activeIcon: Icons.person_rounded, label: 'Profile'),
+  ];
 
   @override
   Widget build(BuildContext context) {
     return Container(
       decoration: BoxDecoration(
         color: Colors.white,
-        border: const Border(
-          top: BorderSide(color: Color(0xFFF1F5F9), width: 1.2),
+        borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
+        border: Border.all(
+          color: const Color(0xFFE2E8F0).withValues(alpha: 0.8),
+          width: 1.2,
         ),
         boxShadow: [
           BoxShadow(
-            color: const Color(0xFF0F172A).withValues(alpha: 0.03),
+            color: const Color(0xFF03192E).withValues(alpha: 0.08),
+            blurRadius: 24,
+            offset: const Offset(0, -6),
+          ),
+          BoxShadow(
+            color: const Color(0xFF0284C7).withValues(alpha: 0.04),
             blurRadius: 10,
-            offset: const Offset(0, -3),
+            offset: const Offset(0, -2),
           ),
         ],
       ),
       child: SafeArea(
+        top: false,
         child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+          padding: const EdgeInsets.only(top: 8, bottom: 4, left: 8, right: 8),
           child: Row(
-            mainAxisAlignment: MainAxisAlignment.spaceAround,
             children: [
-              _NavItem(
-                icon: Icons.home_rounded,
-                label: 'Home',
-                isSelected: currentIndex == 0,
-                onTap: () => onTap(0),
-              ),
-              _NavItem(
-                icon: Icons.people_outline_rounded,
-                label: 'Students',
-                isSelected: currentIndex == 1,
-                onTap: () => onTap(1),
-              ),
-              _NavItem(
-                icon: Icons.shield_outlined,
-                label: 'Safety',
-                isSelected: currentIndex == 2,
-                onTap: () => onTap(2),
-              ),
-              _NavItem(
-                icon: Icons.person_outline_rounded,
-                label: 'Profile',
-                isSelected: currentIndex == 3,
-                onTap: () => onTap(3),
-              ),
+              for (int i = 0; i < _items.length; i++)
+                Expanded(
+                  child: _ModernNavItem(
+                    data: _items[i],
+                    isSelected: currentIndex == i,
+                    onTap: () => onTap(i),
+                  ),
+                ),
             ],
           ),
         ),
@@ -882,53 +914,142 @@ class _BottomNavBar extends StatelessWidget {
   }
 }
 
-class _NavItem extends StatelessWidget {
+class _NavItemData {
   final IconData icon;
+  final IconData activeIcon;
   final String label;
+
+  const _NavItemData({
+    required this.icon,
+    required this.activeIcon,
+    required this.label,
+  });
+}
+
+class _ModernNavItem extends StatefulWidget {
+  final _NavItemData data;
   final bool isSelected;
   final VoidCallback onTap;
 
-  const _NavItem({
-    required this.icon,
-    required this.label,
+  const _ModernNavItem({
+    required this.data,
     required this.isSelected,
     required this.onTap,
   });
 
   @override
+  State<_ModernNavItem> createState() => _ModernNavItemState();
+}
+
+class _ModernNavItemState extends State<_ModernNavItem> {
+  bool _isPressed = false;
+
+  static const _activeIconColor = Color(0xFF0284C7);
+  static const _activeTextColor = Color(0xFF032B4F);
+  static const _inactiveColor = Color(0xFF64748B);
+
+  @override
   Widget build(BuildContext context) {
-    return InkWell(
-      onTap: onTap,
-      borderRadius: BorderRadius.circular(16),
-      child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            if (isSelected)
-              Container(
-                padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 5),
+    final isSelected = widget.isSelected;
+
+    return GestureDetector(
+      onTapDown: (_) => setState(() => _isPressed = true),
+      onTapUp: (_) {
+        setState(() => _isPressed = false);
+        HapticFeedback.selectionClick();
+        widget.onTap();
+      },
+      onTapCancel: () => setState(() => _isPressed = false),
+      behavior: HitTestBehavior.opaque,
+      child: AnimatedScale(
+        scale: _isPressed ? 0.92 : 1.0,
+        duration: const Duration(milliseconds: 120),
+        curve: Curves.easeOutCubic,
+        child: Padding(
+          padding: const EdgeInsets.symmetric(vertical: 2),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              AnimatedContainer(
+                duration: const Duration(milliseconds: 240),
+                curve: Curves.easeOutCubic,
+                padding: isSelected
+                    ? const EdgeInsets.symmetric(horizontal: 18, vertical: 5)
+                    : const EdgeInsets.symmetric(horizontal: 12, vertical: 5),
                 decoration: BoxDecoration(
-                  color: const Color(0xFFE0F2FE),
+                  gradient: isSelected
+                      ? LinearGradient(
+                          begin: Alignment.topCenter,
+                          end: Alignment.bottomCenter,
+                          colors: [
+                            const Color(0xFFE0F2FE),
+                            const Color(0xFFBAE6FD).withValues(alpha: 0.5),
+                          ],
+                        )
+                      : null,
                   borderRadius: BorderRadius.circular(16),
+                  border: isSelected
+                      ? Border.all(
+                          color: const Color(0xFF0284C7).withValues(alpha: 0.3),
+                          width: 1,
+                        )
+                      : null,
+                  boxShadow: isSelected
+                      ? [
+                          BoxShadow(
+                            color: const Color(0xFF0284C7).withValues(alpha: 0.12),
+                            blurRadius: 8,
+                            offset: const Offset(0, 2),
+                          ),
+                        ]
+                      : null,
                 ),
-                child: Icon(icon, color: const Color(0xFF0284C7), size: 21),
-              )
-            else
-              Padding(
-                padding: const EdgeInsets.symmetric(vertical: 5),
-                child: Icon(icon, color: const Color(0xFF64748B), size: 22),
+                child: AnimatedSwitcher(
+                  duration: const Duration(milliseconds: 180),
+                  transitionBuilder: (child, animation) => ScaleTransition(
+                    scale: animation,
+                    child: child,
+                  ),
+                  child: Icon(
+                    isSelected ? widget.data.activeIcon : widget.data.icon,
+                    key: ValueKey('${widget.data.label}_$isSelected'),
+                    color: isSelected ? _activeIconColor : _inactiveColor,
+                    size: 22,
+                  ),
+                ),
               ),
-            const SizedBox(height: 2),
-            Text(
-              label,
-              style: TextStyle(
-                color: isSelected ? const Color(0xFF0284C7) : const Color(0xFF64748B),
-                fontSize: 11.5,
-                fontWeight: isSelected ? FontWeight.w700 : FontWeight.w500,
+              const SizedBox(height: 3),
+              AnimatedDefaultTextStyle(
+                duration: const Duration(milliseconds: 200),
+                style: TextStyle(
+                  color: isSelected ? _activeTextColor : _inactiveColor,
+                  fontSize: 11,
+                  fontWeight: isSelected ? FontWeight.w700 : FontWeight.w500,
+                  letterSpacing: 0.1,
+                ),
+                child: Text(
+                  widget.data.label,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                ),
               ),
-            ),
-          ],
+              AnimatedContainer(
+                duration: const Duration(milliseconds: 240),
+                curve: Curves.easeOutCubic,
+                margin: const EdgeInsets.only(top: 2),
+                width: isSelected ? 14 : 0,
+                height: 2.5,
+                decoration: BoxDecoration(
+                  borderRadius: BorderRadius.circular(2),
+                  gradient: isSelected
+                      ? const LinearGradient(
+                          colors: [Color(0xFFD97706), Color(0xFFF59E0B)],
+                        )
+                      : null,
+                ),
+              ),
+            ],
+          ),
         ),
       ),
     );

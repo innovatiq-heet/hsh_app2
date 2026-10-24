@@ -2,12 +2,14 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:get/get.dart';
 import 'package:intl/intl.dart';
+import 'package:super_sliver_list/super_sliver_list.dart';
 import '../../../core/constants/app_routes.dart';
 import '../../shared/widgets/empty_state.dart';
 import '../../shared/widgets/staggered_slide_fade.dart';
 import '../../shared/widgets/student_contact_card.dart';
 import '../controllers/phonebook_controller.dart';
 import '../models/phonebook_models.dart';
+import '../widgets/alpha_scroll_rail.dart';
 import '../widgets/caller_id_card.dart';
 
 /// Modern Campus Directory & Caller ID Console
@@ -1261,39 +1263,6 @@ class PhonebookScreen extends GetView<PhonebookController> {
     );
   }
 
-  Widget _activeFilterPill({required String label, required VoidCallback onDismiss}) {
-    return Container(
-      padding: const EdgeInsets.fromLTRB(10, 5, 6, 5),
-      decoration: BoxDecoration(
-        color: const Color(0xFFE0F2FE),
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: const Color(0xFFBAE6FD)),
-      ),
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Text(
-            label,
-            style: const TextStyle(
-              fontSize: 12,
-              fontWeight: FontWeight.w700,
-              color: Color(0xFF0369A1),
-            ),
-          ),
-          const SizedBox(width: 4),
-          InkWell(
-            onTap: onDismiss,
-            borderRadius: BorderRadius.circular(10),
-            child: const Padding(
-              padding: EdgeInsets.all(2),
-              child: Icon(Icons.close_rounded, size: 13, color: Color(0xFF0369A1)),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
   @override
   Widget build(BuildContext context) {
     WidgetsBinding.instance.addPostFrameCallback((_) {
@@ -1423,14 +1392,17 @@ class PhonebookScreen extends GetView<PhonebookController> {
             ),
           );
         }),
-        body: RefreshIndicator(
-          onRefresh: () => controller.syncNow(),
-          color: const Color(0xFF0284C7),
-          backgroundColor: Colors.white,
-          child: CustomScrollView(
-            physics: const AlwaysScrollableScrollPhysics(
-              parent: BouncingScrollPhysics(),
-            ),
+        body: Stack(
+          children: [
+            RefreshIndicator(
+              onRefresh: () => controller.syncNow(),
+              color: const Color(0xFF0284C7),
+              backgroundColor: Colors.white,
+              child: CustomScrollView(
+                controller: controller.listScrollController,
+                physics: const AlwaysScrollableScrollPhysics(
+                  parent: BouncingScrollPhysics(),
+                ),
             slivers: [
               SliverPersistentHeader(
                 pinned: true,
@@ -1646,161 +1618,6 @@ class PhonebookScreen extends GetView<PhonebookController> {
                           );
                         }),
                       ),
-                      const SizedBox(height: 10),
-
-                      // Active Filters & Quick Filter Chips
-                      Obx(() {
-                        final activeCount = controller.activeFilterCount;
-                        return SingleChildScrollView(
-                          scrollDirection: Axis.horizontal,
-                          physics: const BouncingScrollPhysics(),
-                          child: Row(
-                            children: [
-                              // Full filter sheet launcher
-                              ActionChip(
-                                avatar: Icon(
-                                  Icons.filter_list_rounded,
-                                  size: 14,
-                                  color: activeCount > 0 ? Colors.white : const Color(0xFF0284C7),
-                                ),
-                                label: Text(
-                                  activeCount > 0 ? 'All Filters ($activeCount)' : 'All Filters',
-                                  style: TextStyle(
-                                    fontWeight: FontWeight.w700,
-                                    fontSize: 12,
-                                    color: activeCount > 0 ? Colors.white : const Color(0xFF0F172A),
-                                  ),
-                                ),
-                                backgroundColor: activeCount > 0 ? const Color(0xFF0284C7) : Colors.white,
-                                side: BorderSide(
-                                  color: activeCount > 0 ? const Color(0xFF0284C7) : const Color(0xFFCBD5E1),
-                                ),
-                                onPressed: () => _showFilterBottomSheet(context),
-                              ),
-                              const SizedBox(width: 6),
-
-                              // If filters are active, display dismissible active chips
-                              if (controller.selectedFloor.value != 'All') ...[
-                                _activeFilterPill(
-                                  label: 'Floor: ${controller.selectedFloor.value}',
-                                  onDismiss: controller.clearFloor,
-                                ),
-                                const SizedBox(width: 6),
-                              ],
-                              if (controller.selectedStatus.value != 'All') ...[
-                                _activeFilterPill(
-                                  label: controller.selectedStatus.value,
-                                  onDismiss: controller.clearStatus,
-                                ),
-                                const SizedBox(width: 6),
-                              ],
-                              if (controller.onlyWithDob.value) ...[
-                                _activeFilterPill(
-                                  label: '🎂 DOB Only',
-                                  onDismiss: controller.clearDob,
-                                ),
-                                const SizedBox(width: 6),
-                              ],
-                              if (controller.onlyWithParents.value) ...[
-                                _activeFilterPill(
-                                  label: '👨‍👩‍👦 Parents Only',
-                                  onDismiss: controller.clearParents,
-                                ),
-                                const SizedBox(width: 6),
-                              ],
-                              if (controller.onlyWithWhatsApp.value) ...[
-                                _activeFilterPill(
-                                  label: '💬 WhatsApp Only',
-                                  onDismiss: controller.clearWhatsApp,
-                                ),
-                                const SizedBox(width: 6),
-                              ],
-                              if (controller.onlyWithAddress.value) ...[
-                                _activeFilterPill(
-                                  label: '🏠 Address Only',
-                                  onDismiss: controller.clearAddress,
-                                ),
-                                const SizedBox(width: 6),
-                              ],
-                              if (controller.onlyWithAadhar.value) ...[
-                                _activeFilterPill(
-                                  label: '🆔 Aadhar Only',
-                                  onDismiss: controller.clearAadhar,
-                                ),
-                                const SizedBox(width: 6),
-                              ],
-                              if (controller.selectedSort.value != 'Name (A-Z)') ...[
-                                _activeFilterPill(
-                                  label: 'Sort: ${controller.selectedSort.value}',
-                                  onDismiss: controller.clearSort,
-                                ),
-                                const SizedBox(width: 6),
-                              ],
-
-                              // When active filters exist, show a prominent Clear All pill
-                              if (activeCount > 0) ...[
-                                ActionChip(
-                                  avatar: const Icon(Icons.clear_all_rounded, size: 14, color: Colors.redAccent),
-                                  label: const Text(
-                                    'Clear All',
-                                    style: TextStyle(
-                                      fontSize: 12,
-                                      fontWeight: FontWeight.w700,
-                                      color: Colors.redAccent,
-                                    ),
-                                  ),
-                                  backgroundColor: const Color(0xFFFEF2F2),
-                                  side: const BorderSide(color: Color(0xFFFECACA)),
-                                  onPressed: controller.resetAllFilters,
-                                ),
-                              ],
-
-                              // If no active secondary filters, show quick action chips
-                              if (activeCount == 0) ...[
-                                ActionChip(
-                                  avatar: const Icon(Icons.layers_rounded, size: 14, color: Color(0xFF64748B)),
-                                  label: const Text('Floor ▾', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600)),
-                                  backgroundColor: Colors.white,
-                                  side: const BorderSide(color: Color(0xFFE2E8F0)),
-                                  onPressed: () => _showFilterBottomSheet(context),
-                                ),
-                                const SizedBox(width: 6),
-                                ActionChip(
-                                  avatar: const Icon(Icons.cake_outlined, size: 14, color: Color(0xFF64748B)),
-                                  label: const Text('🎂 Birthday', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600)),
-                                  backgroundColor: Colors.white,
-                                  side: const BorderSide(color: Color(0xFFE2E8F0)),
-                                  onPressed: () => controller.toggleOnlyWithDob(true),
-                                ),
-                                const SizedBox(width: 6),
-                                ActionChip(
-                                  avatar: const Icon(Icons.family_restroom_rounded, size: 14, color: Color(0xFF64748B)),
-                                  label: const Text('👨‍👩‍👦 Parents', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600)),
-                                  backgroundColor: Colors.white,
-                                  side: const BorderSide(color: Color(0xFFE2E8F0)),
-                                  onPressed: () => controller.toggleOnlyWithParents(true),
-                                ),
-                                const SizedBox(width: 6),
-                                ActionChip(
-                                  avatar: const Icon(Icons.chat_rounded, size: 14, color: Color(0xFF64748B)),
-                                  label: const Text('💬 WhatsApp', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600)),
-                                  backgroundColor: Colors.white,
-                                  side: const BorderSide(color: Color(0xFFE2E8F0)),
-                                  onPressed: () => controller.toggleOnlyWithWhatsApp(true),
-                                ),
-                                const SizedBox(width: 6),
-                                ActionChip(
-                                  avatar: const Icon(Icons.sort_by_alpha_rounded, size: 14, color: Color(0xFF64748B)),
-                                  label: const Text('Sort ▾', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600)),
-                                  backgroundColor: Colors.white,
-                                  side: const BorderSide(color: Color(0xFFE2E8F0)),
-                                  onPressed: () => _showFilterBottomSheet(context),
-                                ),
-                              ],
-                            ],
-                          ),
-                        );
-                      }),
                       const SizedBox(height: 16),
 // Section title with live count
                       Obx(() {
@@ -1872,9 +1689,11 @@ class PhonebookScreen extends GetView<PhonebookController> {
 
                 return SliverPadding(
                   padding: const EdgeInsets.fromLTRB(20, 0, 20, 36),
-                  sliver: SliverList.separated(
+                  // SuperSliverList (not SliverList) so the A-Z rail can jump far without
+                  // building every card in between.
+                  sliver: SuperSliverList.builder(
+                    listController: controller.listController,
                     itemCount: list.length,
-                    separatorBuilder: (context, index) => const SizedBox(height: 10),
                     itemBuilder: (context, index) {
                       final student = list[index];
                       final isSelected = controller.isStudentSelected(student.id);
@@ -1903,15 +1722,39 @@ class PhonebookScreen extends GetView<PhonebookController> {
                         onShare: () => controller.shareStudent(student),
                       );
 
+                      final isNameSort = controller.selectedSort.value == 'Name (A-Z)' &&
+                          controller.searchText.value.isEmpty;
+                      final studentLetter = PhonebookController.letterOf(student.name);
+                      // Use the controller's index so each letter's header appears once,
+                      // even when '#' names aren't contiguous in the sort order.
+                      final isFirstOfLetter =
+                          isNameSort && controller.alphaIndex[studentLetter] == index;
+
+                      Widget item = card;
+                      if (isFirstOfLetter) {
+                        item = Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            _buildLetterSectionHeader(studentLetter),
+                            card,
+                          ],
+                        );
+                      }
+
+                      // Gap between cards (the builder has no separators, so item index == student index).
+                      if (index < list.length - 1) {
+                        item = Padding(padding: const EdgeInsets.only(bottom: 10), child: item);
+                      }
+
                       if (index < 8) {
                         return StaggeredSlideFade(
                           index: index,
                           duration: const Duration(milliseconds: 280),
                           slideOffset: 12.0,
-                          child: card,
+                          child: item,
                         );
                       }
-                      return card;
+                      return item;
                     },
                   ),
                 );
@@ -1919,12 +1762,91 @@ class PhonebookScreen extends GetView<PhonebookController> {
             ],
           ),
         ),
+        // Alphabet scroll rail — positioned exclusively in the card list space
+        Obx(() {
+          final showRail =
+              controller.searchText.value.isEmpty &&
+              controller.alphaIndex.length > 1 &&
+              controller.selectedSort.value == 'Name (A-Z)' &&
+              !controller.isLoading.value &&
+              controller.students.isNotEmpty;
+          if (!showRail) return const SizedBox.shrink();
+
+          final topPad = MediaQuery.of(context).padding.top;
+          final bottomPad = MediaQuery.of(context).padding.bottom;
+
+          return Positioned(
+            right: 4,
+            top: topPad + 68.0, // Strictly below pinned appbar header
+            bottom: bottomPad + 24.0, // Above bottom navigation edge
+            child: Align(
+              alignment: Alignment.centerRight,
+              child: AlphaScrollRail(
+                alphaIndex: controller.alphaIndex,
+                onLetterSelected: (letter, {isDragging = false}) =>
+                    controller.scrollToLetter(letter, isDragging: isDragging),
+              ),
+            ),
+          );
+        }),
+      ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildLetterSectionHeader(String letter) {
+    return Container(
+      height: 42,
+      margin: const EdgeInsets.only(top: 10, bottom: 8),
+      padding: const EdgeInsets.symmetric(horizontal: 14),
+      decoration: BoxDecoration(
+        gradient: LinearGradient(
+          colors: [
+            const Color(0xFF0284C7).withValues(alpha: 0.12),
+            const Color(0xFF0284C7).withValues(alpha: 0.04),
+          ],
+        ),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(
+          color: const Color(0xFF0284C7).withValues(alpha: 0.20),
+        ),
+      ),
+      child: Row(
+        children: [
+          Container(
+            width: 26,
+            height: 26,
+            decoration: const BoxDecoration(
+              color: Color(0xFF0284C7),
+              shape: BoxShape.circle,
+            ),
+            alignment: Alignment.center,
+            child: Text(
+              letter,
+              style: const TextStyle(
+                fontSize: 14,
+                fontWeight: FontWeight.w900,
+                color: Colors.white,
+              ),
+            ),
+          ),
+          const SizedBox(width: 10),
+          Text(
+            'Students starting with "$letter"',
+            style: const TextStyle(
+              fontSize: 12.5,
+              fontWeight: FontWeight.w700,
+              color: Color(0xFF0369A1),
+              letterSpacing: 0.2,
+            ),
+          ),
+        ],
       ),
     );
   }
 }
 
-/// Collapsible shrinking deep navy header with luminous arcs, sync action and status pills.
 class _PhonebookHeaderDelegate extends SliverPersistentHeaderDelegate {
   final PhonebookController controller;
   final double topPadding;
@@ -2312,6 +2234,7 @@ class _StudentPhonebookCard extends StatelessWidget {
       onCall: onCall,
       onWhatsApp: onWhatsApp,
       onShare: onShare,
+      margin: EdgeInsets.zero,
     );
   }
 }

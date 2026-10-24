@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:get/get.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:super_sliver_list/super_sliver_list.dart';
 import 'package:url_launcher/url_launcher.dart';
 import '../../../core/enums/user_role.dart';
 import '../../../core/storage/session_store.dart';
@@ -24,6 +25,24 @@ class PhonebookController extends GetxController {
   final isSyncing = false.obs;
   final isSearching = false.obs;
 
+  // Scroll controller exposed so the alphabet rail can jump to a letter
+  final listScrollController = ScrollController();
+
+  /// Maps first letter (uppercase, or '#') → first list index for that letter.
+  /// Rebuilt every time [students] changes.
+  final alphaIndex = <String, int>{}.obs;
+
+  /// Drives the student SuperSliverList. It jumps straight to an item without
+  /// building every card in between, which is what makes the A-Z rail smooth.
+  final listController = ListController();
+
+  /// Section letter for a name: its uppercase first letter, or '#' for anything else.
+  static String letterOf(String name) {
+    final trimmed = name.trim();
+    if (trimmed.isEmpty) return '#';
+    final first = trimmed[0].toUpperCase();
+    return RegExp(r'^[A-Z]$').hasMatch(first) ? first : '#';
+  }
 
   // Primary filter
   final selectedGroup = 'All'.obs;
@@ -127,6 +146,8 @@ class PhonebookController extends GetxController {
   void onClose() {
     _debounceTimer?.cancel();
     _periodicSyncTimer?.cancel();
+    listScrollController.dispose();
+    listController.dispose();
     searchController.dispose();
     super.onClose();
   }
@@ -288,16 +309,6 @@ class PhonebookController extends GetxController {
     search();
   }
 
-  void clearGroup() => selectGroup('All');
-  void clearFloor() => selectFloor('All');
-  void clearStatus() => selectStatus('All');
-  void clearDob() => toggleOnlyWithDob(false);
-  void clearParents() => toggleOnlyWithParents(false);
-  void clearWhatsApp() => toggleOnlyWithWhatsApp(false);
-  void clearAddress() => toggleOnlyWithAddress(false);
-  void clearAadhar() => toggleOnlyWithAadhar(false);
-  void clearSort() => selectSort('Name (A-Z)');
-
   void resetAllFilters() {
     selectedGroup.value = 'All';
     selectedFloor.value = 'All';
@@ -380,12 +391,52 @@ class PhonebookController extends GetxController {
         hasAadhar: onlyWithAadhar.value ? true : null,
         sortBy: sortBy,
       );
+      if (selectedSort.value == 'Name (A-Z)') {
+        results.sort((a, b) => a.name.trim().toLowerCase().compareTo(b.name.trim().toLowerCase()));
+      }
       students.assignAll(results);
+      _rebuildAlphaIndex(results);
     } catch (e) {
       AppSnackbar.error('Search error', e.toString());
     } finally {
       isLoading.value = false;
       isSearching.value = false;
+    }
+  }
+
+  /// Rebuilds the letter → first-index map from the current student list.
+  void _rebuildAlphaIndex(List<PhonebookStudent> list) {
+    final map = <String, int>{};
+    for (int i = 0; i < list.length; i++) {
+      map.putIfAbsent(letterOf(list[i].name), () => i);
+    }
+    alphaIndex.assignAll(map);
+  }
+
+  @visibleForTesting
+  void rebuildAlphaIndex(List<PhonebookStudent> list) => _rebuildAlphaIndex(list);
+
+  /// Scrolls the student list so the first student for [letter] (with its
+  /// section header) sits just below the pinned header. Jumps while dragging
+  /// the rail, animates on a tap.
+  void scrollToLetter(String letter, {bool isDragging = false}) {
+    final index = alphaIndex[letter];
+    if (index == null || !listController.isAttached || !listScrollController.hasClients) return;
+
+    if (isDragging) {
+      listController.jumpToItem(
+        index: index,
+        scrollController: listScrollController,
+        alignment: 0,
+      );
+    } else {
+      listController.animateToItem(
+        index: index,
+        scrollController: listScrollController,
+        alignment: 0,
+        duration: (_) => const Duration(milliseconds: 280),
+        curve: (_) => Curves.easeOutCubic,
+      );
     }
   }
 

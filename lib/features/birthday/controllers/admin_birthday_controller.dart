@@ -1,11 +1,16 @@
 import 'dart:async';
+import 'dart:convert';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:get/get.dart';
+import 'package:intl/intl.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:url_launcher/url_launcher.dart';
 import '../../../core/models/birthday/birthday_models.dart';
 import '../../../core/network/repository/birthday/birthday_repository.dart';
 import '../../../core/utils/app_snackbar.dart';
+import '../../../core/utils/date_formatting.dart';
+import '../../phonebook/services/phonebook_database_service.dart';
 
 class AdminBirthdayController extends GetxController {
   final BirthdayRepository _repository = BirthdayRepository();
@@ -23,7 +28,9 @@ class AdminBirthdayController extends GetxController {
   final RxInt selectedTab = 0.obs;
 
   // Template editor & config fields
+  /// Body of the template open in the editor (see [editingTemplateId]).
   late TextEditingController templateController;
+  late TextEditingController templateNameController;
   late TextEditingController testPhoneController;
   late TextEditingController adminPhoneController;
   late TextEditingController searchController;
@@ -38,6 +45,9 @@ class AdminBirthdayController extends GetxController {
   final RxString waStatus = 'disconnected'.obs;
   final RxString waQr = ''.obs;
   final RxString pairingCode = ''.obs;
+
+  /// Number the current [pairingCode] was issued for, with country code.
+  final RxString pairingNumber = ''.obs;
   final RxBool isPairingLoading = false.obs;
   final RxBool isCheckingStatus = false.obs;
   final RxString connectedPhone = ''.obs;
@@ -45,16 +55,34 @@ class AdminBirthdayController extends GetxController {
 
   static const _prefKey = 'birthday_sent_date';
 
+  /// Group/status from the phonebook synced on this phone, by bank code. Display only.
+  final RxMap<String, PhonebookGroupInfo> _phonebookInfo = <String, PhonebookGroupInfo>{}.obs;
+
+  /// Dispatch logs filter: a `yyyy-MM-dd` date, or null for all dates.
+  final RxnString logDateFilter = RxnString();
+
+  // Template library: several templates per audience, one active per audience.
+  // Until hsh_api stores `templates`, the library is also cached on this device.
+  static const _templatesCacheKey = 'birthday_templates_v1';
+  final RxList<BirthdayTemplate> templates = <BirthdayTemplate>[].obs;
+  final RxMap<String, String> activeTemplateIds = <String, String>{}.obs;
+  final RxString editingAudience = BirthdayAudience.student.obs;
+  final RxnString editingTemplateId = RxnString();
+  bool _loadingEditor = false;
+  String _savedTemplatesSnapshot = '';
+
   @override
   void onInit() {
     super.onInit();
-    templateController = TextEditingController();
+    templateController = TextEditingController()..addListener(_onEditorChanged);
+    templateNameController = TextEditingController()..addListener(_onEditorChanged);
     testPhoneController = TextEditingController();
     adminPhoneController = TextEditingController();
     searchController = TextEditingController();
     pairPhoneController = TextEditingController();
 
     _checkIfAlreadySentToday();
+    _loadPhonebookInfo();
     loadDashboard();
     fetchWhatsAppStatus();
   }
@@ -73,6 +101,7 @@ class AdminBirthdayController extends GetxController {
   void onClose() {
     stopLinkingPolling();
     templateController.dispose();
+    templateNameController.dispose();
     testPhoneController.dispose();
     adminPhoneController.dispose();
     searchController.dispose();
@@ -92,7 +121,7 @@ class AdminBirthdayController extends GetxController {
       sendTime.value = data.config.sendTime;
       targetAudience.value = data.config.targetAudience;
       preferWhatsApp.value = data.config.preferWhatsAppNumber;
-      templateController.text = data.config.messageTemplate;
+      await _loadTemplates(data.config);
       adminPhoneController.text = data.config.adminNotificationPhone ?? '';
 
       // Sync WA connection state
@@ -120,6 +149,76 @@ class AdminBirthdayController extends GetxController {
     } finally {
       isLoading.value = false;
     }
+  }
+
+  Future<void> _loadPhonebookInfo() async {
+    try {
+      _phonebookInfo.assignAll(await PhonebookDatabaseService.instance.groupInfoByBankCode());
+    } catch (e) {
+      debugPrint('[AdminBirthdayController] phonebook lookup unavailable: $e');
+    }
+  }
+
+  PhonebookGroupInfo? _phonebookInfoFor(BirthdayStudentModel s) =>
+      _phonebookInfo[PhonebookDatabaseService.normalizeBankCode(s.studentCode)];
+
+  String? groupFor(BirthdayStudentModel s) => groupFrom(s, _phonebookInfoFor(s));
+
+  bool isAlumni(BirthdayStudentModel s) => alumniFrom(s, _phonebookInfoFor(s));
+
+  /// Group for a birthday card: the API's value, else the synced phonebook's.
+  static String? groupFrom(BirthdayStudentModel s, PhonebookGroupInfo? phonebook) {
+    final fromApi = s.groupName?.trim() ?? '';
+    if (fromApi.isNotEmpty) return fromApi;
+    final fromPhonebook = phonebook?.group?.trim() ?? '';
+    return fromPhonebook.isEmpty ? null : fromPhonebook;
+  }
+
+  static bool alumniFrom(BirthdayStudentModel s, PhonebookGroupInfo? phonebook) =>
+      s.isAlumni || BirthdayStudentModel.statusMeansAlumni(phonebook?.status);
+
+  // --- Dispatch logs by date ---
+
+  /// IST calendar day (`yyyy-MM-dd`) a log belongs to: its wish date, else when it was sent.
+  static String logDateKey(BirthdayLogModel log) {
+    if (log.wishDate.isNotEmpty) return log.wishDate;
+    final sentAt = DateTime.tryParse(log.sentAt);
+    if (sentAt == null) return '';
+    return DateFormat('yyyy-MM-dd').format(DateFormatting.utcToIst(sentAt));
+  }
+
+  /// Logs grouped by [logDateKey], newest date first (undated logs last).
+  static List<({String date, List<BirthdayLogModel> logs})> groupLogsByDate(List<BirthdayLogModel> logs) {
+    final byDate = <String, List<BirthdayLogModel>>{};
+    for (final log in logs) {
+      byDate.putIfAbsent(logDateKey(log), () => []).add(log);
+    }
+    final dates = byDate.keys.toList()
+      ..sort((a, b) {
+        if (a.isEmpty) return 1;
+        if (b.isEmpty) return -1;
+        return b.compareTo(a);
+      });
+    return [for (final d in dates) (date: d, logs: byDate[d]!)];
+  }
+
+  /// "Today", "Yesterday", or "Thu, 23 Oct 2026" for a `yyyy-MM-dd` key.
+  static String logDateLabel(String date, {DateTime? now}) {
+    final day = DateTime.tryParse(date);
+    if (day == null) return 'Unknown date';
+    final today = DateFormatting.utcToIst((now ?? DateTime.now()).toUtc());
+    final todayDate = DateTime(today.year, today.month, today.day);
+    final diff = todayDate.difference(DateTime(day.year, day.month, day.day)).inDays;
+    if (diff == 0) return 'Today';
+    if (diff == 1) return 'Yesterday';
+    return DateFormat('EEE, dd MMM yyyy').format(day);
+  }
+
+  /// Short label for the date filter chips ("Today", "Yesterday", "23 Oct").
+  static String logDateChipLabel(String date, {DateTime? now}) {
+    final label = logDateLabel(date, now: now);
+    if (label == 'Today' || label == 'Yesterday' || label == 'Unknown date') return label;
+    return DateFormat('dd MMM').format(DateTime.parse(date));
   }
 
   /// True when a WhatsApp device session is confirmed online
@@ -161,6 +260,9 @@ class AdminBirthdayController extends GetxController {
 
   /// Reconnect / trigger QR code emission from backend and update status
   Future<void> loadQrCode() async {
+    // /whatsapp/connect restarts the session, which cancels any pairing code.
+    pairingCode.value = '';
+    pairingNumber.value = '';
     isCheckingStatus.value = true;
     try {
       await _repository.connectWhatsApp();
@@ -192,19 +294,51 @@ class AdminBirthdayController extends GetxController {
     _linkingPollTimer = null;
   }
 
+  /// Digits with country code, as WhatsApp's pairing API needs ("919876543210").
+  /// A bare 10-digit number is treated as Indian (91). Null if it can't be a phone number.
+  static String? normalizeWhatsAppNumber(String input) {
+    var digits = input.replaceAll(RegExp(r'[^0-9]'), '');
+    if (digits.startsWith('00')) digits = digits.substring(2);
+    if (digits.length == 11 && digits.startsWith('0')) digits = digits.substring(1);
+    if (digits.length == 10) digits = '91$digits';
+    if (digits.length < 11 || digits.length > 15) return null;
+    return digits;
+  }
+
   Future<void> requestPairingCode() async {
-    final phone = pairPhoneController.text.trim().replaceAll(RegExp(r'[^0-9]'), '');
-    if (phone.length < 10) {
-      AppSnackbar.warning('Invalid Number', 'Enter your full WhatsApp number with country code (e.g. 919876543210).');
+    // Without the country code WhatsApp issues the code for a different number:
+    // no "Enter code" notification arrives and typing the code fails.
+    final phone = normalizeWhatsAppNumber(pairPhoneController.text);
+    if (phone == null) {
+      AppSnackbar.warning('Invalid Number', 'Enter the WhatsApp number on this phone, e.g. 98765 43210.');
       return;
     }
+    FocusManager.instance.primaryFocus?.unfocus();
 
     isPairingLoading.value = true;
     pairingCode.value = '';
+    pairingNumber.value = '';
+    waQr.value = ''; // Clear any cached QR — QR mode and pairing-code mode are
+                    // mutually exclusive in Baileys / whatsapp-web.js.
     try {
+      // The pairing-code API requires the session to be in a clean / idle state.
+      // If a QR session is already pending, disconnect it first so the backend
+      // can issue the code without the session state conflicting.
+      try {
+        await _repository.disconnectWhatsApp();
+        await Future.delayed(const Duration(milliseconds: 800));
+      } catch (_) {
+        // Ignore — session may already be clean (first time linking).
+      }
+
       final code = await _repository.requestPairingCode(phone);
       pairingCode.value = code;
-      AppSnackbar.success('Pairing Code Ready', 'Enter code in WhatsApp > Linked Devices.');
+      pairingNumber.value = phone;
+      // Copy straight away: on the same phone the next step is pasting it in WhatsApp.
+      try {
+        await Clipboard.setData(ClipboardData(text: code));
+      } catch (_) {}
+      AppSnackbar.success('Pairing Code Copied', 'Open WhatsApp and paste it under Linked devices.');
     } catch (e) {
       AppSnackbar.error('Pairing Failed', e.toString().replaceAll('Exception: ', ''));
     } finally {
@@ -212,10 +346,29 @@ class AdminBirthdayController extends GetxController {
     }
   }
 
+  /// Drops the shown pairing code so the QR option can be used instead.
+  void cancelPairingCode() {
+    pairingCode.value = '';
+    pairingNumber.value = '';
+  }
+
+  /// Opens the WhatsApp app. There is no public link straight to Linked devices.
+  /// launchUrl is called directly: canLaunchUrl needs the scheme declared in
+  /// AndroidManifest `<queries>` / iOS LSApplicationQueriesSchemes and says "no" otherwise.
+  Future<void> openWhatsAppApp() async {
+    for (final url in ['whatsapp://', 'https://wa.me/']) {
+      try {
+        if (await launchUrl(Uri.parse(url), mode: LaunchMode.externalApplication)) return;
+      } catch (_) {}
+    }
+    AppSnackbar.warning('Could Not Open WhatsApp', 'Open WhatsApp yourself, then go to Settings → Linked devices.');
+  }
+
   Future<void> disconnectWhatsAppSession() async {
     try {
       await _repository.disconnectWhatsApp();
       pairingCode.value = '';
+      pairingNumber.value = '';
       waStatus.value = 'disconnected';
       connectedPhone.value = '';
       AppSnackbar.success('Disconnected', 'WhatsApp device session unlinked.');
@@ -254,21 +407,31 @@ class AdminBirthdayController extends GetxController {
   }
 
   Future<void> saveSettings() async {
+    // Close the keyboard (template / admin phone field) when saving.
+    FocusManager.instance.primaryFocus?.unfocus();
     final current = dashboard.value?.config;
     if (current == null) return;
+
+    final problem = _templateProblem();
+    if (problem != null) {
+      AppSnackbar.warning('Check Templates', problem);
+      return;
+    }
 
     isSaving.value = true;
     try {
       final updated = await _repository.saveConfig(
-        current.copyWith(
-          isEnabled: isAutoEnabled.value,
-          sendTime: sendTime.value,
-          targetAudience: targetAudience.value,
-          preferWhatsAppNumber: preferWhatsApp.value,
-          adminNotificationPhone: adminPhoneController.text.trim().isEmpty ? null : adminPhoneController.text.trim(),
-          messageTemplate: templateController.text.trim(),
+        _withTemplates(
+          current.copyWith(
+            isEnabled: isAutoEnabled.value,
+            sendTime: sendTime.value,
+            targetAudience: targetAudience.value,
+            preferWhatsAppNumber: preferWhatsApp.value,
+            adminNotificationPhone: adminPhoneController.text.trim().isEmpty ? null : adminPhoneController.text.trim(),
+          ),
         ),
       );
+      await _markTemplatesSaved();
       dashboard.value = BirthdayDashboardData(
         config: updated,
         todaysBirthdays: dashboard.value!.todaysBirthdays,
@@ -307,18 +470,8 @@ class AdminBirthdayController extends GetxController {
 
     isTriggering.value = true;
     try {
-      // Auto-save edited template to ensure backend dispatches with latest settings
-      if (templateController.text.trim().isNotEmpty &&
-          dashboard.value?.config != null &&
-          templateController.text.trim() != dashboard.value!.config.messageTemplate) {
-        try {
-          await _repository.saveConfig(
-            dashboard.value!.config.copyWith(
-              messageTemplate: templateController.text.trim(),
-            ),
-          );
-        } catch (_) {}
-      }
+      // Auto-save edited templates so the backend dispatches with the latest ones
+      await _autoSaveTemplates();
 
       final result = await _repository.triggerWishes();
       final count = result['count'] is num ? (result['count'] as num).toInt() : 0;
@@ -382,18 +535,8 @@ class AdminBirthdayController extends GetxController {
 
     isTriggering.value = true;
     try {
-      // Auto-save edited template to ensure backend delivers latest setting
-      if (templateController.text.trim().isNotEmpty &&
-          dashboard.value?.config != null &&
-          templateController.text.trim() != dashboard.value!.config.messageTemplate) {
-        try {
-          await _repository.saveConfig(
-            dashboard.value!.config.copyWith(
-              messageTemplate: templateController.text.trim(),
-            ),
-          );
-        } catch (_) {}
-      }
+      // Auto-save edited templates so the backend delivers the latest ones
+      await _autoSaveTemplates();
 
       final res = await _repository.triggerWishes(testPhone: phone);
       if (res['success'] == false) {
@@ -423,6 +566,208 @@ class AdminBirthdayController extends GetxController {
     }
   }
 
+  // --- Template library ---
+
+  static const defaultStudentTemplate =
+      'Dear {student_name}, 🎂🎉 Wishing you a very Happy Birthday from Hari Saurabh Hostel family! May your special day bring you immense joy, good health, and success! 🌟✨ - HSH Warden Team';
+  static const defaultParentTemplate =
+      'Dear Parent, 🎂 Hari Saurabh Hostel family wishes {student_name} a very Happy Birthday! May {first_name} be blessed with joy, good health and success. 🌟 - HSH Warden Team';
+
+  static String defaultBodyFor(String audience) =>
+      audience == BirthdayAudience.parent ? defaultParentTemplate : defaultStudentTemplate;
+
+  /// Builds the template library from the API config, falling back to the local
+  /// [cache] while the API has no `templates` field. Every audience ends up with
+  /// at least one template and a valid active id.
+  static ({List<BirthdayTemplate> templates, Map<String, String> active}) resolveTemplates(
+    BirthdayConfigModel config,
+    Map<String, dynamic>? cache,
+  ) {
+    final fromServer = config.templatesFromServer && config.templates.isNotEmpty;
+    final templates = <BirthdayTemplate>[];
+    final active = <String, String>{};
+    if (fromServer) {
+      templates.addAll(config.templates);
+      if (config.activeStudentTemplateId != null) active[BirthdayAudience.student] = config.activeStudentTemplateId!;
+      if (config.activeParentTemplateId != null) active[BirthdayAudience.parent] = config.activeParentTemplateId!;
+    } else if (cache != null) {
+      templates.addAll(BirthdayTemplate.listFromJson(cache['templates']));
+      final cachedActive = cache['active'];
+      if (cachedActive is Map) {
+        cachedActive.forEach((k, v) => active['$k'] = '$v');
+      }
+    }
+
+    for (final audience in BirthdayAudience.all) {
+      final sentBody = (audience == BirthdayAudience.student ? config.messageTemplate : config.parentMessageTemplate).trim();
+      final forAudience = templates.where((t) => t.audience == audience).toList();
+
+      if (forAudience.isEmpty) {
+        final first = BirthdayTemplate(
+          id: 'default_$audience',
+          name: audience == BirthdayAudience.parent ? 'Default parent wish' : 'Default student wish',
+          body: sentBody.isNotEmpty ? sentBody : defaultBodyFor(audience),
+          audience: audience,
+        );
+        templates.add(first);
+        active[audience] = first.id;
+        continue;
+      }
+
+      if (!forAudience.any((t) => t.id == active[audience])) {
+        active[audience] = forAudience.first.id;
+      }
+
+      // The server's stored body is what actually gets sent; if another device changed it,
+      // reflect that in the cached active template.
+      if (!fromServer && sentBody.isNotEmpty) {
+        final i = templates.indexWhere((t) => t.id == active[audience]);
+        if (templates[i].body.trim() != sentBody) templates[i] = templates[i].copyWith(body: sentBody);
+      }
+    }
+    return (templates: templates, active: active);
+  }
+
+  List<BirthdayTemplate> templatesFor(String audience) =>
+      templates.where((t) => t.audience == audience).toList();
+
+  BirthdayTemplate? _findTemplate(String? id) {
+    for (final t in templates) {
+      if (t.id == id) return t;
+    }
+    return null;
+  }
+
+  bool isActiveTemplate(BirthdayTemplate t) => activeTemplateIds[t.audience] == t.id;
+
+  /// Body of the active template for [audience], trimmed ('' if none).
+  String activeBody(String audience) => _findTemplate(activeTemplateIds[audience])?.body.trim() ?? '';
+
+  bool get hasUnsavedTemplateChanges => _templatesSnapshot() != _savedTemplatesSnapshot;
+
+  void selectTemplateAudience(String audience) {
+    editingAudience.value = audience;
+    _openEditor(activeTemplateIds[audience]);
+  }
+
+  void editTemplate(String id) => _openEditor(id);
+
+  void addTemplate() {
+    final audience = editingAudience.value;
+    final label = audience == BirthdayAudience.parent ? 'Parent' : 'Student';
+    final template = BirthdayTemplate(
+      id: 'tpl_${DateTime.now().microsecondsSinceEpoch}',
+      name: '$label wish ${templatesFor(audience).length + 1}',
+      body: defaultBodyFor(audience),
+      audience: audience,
+    );
+    templates.add(template);
+    activeTemplateIds.putIfAbsent(audience, () => template.id);
+    _openEditor(template.id);
+  }
+
+  void setActiveTemplate(String id) {
+    final template = _findTemplate(id);
+    if (template == null) return;
+    activeTemplateIds[template.audience] = id;
+  }
+
+  void deleteTemplate(String id) {
+    final template = _findTemplate(id);
+    if (template == null) return;
+    if (isActiveTemplate(template)) {
+      AppSnackbar.warning('Template Is Active', 'Set another template as active before deleting this one.');
+      return;
+    }
+    templates.removeWhere((t) => t.id == id);
+    if (editingTemplateId.value == id) _openEditor(activeTemplateIds[template.audience]);
+  }
+
+  void _openEditor(String? id) {
+    final template = _findTemplate(id);
+    editingTemplateId.value = template?.id;
+    _loadingEditor = true;
+    templateNameController.text = template?.name ?? '';
+    templateController.text = template?.body ?? '';
+    _loadingEditor = false;
+  }
+
+  /// Copies editor text into the template being edited.
+  void _onEditorChanged() {
+    if (_loadingEditor) return;
+    final i = templates.indexWhere((t) => t.id == editingTemplateId.value);
+    if (i < 0) return;
+    final current = templates[i];
+    final name = templateNameController.text;
+    final body = templateController.text;
+    if (current.name == name && current.body == body) return;
+    templates[i] = current.copyWith(name: name, body: body);
+  }
+
+  /// Why the templates can't be saved yet, or null if they can.
+  String? _templateProblem() {
+    if (activeBody(BirthdayAudience.student).isEmpty) {
+      return 'The active student template is empty. Write a message or pick another template.';
+    }
+    if (targetAudience.value != 'student_only' && activeBody(BirthdayAudience.parent).isEmpty) {
+      return 'The active parent template is empty. Write a message or pick another template.';
+    }
+    return null;
+  }
+
+  /// [config] plus the template library. `messageTemplate` stays the active student
+  /// body, so an hsh_api without template support keeps working.
+  BirthdayConfigModel _withTemplates(BirthdayConfigModel config) {
+    return config.copyWith(
+      messageTemplate: activeBody(BirthdayAudience.student),
+      parentMessageTemplate: activeBody(BirthdayAudience.parent),
+      templates: templates.toList(),
+      activeStudentTemplateId: activeTemplateIds[BirthdayAudience.student],
+      activeParentTemplateId: activeTemplateIds[BirthdayAudience.parent],
+    );
+  }
+
+  String _templatesSnapshot() => jsonEncode({
+        'templates': templates.map((t) => t.toJson()).toList(),
+        'active': Map<String, String>.of(activeTemplateIds),
+      });
+
+  Future<void> _loadTemplates(BirthdayConfigModel config) async {
+    Map<String, dynamic>? cache;
+    if (!config.templatesFromServer || config.templates.isEmpty) {
+      try {
+        final raw = (await SharedPreferences.getInstance()).getString(_templatesCacheKey);
+        if (raw != null) cache = Map<String, dynamic>.from(jsonDecode(raw) as Map);
+      } catch (e) {
+        debugPrint('[AdminBirthdayController] template cache unreadable: $e');
+      }
+    }
+    final resolved = resolveTemplates(config, cache);
+    templates.assignAll(resolved.templates);
+    activeTemplateIds.assignAll(resolved.active);
+    await _markTemplatesSaved();
+    _openEditor(activeTemplateIds[editingAudience.value]);
+  }
+
+  Future<void> _markTemplatesSaved() async {
+    _savedTemplatesSnapshot = _templatesSnapshot();
+    try {
+      await (await SharedPreferences.getInstance()).setString(_templatesCacheKey, _savedTemplatesSnapshot);
+    } catch (e) {
+      debugPrint('[AdminBirthdayController] template cache write failed: $e');
+    }
+  }
+
+  /// Saves template edits before a send so the server uses what the admin sees.
+  Future<void> _autoSaveTemplates() async {
+    final config = dashboard.value?.config;
+    if (config == null || !hasUnsavedTemplateChanges || _templateProblem() != null) return;
+    try {
+      await _repository.saveConfig(_withTemplates(config));
+      await _markTemplatesSaved();
+    } catch (_) {}
+  }
+
   void insertVariableTag(String tag) {
     final text = templateController.text;
     final selection = templateController.selection;
@@ -439,7 +784,8 @@ class AdminBirthdayController extends GetxController {
 
   /// Formats the greeting message for a student based on current template settings
   String formatWishMessage(BirthdayStudentModel student) {
-    String template = templateController.text.trim();
+    // Manual sends go to the student, so they use the active student template.
+    String template = activeBody(BirthdayAudience.student);
     if (template.isEmpty) {
       template = dashboard.value?.config.messageTemplate ?? '';
     }
@@ -452,6 +798,17 @@ class AdminBirthdayController extends GetxController {
     final room = (student.room.isEmpty || student.room == 'N/A') ? '' : student.room;
     final code = student.studentCode;
 
+    return fillTemplate(template, firstName: firstName, fullName: fullName, room: room, code: code);
+  }
+
+  /// Replaces the template placeholders. Shared by real sends and the Template Studio preview.
+  static String fillTemplate(
+    String template, {
+    required String firstName,
+    required String fullName,
+    required String room,
+    required String code,
+  }) {
     return template
         .replaceAll('{first_name}', firstName)
         .replaceAll('{student_name}', fullName)
@@ -485,7 +842,7 @@ class AdminBirthdayController extends GetxController {
     if (customText != null && customText.isNotEmpty) {
       messageText = customText;
     } else {
-      String template = templateController.text.trim();
+      String template = activeBody(BirthdayAudience.student);
       if (template.isEmpty) {
         template = dashboard.value?.config.messageTemplate ?? '';
       }

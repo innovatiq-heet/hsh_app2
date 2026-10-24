@@ -3,6 +3,8 @@ import 'package:path/path.dart' as p;
 import '../models/phonebook_models.dart';
 import 'phone_number_normalizer.dart';
 
+typedef PhonebookGroupInfo = ({String? group, String? status});
+
 class PhonebookDatabaseService {
   static final PhonebookDatabaseService instance =
       PhonebookDatabaseService._internal();
@@ -190,7 +192,7 @@ class PhonebookDatabaseService {
     bool? hasAddress,
     bool? hasAadhar,
     String sortBy = 'name_asc', // 'name_asc', 'name_desc', 'room_asc', 'room_desc', 'floor_asc', 'floor_desc'
-    int limit = 2000,
+    int? limit,
   }) async {
     final db = await database;
     final whereClauses = <String>[];
@@ -293,26 +295,26 @@ class PhonebookDatabaseService {
     final whereString =
         whereClauses.isNotEmpty ? whereClauses.join(' AND ') : null;
 
-    String orderByClause = 'name ASC';
+    String orderByClause = 'name COLLATE NOCASE ASC';
     switch (sortBy) {
       case 'name_desc':
-        orderByClause = 'name DESC';
+        orderByClause = 'name COLLATE NOCASE DESC';
         break;
       case 'room_asc':
-        orderByClause = 'CASE WHEN room_num IS NULL OR room_num = "" OR LOWER(room_num) = "alumni" THEN 1 ELSE 0 END, room_num ASC, name ASC';
+        orderByClause = 'CASE WHEN room_num IS NULL OR room_num = "" OR LOWER(room_num) = "alumni" THEN 1 ELSE 0 END, room_num ASC, name COLLATE NOCASE ASC';
         break;
       case 'room_desc':
-        orderByClause = 'CASE WHEN room_num IS NULL OR room_num = "" OR LOWER(room_num) = "alumni" THEN 1 ELSE 0 END, room_num DESC, name ASC';
+        orderByClause = 'CASE WHEN room_num IS NULL OR room_num = "" OR LOWER(room_num) = "alumni" THEN 1 ELSE 0 END, room_num DESC, name COLLATE NOCASE ASC';
         break;
       case 'floor_asc':
-        orderByClause = 'CASE WHEN floor_num IS NULL THEN 1 ELSE 0 END, floor_num ASC, room_num ASC';
+        orderByClause = 'CASE WHEN floor_num IS NULL THEN 1 ELSE 0 END, floor_num ASC, room_num ASC, name COLLATE NOCASE ASC';
         break;
       case 'floor_desc':
-        orderByClause = 'CASE WHEN floor_num IS NULL THEN 1 ELSE 0 END, floor_num DESC, room_num ASC';
+        orderByClause = 'CASE WHEN floor_num IS NULL THEN 1 ELSE 0 END, floor_num DESC, room_num ASC, name COLLATE NOCASE ASC';
         break;
       case 'name_asc':
       default:
-        orderByClause = 'name ASC';
+        orderByClause = 'name COLLATE NOCASE ASC';
         break;
     }
 
@@ -377,6 +379,41 @@ class PhonebookDatabaseService {
     return studentMap.values
         .map((data) => PhonebookStudent.fromJson(data))
         .toList();
+  }
+
+  /// Group and status per bank code, for showing them elsewhere (birthday cards).
+  /// Display only: never use this to identify a student for an action.
+  Future<Map<String, PhonebookGroupInfo>> groupInfoByBankCode() async {
+    final db = await database;
+    final rows = await db.query(
+      'student_cache',
+      columns: ['bank_code', 'group_name', 'status'],
+      where: "bank_code IS NOT NULL AND bank_code != ''",
+    );
+    return buildGroupIndex(rows);
+  }
+
+  /// Bank code without leading zeros ("0873" and "873" are the same student).
+  static String normalizeBankCode(String code) => code.trim().replaceFirst(RegExp(r'^0+(?=.)'), '');
+
+  /// Indexes rows by normalized bank code. A code shared by rows that disagree
+  /// is left out rather than guessed.
+  static Map<String, PhonebookGroupInfo> buildGroupIndex(List<Map<String, Object?>> rows) {
+    final index = <String, PhonebookGroupInfo>{};
+    final ambiguous = <String>{};
+    for (final row in rows) {
+      final key = normalizeBankCode('${row['bank_code'] ?? ''}');
+      if (key.isEmpty || ambiguous.contains(key)) continue;
+      final info = (group: row['group_name'] as String?, status: row['status'] as String?);
+      final existing = index[key];
+      if (existing != null && existing != info) {
+        index.remove(key);
+        ambiguous.add(key);
+        continue;
+      }
+      index[key] = info;
+    }
+    return index;
   }
 
   Future<int> getStudentCount() async {

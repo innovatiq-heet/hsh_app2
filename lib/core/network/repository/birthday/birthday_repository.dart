@@ -1,8 +1,10 @@
-import 'package:get/get.dart';
+import 'package:dio/dio.dart';
+import 'package:get/get.dart' hide Response;
 import '../../../models/birthday/birthday_models.dart';
 import '../../api_client.dart';
+import '../base_repository.dart';
 
-class BirthdayRepository {
+class BirthdayRepository extends BaseRepository {
   ApiClient get _apiClient => Get.find<ApiClient>();
 
   /// Fetch full dashboard state: config, today's & tomorrow's celebrants, logs, connection state
@@ -71,12 +73,18 @@ class BirthdayRepository {
     return {};
   }
 
-  /// Request 8-digit pairing code to link phone
+  /// Request 8-character pairing code to link phone. [phone] is digits with
+  /// country code ("919876543210"), which is what WhatsApp expects.
   Future<String> requestPairingCode(String phone) async {
-    final response = await _apiClient.dio.post(
-      '/whatsapp/pair',
-      data: {'phone': phone.trim()},
-    );
+    final Response response;
+    try {
+      response = await _apiClient.dio.post(
+        '/whatsapp/pair',
+        data: {'phone': phone.trim()},
+      );
+    } on DioException catch (e) {
+      throw Exception(errorMessage(e, fallback: 'Could not get a pairing code. Please try again.'));
+    }
     final data = response.data;
     if (data is Map && data['code'] != null) {
       return data['code'].toString();

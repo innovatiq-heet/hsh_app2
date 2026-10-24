@@ -4,7 +4,11 @@ import 'package:get/get.dart';
 import 'package:qr_flutter/qr_flutter.dart';
 import '../../../core/models/birthday/birthday_models.dart';
 import '../../../core/utils/app_snackbar.dart';
+import '../../../core/utils/date_formatting.dart';
+import '../../shared/widgets/student_contact_card.dart';
 import '../controllers/admin_birthday_controller.dart';
+import '../widgets/template_library.dart';
+import '../widgets/template_preview.dart';
 
 /// Modern, executive view of Hostel Birthday Greetings & Automation,
 /// styled with the signature deep navy header, sky-blue accents, amber section dashes,
@@ -629,6 +633,8 @@ class AdminBirthdayScreen extends GetView<AdminBirthdayController> {
     final turningAge = _computeTurningAge(s.dob);
     final formattedDob = _formatCelebrantDob(s.dob);
     final hasContact = s.whatsappNumber.isNotEmpty || s.phone.isNotEmpty;
+    final group = controller.groupFor(s);
+    final isAlumni = controller.isAlumni(s);
 
     // Color tokens matching the operator home screen palette
     final Color waveColor = isToday
@@ -815,8 +821,26 @@ class AdminBirthdayScreen extends GetView<AdminBirthdayController> {
                   spacing: 6,
                   runSpacing: 4.5,
                   children: [
+                    // Group or Alumni, styled like the phonebook card
+                    _buildCelebrantLightChip(
+                      icon: isAlumni
+                          ? Icons.school_rounded
+                          : Icons.groups_rounded,
+                      text: isAlumni ? 'Alumni' : (group ?? 'Active'),
+                      bgColor: isAlumni
+                          ? const Color(0xFFF3E8FF)
+                          : StudentContactCard.groupBgColor(group),
+                      borderColor: isAlumni
+                          ? const Color(0xFFE9D5FF)
+                          : StudentContactCard.groupColor(
+                              group,
+                            ).withValues(alpha: 0.25),
+                      textColor: isAlumni
+                          ? const Color(0xFF9333EA)
+                          : StudentContactCard.groupColor(group),
+                    ),
                     // Room (skip N/A — day scholars need no chip)
-                    if (s.room != 'N/A')
+                    if (s.room != 'N/A' && !isAlumni)
                       _buildCelebrantLightChip(
                         icon: Icons.meeting_room_rounded,
                         text: 'Room ${s.room}',
@@ -1246,7 +1270,7 @@ class AdminBirthdayScreen extends GetView<AdminBirthdayController> {
         const SizedBox(height: 22),
 
         // 2. Custom Message Template Card
-        _buildSectionHeader(title: 'Custom Wish Template'),
+        _buildSectionHeader(title: 'Wish Templates'),
         const SizedBox(height: 10),
 
         Container(
@@ -1266,6 +1290,50 @@ class AdminBirthdayScreen extends GetView<AdminBirthdayController> {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
+              // Saved templates per audience, with the active one marked.
+              BirthdayTemplateLibrary(controller: controller),
+              const Divider(height: 30, color: Color(0xFFF1F5F9)),
+
+              Obx(
+                () => Text(
+                  controller.editingAudience.value == BirthdayAudience.parent
+                      ? 'Edit Parent Template'
+                      : 'Edit Student Template',
+                  style: const TextStyle(
+                    fontWeight: FontWeight.w800,
+                    fontSize: 14,
+                    color: Color(0xFF0F172A),
+                  ),
+                ),
+              ),
+              const SizedBox(height: 10),
+              TextField(
+                controller: controller.templateNameController,
+                textCapitalization: TextCapitalization.sentences,
+                decoration: InputDecoration(
+                  labelText: 'Template name',
+                  hintText: 'e.g. Festive wish',
+                  isDense: true,
+                  filled: true,
+                  fillColor: const Color(0xFFF8FAFC),
+                  contentPadding: const EdgeInsets.symmetric(
+                    horizontal: 14,
+                    vertical: 12,
+                  ),
+                  enabledBorder: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(12),
+                    borderSide: const BorderSide(color: Color(0xFFE2E8F0)),
+                  ),
+                  focusedBorder: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(12),
+                    borderSide: const BorderSide(
+                      color: Color(0xFF0284C7),
+                      width: 1.5,
+                    ),
+                  ),
+                ),
+              ),
+              const SizedBox(height: 14),
               const Text(
                 'Personalization Placeholders',
                 style: TextStyle(
@@ -1318,68 +1386,44 @@ class AdminBirthdayScreen extends GetView<AdminBirthdayController> {
               ),
               const SizedBox(height: 18),
 
-              // Live Preview Mockup
-              Container(
-                padding: const EdgeInsets.all(14),
-                decoration: BoxDecoration(
-                  color: const Color(0xFFECE5DD),
-                  borderRadius: BorderRadius.circular(14),
-                  border: Border.all(color: const Color(0xFFD1D7DB)),
-                ),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Row(
-                      children: const [
-                        Icon(
-                          Icons.chat_rounded,
-                          size: 14,
-                          color: Color(0xFF075E54),
-                        ),
-                        SizedBox(width: 6),
-                        Text(
-                          'WhatsApp Preview Mockup',
-                          style: TextStyle(
-                            fontSize: 11.5,
-                            fontWeight: FontWeight.w700,
-                            color: Color(0xFF075E54),
-                          ),
-                        ),
-                      ],
-                    ),
-                    const SizedBox(height: 8),
-                    Container(
-                      padding: const EdgeInsets.all(12),
-                      decoration: BoxDecoration(
-                        color: Colors.white,
-                        borderRadius: BorderRadius.circular(10),
-                        boxShadow: [
-                          BoxShadow(
-                            color: Colors.black.withValues(alpha: 0.05),
-                            blurRadius: 4,
-                            offset: const Offset(0, 1),
-                          ),
-                        ],
-                      ),
-                      child: Text(
-                        controller.templateController.text
-                            .replaceAll('{first_name}', 'Rahul')
-                            .replaceAll('{student_name}', 'Rahul Sharma')
-                            .replaceAll('{name}', 'Rahul Sharma')
-                            .replaceAll('{room}', '306')
-                            .replaceAll('{room_number}', '306')
-                            .replaceAll('{student_code}', 'HSH-105'),
-                        style: const TextStyle(
-                          fontSize: 13,
-                          height: 1.4,
-                          color: Color(0xFF1E293B),
-                        ),
-                      ),
-                    ),
-                  ],
+              // Live preview: rebuilds on every keystroke in the template editor.
+              Obx(
+                () => BirthdayTemplatePreview(
+                  templateController: controller.templateController,
+                  title:
+                      controller.editingAudience.value ==
+                          BirthdayAudience.parent
+                      ? 'WhatsApp Preview · sent to parents'
+                      : 'WhatsApp Preview · sent to students',
                 ),
               ),
               const SizedBox(height: 20),
+
+              Obx(
+                () => controller.hasUnsavedTemplateChanges
+                    ? const Padding(
+                        padding: EdgeInsets.only(bottom: 10),
+                        child: Row(
+                          children: [
+                            Icon(
+                              Icons.circle,
+                              size: 8,
+                              color: Color(0xFFF59E0B),
+                            ),
+                            SizedBox(width: 6),
+                            Text(
+                              'Unsaved template changes',
+                              style: TextStyle(
+                                fontSize: 12,
+                                fontWeight: FontWeight.w600,
+                                color: Color(0xFFB45309),
+                              ),
+                            ),
+                          ],
+                        ),
+                      )
+                    : const SizedBox.shrink(),
+              ),
 
               // Save Button
               Obx(
@@ -1621,15 +1665,17 @@ class AdminBirthdayScreen extends GetView<AdminBirthdayController> {
                                   spacing: 6,
                                   runSpacing: 4,
                                   children: [
-                                    _buildTag(
-                                      icon: Icons.meeting_room_rounded,
-                                      text: s.room == 'N/A'
-                                          ? 'Room N/A'
-                                          : 'Room ${s.room}',
-                                      color: s.room == 'N/A'
-                                          ? const Color(0xFFD97706)
-                                          : null,
-                                    ),
+                                    _buildStudentStatusTag(s),
+                                    if (!controller.isAlumni(s))
+                                      _buildTag(
+                                        icon: Icons.meeting_room_rounded,
+                                        text: s.room == 'N/A'
+                                            ? 'Room N/A'
+                                            : 'Room ${s.room}',
+                                        color: s.room == 'N/A'
+                                            ? const Color(0xFFD97706)
+                                            : null,
+                                      ),
                                     if (s.dob.isNotEmpty)
                                       _buildTag(
                                         icon: Icons.cake_outlined,
@@ -1836,90 +1882,218 @@ class AdminBirthdayScreen extends GetView<AdminBirthdayController> {
                   ),
                 )
               else
-                ListView.separated(
-                  shrinkWrap: true,
-                  physics: const NeverScrollableScrollPhysics(),
-                  itemCount: logs.length,
-                  separatorBuilder: (_, _) =>
-                      const Divider(height: 14, color: Color(0xFFF1F5F9)),
-                  itemBuilder: (context, index) {
-                    final log = logs[index];
-                    return Row(
-                      children: [
-                        Container(
-                          padding: const EdgeInsets.all(7),
-                          decoration: BoxDecoration(
-                            color: log.isSent
-                                ? const Color(0xFFECFDF5)
-                                : const Color(0xFFFEF2F2),
-                            shape: BoxShape.circle,
-                          ),
-                          child: Icon(
-                            log.isSent
-                                ? Icons.check_circle_rounded
-                                : Icons.error_rounded,
-                            size: 16,
-                            color: log.isSent
-                                ? const Color(0xFF059669)
-                                : const Color(0xFFDC2626),
-                          ),
-                        ),
-                        const SizedBox(width: 10),
-                        Expanded(
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Text(
-                                log.studentName,
-                                style: const TextStyle(
-                                  fontWeight: FontWeight.w700,
-                                  fontSize: 13,
-                                  color: Color(0xFF0F172A),
-                                ),
-                              ),
-                              const SizedBox(height: 2),
-                              Text(
-                                '${log.room == "N/A" ? "Room N/A" : "Room ${log.room}"} • ${log.phone} • ${log.wishDate}',
-                                style: const TextStyle(
-                                  fontSize: 11,
-                                  color: Color(0xFF64748B),
-                                ),
-                              ),
-                            ],
-                          ),
-                        ),
-                        Container(
-                          padding: const EdgeInsets.symmetric(
-                            horizontal: 7,
-                            vertical: 3,
-                          ),
-                          decoration: BoxDecoration(
-                            color: log.isSent
-                                ? const Color(0xFFECFDF5)
-                                : const Color(0xFFFEF2F2),
-                            borderRadius: BorderRadius.circular(10),
-                            border: Border.all(
-                              color: log.isSent
-                                  ? const Color(0xFFA7F3D0)
-                                  : const Color(0xFFFCA5A5),
-                            ),
-                          ),
-                          child: Text(
-                            log.status.toUpperCase(),
-                            style: TextStyle(
-                              color: log.isSent
-                                  ? const Color(0xFF065F46)
-                                  : const Color(0xFF991B1B),
-                              fontSize: 9.5,
-                              fontWeight: FontWeight.w800,
-                            ),
-                          ),
-                        ),
-                      ],
-                    );
-                  },
-                ),
+                _buildLogsByDate(logs),
             ],
+          ),
+        ),
+      ],
+    );
+  }
+
+  /// Dispatch logs under date headers, with a date filter row on top.
+  Widget _buildLogsByDate(List<BirthdayLogModel> logs) {
+    final groups = AdminBirthdayController.groupLogsByDate(logs);
+    return Obx(() {
+      var selected = controller.logDateFilter.value;
+      // Forget a filter whose date is no longer in the logs.
+      if (selected != null && !groups.any((g) => g.date == selected)) {
+        selected = null;
+      }
+      final visible = selected == null
+          ? groups
+          : groups.where((g) => g.date == selected).toList();
+
+      return Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          if (groups.length > 1) ...[
+            SingleChildScrollView(
+              scrollDirection: Axis.horizontal,
+              physics: const BouncingScrollPhysics(),
+              child: Row(
+                children: [
+                  _logDateChip(
+                    label: 'All dates',
+                    count: logs.length,
+                    isSelected: selected == null,
+                    date: null,
+                  ),
+                  for (final g in groups)
+                    _logDateChip(
+                      label: AdminBirthdayController.logDateChipLabel(g.date),
+                      count: g.logs.length,
+                      isSelected: selected == g.date,
+                      date: g.date,
+                    ),
+                ],
+              ),
+            ),
+            const SizedBox(height: 12),
+          ],
+          for (final g in visible) ...[
+            _logDateHeader(g.date, g.logs),
+            for (var i = 0; i < g.logs.length; i++) ...[
+              if (i > 0) const Divider(height: 14, color: Color(0xFFF1F5F9)),
+              _buildLogRow(g.logs[i]),
+            ],
+            const SizedBox(height: 14),
+          ],
+        ],
+      );
+    });
+  }
+
+  Widget _logDateChip({
+    required String label,
+    required int count,
+    required bool isSelected,
+    required String? date,
+  }) {
+    return Padding(
+      padding: const EdgeInsets.only(right: 6),
+      child: ChoiceChip(
+        selected: isSelected,
+        onSelected: (_) => controller.logDateFilter.value = date,
+        showCheckmark: false,
+        label: Text('$label · $count'),
+        labelStyle: TextStyle(
+          fontSize: 11.5,
+          fontWeight: isSelected ? FontWeight.w800 : FontWeight.w600,
+          color: isSelected ? Colors.white : const Color(0xFF334155),
+        ),
+        selectedColor: const Color(0xFF0284C7),
+        backgroundColor: const Color(0xFFF1F5F9),
+        side: BorderSide(
+          color: isSelected ? const Color(0xFF0284C7) : const Color(0xFFE2E8F0),
+        ),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+        visualDensity: VisualDensity.compact,
+      ),
+    );
+  }
+
+  Widget _logDateHeader(String date, List<BirthdayLogModel> logs) {
+    final sent = logs.where((l) => l.isSent).length;
+    final failed = logs.length - sent;
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 10),
+      child: Row(
+        children: [
+          const Icon(
+            Icons.calendar_today_rounded,
+            size: 13,
+            color: Color(0xFF0284C7),
+          ),
+          const SizedBox(width: 6),
+          Expanded(
+            child: Text(
+              AdminBirthdayController.logDateLabel(date),
+              style: const TextStyle(
+                fontSize: 12.5,
+                fontWeight: FontWeight.w800,
+                color: Color(0xFF0F172A),
+              ),
+            ),
+          ),
+          Text(
+            failed > 0 ? '$sent sent · $failed failed' : '$sent sent',
+            style: TextStyle(
+              fontSize: 11,
+              fontWeight: FontWeight.w700,
+              color: failed > 0
+                  ? const Color(0xFFDC2626)
+                  : const Color(0xFF059669),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildLogRow(BirthdayLogModel log) {
+    final sentAt = DateTime.tryParse(log.sentAt);
+    final isParent = log.recipientType.toLowerCase() == 'parent';
+    final details = [
+      log.room == 'N/A' ? 'Room N/A' : 'Room ${log.room}',
+      if (log.phone.isNotEmpty) log.phone,
+      if (sentAt != null) DateFormatting.time(sentAt),
+    ].join(' • ');
+    return Row(
+      children: [
+        Container(
+          padding: const EdgeInsets.all(7),
+          decoration: BoxDecoration(
+            color: log.isSent
+                ? const Color(0xFFECFDF5)
+                : const Color(0xFFFEF2F2),
+            shape: BoxShape.circle,
+          ),
+          child: Icon(
+            log.isSent ? Icons.check_circle_rounded : Icons.error_rounded,
+            size: 16,
+            color: log.isSent
+                ? const Color(0xFF059669)
+                : const Color(0xFFDC2626),
+          ),
+        ),
+        const SizedBox(width: 10),
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                children: [
+                  Flexible(
+                    child: Text(
+                      log.studentName,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: const TextStyle(
+                        fontWeight: FontWeight.w700,
+                        fontSize: 13,
+                        color: Color(0xFF0F172A),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 6),
+                  _buildTag(
+                    icon: isParent
+                        ? Icons.family_restroom_rounded
+                        : Icons.school_rounded,
+                    text: isParent ? 'Parent' : 'Student',
+                  ),
+                ],
+              ),
+              const SizedBox(height: 2),
+              Text(
+                details,
+                style: const TextStyle(fontSize: 11, color: Color(0xFF64748B)),
+              ),
+            ],
+          ),
+        ),
+        Container(
+          padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 3),
+          decoration: BoxDecoration(
+            color: log.isSent
+                ? const Color(0xFFECFDF5)
+                : const Color(0xFFFEF2F2),
+            borderRadius: BorderRadius.circular(10),
+            border: Border.all(
+              color: log.isSent
+                  ? const Color(0xFFA7F3D0)
+                  : const Color(0xFFFCA5A5),
+            ),
+          ),
+          child: Text(
+            log.status.toUpperCase(),
+            style: TextStyle(
+              color: log.isSent
+                  ? const Color(0xFF065F46)
+                  : const Color(0xFF991B1B),
+              fontSize: 9.5,
+              fontWeight: FontWeight.w800,
+            ),
           ),
         ),
       ],
@@ -1930,9 +2104,11 @@ class AdminBirthdayScreen extends GetView<AdminBirthdayController> {
 
   void _showLinkDeviceSheet(BuildContext context) {
     controller.startLinkingPolling();
-    if (controller.waQr.isEmpty) {
-      controller.loadQrCode();
-    }
+    // Do NOT auto-trigger loadQrCode() here.
+    // Calling /whatsapp/connect puts the backend into QR-waiting mode,
+    // which conflicts with the pairing-code flow (they are mutually exclusive
+    // in Baileys / whatsapp-web.js). The user picks QR or pairing code
+    // explicitly; "Refresh QR" is the only trigger for QR mode.
 
     showModalBottomSheet(
       context: context,
@@ -1954,6 +2130,7 @@ class AdminBirthdayScreen extends GetView<AdminBirthdayController> {
             final isConnected = controller.connectedPhone.isNotEmpty;
             final isPairing = controller.isPairingLoading.value;
             final code = controller.pairingCode.value;
+            final pairingNumber = controller.pairingNumber.value;
             final qr = controller.waQr.value;
 
             return Column(
@@ -2114,9 +2291,42 @@ class AdminBirthdayScreen extends GetView<AdminBirthdayController> {
                     ),
                   ),
                 ] else ...[
-                  // Not Connected State
+                  // Not Connected State — "Same Phone" pairing code path (highlighted)
+                  Container(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 12,
+                      vertical: 8,
+                    ),
+                    decoration: BoxDecoration(
+                      color: const Color(0xFFEFF6FF),
+                      borderRadius: BorderRadius.circular(10),
+                      border: Border.all(color: const Color(0xFFBFDBFE)),
+                    ),
+                    child: Row(
+                      children: const [
+                        Icon(
+                          Icons.smartphone_rounded,
+                          size: 16,
+                          color: Color(0xFF1D4ED8),
+                        ),
+                        SizedBox(width: 8),
+                        Expanded(
+                          child: Text(
+                            'Linking the phone you are currently using? Use Option 1 below — no QR scan needed.',
+                            style: TextStyle(
+                              fontSize: 11.5,
+                              color: Color(0xFF1E40AF),
+                              fontWeight: FontWeight.w600,
+                              height: 1.35,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  const SizedBox(height: 14),
                   const Text(
-                    'Option 1: Link with Phone Number (Recommended)',
+                    'Option 1: Link with Phone Number (Same Device ✓)',
                     style: TextStyle(
                       fontSize: 13.5,
                       fontWeight: FontWeight.w700,
@@ -2125,7 +2335,7 @@ class AdminBirthdayScreen extends GetView<AdminBirthdayController> {
                   ),
                   const SizedBox(height: 4),
                   const Text(
-                    'No camera required. Enter your WhatsApp number to get an 8-character pairing code.',
+                    'Enter your WhatsApp number to receive an 8-character pairing code. Works even when you have only one phone.',
                     style: TextStyle(fontSize: 11.5, color: Color(0xFF64748B)),
                   ),
                   const SizedBox(height: 12),
@@ -2136,8 +2346,9 @@ class AdminBirthdayScreen extends GetView<AdminBirthdayController> {
                           controller: controller.pairPhoneController,
                           keyboardType: TextInputType.phone,
                           decoration: InputDecoration(
-                            labelText: 'WhatsApp Phone Number',
-                            hintText: 'e.g. 919876543210',
+                            labelText: 'WhatsApp number on this phone',
+                            hintText: 'e.g. 98765 43210',
+                            helperText: 'Country code 91 is added if you leave it out',
                             prefixIcon: const Icon(
                               Icons.phone_rounded,
                               color: Color(0xFF0284C7),
@@ -2251,29 +2462,49 @@ class AdminBirthdayScreen extends GetView<AdminBirthdayController> {
                             ),
                             child: Column(
                               crossAxisAlignment: CrossAxisAlignment.start,
-                              children: const [
-                                Text(
-                                  'How to link on your phone:',
+                              children: [
+                                if (pairingNumber.isNotEmpty)
+                                  Padding(
+                                    padding: const EdgeInsets.only(bottom: 6),
+                                    child: Text(
+                                      'For +$pairingNumber. This must be the WhatsApp number on the phone you link.',
+                                      style: const TextStyle(
+                                        fontSize: 11,
+                                        fontWeight: FontWeight.w600,
+                                        color: Color(0xFF1E40AF),
+                                      ),
+                                    ),
+                                  ),
+                                const Text(
+                                  'Code copied. Now, on this phone:',
                                   style: TextStyle(
                                     fontWeight: FontWeight.w700,
                                     fontSize: 11.5,
                                   ),
                                 ),
-                                SizedBox(height: 4),
-                                Text(
-                                  '1. Open WhatsApp > Settings > Linked Devices > Link a Device',
+                                const SizedBox(height: 4),
+                                const Text(
+                                  '1. Open WhatsApp. If a notification says "Enter code to link new device", tap it and paste the code.',
                                   style: TextStyle(fontSize: 11),
                                 ),
-                                Text(
-                                  '2. Tap "Link with phone number instead" at the bottom',
+                                const Text(
+                                  '2. No notification? Go to ⋮ / Settings → Linked devices → Link a device → "Link with phone number instead".',
                                   style: TextStyle(fontSize: 11),
                                 ),
-                                Text(
-                                  '3. Enter the 8-character code shown above',
+                                const Text(
+                                  '3. Paste the code and confirm, then come back here. It connects by itself.',
                                   style: TextStyle(
                                     fontSize: 11,
                                     fontWeight: FontWeight.w700,
                                     color: Color(0xFF059669),
+                                  ),
+                                ),
+                                const SizedBox(height: 4),
+                                const Text(
+                                  'Code rejected or expired? Tap Get Code for a new one and use it straight away.',
+                                  style: TextStyle(
+                                    fontSize: 10.5,
+                                    color: Color(0xFF64748B),
                                   ),
                                 ),
                               ],
@@ -2282,181 +2513,240 @@ class AdminBirthdayScreen extends GetView<AdminBirthdayController> {
                         ],
                       ),
                     ),
+                    const SizedBox(height: 10),
+                    SizedBox(
+                      width: double.infinity,
+                      child: ElevatedButton.icon(
+                        onPressed: controller.openWhatsAppApp,
+                        icon: const Icon(Icons.open_in_new_rounded, size: 16),
+                        label: const Text(
+                          'Open WhatsApp to Enter Code',
+                          style: TextStyle(
+                            fontWeight: FontWeight.w700,
+                            fontSize: 13,
+                          ),
+                        ),
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: const Color(0xFF25D366),
+                          foregroundColor: Colors.white,
+                          elevation: 0,
+                          padding: const EdgeInsets.symmetric(vertical: 12),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(12),
+                          ),
+                        ),
+                      ),
+                    ),
                   ],
 
-                  // Option 2: Always visible Scan QR Code section
+                  // Option 2: Scan QR Code (other device only)
                   const SizedBox(height: 20),
                   const Divider(height: 1, color: Color(0xFFF1F5F9)),
                   const SizedBox(height: 14),
+                  // A pending pairing code dies if the QR session is (re)started,
+                  // so the QR option is paused until the code is used or replaced.
+                  if (code.isNotEmpty)
+                    _buildQrPausedNote()
+                  else ...[
 
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    children: [
-                      const Text(
-                        'Option 2: Scan QR Code',
-                        style: TextStyle(
-                          fontSize: 13.5,
-                          fontWeight: FontWeight.w700,
-                          color: Color(0xFF0F172A),
-                        ),
-                      ),
-                      if (controller.isCheckingStatus.value)
-                        const SizedBox(
-                          width: 16,
-                          height: 16,
-                          child: CircularProgressIndicator(
-                            strokeWidth: 2,
-                            color: Color(0xFF0284C7),
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        const Text(
+                          'Option 2: Scan QR Code (Other Device)',
+                          style: TextStyle(
+                            fontSize: 13.5,
+                            fontWeight: FontWeight.w700,
+                            color: Color(0xFF0F172A),
                           ),
-                        )
-                      else
-                        InkWell(
-                          onTap: controller.loadQrCode,
-                          borderRadius: BorderRadius.circular(8),
-                          child: const Padding(
-                            padding: EdgeInsets.symmetric(
-                              horizontal: 6,
-                              vertical: 3,
+                        ),
+                        if (controller.isCheckingStatus.value)
+                          const SizedBox(
+                            width: 16,
+                            height: 16,
+                            child: CircularProgressIndicator(
+                              strokeWidth: 2,
+                              color: Color(0xFF0284C7),
                             ),
-                            child: Row(
-                              mainAxisSize: MainAxisSize.min,
-                              children: [
-                                Icon(
-                                  Icons.refresh_rounded,
-                                  size: 14,
-                                  color: Color(0xFF0284C7),
-                                ),
-                                SizedBox(width: 4),
-                                Text(
-                                  'Refresh QR',
-                                  style: TextStyle(
-                                    fontSize: 11.5,
-                                    fontWeight: FontWeight.w700,
+                          )
+                        else
+                          InkWell(
+                            onTap: controller.loadQrCode,
+                            borderRadius: BorderRadius.circular(8),
+                            child: const Padding(
+                              padding: EdgeInsets.symmetric(
+                                horizontal: 6,
+                                vertical: 3,
+                              ),
+                              child: Row(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  Icon(
+                                    Icons.refresh_rounded,
+                                    size: 14,
                                     color: Color(0xFF0284C7),
                                   ),
-                                ),
-                              ],
-                            ),
-                          ),
-                        ),
-                    ],
-                  ),
-                  const SizedBox(height: 4),
-                  const Text(
-                    'Scan this QR code using WhatsApp > Linked Devices > Link a Device:',
-                    style: TextStyle(
-                      fontSize: 11.5,
-                      color: Color(0xFF64748B),
-                    ),
-                  ),
-                  const SizedBox(height: 12),
-
-                  if (qr.isNotEmpty) ...[
-                    Center(
-                      child: Container(
-                        padding: const EdgeInsets.all(12),
-                        decoration: BoxDecoration(
-                          color: Colors.white,
-                          borderRadius: BorderRadius.circular(16),
-                          border: Border.all(color: const Color(0xFFCBD5E1)),
-                        ),
-                        child: QrImageView(
-                          data: qr,
-                          version: QrVersions.auto,
-                          size: 190.0,
-                        ),
-                      ),
-                    ),
-                    const SizedBox(height: 8),
-                    const Center(
-                      child: Text(
-                        'Point your camera at this QR code. Will link automatically.',
-                        style: TextStyle(fontSize: 11, color: Color(0xFF64748B)),
-                      ),
-                    ),
-                  ] else ...[
-                    Container(
-                      padding: const EdgeInsets.symmetric(
-                        vertical: 20,
-                        horizontal: 16,
-                      ),
-                      decoration: BoxDecoration(
-                        color: const Color(0xFFF8FAFC),
-                        borderRadius: BorderRadius.circular(14),
-                        border: Border.all(color: const Color(0xFFE2E8F0)),
-                      ),
-                      child: Center(
-                        child: controller.isCheckingStatus.value
-                            ? const Column(
-                                mainAxisSize: MainAxisSize.min,
-                                children: [
-                                  SizedBox(
-                                    width: 24,
-                                    height: 24,
-                                    child: CircularProgressIndicator(
-                                      strokeWidth: 2.5,
-                                      color: Color(0xFF0284C7),
-                                    ),
-                                  ),
-                                  SizedBox(height: 10),
+                                  SizedBox(width: 4),
                                   Text(
-                                    'Generating WhatsApp QR Code...',
+                                    'Refresh QR',
                                     style: TextStyle(
-                                      fontSize: 12,
-                                      color: Color(0xFF64748B),
-                                      fontWeight: FontWeight.w600,
-                                    ),
-                                  ),
-                                ],
-                              )
-                            : Column(
-                                mainAxisSize: MainAxisSize.min,
-                                children: [
-                                  const Icon(
-                                    Icons.qr_code_2_rounded,
-                                    size: 44,
-                                    color: Color(0xFF94A3B8),
-                                  ),
-                                  const SizedBox(height: 8),
-                                  const Text(
-                                    'QR code not loaded',
-                                    style: TextStyle(
-                                      fontSize: 12.5,
-                                      fontWeight: FontWeight.w600,
-                                      color: Color(0xFF475569),
-                                    ),
-                                  ),
-                                  const SizedBox(height: 10),
-                                  ElevatedButton.icon(
-                                    onPressed: controller.loadQrCode,
-                                    icon: const Icon(
-                                      Icons.qr_code_scanner_rounded,
-                                      size: 16,
-                                    ),
-                                    label: const Text(
-                                      'Load / Show QR Code',
-                                      style: TextStyle(
-                                        fontSize: 12,
-                                        fontWeight: FontWeight.w700,
-                                      ),
-                                    ),
-                                    style: ElevatedButton.styleFrom(
-                                      backgroundColor: const Color(0xFF0284C7),
-                                      foregroundColor: Colors.white,
-                                      elevation: 0,
-                                      padding: const EdgeInsets.symmetric(
-                                        horizontal: 16,
-                                        vertical: 10,
-                                      ),
-                                      shape: RoundedRectangleBorder(
-                                        borderRadius: BorderRadius.circular(10),
-                                      ),
+                                      fontSize: 11.5,
+                                      fontWeight: FontWeight.w700,
+                                      color: Color(0xFF0284C7),
                                     ),
                                   ),
                                 ],
                               ),
+                            ),
+                          ),
+                      ],
+                    ),
+                    const SizedBox(height: 4),
+                    Container(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 10,
+                        vertical: 7,
+                      ),
+                      decoration: BoxDecoration(
+                        color: const Color(0xFFFFF7ED),
+                        borderRadius: BorderRadius.circular(8),
+                        border: Border.all(color: const Color(0xFFFED7AA)),
+                      ),
+                      child: Row(
+                        children: const [
+                          Icon(
+                            Icons.info_outline_rounded,
+                            size: 14,
+                            color: Color(0xFFD97706),
+                          ),
+                          SizedBox(width: 7),
+                          Expanded(
+                            child: Text(
+                              'Use a second phone to scan this QR. You cannot scan it from the same device showing the code.',
+                              style: TextStyle(
+                                fontSize: 11,
+                                color: Color(0xFF92400E),
+                                height: 1.35,
+                              ),
+                            ),
+                          ),
+                        ],
                       ),
                     ),
+                    const SizedBox(height: 8),
+                    const Text(
+                      'On the second phone: open WhatsApp > Linked Devices > Link a Device, then scan:',
+                      style: TextStyle(fontSize: 11.5, color: Color(0xFF64748B)),
+                    ),
+                    const SizedBox(height: 12),
+
+                    if (qr.isNotEmpty) ...[
+                      Center(
+                        child: Container(
+                          padding: const EdgeInsets.all(12),
+                          decoration: BoxDecoration(
+                            color: Colors.white,
+                            borderRadius: BorderRadius.circular(16),
+                            border: Border.all(color: const Color(0xFFCBD5E1)),
+                          ),
+                          child: QrImageView(
+                            data: qr,
+                            version: QrVersions.auto,
+                            size: 190.0,
+                          ),
+                        ),
+                      ),
+                      const SizedBox(height: 8),
+                      const Center(
+                        child: Text(
+                          'Point your camera at this QR code. Will link automatically.',
+                          style: TextStyle(fontSize: 11, color: Color(0xFF64748B)),
+                        ),
+                      ),
+                    ] else ...[
+                      Container(
+                        padding: const EdgeInsets.symmetric(
+                          vertical: 20,
+                          horizontal: 16,
+                        ),
+                        decoration: BoxDecoration(
+                          color: const Color(0xFFF8FAFC),
+                          borderRadius: BorderRadius.circular(14),
+                          border: Border.all(color: const Color(0xFFE2E8F0)),
+                        ),
+                        child: Center(
+                          child: controller.isCheckingStatus.value
+                              ? const Column(
+                                  mainAxisSize: MainAxisSize.min,
+                                  children: [
+                                    SizedBox(
+                                      width: 24,
+                                      height: 24,
+                                      child: CircularProgressIndicator(
+                                        strokeWidth: 2.5,
+                                        color: Color(0xFF0284C7),
+                                      ),
+                                    ),
+                                    SizedBox(height: 10),
+                                    Text(
+                                      'Generating WhatsApp QR Code...',
+                                      style: TextStyle(
+                                        fontSize: 12,
+                                        color: Color(0xFF64748B),
+                                        fontWeight: FontWeight.w600,
+                                      ),
+                                    ),
+                                  ],
+                                )
+                              : Column(
+                                  mainAxisSize: MainAxisSize.min,
+                                  children: [
+                                    const Icon(
+                                      Icons.qr_code_2_rounded,
+                                      size: 44,
+                                      color: Color(0xFF94A3B8),
+                                    ),
+                                    const SizedBox(height: 8),
+                                    const Text(
+                                      'QR code not loaded',
+                                      style: TextStyle(
+                                        fontSize: 12.5,
+                                        fontWeight: FontWeight.w600,
+                                        color: Color(0xFF475569),
+                                      ),
+                                    ),
+                                    const SizedBox(height: 10),
+                                    ElevatedButton.icon(
+                                      onPressed: controller.loadQrCode,
+                                      icon: const Icon(
+                                        Icons.qr_code_scanner_rounded,
+                                        size: 16,
+                                      ),
+                                      label: const Text(
+                                        'Load / Show QR Code',
+                                        style: TextStyle(
+                                          fontSize: 12,
+                                          fontWeight: FontWeight.w700,
+                                        ),
+                                      ),
+                                      style: ElevatedButton.styleFrom(
+                                        backgroundColor: const Color(0xFF0284C7),
+                                        foregroundColor: Colors.white,
+                                        elevation: 0,
+                                        padding: const EdgeInsets.symmetric(
+                                          horizontal: 16,
+                                          vertical: 10,
+                                        ),
+                                        shape: RoundedRectangleBorder(
+                                          borderRadius: BorderRadius.circular(10),
+                                        ),
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                        ),
+                      ),
+                    ],
                   ],
                 ],
                 const SizedBox(height: 16),
@@ -2468,6 +2758,46 @@ class AdminBirthdayScreen extends GetView<AdminBirthdayController> {
     ).whenComplete(() {
       controller.stopLinkingPolling();
     });
+  }
+
+  Widget _buildQrPausedNote() {
+    return Container(
+      padding: const EdgeInsets.fromLTRB(12, 12, 12, 4),
+      decoration: BoxDecoration(
+        color: const Color(0xFFF8FAFC),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: const Color(0xFFE2E8F0)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Icon(Icons.qr_code_2_rounded, size: 18, color: Color(0xFF94A3B8)),
+              SizedBox(width: 8),
+              Expanded(
+                child: Text(
+                  'Option 2: Scan QR (other phone) is paused while your pairing code is active, '
+                  'because loading a QR cancels the code.',
+                  style: TextStyle(fontSize: 11.5, height: 1.35, color: Color(0xFF475569)),
+                ),
+              ),
+            ],
+          ),
+          Align(
+            alignment: Alignment.centerRight,
+            child: TextButton(
+              onPressed: controller.cancelPairingCode,
+              child: const Text(
+                'Use QR instead',
+                style: TextStyle(fontSize: 12, fontWeight: FontWeight.w700),
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
   }
 
   // --- Shared Reusable Section Headers & Tags ---
@@ -2500,6 +2830,23 @@ class AdminBirthdayScreen extends GetView<AdminBirthdayController> {
         ),
         ?trailing,
       ],
+    );
+  }
+
+  /// Group or Alumni tag for a directory row, colored like the phonebook card.
+  Widget _buildStudentStatusTag(BirthdayStudentModel s) {
+    if (controller.isAlumni(s)) {
+      return _buildTag(
+        icon: Icons.school_rounded,
+        text: 'Alumni',
+        color: const Color(0xFF9333EA),
+      );
+    }
+    final group = controller.groupFor(s);
+    return _buildTag(
+      icon: Icons.groups_rounded,
+      text: group ?? 'Active',
+      color: StudentContactCard.groupColor(group),
     );
   }
 

@@ -26,6 +26,22 @@ class ComplaintsRepository extends BaseRepository {
     }
   }
 
+  /// Category ids the signed-in complaint solver is limited to (Admin →
+  /// Manage Users), from `/auth/me`; `null` means all categories, which is
+  /// also the answer for admins and when it can't be read (the API enforces
+  /// the limit regardless).
+  Future<List<int>?> assignedCategoryIds() async {
+    try {
+      final response = await _dio.get('/auth/me');
+      final body = response.data;
+      final data = body is Map ? body['data'] : null;
+      final ids = data is Map ? data['complaint_category_ids'] : null;
+      return ids is List ? ids.whereType<num>().map((id) => id.toInt()).toList() : null;
+    } on DioException {
+      return null;
+    }
+  }
+
   Future<List<ComplaintItem>> items(int categoryId) async {
     try {
       final response = await _dio.get(

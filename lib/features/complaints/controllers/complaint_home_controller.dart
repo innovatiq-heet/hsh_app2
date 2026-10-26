@@ -35,9 +35,11 @@ class ComplainHomeController extends GetxController with LoadStateMixin {
 
   Future<void> load({bool showLoading = true}) => guard(() async {
         final list = await _repository.adminComplaints(limit: sampleSize);
-        var categories = await _repository
-            .categories()
-            .catchError((_) => <ComplaintCategory>[]);
+        // Only the categories this solver works on; the list above is already limited to them.
+        var categories = ComplaintCategory.limitTo(
+          await _repository.categories().catchError((_) => <ComplaintCategory>[]),
+          await _repository.assignedCategoryIds(),
+        );
         if (categories.isEmpty) {
           // Fall back to the categories seen in the complaints themselves.
           final seen = <int, String>{for (final c in list) c.categoryId: c.category};

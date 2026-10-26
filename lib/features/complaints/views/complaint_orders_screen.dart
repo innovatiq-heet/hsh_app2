@@ -190,7 +190,17 @@ class _FiltersCard extends GetView<ComplainOrdersController> {
                 ],
               ),
             ),
-            if (controller.categories.isNotEmpty) ...[
+            // A solver limited to one category has nothing to choose from.
+            if (controller.categories.length == 1) ...[
+              const SizedBox(height: AppDimens.gapMd),
+              _label('Category'),
+              const SizedBox(height: AppDimens.gapXs),
+              Text(
+                '${controller.categories.single.name} complaints only',
+                style: AppTextStyles.bodySm.copyWith(color: AppColors.textSecondary),
+              ),
+            ],
+            if (controller.categories.length > 1) ...[
               const SizedBox(height: AppDimens.gapMd),
               _label('Category'),
               const SizedBox(height: AppDimens.gapXs),
@@ -445,30 +455,30 @@ class _ComplaintsHeaderDelegate extends SliverPersistentHeaderDelegate {
                 child: Row(
                   children: [
                     // Back / placeholder button
-                    Material(
-                      color: Colors.transparent,
-                      child: InkWell(
-                        onTap: () => Get.back(),
-                        borderRadius: BorderRadius.circular(24),
-                        child: Container(
-                          width: 42,
-                          height: 42,
-                          decoration: BoxDecoration(
-                            color: Colors.white.withValues(alpha: 0.16),
-                            shape: BoxShape.circle,
-                            border: Border.all(
-                              color: Colors.white.withValues(alpha: 0.25),
-                            ),
-                          ),
-                          child: Icon(
-                            isRoot ? Icons.menu_rounded : Icons.arrow_back_rounded,
-                            color: Colors.white,
-                            size: 20,
-                          ),
-                        ),
-                      ),
-                    ),
-                    const SizedBox(width: 12),
+                    // Material(
+                    //   color: Colors.transparent,
+                    //   child: InkWell(
+                    //     onTap: () => Get.back(),
+                    //     borderRadius: BorderRadius.circular(24),
+                    //     child: Container(
+                    //       width: 42,
+                    //       height: 42,
+                    //       decoration: BoxDecoration(
+                    //         color: Colors.white.withValues(alpha: 0.16),
+                    //         shape: BoxShape.circle,
+                    //         border: Border.all(
+                    //           color: Colors.white.withValues(alpha: 0.25),
+                    //         ),
+                    //       ),
+                    //       child: Icon(
+                    //         isRoot ? Icons.menu_rounded : Icons.arrow_back_rounded,
+                    //         color: Colors.white,
+                    //         size: 20,
+                    //       ),
+                    //     ),
+                    //   ),
+                    // ),
+                    // const SizedBox(width: 12),
 
                     // Collapsed title
                     Expanded(
@@ -557,15 +567,15 @@ class _ComplaintsHeaderDelegate extends SliverPersistentHeaderDelegate {
                       crossAxisAlignment: CrossAxisAlignment.start,
                       mainAxisAlignment: MainAxisAlignment.end,
                       children: [
-                        Container(
-                          width: 28,
-                          height: 3.5,
-                          decoration: BoxDecoration(
-                            color: const Color(0xFFEAAB78),
-                            borderRadius: BorderRadius.circular(2),
-                          ),
-                        ),
-                        const SizedBox(height: 6),
+                        // Container(
+                        //   width: 28,
+                        //   height: 3.5,
+                        //   decoration: BoxDecoration(
+                        //     color: const Color(0xFFEAAB78),
+                        //     borderRadius: BorderRadius.circular(2),
+                        //   ),
+                        // ),
+                        // const SizedBox(height: 6),
                         const Text(
                           'STAFF OPERATIONS',
                           style: TextStyle(

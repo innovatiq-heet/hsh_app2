@@ -11,6 +11,7 @@ import '../../../core/network/repository/birthday/birthday_repository.dart';
 import '../../../core/utils/app_snackbar.dart';
 import '../../../core/utils/date_formatting.dart';
 import '../../phonebook/services/phonebook_database_service.dart';
+import '../../phonebook/services/phonebook_sync_service.dart';
 
 class AdminBirthdayController extends GetxController {
   final BirthdayRepository _repository = BirthdayRepository();
@@ -60,6 +61,14 @@ class AdminBirthdayController extends GetxController {
 
   /// Dispatch logs filter: a `yyyy-MM-dd` date, or null for all dates.
   final RxnString logDateFilter = RxnString();
+
+  /// Logs of days picked by the admin, loaded from `/whatsapp/birthday/logs`.
+  /// The dashboard itself only carries the most recent logs.
+  final RxList<BirthdayLogModel> olderLogs = <BirthdayLogModel>[].obs;
+
+  /// Days fetched with [loadLogsForDate], including days with no wishes.
+  final RxSet<String> loadedLogDates = <String>{}.obs;
+  final RxBool isLoadingLogs = false.obs;
 
   // Template library: several templates per audience, one active per audience.
   // Until hsh_api stores `templates`, the library is also cached on this device.
@@ -151,9 +160,19 @@ class AdminBirthdayController extends GetxController {
     }
   }
 
+  /// Group/status per bank code from the phonebook on this phone. A phone that has
+  /// never synced the directory syncs it once here, so cards show groups even when
+  /// the API sends no `groupName`.
   Future<void> _loadPhonebookInfo() async {
     try {
-      _phonebookInfo.assignAll(await PhonebookDatabaseService.instance.groupInfoByBankCode());
+      var info = await PhonebookDatabaseService.instance.groupInfoByBankCode();
+      if (info.isEmpty) {
+        final result = await PhonebookSyncService.instance.syncDirectory();
+        if (result.success) {
+          info = await PhonebookDatabaseService.instance.groupInfoByBankCode();
+        }
+      }
+      _phonebookInfo.assignAll(info);
     } catch (e) {
       debugPrint('[AdminBirthdayController] phonebook lookup unavailable: $e');
     }
@@ -212,6 +231,35 @@ class AdminBirthdayController extends GetxController {
     if (diff == 0) return 'Today';
     if (diff == 1) return 'Yesterday';
     return DateFormat('EEE, dd MMM yyyy').format(day);
+  }
+
+  /// The dashboard's recent logs plus the days loaded on demand.
+  List<BirthdayLogModel> get allLogs => mergeLogs(dashboard.value?.recentLogs ?? const [], olderLogs);
+
+  /// [recent] followed by [more], dropping logs already in the list (same id).
+  static List<BirthdayLogModel> mergeLogs(List<BirthdayLogModel> recent, List<BirthdayLogModel> more) {
+    final seen = <int>{};
+    return [
+      for (final log in [...recent, ...more])
+        if (seen.add(log.id)) log,
+    ];
+  }
+
+  /// Loads every wish logged for [date] (`yyyy-MM-dd`) and filters the logs to that day.
+  Future<void> loadLogsForDate(String date) async {
+    isLoadingLogs.value = true;
+    try {
+      final logs = await _repository.fetchLogs(from: date);
+      olderLogs
+        ..removeWhere((l) => logDateKey(l) == date)
+        ..addAll(logs);
+      loadedLogDates.add(date);
+      logDateFilter.value = date;
+    } catch (e) {
+      AppSnackbar.error('Logs Unavailable', e.toString().replaceAll('Exception: ', ''));
+    } finally {
+      isLoadingLogs.value = false;
+    }
   }
 
   /// Short label for the date filter chips ("Today", "Yesterday", "23 Oct").
@@ -402,7 +450,7 @@ class AdminBirthdayController extends GetxController {
       );
     } catch (e) {
       isAutoEnabled.value = !enabled; // Rollback
-      AppSnackbar.error('Failed to update', e.toString());
+      AppSnackbar.error('Failed to update', e.toString().replaceAll('Exception: ', ''));
     }
   }
 
@@ -442,7 +490,7 @@ class AdminBirthdayController extends GetxController {
       );
       AppSnackbar.success('Settings Saved', 'Birthday configuration updated successfully.');
     } catch (e) {
-      AppSnackbar.error('Save Failed', e.toString());
+      AppSnackbar.error('Save Failed', e.toString().replaceAll('Exception: ', ''));
     } finally {
       isSaving.value = false;
     }
@@ -653,6 +701,10 @@ class AdminBirthdayController extends GetxController {
   void editTemplate(String id) => _openEditor(id);
 
   void addTemplate() {
+    if (templates.length >= maxTemplates) {
+      AppSnackbar.warning('Too Many Templates', 'You can keep up to $maxTemplates templates. Delete one you no longer use.');
+      return;
+    }
     final audience = editingAudience.value;
     final label = audience == BirthdayAudience.parent ? 'Parent' : 'Student';
     final template = BirthdayTemplate(
@@ -704,16 +756,48 @@ class AdminBirthdayController extends GetxController {
     templates[i] = current.copyWith(name: name, body: body);
   }
 
-  /// Why the templates can't be saved yet, or null if they can.
-  String? _templateProblem() {
-    if (activeBody(BirthdayAudience.student).isEmpty) {
+  // Limits hsh_api enforces on POST /whatsapp/birthday/config.
+  static const maxTemplates = 50;
+  static const maxTemplateBodyLength = 4000;
+  static const maxTemplateNameLength = 100;
+
+  /// Why the templates can't be saved yet, or null if they can. Mirrors the
+  /// checks hsh_api makes, so a save isn't rejected after the fact.
+  static String? templateProblem(
+    List<BirthdayTemplate> templates,
+    Map<String, String> active,
+    String targetAudience,
+  ) {
+    String activeBodyOf(String audience) {
+      for (final t in templates) {
+        if (t.id == active[audience]) return t.body.trim();
+      }
+      return '';
+    }
+
+    if (activeBodyOf(BirthdayAudience.student).isEmpty) {
       return 'The active student template is empty. Write a message or pick another template.';
     }
-    if (targetAudience.value != 'student_only' && activeBody(BirthdayAudience.parent).isEmpty) {
+    if (targetAudience != 'student_only' && activeBodyOf(BirthdayAudience.parent).isEmpty) {
       return 'The active parent template is empty. Write a message or pick another template.';
+    }
+    if (templates.length > maxTemplates) {
+      return 'You can keep up to $maxTemplates templates. Delete the ones you no longer use.';
+    }
+    // Drafts may be empty; only their size is limited.
+    for (final t in templates) {
+      final name = t.name.trim().isEmpty ? 'A template' : '"${t.name.trim()}"';
+      if (t.name.length > maxTemplateNameLength) {
+        return 'The name $name is too long. Keep it under $maxTemplateNameLength characters.';
+      }
+      if (t.body.length > maxTemplateBodyLength) {
+        return '$name is too long. Keep it under $maxTemplateBodyLength characters.';
+      }
     }
     return null;
   }
+
+  String? _templateProblem() => templateProblem(templates, activeTemplateIds, targetAudience.value);
 
   /// [config] plus the template library. `messageTemplate` stays the active student
   /// body, so an hsh_api without template support keeps working.

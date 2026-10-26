@@ -67,6 +67,8 @@ class PhonebookScreen extends GetView<PhonebookController> {
       context: context,
       backgroundColor: Colors.transparent,
       isScrollControlled: true,
+      // Never full height, so the dimmed strip above it is there to tap.
+      constraints: BoxConstraints(maxHeight: MediaQuery.sizeOf(context).height * 0.85),
       builder: (ctx) {
         return Container(
           decoration: const BoxDecoration(
@@ -75,661 +77,674 @@ class PhonebookScreen extends GetView<PhonebookController> {
           ),
           padding: const EdgeInsets.fromLTRB(20, 14, 20, 24),
           child: SafeArea(
-            child: SingleChildScrollView(
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                children: [
-                  Center(
-                    child: Container(
-                      width: 44,
-                      height: 4.5,
-                      decoration: BoxDecoration(
-                        color: const Color(0xFFCBD5E1),
-                        borderRadius: BorderRadius.circular(2.5),
-                      ),
-                    ),
-                  ),
-                  const SizedBox(height: 18),
-
-                  // Header Row
-                  Row(
-                    children: [
-                      Container(
-                        width: 58,
-                        height: 58,
-                        decoration: BoxDecoration(
-                          color: gBg,
-                          borderRadius: BorderRadius.circular(18),
-                          border: Border.all(
-                            color: gColor.withValues(alpha: 0.25),
-                            width: 1.5,
-                          ),
-                        ),
-                        alignment: Alignment.center,
-                        child: Text(
-                          student.name.isNotEmpty
-                              ? student.name[0].toUpperCase()
-                              : 'S',
-                          style: TextStyle(
-                            color: gColor,
-                            fontWeight: FontWeight.w800,
-                            fontSize: 24,
-                          ),
-                        ),
-                      ),
-                      const SizedBox(width: 14),
-                      Expanded(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Row(
-                              children: [
-                                Expanded(
-                                  child: Text(
-                                    student.name,
-                                    style: const TextStyle(
-                                      fontSize: 18,
-                                      fontWeight: FontWeight.w800,
-                                      color: Color(0xFF0F172A),
-                                      letterSpacing: -0.3,
-                                    ),
-                                  ),
-                                ),
-                                IconButton(
-                                  icon: const Icon(Icons.share_rounded, color: Color(0xFF0284C7), size: 20),
-                                  tooltip: 'Share Profile',
-                                  onPressed: () => controller.shareStudent(student),
-                                ),
-                              ],
-                            ),
-                            const SizedBox(height: 6),
-                            Wrap(
-                              spacing: 6,
-                              runSpacing: 4,
-                              children: [
-                                if (isAlumni)
-                                  Container(
-                                    padding: const EdgeInsets.symmetric(
-                                      horizontal: 9,
-                                      vertical: 3.5,
-                                    ),
-                                    decoration: BoxDecoration(
-                                      color: const Color(0xFFF3E8FF),
-                                      borderRadius: BorderRadius.circular(10),
-                                      border: Border.all(
-                                        color: const Color(0xFFE9D5FF),
-                                      ),
-                                    ),
-                                    child: const Row(
-                                      mainAxisSize: MainAxisSize.min,
-                                      children: [
-                                        Icon(
-                                          Icons.school_rounded,
-                                          size: 12,
-                                          color: Color(0xFF7E22CE),
-                                        ),
-                                        SizedBox(width: 4),
-                                        Text(
-                                          'Alumni / Left',
-                                          style: TextStyle(
-                                            color: Color(0xFF7E22CE),
-                                            fontSize: 11.5,
-                                            fontWeight: FontWeight.w700,
-                                          ),
-                                        ),
-                                      ],
-                                    ),
-                                  )
-                                else if (student.room != null &&
-                                    student.room!.isNotEmpty)
-                                  Container(
-                                    padding: const EdgeInsets.symmetric(
-                                      horizontal: 9,
-                                      vertical: 3.5,
-                                    ),
-                                    decoration: BoxDecoration(
-                                      color: const Color(0xFFF1F5F9),
-                                      borderRadius: BorderRadius.circular(10),
-                                      border: Border.all(
-                                        color: const Color(0xFFE2E8F0),
-                                      ),
-                                    ),
-                                    child: Text(
-                                      'Room ${student.room}',
-                                      style: const TextStyle(
-                                        color: Color(0xFF334155),
-                                        fontSize: 11.5,
-                                        fontWeight: FontWeight.w700,
-                                      ),
-                                    ),
-                                  ),
-                                if (student.groupName != null)
-                                  Container(
-                                    padding: const EdgeInsets.symmetric(
-                                      horizontal: 9,
-                                      vertical: 3.5,
-                                    ),
-                                    decoration: BoxDecoration(
-                                      color: groupBgColor(student.groupName),
-                                      borderRadius: BorderRadius.circular(10),
-                                      border: Border.all(
-                                        color: groupColor(
-                                          student.groupName,
-                                        ).withValues(alpha: 0.2),
-                                      ),
-                                    ),
-                                    child: Text(
-                                      student.groupName!,
-                                      style: TextStyle(
-                                        color: groupColor(student.groupName),
-                                        fontSize: 11.5,
-                                        fontWeight: FontWeight.w700,
-                                      ),
-                                    ),
-                                  ),
-                                if (student.bankCode != null &&
-                                    student.bankCode!.isNotEmpty)
-                                  Container(
-                                    padding: const EdgeInsets.symmetric(
-                                      horizontal: 8,
-                                      vertical: 3.5,
-                                    ),
-                                    decoration: BoxDecoration(
-                                      color: const Color(0xFFF8FAFC),
-                                      borderRadius: BorderRadius.circular(10),
-                                      border: Border.all(
-                                        color: const Color(0xFFE2E8F0),
-                                      ),
-                                    ),
-                                    child: Text(
-                                      'Code: ${student.bankCode}',
-                                      style: const TextStyle(
-                                        color: Color(0xFF64748B),
-                                        fontSize: 11,
-                                        fontWeight: FontWeight.w600,
-                                      ),
-                                    ),
-                                  ),
-                              ],
-                            ),
-                          ],
-                        ),
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 18),
-                  const Divider(height: 1, color: Color(0xFFF1F5F9)),
-                  const SizedBox(height: 16),
-
-                  // 1. DATE OF BIRTH & CELEBRATION DETAILS
-                  Container(
-                    padding: const EdgeInsets.all(14),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                // The handle and header don't scroll: dragging them down closes the sheet.
+                Center(
+                  child: Container(
+                    width: 44,
+                    height: 4.5,
                     decoration: BoxDecoration(
-                      color: student.hasDob
-                          ? const Color(0xFFFFFBEB)
-                          : const Color(0xFFF8FAFC),
-                      borderRadius: BorderRadius.circular(16),
-                      border: Border.all(
-                        color: student.hasDob
-                            ? const Color(0xFFFDE68A)
-                            : const Color(0xFFE2E8F0),
+                      color: const Color(0xFFCBD5E1),
+                      borderRadius: BorderRadius.circular(2.5),
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 18),
+
+                // Header Row
+                Row(
+                  children: [
+                    Container(
+                      width: 58,
+                      height: 58,
+                      decoration: BoxDecoration(
+                        color: gBg,
+                        borderRadius: BorderRadius.circular(18),
+                        border: Border.all(
+                          color: gColor.withValues(alpha: 0.25),
+                          width: 1.5,
+                        ),
+                      ),
+                      alignment: Alignment.center,
+                      child: Text(
+                        student.name.isNotEmpty
+                            ? student.name[0].toUpperCase()
+                            : 'S',
+                        style: TextStyle(
+                          color: gColor,
+                          fontWeight: FontWeight.w800,
+                          fontSize: 24,
+                        ),
                       ),
                     ),
-                    child: Row(
-                      children: [
-                        Container(
-                          width: 40,
-                          height: 40,
-                          decoration: BoxDecoration(
-                            color: student.hasDob
-                                ? const Color(0xFFFEF3C7)
-                                : const Color(0xFFE2E8F0),
-                            shape: BoxShape.circle,
-                          ),
-                          child: Icon(
-                            Icons.cake_rounded,
-                            size: 20,
-                            color: student.hasDob
-                                ? const Color(0xFFD97706)
-                                : const Color(0xFF94A3B8),
-                          ),
-                        ),
-                        const SizedBox(width: 12),
-                        Expanded(
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
+                    const SizedBox(width: 14),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Row(
                             children: [
-                              const Text(
-                                'DATE OF BIRTH',
-                                style: TextStyle(
-                                  fontSize: 10.5,
-                                  fontWeight: FontWeight.w800,
-                                  color: Color(0xFF64748B),
-                                  letterSpacing: 0.6,
+                              Expanded(
+                                child: Text(
+                                  student.name,
+                                  style: const TextStyle(
+                                    fontSize: 18,
+                                    fontWeight: FontWeight.w800,
+                                    color: Color(0xFF0F172A),
+                                    letterSpacing: -0.3,
+                                  ),
                                 ),
                               ),
-                              const SizedBox(height: 2),
-                              Text(
-                                student.hasDob
-                                    ? '${student.formattedDob} ${student.ageText.isNotEmpty ? "(${student.ageText})" : ""}'
-                                    : 'Not registered in directory',
-                                style: TextStyle(
-                                  fontSize: 14,
-                                  fontWeight: FontWeight.w700,
-                                  color: student.hasDob
-                                      ? const Color(0xFF92400E)
-                                      : const Color(0xFF64748B),
-                                ),
+                              IconButton(
+                                icon: const Icon(Icons.share_rounded, color: Color(0xFF0284C7), size: 20),
+                                tooltip: 'Share Profile',
+                                onPressed: () => controller.shareStudent(student),
+                              ),
+                              IconButton(
+                                icon: const Icon(Icons.close_rounded, color: Color(0xFF64748B), size: 22),
+                                tooltip: 'Close',
+                                onPressed: () => Navigator.pop(ctx),
                               ),
                             ],
                           ),
-                        ),
-                        if (student.hasDob)
-                          Container(
-                            padding: const EdgeInsets.symmetric(
-                              horizontal: 8,
-                              vertical: 3,
-                            ),
-                            decoration: BoxDecoration(
-                              color: const Color(0xFFF59E0B),
-                              borderRadius: BorderRadius.circular(10),
-                            ),
-                            child: const Text(
-                              'Verified DOB',
-                              style: TextStyle(
-                                color: Colors.white,
-                                fontSize: 10,
-                                fontWeight: FontWeight.w700,
-                              ),
-                            ),
-                          ),
-                      ],
-                    ),
-                  ),
-                  const SizedBox(height: 12),
-
-                  // 2. COMPLETE ADDRESS & CAMPUS LOCATION
-                  Container(
-                    padding: const EdgeInsets.all(14),
-                    decoration: BoxDecoration(
-                      color: const Color(0xFFF8FAFC),
-                      borderRadius: BorderRadius.circular(16),
-                      border: Border.all(color: const Color(0xFFE2E8F0)),
-                    ),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Row(
-                          children: [
-                            Container(
-                              width: 32,
-                              height: 32,
-                              decoration: BoxDecoration(
-                                color: student.hasAddress
-                                    ? const Color(0xFFE0F2FE)
-                                    : const Color(0xFFF1F5F9),
-                                borderRadius: BorderRadius.circular(8),
-                              ),
-                              child: Icon(
-                                Icons.home_rounded,
-                                size: 18,
-                                color: student.hasAddress
-                                    ? const Color(0xFF0284C7)
-                                    : const Color(0xFF94A3B8),
-                              ),
-                            ),
-                            const SizedBox(width: 10),
-                            const Text(
-                              'PERMANENT ADDRESS',
-                              style: TextStyle(
-                                fontSize: 11,
-                                fontWeight: FontWeight.w800,
-                                color: Color(0xFF64748B),
-                                letterSpacing: 0.6,
-                              ),
-                            ),
-                            const Spacer(),
-                            if (student.hasAddress)
-                              IconButton(
-                                icon: const Icon(Icons.copy_rounded, size: 16, color: Color(0xFF64748B)),
-                                tooltip: 'Copy Address',
-                                onPressed: () => controller.copyToClipboard(
-                                  student.displayAddress,
-                                  'Student Address',
-                                ),
-                              ),
-                          ],
-                        ),
-                        const SizedBox(height: 6),
-                        Text(
-                          student.displayAddress,
-                          style: TextStyle(
-                            fontSize: 13,
-                            height: 1.4,
-                            fontWeight: student.hasAddress ? FontWeight.w500 : FontWeight.w400,
-                            color: student.hasAddress ? const Color(0xFF1E293B) : const Color(0xFF94A3B8),
-                            fontStyle: student.hasAddress ? FontStyle.normal : FontStyle.italic,
-                          ),
-                        ),
-                        if (student.floor != null) ...[
                           const SizedBox(height: 6),
-                          Container(
-                            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-                            decoration: BoxDecoration(
-                              color: const Color(0xFFE2E8F0),
-                              borderRadius: BorderRadius.circular(6),
-                            ),
-                            child: Text(
-                              student.floor == 0 ? 'Ground Floor' : 'Floor ${student.floor}',
-                              style: const TextStyle(fontSize: 10.5, fontWeight: FontWeight.w700, color: Color(0xFF334155)),
-                            ),
-                          ),
-                        ],
-                      ],
-                    ),
-                  ),
-                  const SizedBox(height: 12),
-
-                  // 3. IDENTIFIERS & ACADEMIC INFO
-                  Container(
-                    padding: const EdgeInsets.all(14),
-                    decoration: BoxDecoration(
-                      color: const Color(0xFFF8FAFC),
-                      borderRadius: BorderRadius.circular(16),
-                      border: Border.all(color: const Color(0xFFE2E8F0)),
-                    ),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        const Text(
-                          'STUDENT IDENTITY & ACADEMICS',
-                          style: TextStyle(
-                            fontSize: 11,
-                            fontWeight: FontWeight.w800,
-                            color: Color(0xFF64748B),
-                            letterSpacing: 0.6,
-                          ),
-                        ),
-                        const SizedBox(height: 10),
-                        Row(
-                          children: [
-                            Expanded(
-                              child: _infoBlock('Aadhar Card', student.maskedAadhar, onCopy: student.aadhar != null ? () => controller.copyToClipboard(student.aadhar!, 'Aadhar') : null),
-                            ),
-                            const SizedBox(width: 8),
-                            Expanded(
-                              child: _infoBlock('Bank / Student ID', student.studentId.isNotEmpty ? student.studentId : 'N/A', onCopy: () => controller.copyToClipboard(student.studentId, 'Student ID')),
-                            ),
-                          ],
-                        ),
-                        const SizedBox(height: 8),
-                        Row(
-                          children: [
-                            Expanded(
-                              child: _infoBlock('Wing / Group', student.groupName ?? 'Hostel', subtitle: student.room != null ? 'Room ${student.room}' : 'No Room'),
-                            ),
-                            const SizedBox(width: 8),
-                            Expanded(
-                              child: _infoBlock('Admission Status', student.status?.toUpperCase() ?? (isAlumni ? 'ALUMNI' : 'ACTIVE'), isHighlight: !isAlumni),
-                            ),
-                          ],
-                        ),
-                      ],
-                    ),
-                  ),
-                  const SizedBox(height: 12),
-
-                  // 3.5 PARENTS & GUARDIAN DETAILS
-                  Container(
-                    padding: const EdgeInsets.all(14),
-                    decoration: BoxDecoration(
-                      color: const Color(0xFFF8FAFC),
-                      borderRadius: BorderRadius.circular(16),
-                      border: Border.all(color: const Color(0xFFE2E8F0)),
-                    ),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        const Text(
-                          'PARENTS & GUARDIAN DETAILS',
-                          style: TextStyle(
-                            fontSize: 11,
-                            fontWeight: FontWeight.w800,
-                            color: Color(0xFF64748B),
-                            letterSpacing: 0.6,
-                          ),
-                        ),
-                        const SizedBox(height: 10),
-                        Row(
-                          children: [
-                            Expanded(
-                              child: _infoBlock(
-                                'Father Name',
-                                student.fatherName ?? 'Not Provided',
-                                subtitle: student.fatherPhone != null ? 'Ph: ${student.fatherPhone}' : null,
-                                onCopy: student.fatherName != null ? () => controller.copyToClipboard(student.fatherName!, 'Father Name') : null,
-                              ),
-                            ),
-                            const SizedBox(width: 8),
-                            Expanded(
-                              child: _infoBlock(
-                                'Mother Name',
-                                student.motherName ?? 'Not Provided',
-                                subtitle: student.motherPhone != null ? 'Ph: ${student.motherPhone}' : null,
-                                onCopy: student.motherName != null ? () => controller.copyToClipboard(student.motherName!, 'Mother Name') : null,
-                              ),
-                            ),
-                          ],
-                        ),
-                      ],
-                    ),
-                  ),
-                  const SizedBox(height: 16),
-
-                  // 4. REGISTERED CONTACT DIRECTORY
-                  Row(
-                    children: [
-                      Container(
-                        width: 16,
-                        height: 3,
-                        decoration: BoxDecoration(
-                          color: const Color(0xFF0284C7),
-                          borderRadius: BorderRadius.circular(2),
-                        ),
-                      ),
-                      const SizedBox(width: 6),
-                      const Text(
-                        'CONTACT DIRECTORY (STUDENT & FAMILY)',
-                        style: TextStyle(
-                          fontSize: 11,
-                          fontWeight: FontWeight.w800,
-                          color: Color(0xFF64748B),
-                          letterSpacing: 0.8,
-                        ),
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 10),
-
-                  // Family contacts if available
-                  if (student.fatherPhone != null && student.fatherPhone!.isNotEmpty)
-                    _buildPhoneRow(
-                      context,
-                      phone: student.fatherPhone!,
-                      label: student.fatherName != null ? 'Father (${student.fatherName})' : 'Father Contact',
-                      icon: Icons.family_restroom_rounded,
-                      iconBg: const Color(0xFFFEF3C7),
-                      iconColor: const Color(0xFFD97706),
-                    ),
-
-                  if (student.motherPhone != null && student.motherPhone!.isNotEmpty)
-                    _buildPhoneRow(
-                      context,
-                      phone: student.motherPhone!,
-                      label: student.motherName != null ? 'Mother (${student.motherName})' : 'Mother Contact',
-                      icon: Icons.family_restroom_rounded,
-                      iconBg: const Color(0xFFFCE7F3),
-                      iconColor: const Color(0xFFDB2777),
-                    ),
-
-                  if (student.whatsappNumber != null && student.whatsappNumber!.isNotEmpty)
-                    _buildPhoneRow(
-                      context,
-                      phone: student.whatsappNumber!,
-                      label: 'Dedicated WhatsApp',
-                      icon: Icons.chat_rounded,
-                      iconBg: const Color(0xFFECFDF5),
-                      iconColor: const Color(0xFF059669),
-                    ),
-
-                  // All student phones from directory
-                  ...student.phones.map((p) {
-                    final isWhatsApp = p.label.toLowerCase().contains('whatsapp');
-                    final isFather = p.label.toLowerCase().contains('father');
-                    final isMother = p.label.toLowerCase().contains('mother');
-                    if (isFather || isMother) return const SizedBox.shrink();
-
-                    return _buildPhoneRow(
-                      context,
-                      phone: p.phone,
-                      label: p.label,
-                      icon: isWhatsApp ? Icons.chat_rounded : Icons.phone_rounded,
-                      iconBg: isWhatsApp ? const Color(0xFFECFDF5) : const Color(0xFFE0F2FE),
-                      iconColor: isWhatsApp ? const Color(0xFF059669) : const Color(0xFF0284C7),
-                    );
-                  }),
-
-                  if (student.email != null && student.email!.isNotEmpty) ...[
-                    const SizedBox(height: 10),
-                    Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
-                      decoration: BoxDecoration(
-                        color: const Color(0xFFF8FAFC),
-                        borderRadius: BorderRadius.circular(16),
-                        border: Border.all(color: const Color(0xFFE2E8F0)),
-                      ),
-                      child: Row(
-                        children: [
-                          Container(
-                            width: 36,
-                            height: 36,
-                            decoration: BoxDecoration(
-                              color: const Color(0xFFCCFBF1),
-                              borderRadius: BorderRadius.circular(10),
-                            ),
-                            child: const Icon(Icons.email_rounded, size: 18, color: Color(0xFF0D9488)),
-                          ),
-                          const SizedBox(width: 12),
-                          Expanded(
-                            child: Text(
-                              student.email!,
-                              style: const TextStyle(
-                                fontSize: 13.5,
-                                fontWeight: FontWeight.w600,
-                                color: Color(0xFF0F172A),
-                              ),
-                            ),
-                          ),
-                          IconButton(
-                            icon: const Icon(Icons.copy_rounded, size: 18, color: Color(0xFF64748B)),
-                            tooltip: 'Copy Email',
-                            onPressed: () => controller.copyToClipboard(student.email!, 'Email'),
+                          Wrap(
+                            spacing: 6,
+                            runSpacing: 4,
+                            children: [
+                              if (isAlumni)
+                                Container(
+                                  padding: const EdgeInsets.symmetric(
+                                    horizontal: 9,
+                                    vertical: 3.5,
+                                  ),
+                                  decoration: BoxDecoration(
+                                    color: const Color(0xFFF3E8FF),
+                                    borderRadius: BorderRadius.circular(10),
+                                    border: Border.all(
+                                      color: const Color(0xFFE9D5FF),
+                                    ),
+                                  ),
+                                  child: const Row(
+                                    mainAxisSize: MainAxisSize.min,
+                                    children: [
+                                      Icon(
+                                        Icons.school_rounded,
+                                        size: 12,
+                                        color: Color(0xFF7E22CE),
+                                      ),
+                                      SizedBox(width: 4),
+                                      Text(
+                                        'Alumni / Left',
+                                        style: TextStyle(
+                                          color: Color(0xFF7E22CE),
+                                          fontSize: 11.5,
+                                          fontWeight: FontWeight.w700,
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                )
+                              else if (student.room != null &&
+                                  student.room!.isNotEmpty)
+                                Container(
+                                  padding: const EdgeInsets.symmetric(
+                                    horizontal: 9,
+                                    vertical: 3.5,
+                                  ),
+                                  decoration: BoxDecoration(
+                                    color: const Color(0xFFF1F5F9),
+                                    borderRadius: BorderRadius.circular(10),
+                                    border: Border.all(
+                                      color: const Color(0xFFE2E8F0),
+                                    ),
+                                  ),
+                                  child: Text(
+                                    'Room ${student.room}',
+                                    style: const TextStyle(
+                                      color: Color(0xFF334155),
+                                      fontSize: 11.5,
+                                      fontWeight: FontWeight.w700,
+                                    ),
+                                  ),
+                                ),
+                              if (student.groupName != null)
+                                Container(
+                                  padding: const EdgeInsets.symmetric(
+                                    horizontal: 9,
+                                    vertical: 3.5,
+                                  ),
+                                  decoration: BoxDecoration(
+                                    color: groupBgColor(student.groupName),
+                                    borderRadius: BorderRadius.circular(10),
+                                    border: Border.all(
+                                      color: groupColor(
+                                        student.groupName,
+                                      ).withValues(alpha: 0.2),
+                                    ),
+                                  ),
+                                  child: Text(
+                                    student.groupName!,
+                                    style: TextStyle(
+                                      color: groupColor(student.groupName),
+                                      fontSize: 11.5,
+                                      fontWeight: FontWeight.w700,
+                                    ),
+                                  ),
+                                ),
+                              if (student.bankCode != null &&
+                                  student.bankCode!.isNotEmpty)
+                                Container(
+                                  padding: const EdgeInsets.symmetric(
+                                    horizontal: 8,
+                                    vertical: 3.5,
+                                  ),
+                                  decoration: BoxDecoration(
+                                    color: const Color(0xFFF8FAFC),
+                                    borderRadius: BorderRadius.circular(10),
+                                    border: Border.all(
+                                      color: const Color(0xFFE2E8F0),
+                                    ),
+                                  ),
+                                  child: Text(
+                                    'Code: ${student.bankCode}',
+                                    style: const TextStyle(
+                                      color: Color(0xFF64748B),
+                                      fontSize: 11,
+                                      fontWeight: FontWeight.w600,
+                                    ),
+                                  ),
+                                ),
+                            ],
                           ),
                         ],
                       ),
                     ),
                   ],
-
-                  const SizedBox(height: 18),
-
-                  // Primary Share Details Action
-                  SizedBox(
-                    width: double.infinity,
-                    child: ElevatedButton.icon(
-                      onPressed: () => controller.shareStudent(student),
-                      icon: const Icon(Icons.share_rounded, size: 18),
-                      label: const Text('Share Complete Student Details'),
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: const Color(0xFF0F172A),
-                        foregroundColor: Colors.white,
-                        padding: const EdgeInsets.symmetric(vertical: 13),
-                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                      ),
-                    ),
-                  ),
-                  const SizedBox(height: 8),
-
-                  // Bottom action buttons
-                  Row(
-                    children: [
-                      Expanded(
-                        child: ElevatedButton.icon(
-                          onPressed: student.primaryPhone != 'No Phone'
-                              ? () {
-                                  Navigator.pop(ctx);
-                                  controller.makeCall(student.primaryPhone);
-                                }
-                              : null,
-                          icon: const Icon(Icons.call_rounded, size: 18),
-                          label: const Text('Call Student'),
-                          style: ElevatedButton.styleFrom(
-                            backgroundColor: const Color(0xFF0284C7),
-                            foregroundColor: Colors.white,
-                            padding: const EdgeInsets.symmetric(vertical: 12),
-                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                ),
+                const SizedBox(height: 18),
+                const Divider(height: 1, color: Color(0xFFF1F5F9)),
+                Flexible(
+                  child: SingleChildScrollView(
+                    padding: const EdgeInsets.only(top: 16),
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
+                      children: [
+                        // 1. DATE OF BIRTH & CELEBRATION DETAILS
+                        Container(
+                          padding: const EdgeInsets.all(14),
+                          decoration: BoxDecoration(
+                            color: student.hasDob
+                                ? const Color(0xFFFFFBEB)
+                                : const Color(0xFFF8FAFC),
+                            borderRadius: BorderRadius.circular(16),
+                            border: Border.all(
+                              color: student.hasDob
+                                  ? const Color(0xFFFDE68A)
+                                  : const Color(0xFFE2E8F0),
+                            ),
+                          ),
+                          child: Row(
+                            children: [
+                              Container(
+                                width: 40,
+                                height: 40,
+                                decoration: BoxDecoration(
+                                  color: student.hasDob
+                                      ? const Color(0xFFFEF3C7)
+                                      : const Color(0xFFE2E8F0),
+                                  shape: BoxShape.circle,
+                                ),
+                                child: Icon(
+                                  Icons.cake_rounded,
+                                  size: 20,
+                                  color: student.hasDob
+                                      ? const Color(0xFFD97706)
+                                      : const Color(0xFF94A3B8),
+                                ),
+                              ),
+                              const SizedBox(width: 12),
+                              Expanded(
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    const Text(
+                                      'DATE OF BIRTH',
+                                      style: TextStyle(
+                                        fontSize: 10.5,
+                                        fontWeight: FontWeight.w800,
+                                        color: Color(0xFF64748B),
+                                        letterSpacing: 0.6,
+                                      ),
+                                    ),
+                                    const SizedBox(height: 2),
+                                    Text(
+                                      student.hasDob
+                                          ? '${student.formattedDob} ${student.ageText.isNotEmpty ? "(${student.ageText})" : ""}'
+                                          : 'Not registered in directory',
+                                      style: TextStyle(
+                                        fontSize: 14,
+                                        fontWeight: FontWeight.w700,
+                                        color: student.hasDob
+                                            ? const Color(0xFF92400E)
+                                            : const Color(0xFF64748B),
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                              if (student.hasDob)
+                                Container(
+                                  padding: const EdgeInsets.symmetric(
+                                    horizontal: 8,
+                                    vertical: 3,
+                                  ),
+                                  decoration: BoxDecoration(
+                                    color: const Color(0xFFF59E0B),
+                                    borderRadius: BorderRadius.circular(10),
+                                  ),
+                                  child: const Text(
+                                    'Verified DOB',
+                                    style: TextStyle(
+                                      color: Colors.white,
+                                      fontSize: 10,
+                                      fontWeight: FontWeight.w700,
+                                    ),
+                                  ),
+                                ),
+                            ],
                           ),
                         ),
-                      ),
-                      const SizedBox(width: 8),
-                      Expanded(
-                        child: ElevatedButton.icon(
-                          onPressed: student.primaryPhone != 'No Phone'
-                              ? () {
-                                  Navigator.pop(ctx);
-                                  controller.openWhatsApp(
-                                    student.whatsappNumber?.isNotEmpty == true
-                                        ? student.whatsappNumber!
-                                        : student.primaryPhone,
-                                  );
-                                }
-                              : null,
-                          icon: const Icon(Icons.chat_rounded, size: 18),
-                          label: const Text('WhatsApp'),
-                          style: ElevatedButton.styleFrom(
-                            backgroundColor: const Color(0xFF10B981),
-                            foregroundColor: Colors.white,
-                            padding: const EdgeInsets.symmetric(vertical: 12),
-                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                        const SizedBox(height: 12),
+
+                        // 2. COMPLETE ADDRESS & CAMPUS LOCATION
+                        Container(
+                          padding: const EdgeInsets.all(14),
+                          decoration: BoxDecoration(
+                            color: const Color(0xFFF8FAFC),
+                            borderRadius: BorderRadius.circular(16),
+                            border: Border.all(color: const Color(0xFFE2E8F0)),
+                          ),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Row(
+                                children: [
+                                  Container(
+                                    width: 32,
+                                    height: 32,
+                                    decoration: BoxDecoration(
+                                      color: student.hasAddress
+                                          ? const Color(0xFFE0F2FE)
+                                          : const Color(0xFFF1F5F9),
+                                      borderRadius: BorderRadius.circular(8),
+                                    ),
+                                    child: Icon(
+                                      Icons.home_rounded,
+                                      size: 18,
+                                      color: student.hasAddress
+                                          ? const Color(0xFF0284C7)
+                                          : const Color(0xFF94A3B8),
+                                    ),
+                                  ),
+                                  const SizedBox(width: 10),
+                                  const Text(
+                                    'PERMANENT ADDRESS',
+                                    style: TextStyle(
+                                      fontSize: 11,
+                                      fontWeight: FontWeight.w800,
+                                      color: Color(0xFF64748B),
+                                      letterSpacing: 0.6,
+                                    ),
+                                  ),
+                                  const Spacer(),
+                                  if (student.hasAddress)
+                                    IconButton(
+                                      icon: const Icon(Icons.copy_rounded, size: 16, color: Color(0xFF64748B)),
+                                      tooltip: 'Copy Address',
+                                      onPressed: () => controller.copyToClipboard(
+                                        student.displayAddress,
+                                        'Student Address',
+                                      ),
+                                    ),
+                                ],
+                              ),
+                              const SizedBox(height: 6),
+                              Text(
+                                student.displayAddress,
+                                style: TextStyle(
+                                  fontSize: 13,
+                                  height: 1.4,
+                                  fontWeight: student.hasAddress ? FontWeight.w500 : FontWeight.w400,
+                                  color: student.hasAddress ? const Color(0xFF1E293B) : const Color(0xFF94A3B8),
+                                  fontStyle: student.hasAddress ? FontStyle.normal : FontStyle.italic,
+                                ),
+                              ),
+                              if (student.floor != null) ...[
+                                const SizedBox(height: 6),
+                                Container(
+                                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                                  decoration: BoxDecoration(
+                                    color: const Color(0xFFE2E8F0),
+                                    borderRadius: BorderRadius.circular(6),
+                                  ),
+                                  child: Text(
+                                    student.floor == 0 ? 'Ground Floor' : 'Floor ${student.floor}',
+                                    style: const TextStyle(fontSize: 10.5, fontWeight: FontWeight.w700, color: Color(0xFF334155)),
+                                  ),
+                                ),
+                              ],
+                            ],
                           ),
                         ),
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 8),
-                  SizedBox(
-                    width: double.infinity,
-                    child: OutlinedButton.icon(
-                      onPressed: () {
-                        Navigator.pop(ctx);
-                        Get.toNamed(
-                          Routes.studentScreenTime,
-                          arguments: {
-                            'name': student.name,
-                            'room': student.room ?? '',
-                          },
-                        );
-                      },
-                      icon: const Icon(Icons.phone_android_rounded, size: 18),
-                      label: const Text('View Individual Screen Time'),
-                      style: OutlinedButton.styleFrom(
-                        padding: const EdgeInsets.symmetric(vertical: 12),
-                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                      ),
+                        const SizedBox(height: 12),
+
+                        // 3. IDENTIFIERS & ACADEMIC INFO
+                        Container(
+                          padding: const EdgeInsets.all(14),
+                          decoration: BoxDecoration(
+                            color: const Color(0xFFF8FAFC),
+                            borderRadius: BorderRadius.circular(16),
+                            border: Border.all(color: const Color(0xFFE2E8F0)),
+                          ),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              const Text(
+                                'STUDENT IDENTITY & ACADEMICS',
+                                style: TextStyle(
+                                  fontSize: 11,
+                                  fontWeight: FontWeight.w800,
+                                  color: Color(0xFF64748B),
+                                  letterSpacing: 0.6,
+                                ),
+                              ),
+                              const SizedBox(height: 10),
+                              Row(
+                                children: [
+                                  Expanded(
+                                    child: _infoBlock('Aadhar Card', student.maskedAadhar, onCopy: student.aadhar != null ? () => controller.copyToClipboard(student.aadhar!, 'Aadhar') : null),
+                                  ),
+                                  const SizedBox(width: 8),
+                                  Expanded(
+                                    child: _infoBlock('Bank / Student ID', student.studentId.isNotEmpty ? student.studentId : 'N/A', onCopy: () => controller.copyToClipboard(student.studentId, 'Student ID')),
+                                  ),
+                                ],
+                              ),
+                              const SizedBox(height: 8),
+                              Row(
+                                children: [
+                                  Expanded(
+                                    child: _infoBlock('Wing / Group', student.groupName ?? 'Hostel', subtitle: student.room != null ? 'Room ${student.room}' : 'No Room'),
+                                  ),
+                                  const SizedBox(width: 8),
+                                  Expanded(
+                                    child: _infoBlock('Admission Status', student.status?.toUpperCase() ?? (isAlumni ? 'ALUMNI' : 'ACTIVE'), isHighlight: !isAlumni),
+                                  ),
+                                ],
+                              ),
+                            ],
+                          ),
+                        ),
+                        const SizedBox(height: 12),
+
+                        // 3.5 PARENTS & GUARDIAN DETAILS
+                        Container(
+                          padding: const EdgeInsets.all(14),
+                          decoration: BoxDecoration(
+                            color: const Color(0xFFF8FAFC),
+                            borderRadius: BorderRadius.circular(16),
+                            border: Border.all(color: const Color(0xFFE2E8F0)),
+                          ),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              const Text(
+                                'PARENTS & GUARDIAN DETAILS',
+                                style: TextStyle(
+                                  fontSize: 11,
+                                  fontWeight: FontWeight.w800,
+                                  color: Color(0xFF64748B),
+                                  letterSpacing: 0.6,
+                                ),
+                              ),
+                              const SizedBox(height: 10),
+                              Row(
+                                children: [
+                                  Expanded(
+                                    child: _infoBlock(
+                                      'Father Name',
+                                      student.fatherName ?? 'Not Provided',
+                                      subtitle: student.fatherPhone != null ? 'Ph: ${student.fatherPhone}' : null,
+                                      onCopy: student.fatherName != null ? () => controller.copyToClipboard(student.fatherName!, 'Father Name') : null,
+                                    ),
+                                  ),
+                                  const SizedBox(width: 8),
+                                  Expanded(
+                                    child: _infoBlock(
+                                      'Mother Name',
+                                      student.motherName ?? 'Not Provided',
+                                      subtitle: student.motherPhone != null ? 'Ph: ${student.motherPhone}' : null,
+                                      onCopy: student.motherName != null ? () => controller.copyToClipboard(student.motherName!, 'Mother Name') : null,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ],
+                          ),
+                        ),
+                        const SizedBox(height: 16),
+
+                        // 4. REGISTERED CONTACT DIRECTORY
+                        Row(
+                          children: [
+                            Container(
+                              width: 16,
+                              height: 3,
+                              decoration: BoxDecoration(
+                                color: const Color(0xFF0284C7),
+                                borderRadius: BorderRadius.circular(2),
+                              ),
+                            ),
+                            const SizedBox(width: 6),
+                            const Text(
+                              'CONTACT DIRECTORY (STUDENT & FAMILY)',
+                              style: TextStyle(
+                                fontSize: 11,
+                                fontWeight: FontWeight.w800,
+                                color: Color(0xFF64748B),
+                                letterSpacing: 0.8,
+                              ),
+                            ),
+                          ],
+                        ),
+                        const SizedBox(height: 10),
+
+                        // Family contacts if available
+                        if (student.fatherPhone != null && student.fatherPhone!.isNotEmpty)
+                          _buildPhoneRow(
+                            context,
+                            phone: student.fatherPhone!,
+                            label: student.fatherName != null ? 'Father (${student.fatherName})' : 'Father Contact',
+                            icon: Icons.family_restroom_rounded,
+                            iconBg: const Color(0xFFFEF3C7),
+                            iconColor: const Color(0xFFD97706),
+                          ),
+
+                        if (student.motherPhone != null && student.motherPhone!.isNotEmpty)
+                          _buildPhoneRow(
+                            context,
+                            phone: student.motherPhone!,
+                            label: student.motherName != null ? 'Mother (${student.motherName})' : 'Mother Contact',
+                            icon: Icons.family_restroom_rounded,
+                            iconBg: const Color(0xFFFCE7F3),
+                            iconColor: const Color(0xFFDB2777),
+                          ),
+
+                        if (student.whatsappNumber != null && student.whatsappNumber!.isNotEmpty)
+                          _buildPhoneRow(
+                            context,
+                            phone: student.whatsappNumber!,
+                            label: 'Dedicated WhatsApp',
+                            icon: Icons.chat_rounded,
+                            iconBg: const Color(0xFFECFDF5),
+                            iconColor: const Color(0xFF059669),
+                          ),
+
+                        // All student phones from directory
+                        ...student.phones.map((p) {
+                          final isWhatsApp = p.label.toLowerCase().contains('whatsapp');
+                          final isFather = p.label.toLowerCase().contains('father');
+                          final isMother = p.label.toLowerCase().contains('mother');
+                          if (isFather || isMother) return const SizedBox.shrink();
+
+                          return _buildPhoneRow(
+                            context,
+                            phone: p.phone,
+                            label: p.label,
+                            icon: isWhatsApp ? Icons.chat_rounded : Icons.phone_rounded,
+                            iconBg: isWhatsApp ? const Color(0xFFECFDF5) : const Color(0xFFE0F2FE),
+                            iconColor: isWhatsApp ? const Color(0xFF059669) : const Color(0xFF0284C7),
+                          );
+                        }),
+
+                        if (student.email != null && student.email!.isNotEmpty) ...[
+                          const SizedBox(height: 10),
+                          Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+                            decoration: BoxDecoration(
+                              color: const Color(0xFFF8FAFC),
+                              borderRadius: BorderRadius.circular(16),
+                              border: Border.all(color: const Color(0xFFE2E8F0)),
+                            ),
+                            child: Row(
+                              children: [
+                                Container(
+                                  width: 36,
+                                  height: 36,
+                                  decoration: BoxDecoration(
+                                    color: const Color(0xFFCCFBF1),
+                                    borderRadius: BorderRadius.circular(10),
+                                  ),
+                                  child: const Icon(Icons.email_rounded, size: 18, color: Color(0xFF0D9488)),
+                                ),
+                                const SizedBox(width: 12),
+                                Expanded(
+                                  child: Text(
+                                    student.email!,
+                                    style: const TextStyle(
+                                      fontSize: 13.5,
+                                      fontWeight: FontWeight.w600,
+                                      color: Color(0xFF0F172A),
+                                    ),
+                                  ),
+                                ),
+                                IconButton(
+                                  icon: const Icon(Icons.copy_rounded, size: 18, color: Color(0xFF64748B)),
+                                  tooltip: 'Copy Email',
+                                  onPressed: () => controller.copyToClipboard(student.email!, 'Email'),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ],
+
+                        const SizedBox(height: 18),
+
+                        // Primary Share Details Action
+                        SizedBox(
+                          width: double.infinity,
+                          child: ElevatedButton.icon(
+                            onPressed: () => controller.shareStudent(student),
+                            icon: const Icon(Icons.share_rounded, size: 18),
+                            label: const Text('Share Complete Student Details'),
+                            style: ElevatedButton.styleFrom(
+                              backgroundColor: const Color(0xFF0F172A),
+                              foregroundColor: Colors.white,
+                              padding: const EdgeInsets.symmetric(vertical: 13),
+                              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                            ),
+                          ),
+                        ),
+                        const SizedBox(height: 8),
+
+                        // Bottom action buttons
+                        Row(
+                          children: [
+                            Expanded(
+                              child: ElevatedButton.icon(
+                                onPressed: student.primaryPhone != 'No Phone'
+                                    ? () {
+                                        Navigator.pop(ctx);
+                                        controller.makeCall(student.primaryPhone);
+                                      }
+                                    : null,
+                                icon: const Icon(Icons.call_rounded, size: 18),
+                                label: const Text('Call Student'),
+                                style: ElevatedButton.styleFrom(
+                                  backgroundColor: const Color(0xFF0284C7),
+                                  foregroundColor: Colors.white,
+                                  padding: const EdgeInsets.symmetric(vertical: 12),
+                                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                                ),
+                              ),
+                            ),
+                            const SizedBox(width: 8),
+                            Expanded(
+                              child: ElevatedButton.icon(
+                                onPressed: student.primaryPhone != 'No Phone'
+                                    ? () {
+                                        Navigator.pop(ctx);
+                                        controller.openWhatsApp(
+                                          student.whatsappNumber?.isNotEmpty == true
+                                              ? student.whatsappNumber!
+                                              : student.primaryPhone,
+                                        );
+                                      }
+                                    : null,
+                                icon: const Icon(Icons.chat_rounded, size: 18),
+                                label: const Text('WhatsApp'),
+                                style: ElevatedButton.styleFrom(
+                                  backgroundColor: const Color(0xFF10B981),
+                                  foregroundColor: Colors.white,
+                                  padding: const EdgeInsets.symmetric(vertical: 12),
+                                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                        const SizedBox(height: 8),
+                        SizedBox(
+                          width: double.infinity,
+                          child: OutlinedButton.icon(
+                            onPressed: () {
+                              Navigator.pop(ctx);
+                              Get.toNamed(
+                                Routes.studentScreenTime,
+                                arguments: {
+                                  'name': student.name,
+                                  'room': student.room ?? '',
+                                },
+                              );
+                            },
+                            icon: const Icon(Icons.phone_android_rounded, size: 18),
+                            label: const Text('View Individual Screen Time'),
+                            style: OutlinedButton.styleFrom(
+                              padding: const EdgeInsets.symmetric(vertical: 12),
+                              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                            ),
+                          ),
+                        ),
+                      ],
                     ),
                   ),
-                ],
-              ),
+                ),
+              ],
             ),
           ),
         );

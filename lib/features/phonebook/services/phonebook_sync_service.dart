@@ -156,14 +156,7 @@ class PhonebookSyncService {
 
         final room = isRoomNa ? null : rawRoom;
 
-        int? floorNum;
-        if (room != null) {
-          if (room.length == 5) {
-            floorNum = int.tryParse(room.substring(0, 2));
-          } else if (room.length >= 3) {
-            floorNum = int.tryParse(room.substring(0, 1));
-          }
-        }
+        final floorNum = PhonebookStudent.floorOfRoom(room);
 
         final studentCode = (bankCode != null && bankCode.isNotEmpty)
             ? 'HSH-$bankCode'

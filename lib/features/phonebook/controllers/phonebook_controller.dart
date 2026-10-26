@@ -92,8 +92,17 @@ class PhonebookController extends GetxController {
     'Floor 3',
     'Floor 4',
     'Floor 5',
-    'Floor 6+',
+    'Floor 6',
+    'Floor 7',
+    'Floor 8',
+    'Floor 9',
   ];
+
+  /// Floor number for a [floorOptions] chip ('Ground' is 0), or null for 'All'.
+  static int? floorNumberOf(String option) {
+    if (option == 'Ground') return 0;
+    return int.tryParse(option.replaceAll(RegExp(r'\D'), ''));
+  }
 
   static const List<String> statusOptions = [
     'All',
@@ -340,15 +349,7 @@ class PhonebookController extends GetxController {
       isSearching.value = true;
     }
     try {
-      int? floorNumber;
-      if (selectedFloor.value != 'All') {
-        if (selectedFloor.value == 'Ground') {
-          floorNumber = 0;
-        } else {
-          final digits = selectedFloor.value.replaceAll(RegExp(r'\D'), '');
-          if (digits.isNotEmpty) floorNumber = int.tryParse(digits);
-        }
-      }
+      final floorNumber = floorNumberOf(selectedFloor.value);
 
       String? statusFilter;
       if (selectedStatus.value == 'Active Residents') {

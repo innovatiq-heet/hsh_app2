@@ -165,6 +165,7 @@ CREATE INDEX idx_student_id ON student_cache (student_id);
 - If the query contains **3 or more digits**, it matches `phone`, `phone_normalized` (digits only), `name`, `student_id`, `enrollment_number` and `department`; otherwise only the text fields.
 - Room search works through `department` ("Room 204").
 - Group chips filter on `department`; **Param** excludes Paramanand.
+- Floor chips (Ground, Floor 1 … Floor 9) filter on `floor_num`, set from the room at sync by `PhonebookStudent.floorOfRoom`: rooms 1–18 are Ground, 101–118 Floor 1, 201–218 Floor 2 … 901–918 Floor 9, and the common rooms 3000–9000 count on their floor (3000 is Floor 3). Alumni have no floor. Cache version 5 recomputes `floor_num` for rows synced with the old rule, which left the ground floor empty.
 - Up to 500 rows (ordered by name) are grouped back into one `PhonebookStudent` per `student_id`.
 
 ---
@@ -178,7 +179,7 @@ Operator home → **Student Phonebook** (`Routes.operatorDirectory`).
 - **Caller ID card:** see sections 6.1 and 7.
 - **Search bar** and **group chips** (All, Param, Pavitra, Pulkit, Paramanand).
 - **Student cards:** name, group, room, primary number, quick **Call** and **WhatsApp** buttons.
-- **Detail sheet** (tap a card): every number with copy, WhatsApp and call; email with copy; **View Individual Screen Time**, which opens `Routes.studentScreenTime` with `{name, room}` only. Phonebook records have no `students.id` (they come from the directory API), and Screen Time identifies students by that id alone, so it opens its directory searched by the student's name and the warden taps the right student. The bank code is never sent; the API would read `0768` as student #768.
+- **Detail sheet** (tap a card): at most 85% of the screen tall. It closes with the **×** in its header, a tap on the dimmed strip above it, a downward drag on the handle or header (which never scroll; only the details below them do), or Back. It shows every number with copy, WhatsApp and call; email with copy; **View Individual Screen Time**, which opens `Routes.studentScreenTime` with `{name, room}` only. Phonebook records have no `students.id` (they come from the directory API), and Screen Time identifies students by that id alone, so it opens its directory searched by the student's name and the warden taps the right student. The bank code is never sent; the API would read `0768` as student #768.
 - Call uses `tel:`; WhatsApp opens `https://wa.me/91XXXXXXXXXX` in the external app.
 
 ---

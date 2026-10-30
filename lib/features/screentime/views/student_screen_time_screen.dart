@@ -31,7 +31,8 @@ class StudentScreenTimeScreen extends GetView<StudentScreenTimeController> {
           canPop: canPopDirectly,
           onPopInvokedWithResult: (didPop, result) {
             if (didPop) return;
-            if (controller.selectedStudent.value != null && !controller.openedWithDirectTarget.value) {
+            if (controller.selectedStudent.value != null &&
+                !controller.openedWithDirectTarget.value) {
               controller.clearSelectedStudent();
             }
           },
@@ -43,13 +44,19 @@ class StudentScreenTimeScreen extends GetView<StudentScreenTimeController> {
               backgroundColor: Colors.white,
               child: NotificationListener<ScrollNotification>(
                 onNotification: (scrollInfo) {
-                  if (selected == null && scrollInfo.metrics.extentAfter < 350) {
+                  if (selected == null &&
+                      scrollInfo is ScrollUpdateNotification &&
+                      scrollInfo.metrics.extentAfter < 600) {
                     controller.loadMoreItems();
                   }
                   return false;
                 },
                 child: CustomScrollView(
-                  key: ValueKey(selected != null ? 'detail_${controller.studentId}' : 'directory'),
+                  key: ValueKey(
+                    selected != null
+                        ? 'detail_${controller.studentId}'
+                        : 'directory',
+                  ),
                   physics: const AlwaysScrollableScrollPhysics(
                     parent: BouncingScrollPhysics(),
                   ),
@@ -64,11 +71,9 @@ class StudentScreenTimeScreen extends GetView<StudentScreenTimeController> {
                     ),
                     SliverPadding(
                       padding: const EdgeInsets.fromLTRB(16, 12, 16, 16),
-                      sliver: SliverToBoxAdapter(
-                        child: selected == null
-                            ? const StudentDirectoryView()
-                            : _buildDetail(context),
-                      ),
+                      sliver: selected == null
+                          ? const StudentDirectoryView()
+                          : SliverToBoxAdapter(child: _buildDetail(context)),
                     ),
                   ],
                 ),
@@ -81,19 +86,32 @@ class StudentScreenTimeScreen extends GetView<StudentScreenTimeController> {
   }
 
   Widget _buildDetail(BuildContext context) {
-    final firstLoad = controller.isLoading.value &&
+    final firstLoad =
+        controller.isLoading.value &&
         controller.totalMinutesToday.value == 0 &&
         controller.historyRecords.isEmpty;
     if (firstLoad) {
       return const Column(
         children: [
-          SkeletonLoader(height: 36, borderRadius: BorderRadius.all(Radius.circular(18))),
+          SkeletonLoader(
+            height: 36,
+            borderRadius: BorderRadius.all(Radius.circular(18)),
+          ),
           SizedBox(height: 12),
-          SkeletonLoader(height: 72, borderRadius: BorderRadius.all(Radius.circular(16))),
+          SkeletonLoader(
+            height: 72,
+            borderRadius: BorderRadius.all(Radius.circular(16)),
+          ),
           SizedBox(height: 12),
-          SkeletonLoader(height: 180, borderRadius: BorderRadius.all(Radius.circular(16))),
+          SkeletonLoader(
+            height: 180,
+            borderRadius: BorderRadius.all(Radius.circular(16)),
+          ),
           SizedBox(height: 12),
-          SkeletonLoader(height: 220, borderRadius: BorderRadius.all(Radius.circular(16))),
+          SkeletonLoader(
+            height: 220,
+            borderRadius: BorderRadius.all(Radius.circular(16)),
+          ),
         ],
       );
     }
@@ -113,7 +131,11 @@ class StudentScreenTimeScreen extends GetView<StudentScreenTimeController> {
             ),
             child: Row(
               children: [
-                const Icon(Icons.info_outline_rounded, color: Color(0xFFD97706), size: 20),
+                const Icon(
+                  Icons.info_outline_rounded,
+                  color: Color(0xFFD97706),
+                  size: 20,
+                ),
                 const SizedBox(width: 10),
                 Expanded(
                   child: Column(
@@ -194,21 +216,30 @@ class StudentScreenTimeScreen extends GetView<StudentScreenTimeController> {
                     onTap: () => controller.selectDate(dateStr),
                     child: AnimatedContainer(
                       duration: const Duration(milliseconds: 200),
-                      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 7.5),
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 14,
+                        vertical: 7.5,
+                      ),
                       decoration: BoxDecoration(
-                        color: isSelected ? const Color(0xFF0284C7) : Colors.white,
+                        color: isSelected
+                            ? const Color(0xFF0284C7)
+                            : Colors.white,
                         borderRadius: BorderRadius.circular(20),
                         border: Border.all(
-                          color: isSelected ? const Color(0xFF0284C7) : const Color(0xFFE2E8F0),
+                          color: isSelected
+                              ? const Color(0xFF0284C7)
+                              : const Color(0xFFE2E8F0),
                           width: 1.0,
                         ),
                         boxShadow: isSelected
                             ? [
                                 BoxShadow(
-                                  color: const Color(0xFF0284C7).withValues(alpha: 0.25),
+                                  color: const Color(
+                                    0xFF0284C7,
+                                  ).withValues(alpha: 0.25),
                                   blurRadius: 8,
                                   offset: const Offset(0, 2),
-                                )
+                                ),
                               ]
                             : null,
                       ),
@@ -216,15 +247,23 @@ class StudentScreenTimeScreen extends GetView<StudentScreenTimeController> {
                         mainAxisSize: MainAxisSize.min,
                         children: [
                           if (isSelected) ...[
-                            const Icon(Icons.check_circle_rounded, size: 14, color: Colors.white),
+                            const Icon(
+                              Icons.check_circle_rounded,
+                              size: 14,
+                              color: Colors.white,
+                            ),
                             const SizedBox(width: 5),
                           ],
                           Text(
                             label,
                             style: TextStyle(
                               fontSize: 12.5,
-                              fontWeight: isSelected ? FontWeight.w700 : FontWeight.w600,
-                              color: isSelected ? Colors.white : const Color(0xFF475569),
+                              fontWeight: isSelected
+                                  ? FontWeight.w700
+                                  : FontWeight.w600,
+                              color: isSelected
+                                  ? Colors.white
+                                  : const Color(0xFF475569),
                             ),
                           ),
                         ],
@@ -255,7 +294,10 @@ class StudentScreenTimeScreen extends GetView<StudentScreenTimeController> {
                   }
                 },
                 child: Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 7.5),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 12,
+                    vertical: 7.5,
+                  ),
                   decoration: BoxDecoration(
                     color: Colors.white,
                     borderRadius: BorderRadius.circular(20),
@@ -264,7 +306,11 @@ class StudentScreenTimeScreen extends GetView<StudentScreenTimeController> {
                   child: const Row(
                     mainAxisSize: MainAxisSize.min,
                     children: [
-                      Icon(Icons.calendar_month_rounded, size: 15, color: Color(0xFF0284C7)),
+                      Icon(
+                        Icons.calendar_month_rounded,
+                        size: 15,
+                        color: Color(0xFF0284C7),
+                      ),
                       SizedBox(width: 5),
                       Text(
                         'Pick Date',
@@ -302,7 +348,11 @@ class StudentScreenTimeScreen extends GetView<StudentScreenTimeController> {
           maxHours = h;
         }
       }
-      final chartMaxY = (maxHours <= 2.0 ? 3.0 : (maxHours + 1.5).ceilToDouble()).clamp(3.0, 24.0);
+      final chartMaxY =
+          (maxHours <= 2.0 ? 3.0 : (maxHours + 1.5).ceilToDouble()).clamp(
+            3.0,
+            24.0,
+          );
 
       return Container(
         padding: const EdgeInsets.all(16),
@@ -329,7 +379,11 @@ class StudentScreenTimeScreen extends GetView<StudentScreenTimeController> {
                     color: const Color(0xFFE0F2FE),
                     borderRadius: BorderRadius.circular(8),
                   ),
-                  child: const Icon(Icons.bar_chart_rounded, color: Color(0xFF0284C7), size: 20),
+                  child: const Icon(
+                    Icons.bar_chart_rounded,
+                    color: Color(0xFF0284C7),
+                    size: 20,
+                  ),
                 ),
                 const SizedBox(width: 10),
                 const Expanded(
@@ -357,7 +411,10 @@ class StudentScreenTimeScreen extends GetView<StudentScreenTimeController> {
                   ),
                 ),
                 Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 8,
+                    vertical: 4,
+                  ),
                   decoration: BoxDecoration(
                     color: const Color(0xFFE0F2FE),
                     borderRadius: BorderRadius.circular(6),
@@ -365,7 +422,11 @@ class StudentScreenTimeScreen extends GetView<StudentScreenTimeController> {
                   child: const Row(
                     mainAxisSize: MainAxisSize.min,
                     children: [
-                      Icon(Icons.touch_app_rounded, size: 12, color: Color(0xFF0284C7)),
+                      Icon(
+                        Icons.touch_app_rounded,
+                        size: 12,
+                        color: Color(0xFF0284C7),
+                      ),
                       SizedBox(width: 4),
                       Text(
                         'Interactive',
@@ -388,8 +449,15 @@ class StudentScreenTimeScreen extends GetView<StudentScreenTimeController> {
               runSpacing: 6,
               children: [
                 _buildLegendItem(const Color(0xFF0284C7), 'Daytime Usage'),
-                _buildLegendItem(const Color(0xFFEF4444), 'Night Curfew (11PM - 5AM)'),
-                _buildLegendItem(const Color(0xFF0284C7).withValues(alpha: 0.25), 'Selected Bar', isBorder: true),
+                _buildLegendItem(
+                  const Color(0xFFEF4444),
+                  'Night Curfew (11PM - 5AM)',
+                ),
+                _buildLegendItem(
+                  const Color(0xFF0284C7).withValues(alpha: 0.25),
+                  'Selected Bar',
+                  isBorder: true,
+                ),
               ],
             ),
             const SizedBox(height: 20),
@@ -413,8 +481,12 @@ class StudentScreenTimeScreen extends GetView<StudentScreenTimeController> {
                   ),
                   borderData: FlBorderData(show: false),
                   titlesData: FlTitlesData(
-                    topTitles: const AxisTitles(sideTitles: SideTitles(showTitles: false)),
-                    rightTitles: const AxisTitles(sideTitles: SideTitles(showTitles: false)),
+                    topTitles: const AxisTitles(
+                      sideTitles: SideTitles(showTitles: false),
+                    ),
+                    rightTitles: const AxisTitles(
+                      sideTitles: SideTitles(showTitles: false),
+                    ),
                     leftTitles: AxisTitles(
                       sideTitles: SideTitles(
                         showTitles: true,
@@ -453,7 +525,8 @@ class StudentScreenTimeScreen extends GetView<StudentScreenTimeController> {
                           final isTod = p['isToday'] == true;
 
                           return GestureDetector(
-                            onTap: () => controller.selectDate(p['date'] as String),
+                            onTap: () =>
+                                controller.selectDate(p['date'] as String),
                             child: Padding(
                               padding: const EdgeInsets.only(top: 6),
                               child: Column(
@@ -463,18 +536,26 @@ class StudentScreenTimeScreen extends GetView<StudentScreenTimeController> {
                                     isTod ? 'Today' : (p['dayLabel'] as String),
                                     style: TextStyle(
                                       fontSize: 10,
-                                      fontWeight: isSel ? FontWeight.w700 : FontWeight.w500,
+                                      fontWeight: isSel
+                                          ? FontWeight.w700
+                                          : FontWeight.w500,
                                       color: isSel
                                           ? const Color(0xFF0284C7)
-                                          : (isTod ? const Color(0xFF0F172A) : const Color(0xFF64748B)),
+                                          : (isTod
+                                                ? const Color(0xFF0F172A)
+                                                : const Color(0xFF64748B)),
                                     ),
                                   ),
                                   Text(
                                     p['dateLabel'] as String,
                                     style: TextStyle(
                                       fontSize: 9,
-                                      color: isSel ? const Color(0xFF0284C7) : const Color(0xFF94A3B8),
-                                      fontWeight: isSel ? FontWeight.w600 : FontWeight.normal,
+                                      color: isSel
+                                          ? const Color(0xFF0284C7)
+                                          : const Color(0xFF94A3B8),
+                                      fontWeight: isSel
+                                          ? FontWeight.w600
+                                          : FontWeight.normal,
                                     ),
                                   ),
                                 ],
@@ -488,7 +569,9 @@ class StudentScreenTimeScreen extends GetView<StudentScreenTimeController> {
                   barTouchData: BarTouchData(
                     enabled: true,
                     touchCallback: (event, response) {
-                      if (event is FlTapUpEvent && response != null && response.spot != null) {
+                      if (event is FlTapUpEvent &&
+                          response != null &&
+                          response.spot != null) {
                         final idx = response.spot!.touchedBarGroupIndex;
                         if (idx >= 0 && idx < points.length) {
                           controller.selectDate(points[idx]['date'] as String);
@@ -497,16 +580,30 @@ class StudentScreenTimeScreen extends GetView<StudentScreenTimeController> {
                     },
                     touchTooltipData: BarTouchTooltipData(
                       getTooltipColor: (_) => const Color(0xFF0F172A),
-                      tooltipPadding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+                      tooltipPadding: const EdgeInsets.symmetric(
+                        horizontal: 10,
+                        vertical: 8,
+                      ),
                       getTooltipItem: (group, groupIndex, rod, rodIndex) {
                         final p = points[groupIndex];
                         final totMin = (p['totalMinutes'] is num)
                             ? (p['totalMinutes'] as num).toInt()
-                            : (int.tryParse(p['totalMinutes']?.toString() ?? '') ?? 0);
+                            : (int.tryParse(
+                                    p['totalMinutes']?.toString() ?? '',
+                                  ) ??
+                                  0);
                         final nightMin = (p['nightMinutes'] is num)
                             ? (p['nightMinutes'] as num).toInt()
-                            : (int.tryParse(p['nightMinutes']?.toString() ?? '') ?? 0);
-                        final dateStr = (p['dateLabel'] ?? p['shortDate'] ?? p['date'] ?? '').toString();
+                            : (int.tryParse(
+                                    p['nightMinutes']?.toString() ?? '',
+                                  ) ??
+                                  0);
+                        final dateStr =
+                            (p['dateLabel'] ??
+                                    p['shortDate'] ??
+                                    p['date'] ??
+                                    '')
+                                .toString();
                         final h = totMin ~/ 60;
                         final m = totMin % 60;
 
@@ -548,21 +645,41 @@ class StudentScreenTimeScreen extends GetView<StudentScreenTimeController> {
                             BarChartRodData(
                               toY: displayH,
                               width: 18,
-                              borderRadius: const BorderRadius.vertical(top: Radius.circular(5)),
+                              borderRadius: const BorderRadius.vertical(
+                                top: Radius.circular(5),
+                              ),
                               rodStackItems: nightH > 0
                                   ? [
-                                      BarChartRodStackItem(0, daytimeH, baseColor),
-                                      BarChartRodStackItem(daytimeH, totalH, const Color(0xFFEF4444)),
+                                      BarChartRodStackItem(
+                                        0,
+                                        daytimeH,
+                                        baseColor,
+                                      ),
+                                      BarChartRodStackItem(
+                                        daytimeH,
+                                        totalH,
+                                        const Color(0xFFEF4444),
+                                      ),
                                     ]
                                   : [
-                                      BarChartRodStackItem(0, displayH, totalH <= 0 ? const Color(0xFFCBD5E1) : baseColor),
+                                      BarChartRodStackItem(
+                                        0,
+                                        displayH,
+                                        totalH <= 0
+                                            ? const Color(0xFFCBD5E1)
+                                            : baseColor,
+                                      ),
                                     ],
                               backDrawRodData: BackgroundBarChartRodData(
                                 show: true,
                                 toY: chartMaxY,
                                 color: isSel
-                                    ? const Color(0xFF0284C7).withValues(alpha: 0.08)
-                                    : const Color(0xFF0F172A).withValues(alpha: 0.02),
+                                    ? const Color(
+                                        0xFF0284C7,
+                                      ).withValues(alpha: 0.08)
+                                    : const Color(
+                                        0xFF0F172A,
+                                      ).withValues(alpha: 0.02),
                               ),
                             ),
                           ],
@@ -591,7 +708,9 @@ class StudentScreenTimeScreen extends GetView<StudentScreenTimeController> {
           decoration: BoxDecoration(
             color: color,
             borderRadius: BorderRadius.circular(2),
-            border: isBorder ? Border.all(color: const Color(0xFF0284C7), width: 1.5) : null,
+            border: isBorder
+                ? Border.all(color: const Color(0xFF0284C7), width: 1.5)
+                : null,
           ),
         ),
         const SizedBox(width: 5),
@@ -659,7 +778,11 @@ class StudentScreenTimeScreen extends GetView<StudentScreenTimeController> {
                     color: const Color(0xFFE0F2FE),
                     borderRadius: BorderRadius.circular(8),
                   ),
-                  child: const Icon(Icons.analytics_rounded, color: Color(0xFF0284C7), size: 20),
+                  child: const Icon(
+                    Icons.analytics_rounded,
+                    color: Color(0xFF0284C7),
+                    size: 20,
+                  ),
                 ),
                 const SizedBox(width: 10),
                 const Expanded(
@@ -709,11 +832,19 @@ class StudentScreenTimeScreen extends GetView<StudentScreenTimeController> {
                   child: _buildMetricTile(
                     title: 'Night Curfew',
                     value: '$nightMin mins',
-                    subtext: nightMin > 0 ? 'Late night activity' : 'Curfew respected',
+                    subtext: nightMin > 0
+                        ? 'Late night activity'
+                        : 'Curfew respected',
                     icon: Icons.nightlight_round,
-                    color: nightMin > 0 ? const Color(0xFFDC2626) : const Color(0xFF10B981),
-                    bgColor: nightMin > 0 ? const Color(0xFFFEF2F2) : const Color(0xFFF0FDF4),
-                    borderColor: nightMin > 0 ? const Color(0xFFFCA5A5) : const Color(0xFF86EFAC),
+                    color: nightMin > 0
+                        ? const Color(0xFFDC2626)
+                        : const Color(0xFF10B981),
+                    bgColor: nightMin > 0
+                        ? const Color(0xFFFEF2F2)
+                        : const Color(0xFFF0FDF4),
+                    borderColor: nightMin > 0
+                        ? const Color(0xFFFCA5A5)
+                        : const Color(0xFF86EFAC),
                   ),
                 ),
               ],
@@ -725,7 +856,11 @@ class StudentScreenTimeScreen extends GetView<StudentScreenTimeController> {
                   child: _buildMetricTile(
                     title: 'Focus Discipline',
                     value: '$score%',
-                    subtext: score >= 75 ? 'Healthy balance' : (score >= 50 ? 'Moderate usage' : 'High screen usage'),
+                    subtext: score >= 75
+                        ? 'Healthy balance'
+                        : (score >= 50
+                              ? 'Moderate usage'
+                              : 'High screen usage'),
                     icon: Icons.verified_user_rounded,
                     color: scoreColor,
                     bgColor: scoreBg,
@@ -739,9 +874,15 @@ class StudentScreenTimeScreen extends GetView<StudentScreenTimeController> {
                     value: isLocked ? 'Device Locked' : '$blockedCount Blocked',
                     subtext: 'Auto-kick enforced',
                     icon: isLocked ? Icons.lock_rounded : Icons.shield_rounded,
-                    color: isLocked ? const Color(0xFFDC2626) : const Color(0xFF0284C7),
-                    bgColor: isLocked ? const Color(0xFFFEF2F2) : const Color(0xFFE0F2FE),
-                    borderColor: isLocked ? const Color(0xFFFCA5A5) : const Color(0xFFBAE6FD),
+                    color: isLocked
+                        ? const Color(0xFFDC2626)
+                        : const Color(0xFF0284C7),
+                    bgColor: isLocked
+                        ? const Color(0xFFFEF2F2)
+                        : const Color(0xFFE0F2FE),
+                    borderColor: isLocked
+                        ? const Color(0xFFFCA5A5)
+                        : const Color(0xFFBAE6FD),
                   ),
                 ),
               ],
@@ -761,7 +902,9 @@ class StudentScreenTimeScreen extends GetView<StudentScreenTimeController> {
                   ),
                 ),
                 Text(
-                  totalCatMinutes > 0 ? '${totalCatMinutes ~/ 60}h ${totalCatMinutes % 60}m logged' : 'No apps logged',
+                  totalCatMinutes > 0
+                      ? '${totalCatMinutes ~/ 60}h ${totalCatMinutes % 60}m logged'
+                      : 'No apps logged',
                   style: const TextStyle(
                     fontSize: 11,
                     fontWeight: FontWeight.w500,
@@ -780,7 +923,9 @@ class StudentScreenTimeScreen extends GetView<StudentScreenTimeController> {
                 child: totalCatMinutes == 0
                     ? Container(color: const Color(0xFFE2E8F0))
                     : Row(
-                        children: cats.entries.where((e) => e.value > 0).map((entry) {
+                        children: cats.entries.where((e) => e.value > 0).map((
+                          entry,
+                        ) {
                           final flex = entry.value;
                           final color = _getCategoryColor(entry.key);
                           return Expanded(
@@ -803,12 +948,17 @@ class StudentScreenTimeScreen extends GetView<StudentScreenTimeController> {
               children: cats.entries.map((e) {
                 final catName = e.key;
                 final mins = e.value;
-                final pct = totalCatMinutes > 0 ? ((mins / totalCatMinutes) * 100).round() : 0;
+                final pct = totalCatMinutes > 0
+                    ? ((mins / totalCatMinutes) * 100).round()
+                    : 0;
                 final color = _getCategoryColor(catName);
                 final icon = _getCategoryIcon(catName);
 
                 return Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 10,
+                    vertical: 6,
+                  ),
                   decoration: BoxDecoration(
                     color: color.withValues(alpha: 0.08),
                     borderRadius: BorderRadius.circular(8),
@@ -895,10 +1045,7 @@ class StudentScreenTimeScreen extends GetView<StudentScreenTimeController> {
           const SizedBox(height: 2),
           Text(
             subtext,
-            style: const TextStyle(
-              fontSize: 10,
-              color: Color(0xFF64748B),
-            ),
+            style: const TextStyle(fontSize: 10, color: Color(0xFF64748B)),
             overflow: TextOverflow.ellipsis,
           ),
         ],
@@ -954,7 +1101,9 @@ class _ScreenTimeHeaderDelegate extends SliverPersistentHeaderDelegate {
 
   @override
   double get maxExtent {
-    return topPadding + 195.0;
+    // The all-students header has no subtitle line, so it needs less height.
+    return topPadding +
+        (controller.selectedStudent.value != null ? 176.0 : 140.0);
   }
 
   @override
@@ -973,7 +1122,9 @@ class _ScreenTimeHeaderDelegate extends SliverPersistentHeaderDelegate {
     return Obx(() {
       final selected = controller.selectedStudent.value;
       final direct = controller.openedWithDirectTarget.value;
-      final titleText = selected != null ? (selected['name'] ?? 'Student') : 'Screen Time';
+      final titleText = selected != null
+          ? (selected['name'] ?? 'Student')
+          : 'Screen Time';
       final subtitleText =
           'Room ${selected?['room'] ?? ''} • Aadhar ${selected?['aadhar'] ?? ''}';
       final isLoading = controller.isLoading.value;
@@ -982,6 +1133,40 @@ class _ScreenTimeHeaderDelegate extends SliverPersistentHeaderDelegate {
       final total = controller.directoryCount('All');
       final online = controller.directoryCount('Online');
       final locked = controller.directoryCount('Locked');
+
+      // Refresh button with loading spinner
+      Widget refreshButton() => Material(
+        color: Colors.transparent,
+        child: InkWell(
+          onTap: isLoading ? null : controller.refreshAll,
+          borderRadius: BorderRadius.circular(24),
+          child: Container(
+            width: 42,
+            height: 42,
+            decoration: BoxDecoration(
+              color: Colors.white.withValues(alpha: 0.16),
+              shape: BoxShape.circle,
+              border: Border.all(
+                color: Colors.white.withValues(alpha: 0.25),
+                width: 1,
+              ),
+            ),
+            child: isLoading
+                ? const Padding(
+                    padding: EdgeInsets.all(11),
+                    child: CircularProgressIndicator(
+                      strokeWidth: 2.2,
+                      color: Colors.white,
+                    ),
+                  )
+                : const Icon(
+                    Icons.refresh_rounded,
+                    color: Colors.white,
+                    size: 20,
+                  ),
+          ),
+        ),
+      );
 
       return Container(
         decoration: BoxDecoration(
@@ -1000,7 +1185,9 @@ class _ScreenTimeHeaderDelegate extends SliverPersistentHeaderDelegate {
           boxShadow: progress > 0.25
               ? [
                   BoxShadow(
-                    color: const Color(0xFF03192E).withValues(alpha: 0.22 * progress),
+                    color: const Color(
+                      0xFF03192E,
+                    ).withValues(alpha: 0.22 * progress),
                     blurRadius: 10,
                     offset: const Offset(0, 3),
                   ),
@@ -1013,7 +1200,9 @@ class _ScreenTimeHeaderDelegate extends SliverPersistentHeaderDelegate {
             fit: StackFit.expand,
             children: [
               // Luminous ambient orbs & arcs
-              CustomPaint(painter: _HeaderOrbPainter()),
+              RepaintBoundary(
+                child: CustomPaint(painter: _HeaderOrbPainter()),
+              ),
 
               // Top pinned navigation bar
               Positioned(
@@ -1023,7 +1212,8 @@ class _ScreenTimeHeaderDelegate extends SliverPersistentHeaderDelegate {
                 height: 46,
                 child: Row(
                   children: [
-                    if (selected != null || (showBackButton && Navigator.canPop(context))) ...[
+                    if (selected != null ||
+                        (showBackButton && Navigator.canPop(context))) ...[
                       Material(
                         color: Colors.transparent,
                         child: InkWell(
@@ -1107,37 +1297,13 @@ class _ScreenTimeHeaderDelegate extends SliverPersistentHeaderDelegate {
                       const SizedBox(width: 8),
                     ],
 
-                    // Refresh button with loading spinner
-                    Material(
-                      color: Colors.transparent,
-                      child: InkWell(
-                        onTap: isLoading ? null : controller.refreshAll,
-                        borderRadius: BorderRadius.circular(24),
-                        child: Container(
-                          width: 42,
-                          height: 42,
-                          decoration: BoxDecoration(
-                            color: Colors.white.withValues(alpha: 0.16),
-                            shape: BoxShape.circle,
-                            border: Border.all(
-                              color: Colors.white.withValues(alpha: 0.25),
-                              width: 1,
-                            ),
-                          ),
-                          child: isLoading
-                              ? const Padding(
-                                  padding: EdgeInsets.all(11),
-                                  child: CircularProgressIndicator(
-                                    strokeWidth: 2.2,
-                                    color: Colors.white,
-                                  ),
-                                )
-                              : const Icon(
-                                  Icons.refresh_rounded,
-                                  color: Colors.white,
-                                  size: 20,
-                                ),
-                        ),
+                    // Refresh button (collapsed state only; expanded state
+                    // shows it in the content row below)
+                    Opacity(
+                      opacity: collapsedTitleOpacity,
+                      child: IgnorePointer(
+                        ignoring: collapsedTitleOpacity < 0.5,
+                        child: refreshButton(),
                       ),
                     ),
                   ],
@@ -1147,123 +1313,148 @@ class _ScreenTimeHeaderDelegate extends SliverPersistentHeaderDelegate {
               // Expanded content (Amber dash, Overline, Large Title, Subtitle, Frosted pills)
               if (expandedOpacity > 0.05)
                 Positioned(
-                  top: topPadding + 54,
+                  top: topPadding + (selected != null ? 54 : 20),
                   left: 20,
                   right: 20,
-                  bottom: 12,
+                  bottom: selected != null ? 12 : 24,
                   child: Opacity(
                     opacity: expandedOpacity,
-                    child: ClipRect(
-                      child: Transform.translate(
-                        offset: Offset(0, -progress * 18),
-                        child: SingleChildScrollView(
-                          physics: const NeverScrollableScrollPhysics(),
-                          reverse: true,
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            mainAxisAlignment: MainAxisAlignment.end,
-                            children: [
-                              // Container(
-                              //   width: 28,
-                              //   height: 3.5,
-                              //   decoration: BoxDecoration(
-                              //     color: const Color(0xFFEAAB78),
-                              //     borderRadius: BorderRadius.circular(2),
-                              //   ),
-                              // ),
-                              const SizedBox(height: 6),
-                              Text(
-                                selected != null
-                                    ? 'PARENTAL CONTROL'
-                                    : 'PARENTAL CONTROL & DEVICE USAGE',
-                                style: TextStyle(
-                                  fontSize: 11,
-                                  fontWeight: FontWeight.w800,
-                                  color: Color(0xFFF59E0B),
-                                  letterSpacing: 0.5,
-                                ),
-                              ),
-                              const SizedBox(height: 3),
-                              Text(
-                                titleText,
-                                style: const TextStyle(
-                                  color: Colors.white,
-                                  fontSize: 24,
-                                  fontWeight: FontWeight.w800,
-                                  letterSpacing: -0.6,
-                                ),
-                                maxLines: 1,
-                                overflow: TextOverflow.ellipsis,
-                              ),
-                              const SizedBox(height: 2),
-                              if (selected != null)
-                                Text(
-                                  subtitleText,
-                                  style: TextStyle(
-                                    color: Colors.white.withValues(alpha: 0.85),
-                                    fontSize: 12.5,
-                                    fontWeight: FontWeight.w400,
-                                  ),
-                                  maxLines: 1,
-                                  overflow: TextOverflow.ellipsis,
-                                ),
-                              if (selected != null) ...[
-                                const SizedBox(height: 8),
-                                Row(
+                    child: Row(
+                      crossAxisAlignment: CrossAxisAlignment.center,
+                      children: [
+                        Expanded(
+                          child: ClipRect(
+                            child: Transform.translate(
+                              offset: Offset(0, -progress * 18),
+                              child: SingleChildScrollView(
+                                physics: const NeverScrollableScrollPhysics(),
+                                reverse: true,
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  mainAxisAlignment: MainAxisAlignment.end,
                                   children: [
-                                    _headerPill(
-                                      icon: isOnline
-                                          ? Icons.circle_rounded
-                                          : Icons.remove_circle_outline_rounded,
-                                      iconColor: isOnline
-                                          ? const Color(0xFF34D399)
-                                          : const Color(0xFF94A3B8),
-                                      label: isOnline ? 'Online' : 'Offline',
+                                    // Container(
+                                    //   width: 28,
+                                    //   height: 3.5,
+                                    //   decoration: BoxDecoration(
+                                    //     color: const Color(0xFFEAAB78),
+                                    //     borderRadius: BorderRadius.circular(2),
+                                    //   ),
+                                    // ),
+                                    const SizedBox(height: 6),
+                                    Text(
+                                      selected != null
+                                          ? 'PARENTAL CONTROL'
+                                          : 'PARENTAL CONTROL & DEVICE USAGE',
+                                      style: TextStyle(
+                                        fontSize: 11,
+                                        fontWeight: FontWeight.w800,
+                                        color: Color(0xFFF59E0B),
+                                        letterSpacing: 0.5,
+                                      ),
                                     ),
-                                    const SizedBox(width: 8),
-                                    _headerPill(
-                                      icon: isLocked ? Icons.lock_rounded : Icons.lock_open_rounded,
-                                      iconColor: isLocked
-                                          ? const Color(0xFFF87171)
-                                          : const Color(0xFF34D399),
-                                      label: isLocked ? 'Device Locked' : 'Unlocked',
+                                    const SizedBox(height: 3),
+                                    Text(
+                                      titleText,
+                                      style: const TextStyle(
+                                        color: Colors.white,
+                                        fontSize: 24,
+                                        fontWeight: FontWeight.w800,
+                                        letterSpacing: -0.6,
+                                      ),
+                                      maxLines: 1,
+                                      overflow: TextOverflow.ellipsis,
                                     ),
+                                    const SizedBox(height: 2),
+                                    if (selected != null)
+                                      Text(
+                                        subtitleText,
+                                        style: TextStyle(
+                                          color: Colors.white.withValues(
+                                            alpha: 0.85,
+                                          ),
+                                          fontSize: 12.5,
+                                          fontWeight: FontWeight.w400,
+                                        ),
+                                        maxLines: 1,
+                                        overflow: TextOverflow.ellipsis,
+                                      ),
+                                    if (selected != null) ...[
+                                      const SizedBox(height: 8),
+                                      Row(
+                                        children: [
+                                          _headerPill(
+                                            icon: isOnline
+                                                ? Icons.circle_rounded
+                                                : Icons
+                                                      .remove_circle_outline_rounded,
+                                            iconColor: isOnline
+                                                ? const Color(0xFF34D399)
+                                                : const Color(0xFF94A3B8),
+                                            label: isOnline
+                                                ? 'Online'
+                                                : 'Offline',
+                                          ),
+                                          const SizedBox(width: 8),
+                                          _headerPill(
+                                            icon: isLocked
+                                                ? Icons.lock_rounded
+                                                : Icons.lock_open_rounded,
+                                            iconColor: isLocked
+                                                ? const Color(0xFFF87171)
+                                                : const Color(0xFF34D399),
+                                            label: isLocked
+                                                ? 'Device Locked'
+                                                : 'Unlocked',
+                                          ),
+                                        ],
+                                      ),
+                                    ] else ...[
+                                      const SizedBox(height: 8),
+                                      SingleChildScrollView(
+                                        scrollDirection: Axis.horizontal,
+                                        physics: const BouncingScrollPhysics(),
+                                        child: Row(
+                                          children: [
+                                            _headerPill(
+                                              icon: Icons.people_alt_rounded,
+                                              iconColor: const Color(
+                                                0xFF38BDF8,
+                                              ),
+                                              label: '$total Total Students',
+                                            ),
+                                            const SizedBox(width: 8),
+                                            _headerPill(
+                                              icon: Icons.circle_rounded,
+                                              iconColor: const Color(
+                                                0xFF34D399,
+                                              ),
+                                              label: '$online Online',
+                                            ),
+                                            if (locked > 0) ...[
+                                              const SizedBox(width: 8),
+                                              _headerPill(
+                                                icon: Icons.lock_rounded,
+                                                iconColor: const Color(
+                                                  0xFFF87171,
+                                                ),
+                                                label: '$locked Locked',
+                                              ),
+                                            ],
+                                          ],
+                                        ),
+                                      ),
+                                    ],
                                   ],
                                 ),
-                              ] else ...[
-                                const SizedBox(height: 8),
-                                SingleChildScrollView(
-                                  scrollDirection: Axis.horizontal,
-                                  physics: const BouncingScrollPhysics(),
-                                  child: Row(
-                                    children: [
-                                      _headerPill(
-                                        icon: Icons.people_alt_rounded,
-                                        iconColor: const Color(0xFF38BDF8),
-                                        label: '$total Total Students',
-                                      ),
-                                      const SizedBox(width: 8),
-                                      _headerPill(
-                                        icon: Icons.circle_rounded,
-                                        iconColor: const Color(0xFF34D399),
-                                        label: '$online Online',
-                                      ),
-                                      if (locked > 0) ...[
-                                        const SizedBox(width: 8),
-                                        _headerPill(
-                                          icon: Icons.lock_rounded,
-                                          iconColor: const Color(0xFFF87171),
-                                          label: '$locked Locked',
-                                        ),
-                                      ],
-                                    ],
-                                  ),
-                                ),
-                              ],
-                            ],
+                              ),
+                            ),
                           ),
                         ),
-                      ),
+                        const SizedBox(width: 12),
+                        // Aligned with the pills row at the bottom of the content
+                        refreshButton(),
+                      ],
                     ),
                   ),
                 ),
@@ -1319,17 +1510,18 @@ class _HeaderOrbPainter extends CustomPainter {
   void paint(Canvas canvas, Size size) {
     // Top-right luminous ambient glow
     final glowPaintRight = Paint()
-      ..shader = RadialGradient(
-        colors: [
-          const Color(0xFF38BDF8).withValues(alpha: 0.16),
-          const Color(0xFF0284C7).withValues(alpha: 0.0),
-        ],
-      ).createShader(
-        Rect.fromCircle(
-          center: Offset(size.width * 0.90, size.height * 0.15),
-          radius: size.width * 0.55,
-        ),
-      );
+      ..shader =
+          RadialGradient(
+            colors: [
+              const Color(0xFF38BDF8).withValues(alpha: 0.16),
+              const Color(0xFF0284C7).withValues(alpha: 0.0),
+            ],
+          ).createShader(
+            Rect.fromCircle(
+              center: Offset(size.width * 0.90, size.height * 0.15),
+              radius: size.width * 0.55,
+            ),
+          );
     canvas.drawCircle(
       Offset(size.width * 0.90, size.height * 0.15),
       size.width * 0.55,
@@ -1338,17 +1530,18 @@ class _HeaderOrbPainter extends CustomPainter {
 
     // Bottom-left subtle ambient glow
     final glowPaintLeft = Paint()
-      ..shader = RadialGradient(
-        colors: [
-          const Color(0xFF0284C7).withValues(alpha: 0.12),
-          const Color(0xFF032B4F).withValues(alpha: 0.0),
-        ],
-      ).createShader(
-        Rect.fromCircle(
-          center: Offset(size.width * 0.10, size.height * 0.85),
-          radius: size.width * 0.45,
-        ),
-      );
+      ..shader =
+          RadialGradient(
+            colors: [
+              const Color(0xFF0284C7).withValues(alpha: 0.12),
+              const Color(0xFF032B4F).withValues(alpha: 0.0),
+            ],
+          ).createShader(
+            Rect.fromCircle(
+              center: Offset(size.width * 0.10, size.height * 0.85),
+              radius: size.width * 0.45,
+            ),
+          );
     canvas.drawCircle(
       Offset(size.width * 0.10, size.height * 0.85),
       size.width * 0.45,

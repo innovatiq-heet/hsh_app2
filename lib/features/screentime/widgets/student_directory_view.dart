@@ -11,117 +11,163 @@ import 'app_requests_banner.dart';
 
 /// Warden's directory: search, quick filters and one row per student that
 /// answers "is this phone online, is it compliant, how much was it used?"
+///
+/// This is a sliver: the rows are built lazily by a [SliverList] inside the
+/// screen's own scroll view, so only the rows on screen exist however many
+/// students are loaded.
 class StudentDirectoryView extends GetView<StudentScreenTimeController> {
   const StudentDirectoryView({super.key});
 
   @override
   Widget build(BuildContext context) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        const _GlobalCurfewBanner(),
-        const SizedBox(height: AppDimens.gapMd),
-        const AppRequestsBanner(),
-        _SummaryStrip(),
-        const SizedBox(height: AppDimens.gapMd),
-        _SearchField(),
-        const SizedBox(height: AppDimens.gapSm),
-        _FilterChips(),
-        const SizedBox(height: 8),
-        Obx(() {
-          if (controller.isLoadingStudents.value && controller.allStudents.isEmpty) {
-            return const SkeletonList(
-              count: 6,
-              itemHeight: 76,
-              padding: EdgeInsets.zero,
-              shrinkWrap: true,
-              physics: NeverScrollableScrollPhysics(),
-            );
-          }
-          final list = controller.filteredStudents;
-          if (list.isEmpty) {
-            if (controller.isSearchingServer.value) {
-              return const SkeletonList(
-                count: 3,
-                itemHeight: 76,
-                padding: EdgeInsets.zero,
-                shrinkWrap: true,
-                physics: NeverScrollableScrollPhysics(),
-              );
-            }
-            final filtered = controller.directoryFilter.value != 'All' ||
-                controller.searchText.value.isNotEmpty;
-            return AppCard(
-              child: EmptyState(
-                icon: filtered ? Icons.filter_alt_off_rounded : Icons.phonelink_off_rounded,
-                title: filtered ? 'No students match' : 'No devices reporting yet',
-                message: filtered
-                    ? 'Try another filter or clear the search.'
-                    : 'Students appear here once their phone completes setup and sends its first report.',
-                actionLabel: filtered ? 'Clear filters' : null,
-                onAction: filtered
-                    ? () {
-                        controller.clearSearch();
-                        controller.setDirectoryFilter('All');
-                      }
-                    : null,
-              ),
-            );
-          }
-
-          final visibleCount = controller.visibleStudentCount.value;
-          final displayed = list.take(visibleCount).toList();
-          final hasMoreToShow = displayed.length < list.length || controller.hasMoreStudents.value;
-
-          return Column(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
+    return SliverMainAxisGroup(
+      slivers: [
+        SliverToBoxAdapter(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              ListView.separated(
-                padding: EdgeInsets.zero,
-                shrinkWrap: true,
-                physics: const NeverScrollableScrollPhysics(),
-                itemCount: displayed.length,
-                separatorBuilder: (_, _) => const SizedBox(height: AppDimens.gapSm),
-                itemBuilder: (_, i) => _StudentRow(student: displayed[i]),
-              ),
-              if (hasMoreToShow) ...[
-                const SizedBox(height: 12),
-                Center(
-                  child: controller.isLoadingMore.value
-                      ? const Padding(
-                          padding: EdgeInsets.symmetric(vertical: 12),
-                          child: SizedBox(
-                            width: 24,
-                            height: 24,
-                            child: CircularProgressIndicator(strokeWidth: 2, color: Color(0xFF0284C7)),
-                          ),
-                        )
-                      : TextButton.icon(
-                          onPressed: controller.loadMoreItems,
-                          icon: const Icon(Icons.arrow_downward_rounded, size: 16),
-                          label: Text(
-                            displayed.length < list.length
-                                ? 'Show more (${displayed.length} of ${list.length})'
-                                : 'Load more from server',
-                            style: const TextStyle(
-                              fontSize: 13,
-                              fontWeight: FontWeight.w600,
-                              color: Color(0xFF0284C7),
-                            ),
-                          ),
-                          style: TextButton.styleFrom(
-                            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-                            backgroundColor: const Color(0xFFE0F2FE).withValues(alpha: 0.5),
-                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                          ),
-                        ),
-                ),
-              ],
+              const _GlobalCurfewBanner(),
+              const SizedBox(height: AppDimens.gapMd),
+              const AppRequestsBanner(),
+              _SummaryStrip(),
+              const SizedBox(height: AppDimens.gapMd),
+              _SearchField(),
+              const SizedBox(height: AppDimens.gapMd),
             ],
-          );
-        }),
+          ),
+        ),
+        Obx(_buildList),
       ],
     );
+  }
+
+  Widget _buildList() {
+    if (controller.isLoadingStudents.value && controller.allStudents.isEmpty) {
+      return const SliverToBoxAdapter(
+        child: SkeletonList(
+          count: 6,
+          itemHeight: 76,
+          padding: EdgeInsets.zero,
+          shrinkWrap: true,
+          physics: NeverScrollableScrollPhysics(),
+        ),
+      );
+    }
+    final list = controller.filteredStudents;
+    if (list.isEmpty) {
+      if (controller.isSearchingServer.value) {
+        return const SliverToBoxAdapter(
+          child: SkeletonList(
+            count: 3,
+            itemHeight: 76,
+            padding: EdgeInsets.zero,
+            shrinkWrap: true,
+            physics: NeverScrollableScrollPhysics(),
+          ),
+        );
+      }
+      final filtered =
+          controller.directoryFilter.value != 'All' ||
+          controller.searchText.value.isNotEmpty;
+      return SliverToBoxAdapter(
+        child: AppCard(
+          child: EmptyState(
+            icon: filtered
+                ? Icons.filter_alt_off_rounded
+                : Icons.phonelink_off_rounded,
+            title: filtered ? 'No students match' : 'No devices reporting yet',
+            message: filtered
+                ? 'Try another filter or clear the search.'
+                : 'Students appear here once their phone completes setup and sends its first report.',
+            actionLabel: filtered ? 'Clear filters' : null,
+            onAction: filtered
+                ? () {
+                    controller.clearSearch();
+                    controller.setDirectoryFilter('All');
+                  }
+                : null,
+          ),
+        ),
+      );
+    }
+
+    final shown = controller.visibleStudentCount.value.clamp(0, list.length);
+    final hasMoreToShow =
+        shown < list.length || controller.hasMoreStudents.value;
+
+    return SliverMainAxisGroup(
+      slivers: [
+        SliverList.separated(
+          itemCount: shown,
+          separatorBuilder: (_, _) => const SizedBox(height: AppDimens.gapSm),
+          findItemIndexCallback: (key) {
+            if (key is! ValueKey<String>) return null;
+            final i = list.indexWhere((s) => _rowKey(s) == key.value);
+            return i < 0 || i >= shown ? null : i;
+          },
+          itemBuilder: (_, i) =>
+              _StudentRow(key: ValueKey(_rowKey(list[i])), student: list[i]),
+        ),
+        if (hasMoreToShow)
+          SliverToBoxAdapter(
+            child: Padding(
+              padding: const EdgeInsets.only(top: 12),
+              child: Center(
+                child: controller.isLoadingMore.value
+                    ? const Padding(
+                        padding: EdgeInsets.symmetric(vertical: 12),
+                        child: SizedBox(
+                          width: 24,
+                          height: 24,
+                          child: CircularProgressIndicator(
+                            strokeWidth: 2,
+                            color: Color(0xFF0284C7),
+                          ),
+                        ),
+                      )
+                    : TextButton.icon(
+                        onPressed: controller.loadMoreItems,
+                        icon: const Icon(
+                          Icons.arrow_downward_rounded,
+                          size: 16,
+                        ),
+                        label: Text(
+                          shown < list.length
+                              ? 'Show more ($shown of ${list.length})'
+                              : 'Load more from server',
+                          style: const TextStyle(
+                            fontSize: 13,
+                            fontWeight: FontWeight.w600,
+                            color: Color(0xFF0284C7),
+                          ),
+                        ),
+                        style: TextButton.styleFrom(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 16,
+                            vertical: 8,
+                          ),
+                          backgroundColor: const Color(
+                            0xFFE0F2FE,
+                          ).withValues(alpha: 0.5),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(12),
+                          ),
+                        ),
+                      ),
+              ),
+            ),
+          ),
+      ],
+    );
+  }
+
+  /// Stable per-student key so rows keep their state when the list reorders.
+  static String _rowKey(dynamic s) {
+    if (s is! Map) return '$s';
+    final id = s['id']?.toString().trim() ?? '';
+    return id.isNotEmpty
+        ? 'id:$id'
+        : 'n:${s['name']}:${s['room'] ?? s['room_number']}';
   }
 }
 
@@ -130,55 +176,78 @@ class _SummaryStrip extends GetView<StudentScreenTimeController> {
   @override
   Widget build(BuildContext context) {
     return Obx(() {
+      final active = controller.directoryFilter.value;
       final total = controller.directoryCount('All');
       final online = controller.directoryCount('Online');
       final offline = controller.directoryCount('Offline');
       final locked = controller.directoryCount('Locked');
       final attention = controller.directoryCount('Attention');
 
-      Widget tile(String value, String label, Color color, Color bg, Color border, {VoidCallback? onTap}) => Expanded(
-            child: InkWell(
-              onTap: onTap,
-              borderRadius: BorderRadius.circular(12),
-              child: Container(
-                padding: const EdgeInsets.symmetric(vertical: 10, horizontal: 4),
-                decoration: BoxDecoration(
-                  color: bg,
-                  borderRadius: BorderRadius.circular(12),
-                  border: Border.all(color: border),
-                ),
-                child: Column(
-                  children: [
-                    Text(
-                      value,
-                      style: TextStyle(
-                        color: color,
-                        fontSize: 17,
-                        fontWeight: FontWeight.w800,
-                      ),
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
+      Widget tile(
+        String filter,
+        String value,
+        String label,
+        Color color,
+        Color bg,
+        Color border, {
+        VoidCallback? onTap,
+      }) {
+        final selected = active == filter;
+        return Expanded(
+          child: InkWell(
+            onTap: onTap,
+            borderRadius: BorderRadius.circular(12),
+            child: AnimatedContainer(
+              duration: const Duration(milliseconds: 180),
+              padding: const EdgeInsets.symmetric(vertical: 10, horizontal: 4),
+              decoration: BoxDecoration(
+                color: selected ? color : bg,
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(color: selected ? color : border),
+                boxShadow: selected
+                    ? [
+                        BoxShadow(
+                          color: color.withValues(alpha: 0.3),
+                          blurRadius: 8,
+                          offset: const Offset(0, 2),
+                        ),
+                      ]
+                    : null,
+              ),
+              child: Column(
+                children: [
+                  Text(
+                    value,
+                    style: TextStyle(
+                      color: selected ? Colors.white : color,
+                      fontSize: 17,
+                      fontWeight: FontWeight.w800,
                     ),
-                    const SizedBox(height: 2),
-                    Text(
-                      label,
-                      style: const TextStyle(
-                        color: Color(0xFF64748B),
-                        fontSize: 10.5,
-                        fontWeight: FontWeight.w600,
-                      ),
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                  const SizedBox(height: 2),
+                  Text(
+                    label,
+                    style: TextStyle(
+                      color: selected ? Colors.white : const Color(0xFF64748B),
+                      fontSize: 10.5,
+                      fontWeight: FontWeight.w600,
                     ),
-                  ],
-                ),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                ],
               ),
             ),
-          );
+          ),
+        );
+      }
 
       return Row(
         children: [
           tile(
+            'All',
             '$total',
             'Total',
             const Color(0xFF0284C7),
@@ -188,6 +257,7 @@ class _SummaryStrip extends GetView<StudentScreenTimeController> {
           ),
           const SizedBox(width: 6),
           tile(
+            'Online',
             '$online',
             'Online',
             const Color(0xFF16A34A),
@@ -197,6 +267,7 @@ class _SummaryStrip extends GetView<StudentScreenTimeController> {
           ),
           const SizedBox(width: 6),
           tile(
+            'Offline',
             '$offline',
             'Offline',
             const Color(0xFF64748B),
@@ -206,6 +277,7 @@ class _SummaryStrip extends GetView<StudentScreenTimeController> {
           ),
           const SizedBox(width: 6),
           tile(
+            'Locked',
             '$locked',
             'Locked',
             const Color(0xFFDC2626),
@@ -215,6 +287,7 @@ class _SummaryStrip extends GetView<StudentScreenTimeController> {
           ),
           const SizedBox(width: 6),
           tile(
+            'Attention',
             '$attention',
             'Attention',
             const Color(0xFFD97706),
@@ -266,9 +339,16 @@ class _SearchField extends GetView<StudentScreenTimeController> {
               fontWeight: FontWeight.w400,
             ),
             isDense: true,
-            contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+            contentPadding: const EdgeInsets.symmetric(
+              horizontal: 16,
+              vertical: 14,
+            ),
             border: InputBorder.none,
-            prefixIcon: const Icon(Icons.search_rounded, color: Color(0xFF0284C7), size: 22),
+            prefixIcon: const Icon(
+              Icons.search_rounded,
+              color: Color(0xFF0284C7),
+              size: 22,
+            ),
             suffixIcon: Row(
               mainAxisSize: MainAxisSize.min,
               children: [
@@ -278,12 +358,19 @@ class _SearchField extends GetView<StudentScreenTimeController> {
                     child: SizedBox(
                       width: 16,
                       height: 16,
-                      child: CircularProgressIndicator(strokeWidth: 2, color: Color(0xFF0284C7)),
+                      child: CircularProgressIndicator(
+                        strokeWidth: 2,
+                        color: Color(0xFF0284C7),
+                      ),
                     ),
                   ),
                 if (hasText)
                   IconButton(
-                    icon: const Icon(Icons.close_rounded, size: 18, color: Color(0xFF64748B)),
+                    icon: const Icon(
+                      Icons.close_rounded,
+                      size: 18,
+                      color: Color(0xFF64748B),
+                    ),
                     onPressed: controller.clearSearch,
                   ),
               ],
@@ -295,136 +382,33 @@ class _SearchField extends GetView<StudentScreenTimeController> {
   }
 }
 
-class _FilterChips extends GetView<StudentScreenTimeController> {
-  @override
-  Widget build(BuildContext context) {
-    return Obx(() {
-      final selected = controller.directoryFilter.value;
-      return SingleChildScrollView(
-        scrollDirection: Axis.horizontal,
-        physics: const BouncingScrollPhysics(),
-        child: Row(
-          children: [
-            for (final f in StudentScreenTimeController.directoryFilters) ...[
-              _Chip(
-                label: f,
-                count: controller.directoryCount(f),
-                selected: selected == f,
-                color: switch (f) {
-                  'Locked' => const Color(0xFFDC2626),
-                  'Attention' => const Color(0xFFD97706),
-                  'Online' => const Color(0xFF16A34A),
-                  'Offline' => const Color(0xFF64748B),
-                  _ => const Color(0xFF0284C7),
-                },
-                onTap: () => controller.setDirectoryFilter(f),
-              ),
-              const SizedBox(width: 8),
-            ],
-          ],
-        ),
-      );
-    });
-  }
-}
-
-class _Chip extends StatelessWidget {
-  final String label;
-  final int count;
-  final bool selected;
-  final Color color;
-  final VoidCallback onTap;
-
-  const _Chip({
-    required this.label,
-    required this.count,
-    required this.selected,
-    required this.color,
-    required this.onTap,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return Material(
-      color: Colors.transparent,
-      child: InkWell(
-        onTap: onTap,
-        borderRadius: BorderRadius.circular(20),
-        child: AnimatedContainer(
-          duration: const Duration(milliseconds: 200),
-          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 7.5),
-          decoration: BoxDecoration(
-            color: selected ? color : Colors.white,
-            borderRadius: BorderRadius.circular(20),
-            border: Border.all(
-              color: selected ? color : const Color(0xFFE2E8F0),
-              width: 1.0,
-            ),
-            boxShadow: selected
-                ? [
-                    BoxShadow(
-                      color: color.withValues(alpha: 0.25),
-                      blurRadius: 8,
-                      offset: const Offset(0, 2),
-                    ),
-                  ]
-                : null,
-          ),
-          child: Row(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Text(
-                label,
-                style: TextStyle(
-                  fontSize: 12.5,
-                  fontWeight: selected ? FontWeight.w700 : FontWeight.w600,
-                  color: selected ? Colors.white : const Color(0xFF475569),
-                ),
-              ),
-              const SizedBox(width: 6),
-              Container(
-                padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                decoration: BoxDecoration(
-                  color: selected
-                      ? Colors.white.withValues(alpha: 0.25)
-                      : color.withValues(alpha: 0.12),
-                  borderRadius: BorderRadius.circular(10),
-                ),
-                child: Text(
-                  '$count',
-                  style: TextStyle(
-                    fontSize: 11,
-                    fontWeight: FontWeight.w800,
-                    color: selected ? Colors.white : color,
-                  ),
-                ),
-              ),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-}
-
 class _StudentRow extends GetView<StudentScreenTimeController> {
   final dynamic student;
-  const _StudentRow({required this.student});
+  const _StudentRow({super.key, required this.student});
 
   @override
   Widget build(BuildContext context) {
-    final name = (student['name'] ?? student['fullName'] ?? 'Student').toString();
-    final room = (student['room'] ?? student['room_number'] ?? student['roomNumber'] ?? 'N/A').toString();
+    final name = (student['name'] ?? student['fullName'] ?? 'Student')
+        .toString();
+    final room =
+        (student['room'] ??
+                student['room_number'] ??
+                student['roomNumber'] ??
+                'N/A')
+            .toString();
     final isOnline = StudentScreenTimeController.isStudentOnline(student);
     final isScreenOn = StudentScreenTimeController.isStudentScreenOn(student);
     final totalMins = StudentScreenTimeController.toInt(
-        student['totalScreenTimeMinutes'] ??
-            student['todayScreenTimeMinutes'] ??
-            student['today_minutes'] ??
-            student['total_screen_time_minutes'] ??
-            student['minutes'] ??
-            0);
-    final nightMins = StudentScreenTimeController.toInt(student['nightScreenTimeMinutes']);
+      student['totalScreenTimeMinutes'] ??
+          student['todayScreenTimeMinutes'] ??
+          student['today_minutes'] ??
+          student['total_screen_time_minutes'] ??
+          student['minutes'] ??
+          0,
+    );
+    final nightMins = StudentScreenTimeController.toInt(
+      student['nightScreenTimeMinutes'],
+    );
     final locked = StudentScreenTimeController.isStudentLocked(student);
     final restricted = StudentScreenTimeController.blockedOf(student).length;
     final tampered = StudentScreenTimeController.isStudentTampered(student);
@@ -437,12 +421,22 @@ class _StudentRow extends GetView<StudentScreenTimeController> {
         : const Color(0xFF94A3B8);
     final statusText = isOnline
         ? (isScreenOn
-            ? (currentApp.isNotEmpty && currentApp != 'Idle' ? 'Using $currentApp' : 'Screen on')
-            : 'Standby')
-        : (lastSeen != null ? 'Seen ${StudentScreenTimeController.relativeTime(lastSeen)}' : 'Offline');
+              ? (currentApp.isNotEmpty && currentApp != 'Idle'
+                    ? 'Using $currentApp'
+                    : 'Screen on')
+              : 'Standby')
+        : (lastSeen != null
+              ? 'Seen ${StudentScreenTimeController.relativeTime(lastSeen)}'
+              : 'Offline');
 
     final initials = name.trim().isNotEmpty
-        ? name.trim().split(RegExp(r'\s+')).map((p) => p[0]).take(2).join().toUpperCase()
+        ? name
+              .trim()
+              .split(RegExp(r'\s+'))
+              .map((p) => p[0])
+              .take(2)
+              .join()
+              .toUpperCase()
         : 'S';
 
     final avatarBg = tampered
@@ -510,8 +504,16 @@ class _StudentRow extends GetView<StudentScreenTimeController> {
                       child: isScreenOn && currentPkg.isNotEmpty
                           ? Container(
                               padding: const EdgeInsets.all(1.5),
-                              decoration: const BoxDecoration(color: Colors.white, shape: BoxShape.circle),
-                              child: AppBrandIcon(packageName: currentPkg, appName: currentApp, size: 18, showBadge: false),
+                              decoration: const BoxDecoration(
+                                color: Colors.white,
+                                shape: BoxShape.circle,
+                              ),
+                              child: AppBrandIcon(
+                                packageName: currentPkg,
+                                appName: currentApp,
+                                size: 18,
+                                showBadge: false,
+                              ),
                             )
                           : Container(
                               width: 13,
@@ -519,7 +521,10 @@ class _StudentRow extends GetView<StudentScreenTimeController> {
                               decoration: BoxDecoration(
                                 color: statusColor,
                                 shape: BoxShape.circle,
-                                border: Border.all(color: Colors.white, width: 2),
+                                border: Border.all(
+                                  color: Colors.white,
+                                  width: 2,
+                                ),
                               ),
                             ),
                     ),
@@ -547,7 +552,10 @@ class _StudentRow extends GetView<StudentScreenTimeController> {
                           ),
                           const SizedBox(width: 6),
                           Container(
-                            padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 1.5),
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 6,
+                              vertical: 1.5,
+                            ),
                             decoration: BoxDecoration(
                               color: const Color(0xFFF1F5F9),
                               borderRadius: BorderRadius.circular(6),
@@ -625,7 +633,11 @@ class _StudentRow extends GetView<StudentScreenTimeController> {
                       Row(
                         mainAxisSize: MainAxisSize.min,
                         children: [
-                          const Icon(Icons.nightlight_round, size: 11, color: Color(0xFFDC2626)),
+                          const Icon(
+                            Icons.nightlight_round,
+                            size: 11,
+                            color: Color(0xFFDC2626),
+                          ),
                           const SizedBox(width: 2),
                           Text(
                             '${nightMins}m night',
@@ -641,7 +653,11 @@ class _StudentRow extends GetView<StudentScreenTimeController> {
                   ],
                 ),
                 const SizedBox(width: 4),
-                const Icon(Icons.chevron_right_rounded, color: Color(0xFF94A3B8), size: 20),
+                const Icon(
+                  Icons.chevron_right_rounded,
+                  color: Color(0xFF94A3B8),
+                  size: 20,
+                ),
               ],
             ),
           ),
@@ -701,18 +717,21 @@ class _GlobalCurfewBanner extends GetView<StudentScreenTimeController> {
       final policy = controller.globalCurfewPolicy.value;
       final isActive = policy.isActive;
       final isUpdating = controller.isUpdatingCurfew.value;
-      final accentColor = isActive ? const Color(0xFF16A34A) : const Color(0xFFD97706);
-      final accentBg = isActive ? const Color(0xFFF0FDF4) : const Color(0xFFFEF3C7);
-      final accentBorder = isActive ? const Color(0xFF86EFAC) : const Color(0xFFFDE68A);
+      final accentColor = isActive
+          ? const Color(0xFF16A34A)
+          : const Color(0xFFD97706);
+      final accentBg = isActive
+          ? const Color(0xFFF0FDF4)
+          : const Color(0xFFFEF3C7);
+      final accentBorder = isActive
+          ? const Color(0xFF86EFAC)
+          : const Color(0xFFFDE68A);
 
       return Container(
         decoration: BoxDecoration(
           color: Colors.white,
           borderRadius: BorderRadius.circular(16),
-          border: Border.all(
-            color: accentBorder,
-            width: 1.2,
-          ),
+          border: Border.all(color: accentBorder, width: 1.2),
           boxShadow: [
             BoxShadow(
               color: const Color(0xFF0F172A).withValues(alpha: 0.035),
@@ -789,10 +808,14 @@ class _GlobalCurfewBanner extends GetView<StudentScreenTimeController> {
                         ],
                       ),
                       InkWell(
-                        onTap: () => _showEditCurfewHours(context, controller, policy),
+                        onTap: () =>
+                            _showEditCurfewHours(context, controller, policy),
                         borderRadius: BorderRadius.circular(4),
                         child: const Padding(
-                          padding: EdgeInsets.symmetric(horizontal: 4, vertical: 2),
+                          padding: EdgeInsets.symmetric(
+                            horizontal: 4,
+                            vertical: 2,
+                          ),
                           child: Text(
                             'Edit Hours',
                             style: TextStyle(
@@ -813,7 +836,9 @@ class _GlobalCurfewBanner extends GetView<StudentScreenTimeController> {
             _CurfewToggleButton(
               isActive: isActive,
               isUpdating: isUpdating,
-              onPressed: isUpdating ? null : () => controller.toggleGlobalCurfew(!isActive),
+              onPressed: isUpdating
+                  ? null
+                  : () => controller.toggleGlobalCurfew(!isActive),
             ),
           ],
         ),
@@ -852,7 +877,11 @@ class _GlobalCurfewBanner extends GetView<StudentScreenTimeController> {
                 children: [
                   Row(
                     children: [
-                      const Icon(Icons.access_time_filled_rounded, color: Color(0xFF0284C7), size: 24),
+                      const Icon(
+                        Icons.access_time_filled_rounded,
+                        color: Color(0xFF0284C7),
+                        size: 24,
+                      ),
                       const SizedBox(width: 8),
                       const Text(
                         'Set Global Curfew Hours',
@@ -864,7 +893,10 @@ class _GlobalCurfewBanner extends GetView<StudentScreenTimeController> {
                       ),
                       const Spacer(),
                       IconButton(
-                        icon: const Icon(Icons.close_rounded, color: Color(0xFF64748B)),
+                        icon: const Icon(
+                          Icons.close_rounded,
+                          color: Color(0xFF64748B),
+                        ),
                         onPressed: () => Get.back(),
                         visualDensity: VisualDensity.compact,
                       ),
@@ -873,10 +905,7 @@ class _GlobalCurfewBanner extends GetView<StudentScreenTimeController> {
                   const SizedBox(height: 6),
                   const Text(
                     'Applies to all hostel students. Phones evaluate curfew boundaries during this window.',
-                    style: TextStyle(
-                      fontSize: 12,
-                      color: Color(0xFF64748B),
-                    ),
+                    style: TextStyle(fontSize: 12, color: Color(0xFF64748B)),
                   ),
                   const SizedBox(height: 18),
                   Row(
@@ -952,7 +981,10 @@ class _GlobalCurfewBanner extends GetView<StudentScreenTimeController> {
                               borderRadius: BorderRadius.circular(12),
                             ),
                           ),
-                          child: const Text('Save Hours', style: TextStyle(fontWeight: FontWeight.bold)),
+                          child: const Text(
+                            'Save Hours',
+                            style: TextStyle(fontWeight: FontWeight.bold),
+                          ),
                         ),
                       ),
                     ],
@@ -1006,7 +1038,11 @@ class _CurfewTimeTile extends StatelessWidget {
             const SizedBox(height: 6),
             Row(
               children: [
-                const Icon(Icons.edit_calendar_rounded, size: 16, color: Color(0xFF0284C7)),
+                const Icon(
+                  Icons.edit_calendar_rounded,
+                  size: 16,
+                  color: Color(0xFF0284C7),
+                ),
                 const SizedBox(width: 6),
                 Text(
                   timeStr,
@@ -1059,10 +1095,17 @@ class _CurfewToggleButton extends StatelessWidget {
                   const SizedBox(
                     width: 14,
                     height: 14,
-                    child: CircularProgressIndicator(strokeWidth: 2, color: Color(0xFFDC2626)),
+                    child: CircularProgressIndicator(
+                      strokeWidth: 2,
+                      color: Color(0xFFDC2626),
+                    ),
                   )
                 else
-                  const Icon(Icons.power_settings_new_rounded, size: 15, color: Color(0xFFDC2626)),
+                  const Icon(
+                    Icons.power_settings_new_rounded,
+                    size: 15,
+                    color: Color(0xFFDC2626),
+                  ),
                 const SizedBox(width: 6),
                 const Text(
                   'Turn OFF',
@@ -1106,10 +1149,17 @@ class _CurfewToggleButton extends StatelessWidget {
                   const SizedBox(
                     width: 14,
                     height: 14,
-                    child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
+                    child: CircularProgressIndicator(
+                      strokeWidth: 2,
+                      color: Colors.white,
+                    ),
                   )
                 else
-                  const Icon(Icons.power_settings_new_rounded, size: 15, color: Colors.white),
+                  const Icon(
+                    Icons.power_settings_new_rounded,
+                    size: 15,
+                    color: Colors.white,
+                  ),
                 const SizedBox(width: 6),
                 const Text(
                   'Turn ON',

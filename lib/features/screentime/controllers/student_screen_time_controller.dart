@@ -144,24 +144,57 @@ class StudentScreenTimeController extends GetxController with WidgetsBindingObse
     directoryFilter.value = filter;
     visibleStudentCount.value = uiBatchSize;
     filterStudents(searchFilterController.text);
+    unawaited(_fillViewport());
+  }
+
+  /// Per-filter counts, computed in one pass whenever [allStudents] settles,
+  /// instead of once per chip/tile on every rebuild while scrolling.
+  Map<String, int>? _directoryCounts;
+  final RxInt _countsVersion = 0.obs;
+
+  void _invalidateDirectoryCounts() {
+    _directoryCounts = null;
+    _countsVersion.value++;
+  }
+
+  Map<String, int> _computeDirectoryCounts() {
+    var valid = 0, online = 0, locked = 0, restricted = 0, night = 0, attention = 0;
+    for (final s in allStudents) {
+      if (!hasValidRoom(s)) continue;
+      valid++;
+      if (isStudentOnline(s)) online++;
+      if (isStudentLocked(s)) locked++;
+      if (isStudentRestricted(s)) restricted++;
+      if (s is Map &&
+          toInt(s['nightScreenTimeMinutes'] ??
+                  s['night_screen_time_minutes']) >
+              0) {
+        night++;
+      }
+      if (isStudentTampered(s) || isStudentLocked(s)) attention++;
+    }
+    return {
+      'All': valid,
+      'Online': online,
+      'Offline': valid - online,
+      'Locked': locked,
+      'Restricted': restricted,
+      'Night': night,
+      'Attention': attention,
+    };
   }
 
   int directoryCount(String filter) {
-    final valid = allStudents.where(hasValidRoom).toList();
-
-    if (filter == 'All') {
-      return valid.length;
+    _countsVersion.value; // rebuild when the cache is invalidated
+    final count = (_directoryCounts ??= _computeDirectoryCounts())[filter] ?? 0;
+    // Only some pages may be loaded yet; show the server total meanwhile.
+    if (filter == 'All' &&
+        hasMoreStudents.value &&
+        searchText.value.trim().isEmpty &&
+        totalStudentsCount.value > count) {
+      return totalStudentsCount.value;
     }
-
-    if (filter == 'Offline') {
-      final onlineCount = valid.where((s) => isStudentOnline(s)).length;
-      final offlineCount = valid.length - onlineCount;
-      return offlineCount >= 0 ? offlineCount : 0;
-    }
-
-    return valid
-        .where((s) => _matchesDirectoryFilter(s, filter))
-        .length;
+    return count;
   }
 
   static bool _matchesDirectoryFilter(dynamic s, String filter) {
@@ -1180,12 +1213,12 @@ class StudentScreenTimeController extends GetxController with WidgetsBindingObse
   final RxBool isLoadingMore = false.obs;
   final RxBool hasMoreStudents = true.obs;
   final RxInt visibleStudentCount = 20.obs;
-  static const int pageSize = 100;
+  /// Students requested per API call. Further pages load as the list is scrolled.
+  static const int pageSize = 20;
   static const int uiBatchSize = 20;
 
   /// Total student count reported by server or current directory.
   final RxInt totalStudentsCount = 0.obs;
-  bool _isFetchingRemainingStudents = false;
   int _serverLoadedCount = 0;
 
   /// Cache of base directory loaded without a search query,
@@ -1196,6 +1229,8 @@ class StudentScreenTimeController extends GetxController with WidgetsBindingObse
   void onInit() {
     super.onInit();
     WidgetsBinding.instance.addObserver(this);
+    debounce(allStudents, (_) => _invalidateDirectoryCounts(),
+        time: const Duration(milliseconds: 60));
     _checkInitialArguments();
     _loadTotalHostelStudentCount();
     _loadRole();
@@ -1284,7 +1319,6 @@ class StudentScreenTimeController extends GetxController with WidgetsBindingObse
       fetchStudentsList(),
       loadGlobalCurfew(),
       _loadTotalHostelStudentCount(),
-      _mergeHostelStudentsFromDirectory(),
     ]);
   }
 
@@ -1295,7 +1329,7 @@ class StudentScreenTimeController extends GetxController with WidgetsBindingObse
           [fetchLiveStatus(), fetchHistory(), fetchStudentPolicies(), fetchAppRequests(studentId: _studentId)]);
     } else {
       await Future.wait([
-        fetchStudentsList(silent: true),
+        _refreshLoadedStudents(),
         loadGlobalCurfew(),
         fetchAppRequests(),
       ]);
@@ -1420,6 +1454,9 @@ class StudentScreenTimeController extends GetxController with WidgetsBindingObse
       return;
     }
 
+    // Work on a copy and publish once, so the list rebuilds once per page
+    // instead of once per merged student.
+    final working = List<dynamic>.from(allStudents);
     for (final s in loaded) {
       if (s is! Map) continue;
       final idStr = s['id']?.toString().trim() ?? '';
@@ -1431,8 +1468,8 @@ class StudentScreenTimeController extends GetxController with WidgetsBindingObse
       final phone = rawPhone.length >= 10 ? rawPhone.substring(rawPhone.length - 10) : '';
 
       int existingIndex = -1;
-      for (int i = 0; i < allStudents.length; i++) {
-        final existing = allStudents[i];
+      for (int i = 0; i < working.length; i++) {
+        final existing = working[i];
         if (existing is! Map) continue;
         final existingId = existing['id']?.toString().trim() ?? '';
         if (idStr.isNotEmpty && existingId.isNotEmpty && existingId == idStr) {
@@ -1478,18 +1515,19 @@ class StudentScreenTimeController extends GetxController with WidgetsBindingObse
       }
 
       if (existingIndex >= 0) {
-        final existing = allStudents[existingIndex];
+        final existing = working[existingIndex];
         final merged = Map<String, dynamic>.from(existing is Map ? existing : {});
         for (final entry in s.entries) {
           if (entry.value != null && entry.value.toString().isNotEmpty) {
             merged[entry.key.toString()] = entry.value;
           }
         }
-        allStudents[existingIndex] = merged;
+        working[existingIndex] = merged;
       } else {
-        allStudents.add(Map<String, dynamic>.from(s));
+        working.add(Map<String, dynamic>.from(s));
       }
     }
+    allStudents.assignAll(working);
   }
 
   /// Leader/Staff fetches directory of all students with today screen time overview from real API.
@@ -1569,14 +1607,6 @@ class StudentScreenTimeController extends GetxController with WidgetsBindingObse
         }
 
         filterStudents(searchFilterController.text);
-
-        // Fetch remaining student pages in background if more records exist beyond the first page
-        if (query.isEmpty &&
-            (hasMoreStudents.value ||
-                (totalStudentsCount.value > 0 &&
-                    _serverLoadedCount < totalStudentsCount.value))) {
-          _fetchAllRemainingStudentsInBackground();
-        }
       }
     } catch (e) {
       debugPrint('[ScreenTime] fetchStudentsList error: $e');
@@ -1585,8 +1615,13 @@ class StudentScreenTimeController extends GetxController with WidgetsBindingObse
       isSearchingServer.value = false;
     }
 
-    if (query.isEmpty) {
+    // Phonebook-only residents are appended once every server page is loaded,
+    // otherwise students not fetched yet would show up twice.
+    if (query.isEmpty && !hasMoreStudents.value) {
       await _mergeHostelStudentsFromDirectory();
+    }
+    if (directoryFilter.value != 'All' || query.isNotEmpty) {
+      unawaited(_fillViewport());
     }
   }
 
@@ -1730,79 +1765,17 @@ class StudentScreenTimeController extends GetxController with WidgetsBindingObse
     }
   }
 
-  /// Fetches subsequent student pages in background so entire directory is locally available.
-  Future<void> _fetchAllRemainingStudentsInBackground() async {
-    if (_isFetchingRemainingStudents) return;
-    _isFetchingRemainingStudents = true;
-    try {
-      while (_serverLoadedCount < (totalStudentsCount.value > 0 ? totalStudentsCount.value : 5000)) {
-        final baseParams = <String, dynamic>{
-          'limit': pageSize,
-          'offset': _serverLoadedCount,
-        };
-        final response = await _apiClient.dio.get(
-          '/screen-time/students',
-          queryParameters: baseParams,
-        );
-        final data = response.data['data'] ?? response.data;
-        if (data == null) break;
-        List<dynamic> loaded = [];
-        int serverTotal = 0;
-        if (data is List) {
-          loaded = List<dynamic>.from(data);
-        } else if (data is Map && data['students'] is List) {
-          loaded = List<dynamic>.from(data['students']);
-        } else if (data is Map && data['data'] is List) {
-          loaded = List<dynamic>.from(data['data']);
-        }
-        if (data is Map) {
-          serverTotal = toInt(
-            data['total'] ??
-                data['totalCount'] ??
-                data['count'] ??
-                data['totalStudents'],
-          );
-        }
-        if (serverTotal > 0 && serverTotal > totalStudentsCount.value) {
-          totalStudentsCount.value = serverTotal;
-        }
-
-        if (loaded.isEmpty) {
-          hasMoreStudents.value = false;
-          break;
-        }
-
-        _serverLoadedCount += loaded.length;
-        _mergeServerStudents(loaded, isRefresh: false);
-
-        if (searchFilterController.text.trim().isEmpty) {
-          _baseStudents
-            ..clear()
-            ..addAll(allStudents);
-        }
-        filterStudents(searchFilterController.text);
-        if (loaded.isEmpty ||
-            (serverTotal > 0 && _serverLoadedCount >= serverTotal) ||
-            (totalStudentsCount.value > 0 && _serverLoadedCount >= totalStudentsCount.value)) {
-          hasMoreStudents.value = false;
-          break;
-        }
-      }
-      filterStudents(searchFilterController.text);
-    } catch (e) {
-      debugPrint(
-          '[ScreenTime] _fetchAllRemainingStudentsInBackground error: $e');
-    } finally {
-      _isFetchingRemainingStudents = false;
-    }
-  }
-
   /// Triggered by scrolling near bottom: loads more from memory, or from server if exhausted
   Future<void> loadMoreItems() async {
     if (visibleStudentCount.value < filteredStudents.length) {
       visibleStudentCount.value =
           (visibleStudentCount.value + uiBatchSize).clamp(
               0, filteredStudents.length);
+      // Running low on loaded rows: fetch the next page before the user hits the end.
+      if (hasMoreStudents.value &&
+          filteredStudents.length - visibleStudentCount.value < uiBatchSize) {
+        unawaited(fetchMoreStudents());
+      }
       return;
     }
 
@@ -1879,6 +1852,54 @@ class StudentScreenTimeController extends GetxController with WidgetsBindingObse
       debugPrint('[ScreenTime] fetchMoreStudents error: $e');
     } finally {
       isLoadingMore.value = false;
+    }
+    if (!hasMoreStudents.value && searchFilterController.text.trim().isEmpty) {
+      await _mergeHostelStudentsFromDirectory();
+    }
+  }
+
+  /// A filter or search can match too few of the loaded rows to fill the screen
+  /// (so nothing scrolls); keep pulling pages, a few at most, until it does.
+  Future<void> _fillViewport() async {
+    var pages = 0;
+    while (hasMoreStudents.value &&
+        !isLoadingStudents.value &&
+        !isLoadingMore.value &&
+        filteredStudents.length < uiBatchSize &&
+        pages++ < 5) {
+      await fetchMoreStudents();
+    }
+  }
+
+  /// Silent periodic refresh: re-fetches the pages already loaded and updates
+  /// them in place, so the list keeps its length and scroll position.
+  Future<void> _refreshLoadedStudents() async {
+    if (searchFilterController.text.trim().isNotEmpty ||
+        _serverLoadedCount == 0 ||
+        isLoadingMore.value) {
+      await fetchStudentsList(silent: true);
+      return;
+    }
+    try {
+      final end = _serverLoadedCount;
+      for (var offset = 0; offset < end; offset += pageSize) {
+        final response = await _apiClient.dio.get(
+          '/screen-time/students',
+          queryParameters: {'limit': pageSize, 'offset': offset},
+        );
+        final data = response.data['data'] ?? response.data;
+        final raw = data is List
+            ? data
+            : (data is Map ? (data['students'] ?? data['data']) : null);
+        if (raw is! List || raw.isEmpty) break;
+        _mergeServerStudents(List<dynamic>.from(raw), isRefresh: false);
+      }
+      _baseStudents
+        ..clear()
+        ..addAll(allStudents);
+      filterStudents(searchFilterController.text);
+    } catch (e) {
+      debugPrint('[ScreenTime] _refreshLoadedStudents error: $e');
     }
   }
 

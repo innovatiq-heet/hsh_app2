@@ -67,21 +67,37 @@ class PhonebookScreen extends GetView<PhonebookController> {
       context: context,
       backgroundColor: Colors.transparent,
       isScrollControlled: true,
-      // Never full height, so the dimmed strip above it is there to tap.
-      constraints: BoxConstraints(maxHeight: MediaQuery.sizeOf(context).height * 0.85),
+      // The DraggableScrollableSheet owns the drag, so a fast swipe down from
+      // anywhere (handle, header or details) dismisses the sheet.
+      enableDrag: false,
       builder: (ctx) {
+        return DraggableScrollableSheet(
+          expand: false,
+          initialChildSize: 0.85,
+          minChildSize: 0,
+          maxChildSize: 0.85,
+          snap: true,
+          snapSizes: const [0.85],
+          builder: (ctx, scrollController) {
         return Container(
           decoration: const BoxDecoration(
             color: Colors.white,
             borderRadius: BorderRadius.vertical(top: Radius.circular(28)),
           ),
-          padding: const EdgeInsets.fromLTRB(20, 14, 20, 24),
           child: SafeArea(
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
+            child: CustomScrollView(
+              controller: scrollController,
+              slivers: [
+                // Handle and student title stay pinned while the details scroll.
+                SliverPersistentHeader(
+                  pinned: true,
+                  delegate: _PinnedSheetHeaderDelegate(
+                    extent: 156,
+                    child: Padding(
+                      padding: const EdgeInsets.fromLTRB(20, 14, 20, 0),
+                      child: Column(
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
-                // The handle and header don't scroll: dragging them down closes the sheet.
                 Center(
                   child: Container(
                     width: 44,
@@ -237,24 +253,42 @@ class PhonebookScreen extends GetView<PhonebookController> {
                                 ),
                               if (student.bankCode != null &&
                                   student.bankCode!.isNotEmpty)
-                                Container(
-                                  padding: const EdgeInsets.symmetric(
-                                    horizontal: 8,
-                                    vertical: 3.5,
+                                GestureDetector(
+                                  behavior: HitTestBehavior.opaque,
+                                  onTap: () => controller.copyToClipboard(
+                                    student.bankCode!,
+                                    'Student code',
                                   ),
-                                  decoration: BoxDecoration(
-                                    color: const Color(0xFFF8FAFC),
-                                    borderRadius: BorderRadius.circular(10),
-                                    border: Border.all(
-                                      color: const Color(0xFFE2E8F0),
+                                  child: Container(
+                                    padding: const EdgeInsets.symmetric(
+                                      horizontal: 8,
+                                      vertical: 3.5,
                                     ),
-                                  ),
-                                  child: Text(
-                                    'Code: ${student.bankCode}',
-                                    style: const TextStyle(
-                                      color: Color(0xFF64748B),
-                                      fontSize: 11,
-                                      fontWeight: FontWeight.w600,
+                                    decoration: BoxDecoration(
+                                      color: const Color(0xFFF8FAFC),
+                                      borderRadius: BorderRadius.circular(10),
+                                      border: Border.all(
+                                        color: const Color(0xFFE2E8F0),
+                                      ),
+                                    ),
+                                    child: Row(
+                                      mainAxisSize: MainAxisSize.min,
+                                      children: [
+                                        Text(
+                                          'Code: ${student.bankCode}',
+                                          style: const TextStyle(
+                                            color: Color(0xFF64748B),
+                                            fontSize: 11,
+                                            fontWeight: FontWeight.w600,
+                                          ),
+                                        ),
+                                        const SizedBox(width: 4),
+                                        const Icon(
+                                          Icons.copy_rounded,
+                                          size: 11,
+                                          color: Color(0xFF94A3B8),
+                                        ),
+                                      ],
                                     ),
                                   ),
                                 ),
@@ -265,10 +299,21 @@ class PhonebookScreen extends GetView<PhonebookController> {
                     ),
                   ],
                 ),
-                const SizedBox(height: 18),
+                const SizedBox(height: 14),
                 const Divider(height: 1, color: Color(0xFFF1F5F9)),
-                Flexible(
-                  child: SingleChildScrollView(
+              ],
+                      ),
+                    ),
+                  ),
+                ),
+                SliverPadding(
+                  padding: const EdgeInsets.fromLTRB(20, 0, 20, 24),
+                  sliver: SliverToBoxAdapter(
+                    child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                Padding(
                     padding: const EdgeInsets.only(top: 16),
                     child: Column(
                       mainAxisSize: MainAxisSize.min,
@@ -743,10 +788,15 @@ class PhonebookScreen extends GetView<PhonebookController> {
                       ],
                     ),
                   ),
+              ],
+            ),
+                  ),
                 ),
               ],
             ),
           ),
+        );
+          },
         );
       },
     );
@@ -878,14 +928,30 @@ class PhonebookScreen extends GetView<PhonebookController> {
       context: context,
       backgroundColor: Colors.transparent,
       isScrollControlled: true,
-      builder: (ctx) => Container(
-        height: MediaQuery.of(context).size.height * 0.85,
+      // The DraggableScrollableSheet below owns the drag, so a fast swipe
+      // down from anywhere (handle, title or list) dismisses the sheet.
+      enableDrag: false,
+      builder: (ctx) => DraggableScrollableSheet(
+        expand: false,
+        initialChildSize: 0.85,
+        minChildSize: 0,
+        maxChildSize: 0.85,
+        snap: true,
+        snapSizes: const [0.85],
+        builder: (ctx, scrollController) => Container(
         decoration: const BoxDecoration(
           color: Colors.white,
           borderRadius: BorderRadius.vertical(top: Radius.circular(28)),
         ),
         child: Column(
           children: [
+            Expanded(
+              child: CustomScrollView(
+                controller: scrollController,
+                slivers: [
+                  SliverToBoxAdapter(
+                    child: Column(
+                      children: [
             // Drag Handle & Top Header
             Padding(
               padding: const EdgeInsets.fromLTRB(20, 14, 20, 10),
@@ -951,17 +1017,26 @@ class PhonebookScreen extends GetView<PhonebookController> {
                           ),
                         );
                       }),
+                      IconButton(
+                        icon: const Icon(Icons.close_rounded, color: Color(0xFF64748B), size: 22),
+                        tooltip: 'Close',
+                        visualDensity: VisualDensity.compact,
+                        onPressed: () => Navigator.pop(ctx),
+                      ),
                     ],
                   ),
                 ],
               ),
             ),
             const Divider(height: 1, color: Color(0xFFE2E8F0)),
+                      ],
+                    ),
+                  ),
 
             // Scrollable Content
-            Expanded(
-              child: SingleChildScrollView(
+                  SliverPadding(
                 padding: const EdgeInsets.fromLTRB(20, 16, 20, 24),
+                sliver: SliverToBoxAdapter(
                 child: Obx(() {
                   return Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
@@ -1153,6 +1228,9 @@ class PhonebookScreen extends GetView<PhonebookController> {
                     ],
                   );
                 }),
+                ),
+              ),
+                ],
               ),
             ),
 
@@ -1197,6 +1275,7 @@ class PhonebookScreen extends GetView<PhonebookController> {
               ),
             ),
           ],
+        ),
         ),
       ),
     );
@@ -1877,7 +1956,7 @@ class _PhonebookHeaderDelegate extends SliverPersistentHeaderDelegate {
   double get minExtent => topPadding + 60.0;
 
   @override
-  double get maxExtent => topPadding + 172.0;
+  double get maxExtent => topPadding + 158.0;
 
   @override
   Widget build(
@@ -2098,7 +2177,7 @@ class _PhonebookHeaderDelegate extends SliverPersistentHeaderDelegate {
             Positioned(
               left: 20,
               right: 20,
-              bottom: 16,
+              bottom: 22,
               child: Opacity(
                 opacity: expandedOpacity,
                 child: Column(
@@ -2254,3 +2333,32 @@ class _StudentPhonebookCard extends StatelessWidget {
   }
 }
 
+/// Fixed-height, opaque header for the student sheet so the title stays put
+/// (with the sheet's rounded top corners) while the details scroll under it.
+class _PinnedSheetHeaderDelegate extends SliverPersistentHeaderDelegate {
+  final double extent;
+  final Widget child;
+
+  _PinnedSheetHeaderDelegate({required this.extent, required this.child});
+
+  @override
+  double get minExtent => extent;
+
+  @override
+  double get maxExtent => extent;
+
+  @override
+  Widget build(BuildContext context, double shrinkOffset, bool overlapsContent) {
+    return Container(
+      decoration: const BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.vertical(top: Radius.circular(28)),
+      ),
+      child: child,
+    );
+  }
+
+  @override
+  bool shouldRebuild(covariant _PinnedSheetHeaderDelegate oldDelegate) =>
+      oldDelegate.extent != extent || oldDelegate.child != child;
+}

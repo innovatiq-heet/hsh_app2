@@ -32,6 +32,17 @@ class PhonebookController extends GetxController {
   /// Rebuilt every time [students] changes.
   final alphaIndex = <String, int>{}.obs;
 
+  /// Same map for alumni, who are listed after all residents.
+  final alumniAlphaIndex = <String, int>{}.obs;
+
+  /// Every letter the rail lists: students' letters, plus alumni-only ones.
+  /// The value is where a plain jump lands (students first).
+  Map<String, int> get railLetters => {...alumniAlphaIndex, ...alphaIndex};
+
+  /// True when [letter] has both students and alumni, so the rail asks which.
+  bool letterInBothGroups(String letter) =>
+      alphaIndex.containsKey(letter) && alumniAlphaIndex.containsKey(letter);
+
   /// Drives the student SuperSliverList. It jumps straight to an item without
   /// building every card in between, which is what makes the A-Z rail smooth.
   final listController = ListController();
@@ -417,11 +428,14 @@ class PhonebookController extends GetxController {
 
   /// Rebuilds the letter → first-index map from the current student list.
   void _rebuildAlphaIndex(List<PhonebookStudent> list) {
-    final map = <String, int>{};
+    final residents = <String, int>{};
+    final alumni = <String, int>{};
     for (int i = 0; i < list.length; i++) {
-      map.putIfAbsent(letterOf(list[i].name), () => i);
+      final target = list[i].isAlumni ? alumni : residents;
+      target.putIfAbsent(letterOf(list[i].name), () => i);
     }
-    alphaIndex.assignAll(map);
+    alphaIndex.assignAll(residents);
+    alumniAlphaIndex.assignAll(alumni);
   }
 
   @visibleForTesting
@@ -430,11 +444,20 @@ class PhonebookController extends GetxController {
   /// Scrolls the student list so the first student for [letter] (with its
   /// section header) sits just below the pinned header. Jumps while dragging
   /// the rail, animates on a tap.
-  void scrollToLetter(String letter, {bool isDragging = false}) {
-    final index = alphaIndex[letter];
+  ///
+  /// [alumni] picks the alumni occurrence of a letter that exists in both
+  /// groups; by default the student one is used.
+  void scrollToLetter(String letter,
+      {bool isDragging = false, bool alumni = false, bool chosen = false}) {
+    // A plain tap on a letter that exists in both groups only opens the
+    // Students/Alumni menu; moving now would scroll twice (tap, then choice).
+    if (!chosen && !isDragging && letterInBothGroups(letter)) return;
+    final index = alumni ? alumniAlphaIndex[letter] : railLetters[letter];
     if (index == null || !listController.isAttached || !listScrollController.hasClients) return;
 
-    if (isDragging) {
+    // A picked group can be far away: jump instead of animating across the
+    // whole list, which stutters while row heights are still estimated.
+    if (isDragging || chosen) {
       listController.jumpToItem(
         index: index,
         scrollController: listScrollController,

@@ -1834,8 +1834,11 @@ class PhonebookScreen extends GetView<PhonebookController> {
                       final studentLetter = PhonebookController.letterOf(student.name);
                       // Use the controller's index so each letter's header appears once,
                       // even when '#' names aren't contiguous in the sort order.
-                      final isFirstOfLetter =
-                          isNameSort && controller.alphaIndex[studentLetter] == index;
+                      final isFirstOfLetter = isNameSort &&
+                          (student.isAlumni
+                                  ? controller.alumniAlphaIndex
+                                  : controller.alphaIndex)[studentLetter] ==
+                              index;
 
                       Widget item = card;
                       if (isFirstOfLetter) {
@@ -1873,7 +1876,7 @@ class PhonebookScreen extends GetView<PhonebookController> {
         Obx(() {
           final showRail =
               controller.searchText.value.isEmpty &&
-              controller.alphaIndex.length > 1 &&
+              controller.railLetters.length > 1 &&
               controller.selectedSort.value == 'Name (A-Z)' &&
               !controller.isLoading.value &&
               controller.students.isNotEmpty;
@@ -1889,7 +1892,13 @@ class PhonebookScreen extends GetView<PhonebookController> {
             child: Align(
               alignment: Alignment.centerRight,
               child: AlphaScrollRail(
-                alphaIndex: controller.alphaIndex,
+                alphaIndex: controller.railLetters,
+                // Next frame, so the menu doesn't open in the same frame as the
+                // rail's own release rebuild.
+                onLetterReleased: (letter, position) =>
+                    WidgetsBinding.instance.addPostFrameCallback(
+                      (_) => _askLetterGroup(context, letter, position),
+                    ),
                 onLetterSelected: (letter, {isDragging = false}) =>
                     controller.scrollToLetter(letter, isDragging: isDragging),
               ),
@@ -1900,6 +1909,45 @@ class PhonebookScreen extends GetView<PhonebookController> {
         ),
       ),
     );
+  }
+
+  /// After a letter is picked on the rail, lets the user choose Students or
+  /// Alumni when that letter exists in both; the jump is then made there.
+  Future<void> _askLetterGroup(BuildContext context, String letter, Offset position) async {
+    if (!controller.letterInBothGroups(letter)) return;
+    final size = MediaQuery.sizeOf(context);
+    final choice = await showMenu<bool>(
+      context: context,
+      position: RelativeRect.fromLTRB(
+        position.dx - 160,
+        position.dy - 48,
+        size.width - position.dx,
+        size.height - position.dy,
+      ),
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+      items: [
+        PopupMenuItem<bool>(
+          value: false,
+          child: Row(children: [
+            const Icon(Icons.meeting_room_rounded, size: 18, color: Color(0xFF0284C7)),
+            const SizedBox(width: 10),
+            Text('Students · $letter'),
+          ]),
+        ),
+        PopupMenuItem<bool>(
+          value: true,
+          child: Row(children: [
+            const Icon(Icons.school_rounded, size: 18, color: Color(0xFF9333EA)),
+            const SizedBox(width: 10),
+            Text('Alumni · $letter'),
+          ]),
+        ),
+      ],
+    );
+    if (choice != null) {
+      HapticFeedback.selectionClick();
+      controller.scrollToLetter(letter, alumni: choice, chosen: true);
+    }
   }
 
   Widget _buildLetterSectionHeader(String letter) {

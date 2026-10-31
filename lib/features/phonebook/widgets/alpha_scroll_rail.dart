@@ -17,12 +17,17 @@ class AlphaScrollRail extends StatefulWidget {
   final Map<String, int> alphaIndex;
   final void Function(String letter, {bool isDragging}) onLetterSelected;
 
+  /// Called when the finger lifts off a letter, with the touch position on
+  /// screen, so the caller can ask which group (students / alumni) to open.
+  final void Function(String letter, Offset globalPosition)? onLetterReleased;
+
   final Duration collapseDelay;
 
   const AlphaScrollRail({
     super.key,
     required this.alphaIndex,
     required this.onLetterSelected,
+    this.onLetterReleased,
     this.collapseDelay = const Duration(seconds: 3),
   });
 
@@ -89,7 +94,11 @@ class _AlphaScrollRailState extends State<AlphaScrollRail> {
     }
   }
 
-  void _handleTouchEnd() {
+  void _handleTouchEnd([Offset? globalPosition]) {
+    final letter = _activeLetter;
+    if (letter != null && globalPosition != null) {
+      widget.onLetterReleased?.call(letter, globalPosition);
+    }
     setState(() {
       _activeLetter = null;
       _touchY = null;
@@ -170,8 +179,7 @@ class _AlphaScrollRailState extends State<AlphaScrollRail> {
     final itemHeight = (letters.length > 20) ? 15.0 : 18.0;
     final railHeight = (letters.length * itemHeight) + 12.0;
 
-    return SizedBox(
-      key: const ValueKey('alpha-rail-expanded'),
+    final rail = SizedBox(
       height: railHeight,
       child: Stack(
         clipBehavior: Clip.none,
@@ -219,7 +227,7 @@ class _AlphaScrollRailState extends State<AlphaScrollRail> {
             behavior: HitTestBehavior.opaque,
             onPointerDown: (e) => _handleTouch(e.localPosition, railHeight, isDragging: false),
             onPointerMove: (e) => _handleTouch(e.localPosition, railHeight, isDragging: true),
-            onPointerUp: (_) => _handleTouchEnd(),
+            onPointerUp: (e) => _handleTouchEnd(e.position),
             onPointerCancel: (_) => _handleTouchEnd(),
             child: Container(
               width: 22,
@@ -271,6 +279,8 @@ class _AlphaScrollRailState extends State<AlphaScrollRail> {
         ],
       ),
     );
+
+    return KeyedSubtree(key: const ValueKey('alpha-rail-expanded'), child: rail);
   }
 }
 

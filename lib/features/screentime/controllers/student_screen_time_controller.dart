@@ -236,13 +236,20 @@ class StudentScreenTimeController extends GetxController with WidgetsBindingObse
     // The API's directory-wide numbers, unless a search narrows the list.
     final fromApi = serverCounts[filter];
     if (fromApi != null && searchText.value.trim().isEmpty) return fromApi;
-    final count = (_directoryCounts ??= _computeDirectoryCounts())[filter] ?? 0;
-    // Only some pages may be loaded yet; show the server total meanwhile.
-    if (filter == 'All' &&
-        hasMoreStudents.value &&
+    final counts = _directoryCounts ??= _computeDirectoryCounts();
+    final count = counts[filter] ?? 0;
+    // Only some pages may be loaded yet, so the loaded rows under-count the
+    // directory. Use the server total for Total, and total - online for
+    // Offline, so both are right on the first frame.
+    final partial = hasMoreStudents.value &&
         searchText.value.trim().isEmpty &&
-        totalStudentsCount.value > count) {
-      return totalStudentsCount.value;
+        totalStudentsCount.value > counts['All']!;
+    if (partial) {
+      if (filter == 'All') return totalStudentsCount.value;
+      if (filter == 'Offline') {
+        final offline = totalStudentsCount.value - (counts['Online'] ?? 0);
+        return offline < 0 ? 0 : offline;
+      }
     }
     return count;
   }
@@ -1648,7 +1655,9 @@ class StudentScreenTimeController extends GetxController with WidgetsBindingObse
       if (loaded.isNotEmpty || (data is Map &&
           (data.containsKey('students') || data.containsKey('data')))) {
         if (query.isEmpty) {
-          if (serverTotal > 0 && serverTotal > totalStudentsCount.value) {
+          // The server's total wins (also when lower than the phonebook count
+          // seeded earlier). A bare list has no total, only the page length.
+          if (serverTotal > 0 && data is Map) {
             totalStudentsCount.value = serverTotal;
           } else if (refresh && loaded.length > totalStudentsCount.value) {
             totalStudentsCount.value = loaded.length;
@@ -1884,8 +1893,7 @@ class StudentScreenTimeController extends GetxController with WidgetsBindingObse
               data['totalStudents'],
         );
       }
-      if (serverTotal > 0 && query.isEmpty &&
-          serverTotal > totalStudentsCount.value) {
+      if (serverTotal > 0 && query.isEmpty && data is Map) {
         totalStudentsCount.value = serverTotal;
       }
 

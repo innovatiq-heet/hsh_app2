@@ -335,6 +335,24 @@ void main() {
     expect(controller.directoryCount('Online'), 1);
   });
 
+  test('Offline tile is total minus online while only some pages are loaded', () {
+    final controller = StudentScreenTimeController();
+    controller.allStudents.assignAll([
+      {'id': 1, 'name': 'Alpha', 'room': '101', 'isOnline': 1},
+      {'id': 2, 'name': 'Beta', 'room': '102', 'isOnline': 0},
+    ]);
+    controller.totalStudentsCount.value = 340;
+    controller.hasMoreStudents.value = true;
+
+    expect(controller.directoryCount('All'), 340);
+    expect(controller.directoryCount('Online'), 1);
+    expect(controller.directoryCount('Offline'), 339);
+
+    // Everything loaded: plain local counts again.
+    controller.hasMoreStudents.value = false;
+    expect(controller.directoryCount('Offline'), 1);
+  });
+
   test('extractRecordDate normalizes ISO strings, spaces, and diverse date keys', () {
     expect(StudentScreenTimeController.extractRecordDate({'date': '2026-10-17'}), '2026-10-17');
     expect(StudentScreenTimeController.extractRecordDate({'usage_date': '2026-10-17 00:00:00'}), '2026-10-17');

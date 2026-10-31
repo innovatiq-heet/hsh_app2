@@ -9,8 +9,10 @@ import '../../../core/constants/app_text_styles.dart';
 import '../../../core/enums/user_role.dart';
 import '../../../core/services/shorebird_service.dart';
 import '../../../core/storage/session_store.dart';
+import '../../phonebook/controllers/phonebook_controller.dart';
 import '../../phonebook/bindings/phonebook_binding.dart';
 import '../../phonebook/views/phonebook_screen.dart';
+import '../../screentime/controllers/student_screen_time_controller.dart';
 import '../../screentime/bindings/student_screen_time_binding.dart';
 import '../../screentime/views/student_screen_time_screen.dart';
 import '../../shared/widgets/staggered_slide_fade.dart';
@@ -214,6 +216,16 @@ class _OperatorHomeScreenState extends State<OperatorHomeScreen> {
             onTap: (index) {
               if (index == 3) {
                 _showProfileSheet(context);
+              } else if (index == 1 && _currentNavIndex == 1) {
+                // Students tab tapped while already open: back to the top.
+                if (Get.isRegistered<PhonebookController>()) {
+                  Get.find<PhonebookController>().scrollToTop();
+                }
+              } else if (index == 2 && _currentNavIndex == 2) {
+                // Safety tab tapped while already open: back to the top.
+                if (Get.isRegistered<StudentScreenTimeController>()) {
+                  Get.find<StudentScreenTimeController>().scrollToTop();
+                }
               } else {
                 setState(() => _currentNavIndex = index);
               }

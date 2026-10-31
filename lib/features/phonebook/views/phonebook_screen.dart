@@ -1,7 +1,6 @@
-import 'dart:convert';
-import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:font_awesome_flutter/font_awesome_flutter.dart';
 import 'package:get/get.dart';
 import 'package:intl/intl.dart';
 import 'package:super_sliver_list/super_sliver_list.dart';
@@ -11,7 +10,7 @@ import '../../shared/widgets/staggered_slide_fade.dart';
 import '../../shared/widgets/student_contact_card.dart';
 import '../controllers/phonebook_controller.dart';
 import '../models/phonebook_models.dart';
-import '../services/phonebook_sync_service.dart';
+import '../services/phone_number_normalizer.dart';
 import '../widgets/alpha_scroll_rail.dart';
 import '../widgets/caller_id_card.dart';
 
@@ -58,16 +57,6 @@ class PhonebookScreen extends GetView<PhonebookController> {
     BuildContext context,
     PhonebookStudent student,
   ) {
-    if (kDebugMode) {
-      // Debug builds only: the record exactly as the directory API sent it.
-      final raw = PhonebookSyncService.debugRawByStudentId[student.studentId];
-      debugPrint(
-        raw != null
-            ? '[Phonebook] API response for ${student.studentId}: ${const JsonEncoder.withIndent('  ').convert(raw)}'
-            : '[Phonebook] No API record in memory for ${student.studentId} '
-                '(loaded from the local cache; sync again to capture it)',
-      );
-    }
     final isAlumni = student.isAlumni;
     final gColor = isAlumni
         ? const Color(0xFF9333EA)
@@ -76,53 +65,40 @@ class PhonebookScreen extends GetView<PhonebookController> {
         ? const Color(0xFFF3E8FF)
         : groupBgColor(student.groupName);
 
-    showModalBottomSheet(
-      context: context,
-      backgroundColor: Colors.transparent,
-      isScrollControlled: true,
-      // The DraggableScrollableSheet owns the drag, so a fast swipe down from
-      // anywhere (handle, header or details) dismisses the sheet.
-      enableDrag: false,
+    // Full screen instead of a bottom sheet: back arrow, share, pinned
+    // student header, scrolling details.
+    Navigator.of(context).push(MaterialPageRoute<void>(
       builder: (ctx) {
-        return DraggableScrollableSheet(
-          expand: false,
-          initialChildSize: 0.85,
-          minChildSize: 0,
-          maxChildSize: 0.85,
-          snap: true,
-          snapSizes: const [0.85],
-          builder: (ctx, scrollController) {
-        return Container(
-          decoration: const BoxDecoration(
-            color: Colors.white,
-            borderRadius: BorderRadius.vertical(top: Radius.circular(28)),
+        return Scaffold(
+          backgroundColor: Colors.white,
+          appBar: AppBar(
+            backgroundColor: Colors.white,
+            surfaceTintColor: Colors.white,
+            elevation: 0,
+            scrolledUnderElevation: 0,
+            iconTheme: const IconThemeData(color: Color(0xFF0F172A)),
+            title: const Text(
+              'Student Details',
+              style: TextStyle(
+                fontSize: 17,
+                fontWeight: FontWeight.w800,
+                color: Color(0xFF0F172A),
+              ),
+            ),
           ),
-          child: SafeArea(
+          body: SafeArea(
             child: CustomScrollView(
-              controller: scrollController,
               slivers: [
                 // Handle and student title stay pinned while the details scroll.
                 SliverPersistentHeader(
                   pinned: true,
                   delegate: _PinnedSheetHeaderDelegate(
-                    extent: 156,
+                    extent: 134,
                     child: Padding(
-                      padding: const EdgeInsets.fromLTRB(20, 14, 20, 0),
+                      padding: const EdgeInsets.fromLTRB(20, 8, 20, 0),
                       child: Column(
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
-                Center(
-                  child: Container(
-                    width: 44,
-                    height: 4.5,
-                    decoration: BoxDecoration(
-                      color: const Color(0xFFCBD5E1),
-                      borderRadius: BorderRadius.circular(2.5),
-                    ),
-                  ),
-                ),
-                const SizedBox(height: 18),
-
                 // Header Row
                 Row(
                   children: [
@@ -171,11 +147,6 @@ class PhonebookScreen extends GetView<PhonebookController> {
                                 icon: const Icon(Icons.share_rounded, color: Color(0xFF0284C7), size: 20),
                                 tooltip: 'Share Profile',
                                 onPressed: () => controller.shareStudent(student),
-                              ),
-                              IconButton(
-                                icon: const Icon(Icons.close_rounded, color: Color(0xFF64748B), size: 22),
-                                tooltip: 'Close',
-                                onPressed: () => Navigator.pop(ctx),
                               ),
                             ],
                           ),
@@ -643,7 +614,11 @@ class PhonebookScreen extends GetView<PhonebookController> {
                             iconColor: const Color(0xFFDB2777),
                           ),
 
-                        if (student.whatsappNumber != null && student.whatsappNumber!.isNotEmpty)
+                        // Skip the dedicated WhatsApp row when it is the same number as
+                        // the student's mobile (it is already listed below).
+                        if (student.whatsappNumber != null &&
+                            student.whatsappNumber!.isNotEmpty &&
+                            !_sameAsStudentMobile(student))
                           _buildPhoneRow(
                             context,
                             phone: student.whatsappNumber!,
@@ -670,46 +645,8 @@ class PhonebookScreen extends GetView<PhonebookController> {
                           );
                         }),
 
-                        if (student.email != null && student.email!.isNotEmpty) ...[
-                          const SizedBox(height: 10),
-                          Container(
-                            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
-                            decoration: BoxDecoration(
-                              color: const Color(0xFFF8FAFC),
-                              borderRadius: BorderRadius.circular(16),
-                              border: Border.all(color: const Color(0xFFE2E8F0)),
-                            ),
-                            child: Row(
-                              children: [
-                                Container(
-                                  width: 36,
-                                  height: 36,
-                                  decoration: BoxDecoration(
-                                    color: const Color(0xFFCCFBF1),
-                                    borderRadius: BorderRadius.circular(10),
-                                  ),
-                                  child: const Icon(Icons.email_rounded, size: 18, color: Color(0xFF0D9488)),
-                                ),
-                                const SizedBox(width: 12),
-                                Expanded(
-                                  child: Text(
-                                    student.email!,
-                                    style: const TextStyle(
-                                      fontSize: 13.5,
-                                      fontWeight: FontWeight.w600,
-                                      color: Color(0xFF0F172A),
-                                    ),
-                                  ),
-                                ),
-                                IconButton(
-                                  icon: const Icon(Icons.copy_rounded, size: 18, color: Color(0xFF64748B)),
-                                  tooltip: 'Copy Email',
-                                  onPressed: () => controller.copyToClipboard(student.email!, 'Email'),
-                                ),
-                              ],
-                            ),
-                          ),
-                        ],
+                        if (student.email != null && student.email!.isNotEmpty)
+                          _buildEmailCard(ctx, student.email!),
 
                         const SizedBox(height: 18),
 
@@ -809,10 +746,126 @@ class PhonebookScreen extends GetView<PhonebookController> {
             ),
           ),
         );
-          },
-        );
       },
+    ));
+  }
+
+  /// One labelled icon action (Copy / WhatsApp / Message / Call / Gmail) on a contact card.
+  Widget _contactAction(Widget ic, String text, Color color, VoidCallback onTap) {
+    return Expanded(
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(10),
+        child: Padding(
+          padding: const EdgeInsets.symmetric(vertical: 8),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              ic,
+              const SizedBox(height: 3),
+              Text(
+                text,
+                style: TextStyle(
+                  fontSize: 10.5,
+                  fontWeight: FontWeight.w700,
+                  color: color,
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
     );
+  }
+
+  Widget _buildEmailCard(BuildContext context, String email) {
+    return Container(
+      margin: const EdgeInsets.only(top: 2, bottom: 8),
+      padding: const EdgeInsets.fromLTRB(14, 10, 14, 4),
+      decoration: BoxDecoration(
+        color: const Color(0xFFF8FAFC),
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: const Color(0xFFE2E8F0)),
+      ),
+      child: Column(
+        children: [
+          Row(
+            children: [
+              Container(
+                width: 36,
+                height: 36,
+                decoration: BoxDecoration(
+                  color: const Color(0xFFFEE2E2),
+                  borderRadius: BorderRadius.circular(10),
+                ),
+                child: const Icon(Icons.email_rounded, size: 18, color: Color(0xFFEA4335)),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    SelectableText(
+                      email,
+                      style: const TextStyle(
+                        fontWeight: FontWeight.w700,
+                        fontSize: 14,
+                        color: Color(0xFF0F172A),
+                      ),
+                    ),
+                    const SizedBox(height: 1),
+                    const Text(
+                      'Email',
+                      style: TextStyle(
+                        color: Color(0xFF64748B),
+                        fontSize: 11.5,
+                        fontWeight: FontWeight.w500,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 6),
+          const Divider(height: 1, color: Color(0xFFE2E8F0)),
+          Row(
+            children: [
+              _contactAction(
+                const Icon(Icons.content_copy_rounded, size: 19, color: Color(0xFF64748B)),
+                'Copy',
+                const Color(0xFF64748B),
+                () => controller.copyToClipboard(email, 'Email'),
+              ),
+              _contactAction(
+                const FaIcon(FontAwesomeIcons.envelope, size: 19, color: Color(0xFFEA4335)),
+                'Gmail',
+                const Color(0xFFEA4335),
+                () {
+                  Navigator.pop(context);
+                  controller.openEmail(email);
+                },
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+
+  static String _digitsOf(String? raw) =>
+      PhoneNumberNormalizer.normalize(raw) ?? (raw ?? '').replaceAll(RegExp(r'\D'), '');
+
+  /// True when the dedicated WhatsApp number equals one of the student's own
+  /// mobile numbers (parents' numbers don't count).
+  static bool _sameAsStudentMobile(PhonebookStudent student) {
+    final wa = _digitsOf(student.whatsappNumber);
+    if (wa.isEmpty) return false;
+    return student.phones.any((p) {
+      final label = p.label.toLowerCase();
+      if (label.contains('father') || label.contains('mother')) return false;
+      return _digitsOf(p.phone) == wa;
+    });
   }
 
   Widget _infoBlock(String label, String value, {String? subtitle, VoidCallback? onCopy, bool isHighlight = false}) {
@@ -866,70 +919,75 @@ class PhonebookScreen extends GetView<PhonebookController> {
     required Color iconBg,
     required Color iconColor,
   }) {
+    final action = _contactAction;
+
     return Container(
       margin: const EdgeInsets.only(bottom: 8),
-      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+      padding: const EdgeInsets.fromLTRB(14, 10, 14, 4),
       decoration: BoxDecoration(
         color: const Color(0xFFF8FAFC),
         borderRadius: BorderRadius.circular(16),
         border: Border.all(color: const Color(0xFFE2E8F0)),
       ),
-      child: Row(
+      child: Column(
         children: [
-          Container(
-            width: 36,
-            height: 36,
-            decoration: BoxDecoration(
-              color: iconBg,
-              borderRadius: BorderRadius.circular(10),
-            ),
-            child: Icon(icon, size: 18, color: iconColor),
-          ),
-          const SizedBox(width: 12),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  phone,
-                  style: const TextStyle(
-                    fontWeight: FontWeight.w700,
-                    fontSize: 14.5,
-                    color: Color(0xFF0F172A),
-                  ),
+          Row(
+            children: [
+              Container(
+                width: 36,
+                height: 36,
+                decoration: BoxDecoration(
+                  color: iconBg,
+                  borderRadius: BorderRadius.circular(10),
                 ),
-                const SizedBox(height: 1),
-                Text(
-                  label,
-                  style: const TextStyle(
-                    color: Color(0xFF64748B),
-                    fontSize: 11.5,
-                    fontWeight: FontWeight.w500,
-                  ),
+                child: Icon(icon, size: 18, color: iconColor),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      phone,
+                      style: const TextStyle(
+                        fontWeight: FontWeight.w700,
+                        fontSize: 14.5,
+                        color: Color(0xFF0F172A),
+                      ),
+                    ),
+                    const SizedBox(height: 1),
+                    Text(
+                      label,
+                      style: const TextStyle(
+                        color: Color(0xFF64748B),
+                        fontSize: 11.5,
+                        fontWeight: FontWeight.w500,
+                      ),
+                    ),
+                  ],
                 ),
-              ],
-            ),
+              ),
+            ],
           ),
-          IconButton(
-            icon: const Icon(Icons.copy_rounded, size: 18, color: Color(0xFF64748B)),
-            tooltip: 'Copy Number',
-            onPressed: () => controller.copyToClipboard(phone, label),
-          ),
-          IconButton(
-            icon: const Icon(Icons.chat_rounded, size: 18, color: Color(0xFF059669)),
-            tooltip: 'WhatsApp',
-            onPressed: () {
-              Navigator.pop(context);
-              controller.openWhatsApp(phone);
-            },
-          ),
-          IconButton(
-            icon: const Icon(Icons.call_rounded, size: 18, color: Color(0xFF0284C7)),
-            tooltip: 'Call Phone',
-            onPressed: () {
-              Navigator.pop(context);
-              controller.makeCall(phone);
-            },
+          const SizedBox(height: 6),
+          const Divider(height: 1, color: Color(0xFFE2E8F0)),
+          Row(
+            children: [
+              action(const Icon(Icons.content_copy_rounded, size: 19, color: Color(0xFF64748B)), 'Copy', const Color(0xFF64748B),
+                  () => controller.copyToClipboard(phone, label)),
+              action(const FaIcon(FontAwesomeIcons.whatsapp, size: 19, color: Color(0xFF25D366)), 'WhatsApp', const Color(0xFF059669), () {
+                Navigator.pop(context);
+                controller.openWhatsApp(phone);
+              }),
+              action(const Icon(Icons.message_rounded, size: 19, color: Color(0xFFD97706)), 'Message', const Color(0xFFD97706), () {
+                Navigator.pop(context);
+                controller.sendSms(phone);
+              }),
+              action(const Icon(Icons.phone_in_talk_rounded, size: 19, color: Color(0xFF0284C7)), 'Call', const Color(0xFF0284C7), () {
+                Navigator.pop(context);
+                controller.makeCall(phone);
+              }),
+            ],
           ),
         ],
       ),

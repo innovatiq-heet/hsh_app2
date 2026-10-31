@@ -184,8 +184,58 @@ class StudentScreenTimeController extends GetxController with WidgetsBindingObse
     };
   }
 
+  /// Directory-wide counts reported by `/screen-time/students` (online,
+  /// offline, locked, attention, and total when sent). Used for the summary
+  /// tiles so they are right before every page is loaded.
+  final RxMap<String, int> serverCounts = <String, int>{}.obs;
+
+  static const _countKeys = {
+    'All': ['total', 'totalStudents', 'total_students', 'totalCount', 'total_count'],
+    'Online': ['online', 'onlineCount', 'online_count', 'onlineStudents', 'online_students'],
+    'Offline': ['offline', 'offlineCount', 'offline_count', 'offlineStudents', 'offline_students'],
+    'Locked': ['locked', 'lockedCount', 'locked_count', 'lockedStudents', 'locked_students'],
+    'Attention': ['attention', 'attentionCount', 'attention_count', 'needsAttention', 'needs_attention'],
+  };
+
+  /// Reads the summary counts from a `/screen-time/students` response body.
+  /// Looks at the body, its `data`, and a nested `summary` / `counts` / `stats`
+  /// object. Only called for the unfiltered directory (a search narrows them).
+  void _captureServerCounts(dynamic body) {
+    final sources = <Map>[];
+    void addMap(dynamic m) {
+      if (m is Map) sources.add(m);
+    }
+
+    addMap(body);
+    if (body is Map) {
+      addMap(body['data']);
+      for (final k in const ['summary', 'counts', 'stats', 'statistics']) {
+        addMap(body[k]);
+        if (body['data'] is Map) addMap((body['data'] as Map)[k]);
+      }
+    }
+    final found = <String, int>{};
+    _countKeys.forEach((filter, keys) {
+      for (final src in sources) {
+        for (final key in keys) {
+          if (src[key] != null && src[key] is! Map && src[key] is! List) {
+            found[filter] = toInt(src[key]);
+            return;
+          }
+        }
+      }
+    });
+    if (found.isNotEmpty) serverCounts.addAll(found);
+  }
+
+  @visibleForTesting
+  void captureServerCountsForTest(dynamic body) => _captureServerCounts(body);
+
   int directoryCount(String filter) {
     _countsVersion.value; // rebuild when the cache is invalidated
+    // The API's directory-wide numbers, unless a search narrows the list.
+    final fromApi = serverCounts[filter];
+    if (fromApi != null && searchText.value.trim().isEmpty) return fromApi;
     final count = (_directoryCounts ??= _computeDirectoryCounts())[filter] ?? 0;
     // Only some pages may be loaded yet; show the server total meanwhile.
     if (filter == 'All' &&
@@ -1204,6 +1254,19 @@ class StudentScreenTimeController extends GetxController with WidgetsBindingObse
   final RxBool openedWithDirectTarget = false.obs;
 
   final searchFilterController = TextEditingController();
+
+  /// The screen's scroll position, so the Safety tab can scroll back to the
+  /// top when it is tapped again.
+  final ScrollController pageScrollController = ScrollController();
+
+  void scrollToTop() {
+    if (!pageScrollController.hasClients) return;
+    pageScrollController.animateTo(
+      0,
+      duration: const Duration(milliseconds: 350),
+      curve: Curves.easeOutCubic,
+    );
+  }
   final RxString searchText = ''.obs;
   final Rx<UserRole> currentRole = UserRole.student.obs;
 
@@ -1292,6 +1355,7 @@ class StudentScreenTimeController extends GetxController with WidgetsBindingObse
     _refreshTimer?.cancel();
     _searchDebounceTimer?.cancel();
     searchFilterController.dispose();
+    pageScrollController.dispose();
     super.onClose();
   }
 
@@ -1556,6 +1620,7 @@ class StudentScreenTimeController extends GetxController with WidgetsBindingObse
         queryParameters: baseParams,
       );
       final data = response.data['data'] ?? response.data;
+      if (query.isEmpty) _captureServerCounts(response.data);
 
       List<dynamic> loaded = [];
       int serverTotal = 0;
@@ -1888,6 +1953,7 @@ class StudentScreenTimeController extends GetxController with WidgetsBindingObse
           queryParameters: {'limit': pageSize, 'offset': offset},
         );
         final data = response.data['data'] ?? response.data;
+        if (offset == 0) _captureServerCounts(response.data);
         final raw = data is List
             ? data
             : (data is Map ? (data['students'] ?? data['data']) : null);

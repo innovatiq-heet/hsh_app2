@@ -52,6 +52,7 @@ class StudentScreenTimeScreen extends GetView<StudentScreenTimeController> {
                   return false;
                 },
                 child: CustomScrollView(
+                  controller: controller.pageScrollController,
                   key: ValueKey(
                     selected != null
                         ? 'detail_${controller.studentId}'
@@ -1103,7 +1104,7 @@ class _ScreenTimeHeaderDelegate extends SliverPersistentHeaderDelegate {
   double get maxExtent {
     // The all-students header has no subtitle line, so it needs less height.
     return topPadding +
-        (controller.selectedStudent.value != null ? 176.0 : 140.0);
+        (controller.selectedStudent.value != null ? 176.0 : 108.0);
   }
 
   @override
@@ -1130,9 +1131,6 @@ class _ScreenTimeHeaderDelegate extends SliverPersistentHeaderDelegate {
       final isLoading = controller.isLoading.value;
       final isOnline = controller.isOnline.value;
       final isLocked = controller.isDeviceLocked.value;
-      final total = controller.directoryCount('All');
-      final online = controller.directoryCount('Online');
-      final locked = controller.directoryCount('Locked');
 
       // Refresh button with loading spinner
       Widget refreshButton() => Material(
@@ -1408,41 +1406,6 @@ class _ScreenTimeHeaderDelegate extends SliverPersistentHeaderDelegate {
                                                 : 'Unlocked',
                                           ),
                                         ],
-                                      ),
-                                    ] else ...[
-                                      const SizedBox(height: 8),
-                                      SingleChildScrollView(
-                                        scrollDirection: Axis.horizontal,
-                                        physics: const BouncingScrollPhysics(),
-                                        child: Row(
-                                          children: [
-                                            _headerPill(
-                                              icon: Icons.people_alt_rounded,
-                                              iconColor: const Color(
-                                                0xFF38BDF8,
-                                              ),
-                                              label: '$total Total Students',
-                                            ),
-                                            const SizedBox(width: 8),
-                                            _headerPill(
-                                              icon: Icons.circle_rounded,
-                                              iconColor: const Color(
-                                                0xFF34D399,
-                                              ),
-                                              label: '$online Online',
-                                            ),
-                                            if (locked > 0) ...[
-                                              const SizedBox(width: 8),
-                                              _headerPill(
-                                                icon: Icons.lock_rounded,
-                                                iconColor: const Color(
-                                                  0xFFF87171,
-                                                ),
-                                                label: '$locked Locked',
-                                              ),
-                                            ],
-                                          ],
-                                        ),
                                       ),
                                     ],
                                   ],

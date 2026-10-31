@@ -1,5 +1,6 @@
 import 'package:share_plus/share_plus.dart';
 import 'dart:async';
+import 'package:flutter/foundation.dart' show defaultTargetPlatform, TargetPlatform;
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:get/get.dart';
@@ -441,6 +442,16 @@ class PhonebookController extends GetxController {
   @visibleForTesting
   void rebuildAlphaIndex(List<PhonebookStudent> list) => _rebuildAlphaIndex(list);
 
+  /// Scrolls the list back to the top (bottom-bar Students tab tapped again).
+  void scrollToTop() {
+    if (!listScrollController.hasClients) return;
+    listScrollController.animateTo(
+      0,
+      duration: const Duration(milliseconds: 350),
+      curve: Curves.easeOutCubic,
+    );
+  }
+
   /// Scrolls the student list so the first student for [letter] (with its
   /// section header) sits just below the pinned header. Jumps while dragging
   /// the rail, animates on a tap.
@@ -524,6 +535,38 @@ class PhonebookController extends GetxController {
       await launchUrl(uri);
     } else {
       AppSnackbar.warning('Cannot Place Call', 'Dialer could not be opened for $phone');
+    }
+  }
+
+  /// Opens a new Gmail message to [email]: the Gmail iOS app when installed,
+  /// otherwise Gmail's compose link (which opens the Gmail app on Android and
+  /// the website if the app is missing), and finally any mail app.
+  Future<void> openEmail(String email) async {
+    final to = email.trim();
+    if (to.isEmpty) return;
+    final encoded = Uri.encodeComponent(to);
+    final attempts = <Uri>[
+      if (defaultTargetPlatform == TargetPlatform.iOS)
+        Uri.parse('googlegmail:///co?to=$encoded'),
+      Uri.parse('https://mail.google.com/mail/?view=cm&fs=1&to=$encoded'),
+      Uri(scheme: 'mailto', path: to),
+    ];
+    for (final uri in attempts) {
+      try {
+        if (await launchUrl(uri, mode: LaunchMode.externalApplication)) return;
+      } catch (_) {}
+    }
+    AppSnackbar.warning('Cannot Open Email', 'No email app could be opened for $to');
+  }
+
+  Future<void> sendSms(String phone) async {
+    final cleaned = phone.replaceAll(RegExp(r'[^\d+]'), '');
+    if (cleaned.isEmpty) return;
+    final uri = Uri.parse('sms:$cleaned');
+    if (await canLaunchUrl(uri)) {
+      await launchUrl(uri);
+    } else {
+      AppSnackbar.warning('Cannot Send Message', 'Messaging app could not be opened for $phone');
     }
   }
 

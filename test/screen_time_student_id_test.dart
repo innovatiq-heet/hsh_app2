@@ -308,6 +308,33 @@ void main() {
     expect(controller.filteredStudents.map((s) => s['name']).toList(), ['Beta', 'Delta']);
   });
 
+  test('directoryCount uses the counts from the students API, not the loaded page', () {
+    final controller = StudentScreenTimeController();
+    // Only one page of 2 students is loaded locally...
+    controller.allStudents.assignAll([
+      {'id': 1, 'name': 'Alpha', 'room': '101', 'isOnline': 1},
+      {'id': 2, 'name': 'Beta', 'room': '102', 'isOnline': 0},
+    ]);
+    // ...but the API reports the whole directory.
+    controller.captureServerCountsForTest({
+      'data': {
+        'students': [],
+        'total': 340,
+        'summary': {'online': 12, 'offline': 328, 'locked': 3, 'attention': 5},
+      },
+    });
+
+    expect(controller.directoryCount('All'), 340);
+    expect(controller.directoryCount('Online'), 12);
+    expect(controller.directoryCount('Offline'), 328);
+    expect(controller.directoryCount('Locked'), 3);
+    expect(controller.directoryCount('Attention'), 5);
+
+    // A search narrows the list, so local counts are used instead.
+    controller.searchText.value = 'alp';
+    expect(controller.directoryCount('Online'), 1);
+  });
+
   test('extractRecordDate normalizes ISO strings, spaces, and diverse date keys', () {
     expect(StudentScreenTimeController.extractRecordDate({'date': '2026-10-17'}), '2026-10-17');
     expect(StudentScreenTimeController.extractRecordDate({'usage_date': '2026-10-17 00:00:00'}), '2026-10-17');

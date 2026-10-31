@@ -190,6 +190,9 @@ class _OperatorHomeScreenState extends State<OperatorHomeScreen> {
         canPop: _currentNavIndex == 0,
         onPopInvokedWithResult: (didPop, result) {
           if (didPop) return;
+          // A student's screen time is open: Back closes it (handled by that
+          // screen) and returns to the list, not to Home.
+          if (_studentScreenTimeOpen) return;
           if (_currentNavIndex != 0) {
             setState(() => _currentNavIndex = 0);
           }
@@ -211,7 +214,32 @@ class _OperatorHomeScreenState extends State<OperatorHomeScreen> {
               const StudentScreenTimeScreen(showBackButton: false),
             ],
           ),
-          bottomNavigationBar: _OperatorBottomNavBar(
+          // Hidden while one student's screen time details are open on the
+          // Safety tab, so the details read as their own screen.
+          bottomNavigationBar: Obx(() {
+            final detailOpen = _studentScreenTimeOpen;
+            return AnimatedSize(
+              duration: const Duration(milliseconds: 200),
+              curve: Curves.easeOut,
+              alignment: Alignment.bottomCenter,
+              child: detailOpen ? const SizedBox(width: double.infinity) : _bottomBar(),
+            );
+          }),
+        ),
+      ),
+    );
+  }
+
+  /// True while the Safety tab shows one student's details (not the list).
+  /// Always reads the observable so [Obx] callers track it.
+  bool get _studentScreenTimeOpen {
+    final open = Get.isRegistered<StudentScreenTimeController>() &&
+        Get.find<StudentScreenTimeController>().selectedStudent.value != null;
+    return open && _currentNavIndex == 2;
+  }
+
+  Widget _bottomBar() {
+    return _OperatorBottomNavBar(
             currentIndex: _currentNavIndex,
             onTap: (index) {
               if (index == 3) {
@@ -230,9 +258,6 @@ class _OperatorHomeScreenState extends State<OperatorHomeScreen> {
                 setState(() => _currentNavIndex = index);
               }
             },
-          ),
-        ),
-      ),
     );
   }
 }

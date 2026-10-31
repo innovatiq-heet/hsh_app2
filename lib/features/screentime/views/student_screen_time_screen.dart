@@ -20,6 +20,17 @@ class StudentScreenTimeScreen extends GetView<StudentScreenTimeController> {
 
   @override
   Widget build(BuildContext context) {
+    // Opened as its own route (not the operator shell tab): apply the route's
+    // arguments (e.g. a student name from the phonebook) even when the
+    // controller already existed.
+    return _LaunchArguments(
+      enabled: showBackButton,
+      controller: controller,
+      child: _buildScreen(context),
+    );
+  }
+
+  Widget _buildScreen(BuildContext context) {
     return AnnotatedRegion<SystemUiOverlayStyle>(
       value: SystemUiOverlayStyle.light,
       child: Obx(() {
@@ -1083,6 +1094,57 @@ class StudentScreenTimeScreen extends GetView<StudentScreenTimeController> {
         return Icons.widgets_outlined;
     }
   }
+}
+
+/// Applies the route arguments to [controller] once the route is shown, and
+/// clears the name search again when the route is closed.
+class _LaunchArguments extends StatefulWidget {
+  final bool enabled;
+  final StudentScreenTimeController controller;
+  final Widget child;
+  const _LaunchArguments({
+    required this.enabled,
+    required this.controller,
+    required this.child,
+  });
+
+  @override
+  State<_LaunchArguments> createState() => _LaunchArgumentsState();
+}
+
+class _LaunchArgumentsState extends State<_LaunchArguments> {
+  bool _applied = false;
+
+  @override
+  void initState() {
+    super.initState();
+    if (!widget.enabled) return;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      _applied = Get.arguments is Map;
+      widget.controller.reapplyLaunchArguments();
+    });
+  }
+
+  @override
+  void dispose() {
+    if (_applied) {
+      final c = widget.controller;
+      Future.microtask(() {
+        if (c.openedWithDirectTarget.value) {
+          // Opened straight on one student: leave the shared controller on the
+          // list again for the Safety tab.
+          c.clearSelectedStudent();
+        } else if (c.selectedStudent.value == null) {
+          c.clearSearch();
+        }
+      });
+    }
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) => widget.child;
 }
 
 /// Collapsible shrinking deep navy header with luminous arcs, matching Phonebook header.

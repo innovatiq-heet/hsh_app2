@@ -8,6 +8,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'package:super_sliver_list/super_sliver_list.dart';
 import 'package:url_launcher/url_launcher.dart';
 import '../../../core/enums/user_role.dart';
+import '../../../core/network/api_client.dart';
 import '../../../core/storage/session_store.dart';
 import '../../../core/utils/app_snackbar.dart';
 import '../services/caller_id_service.dart';
@@ -525,6 +526,54 @@ class PhonebookController extends GetxController {
     } finally {
       isSyncing.value = false;
     }
+  }
+
+  static String _norm(dynamic v) =>
+      (v ?? '').toString().trim().toLowerCase().replaceAll(RegExp(r'\s+'), ' ');
+
+  static final _studentIdPattern = RegExp(r'^[1-9]\d*$');
+
+  /// The Screen Time `students.id` of a phonebook student, or null when it
+  /// can't be told for certain (the caller then opens Screen Time searched by
+  /// name instead).
+  ///
+  /// Phonebook records have no `students.id`, so the student is looked up in
+  /// Screen Time's own directory. A result counts only if its bank code is
+  /// the same as this student's bank code (code against code, never code
+  /// against id) AND its name or room also matches, and exactly one result
+  /// qualifies. The id sent on is the one that directory entry carries.
+  Future<String?> findScreenTimeStudentId(PhonebookStudent student) async {
+    final code = _norm(student.bankCode);
+    if (code.isEmpty) return null;
+    final name = _norm(student.name);
+    final room = _norm(student.room);
+    try {
+      final dio = Get.find<ApiClient>().dio;
+      for (final term in {student.name.trim(), student.bankCode!.trim()}) {
+        if (term.isEmpty) continue;
+        final res = await dio.get(
+          '/screen-time/students',
+          queryParameters: {'limit': 50, 'search': term},
+        );
+        var data = res.data is Map ? (res.data['data'] ?? res.data) : res.data;
+        if (data is Map) data = data['students'] ?? data['data'];
+        if (data is! List) continue;
+
+        final matches = data.whereType<Map>().where((e) {
+          final id = (e['id'] ?? '').toString().trim();
+          if (!_studentIdPattern.hasMatch(id)) return false;
+          if (_norm(e['bankCode'] ?? e['bank_code']) != code) return false;
+          final sameName = _norm(e['name'] ?? e['fullName']) == name;
+          final sameRoom = room.isNotEmpty &&
+              _norm(e['room'] ?? e['room_number'] ?? e['roomNumber']) == room;
+          return sameName || sameRoom;
+        }).toList();
+        if (matches.length == 1) return matches.first['id'].toString().trim();
+      }
+    } catch (e) {
+      debugPrint('[Phonebook] findScreenTimeStudentId failed: $e');
+    }
+    return null;
   }
 
   Future<void> makeCall(String phone) async {

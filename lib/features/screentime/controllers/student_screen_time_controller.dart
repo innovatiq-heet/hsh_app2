@@ -1333,8 +1333,27 @@ class StudentScreenTimeController extends GetxController with WidgetsBindingObse
   /// searched by name and the warden picks the student, so nothing is ever
   /// guessed from a bank code or name.
   void _checkInitialArguments() {
-    final args = Get.arguments;
-    if (args is! Map) return;
+    _launchArgsHandledOnInit = applyLaunchArguments(Get.arguments);
+  }
+
+  bool _launchArgsHandledOnInit = false;
+
+  /// Called by the Screen Time route once its screen is on show. When the
+  /// controller was just created, [_checkInitialArguments] already used the
+  /// arguments; when it already existed (the Safety tab of the operator shell
+  /// registers it first) the arguments would otherwise be ignored and the
+  /// screen would open on whatever it showed last.
+  void reapplyLaunchArguments() {
+    if (_launchArgsHandledOnInit) {
+      _launchArgsHandledOnInit = false;
+      return;
+    }
+    applyLaunchArguments(Get.arguments, refetch: true);
+  }
+
+  /// Returns true when [args] asked for something (a student or a search).
+  bool applyLaunchArguments(dynamic args, {bool refetch = false}) {
+    if (args is! Map) return false;
     final map = Map<String, dynamic>.from(args);
     final name = (map['name'] ?? map['fullName'] ?? '').toString().trim();
     final room = (map['room'] ?? '').toString().trim();
@@ -1347,13 +1366,25 @@ class StudentScreenTimeController extends GetxController with WidgetsBindingObse
         'name': name.isNotEmpty ? name : 'Student',
         'room': room.isNotEmpty ? room : 'N/A',
       });
-      return;
+      return true;
     }
 
     if (name.isNotEmpty) {
+      if (refetch) {
+        // Back to the directory (not a previously opened student), filtered.
+        selectedStudent.value = null;
+        openedWithDirectTarget.value = false;
+        _resetDetail();
+        directoryFilter.value = 'All';
+      }
       searchFilterController.text = name;
       searchText.value = name;
+      if (refetch) {
+        fetchStudentsList(search: name, silent: false, refresh: true);
+      }
+      return true;
     }
+    return false;
   }
 
   @override
@@ -1503,6 +1534,10 @@ class StudentScreenTimeController extends GetxController with WidgetsBindingObse
     return name.toString().trim().toLowerCase().replaceAll(RegExp(r'\s+'), ' ');
   }
 
+  @visibleForTesting
+  void mergeServerStudentsForTest(List<dynamic> loaded, {bool isRefresh = false}) =>
+      _mergeServerStudents(loaded, isRefresh: isRefresh);
+
   void _mergeServerStudents(List<dynamic> loaded, {bool isRefresh = false}) {
     if (isRefresh) {
       allStudents.clear();
@@ -1516,7 +1551,9 @@ class StudentScreenTimeController extends GetxController with WidgetsBindingObse
         final key = (name.isNotEmpty && room.isNotEmpty) ? '$room::$name' : name;
 
         if (idStr.isNotEmpty && seenIds.contains(idStr)) continue;
-        if (key.isNotEmpty && seenKeys.contains(key)) continue;
+        // Two students with different ids are different people even when
+        // their name and room look alike; only id-less rows dedupe by name.
+        if (idStr.isEmpty && key.isNotEmpty && seenKeys.contains(key)) continue;
 
         if (idStr.isNotEmpty) seenIds.add(idStr);
         if (key.isNotEmpty) seenKeys.add(key);
@@ -1543,9 +1580,15 @@ class StudentScreenTimeController extends GetxController with WidgetsBindingObse
         final existing = working[i];
         if (existing is! Map) continue;
         final existingId = existing['id']?.toString().trim() ?? '';
-        if (idStr.isNotEmpty && existingId.isNotEmpty && existingId == idStr) {
-          existingIndex = i;
-          break;
+        if (idStr.isNotEmpty && existingId.isNotEmpty) {
+          // Both have a real id: they are the same student only if the ids
+          // match. Never merge on name / phone / Aadhar / bank code, or the
+          // other student's id overwrites this one (903 became 931).
+          if (existingId == idStr) {
+            existingIndex = i;
+            break;
+          }
+          continue;
         }
 
         final existingName = _normalizeStudentName(existing['name'] ?? existing['fullName']);
@@ -2087,7 +2130,7 @@ class StudentScreenTimeController extends GetxController with WidgetsBindingObse
       final key = room.isNotEmpty && name.isNotEmpty ? '$room::$name' : name;
 
       if (id.isNotEmpty && seenIds.contains(id)) continue;
-      if (key.isNotEmpty && seen.contains(key)) continue;
+      if (id.isEmpty && key.isNotEmpty && seen.contains(key)) continue;
 
       if (id.isNotEmpty) seenIds.add(id);
       if (key.isNotEmpty) seen.add(key);

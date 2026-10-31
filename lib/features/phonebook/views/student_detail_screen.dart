@@ -96,19 +96,11 @@ class StudentDetailScreen extends StatelessWidget {
                     icon: Icons.ios_share_rounded,
                     onPressed: () => _c.shareStudent(student),
                   ),
-                  const SizedBox(height: AppDimens.gapSm),
-                  AppButton(
-                    label: 'View screen time',
-                    icon: Icons.timelapse_rounded,
-                    variant: AppButtonVariant.outline,
-                    onPressed: () => Get.toNamed(
-                      Routes.studentScreenTime,
-                      arguments: {
-                        'name': student.name,
-                        'room': student.room ?? '',
-                      },
-                    ),
-                  ),
+                  // Alumni have no hostel phone to monitor (Screen Time lists residents only).
+                  if (!student.isAlumni) ...[
+                    const SizedBox(height: AppDimens.gapSm),
+                    _ScreenTimeButton(student: student),
+                  ],
                 ],
               ),
             ),
@@ -948,6 +940,49 @@ class _DetailOrbPainter extends CustomPainter {
 
   @override
   bool shouldRepaint(covariant CustomPainter oldDelegate) => false;
+}
+
+/// "View screen time": resolves the student's Screen Time id first so that
+/// student's details open directly; when the id can't be told for certain it
+/// falls back to Screen Time's directory searched by name.
+class _ScreenTimeButton extends StatefulWidget {
+  final PhonebookStudent student;
+  const _ScreenTimeButton({required this.student});
+
+  @override
+  State<_ScreenTimeButton> createState() => _ScreenTimeButtonState();
+}
+
+class _ScreenTimeButtonState extends State<_ScreenTimeButton> {
+  bool _loading = false;
+
+  Future<void> _open() async {
+    if (_loading) return;
+    setState(() => _loading = true);
+    final student = widget.student;
+    final id = await Get.find<PhonebookController>().findScreenTimeStudentId(student);
+    if (!mounted) return;
+    setState(() => _loading = false);
+    Get.toNamed(
+      Routes.studentScreenTime,
+      arguments: {
+        'id': ?id,
+        'name': student.name,
+        'room': student.room ?? '',
+      },
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return AppButton(
+      label: 'View screen time',
+      icon: Icons.timelapse_rounded,
+      variant: AppButtonVariant.outline,
+      isLoading: _loading,
+      onPressed: _open,
+    );
+  }
 }
 
 /// A number / email on one line with a copy hint; tap copies it.

@@ -19,6 +19,11 @@ class PhonebookSyncService {
   static const _kLastSync = 'phonebook_last_sync';
   static const _kCachedCount = 'phonebook_cached_count';
 
+  /// Raw API record per student (keyed by `student_id`), kept in memory in
+  /// debug builds only so a tapped card can log exactly what the API sent.
+  /// Filled by the last sync of this session.
+  static final Map<String, Map<String, dynamic>> debugRawByStudentId = {};
+
   late final Dio _dio = _createDio();
 
   Dio _createDio() {
@@ -100,6 +105,7 @@ class PhonebookSyncService {
       final List rawList =
           decoded is List ? decoded : (decoded['data'] as List? ?? []);
 
+      if (kDebugMode) debugRawByStudentId.clear();
       final records = <Map<String, dynamic>>[];
       final uniqueStudents = <String>{};
       final nowIso = DateTime.now().toIso8601String();
@@ -208,6 +214,9 @@ class PhonebookSyncService {
             : (s['status']?.toString().replaceAll('-', ' ').toUpperCase() ?? 'ACTIVE');
         final email = s['email']?.toString();
         uniqueStudents.add(studentCode);
+        if (kDebugMode) {
+          debugRawByStudentId[studentCode] = Map<String, dynamic>.from(s);
+        }
 
         // Extract address only if genuinely provided (filter out fake/placeholder hostel text)
         final rawExternalAddr = (s['address'] ?? s['permanent_address'] ?? s['home_address'])?.toString().trim();

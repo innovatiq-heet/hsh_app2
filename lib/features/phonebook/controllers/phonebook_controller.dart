@@ -395,6 +395,16 @@ class PhonebookController extends GetxController {
       if (selectedSort.value == 'Name (A-Z)') {
         results.sort((a, b) => a.name.trim().toLowerCase().compareTo(b.name.trim().toLowerCase()));
       }
+      if (selectedSort.value.startsWith('Name')) {
+        // Residents (with a room) first, alumni after, each keeping name order.
+        // Partitioned (List.sort isn't stable) so the name order is kept.
+        final residents = results.where((st) => !st.isAlumni);
+        final alumni = results.where((st) => st.isAlumni);
+        final ordered = [...residents, ...alumni];
+        results
+          ..clear()
+          ..addAll(ordered);
+      }
       students.assignAll(results);
       _rebuildAlphaIndex(results);
     } catch (e) {

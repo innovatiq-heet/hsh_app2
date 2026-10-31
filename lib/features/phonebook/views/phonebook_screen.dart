@@ -1,3 +1,5 @@
+import 'dart:convert';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:get/get.dart';
@@ -9,6 +11,7 @@ import '../../shared/widgets/staggered_slide_fade.dart';
 import '../../shared/widgets/student_contact_card.dart';
 import '../controllers/phonebook_controller.dart';
 import '../models/phonebook_models.dart';
+import '../services/phonebook_sync_service.dart';
 import '../widgets/alpha_scroll_rail.dart';
 import '../widgets/caller_id_card.dart';
 
@@ -55,6 +58,16 @@ class PhonebookScreen extends GetView<PhonebookController> {
     BuildContext context,
     PhonebookStudent student,
   ) {
+    if (kDebugMode) {
+      // Debug builds only: the record exactly as the directory API sent it.
+      final raw = PhonebookSyncService.debugRawByStudentId[student.studentId];
+      debugPrint(
+        raw != null
+            ? '[Phonebook] API response for ${student.studentId}: ${const JsonEncoder.withIndent('  ').convert(raw)}'
+            : '[Phonebook] No API record in memory for ${student.studentId} '
+                '(loaded from the local cache; sync again to capture it)',
+      );
+    }
     final isAlumni = student.isAlumni;
     final gColor = isAlumni
         ? const Color(0xFF9333EA)

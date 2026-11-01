@@ -1,6 +1,6 @@
 # Student Phonebook & Caller ID
 
-> **Last updated:** 2026-10-06 · **Repo:** `hsh_app2` (Flutter, native Android, native iOS). The phonebook does not use `hsh_api`; it reads the AVD VVN directory API directly.
+> **Last updated:** 2026-11-01 · **Repo:** `hsh_app2` (Flutter, native Android, native iOS). The phonebook does not use `hsh_api`; it reads the AVD VVN directory API directly.
 >
 > iOS signing and Xcode setup for caller ID: [ios/CALLER_ID_SETUP.md](../ios/CALLER_ID_SETUP.md) (quick reference) and [ios/CALLER_ID_HANDOFF.md](../ios/CALLER_ID_HANDOFF.md) (full guide).
 
@@ -179,7 +179,8 @@ Operator home → **Student Phonebook** (`Routes.operatorDirectory`).
 - **Caller ID card:** see sections 6.1 and 7.
 - **Search bar** and **group chips** (All, Param, Pavitra, Pulkit, Paramanand).
 - **Student cards:** name, group, room, primary number, quick **Call** and **WhatsApp** buttons.
-- **Detail sheet** (tap a card): at most 85% of the screen tall. It closes with the **×** in its header, a tap on the dimmed strip above it, a downward drag on the handle or header (which never scroll; only the details below them do), or Back. It shows every number with copy, WhatsApp and call; email with copy; **View Individual Screen Time**, which opens `Routes.studentScreenTime` with `{name, room}` only. Phonebook records have no `students.id` (they come from the directory API), and Screen Time identifies students by that id alone, so it opens its directory searched by the student's name and the warden taps the right student. The bank code is never sent; the API would read `0768` as student #768.
+- **A-Z index rail** (Name A-Z sort, no search): two independent sections on the right edge, **Students** (blue) and **Alumni** (purple), each resting as its own small tab. Tapping a tab smoothly grows just that section into a strip of its letters while the other stays a tab (opening one folds the other); the open strip folds back after 3 seconds without a touch. On an open strip, slide a finger anywhere; the list jumps letter by letter with a haptic tick (`PhonebookController.railEntries`). Jumps are exact because `PrecalculateExtentsPolicy` measures every row in the background shortly after the list loads.
+- **Student details screen** (tap a card): a full screen with the navy header, a collapsible *Student contact* card (numbers + email, Call / WhatsApp / Message / Gmail), Hostel, Personal and Family cards, and family numbers (one card when father and mother share a number). **View screen time** (residents only; alumni don't have it) resolves the student's Screen Time `students.id` through Screen Time's own directory (bank code equal AND name or room equal, exactly one match) and opens that student directly; otherwise it opens Screen Time searched by name. A bank code is never sent as an id.
 - Call uses `tel:`; WhatsApp opens `https://wa.me/91XXXXXXXXXX` in the external app.
 
 ---
@@ -287,7 +288,7 @@ There is no tap-to-open on iOS (`consumeLaunchTarget` returns nil).
 
 ## 10. Known issues and limitations
 
-- **"View Individual Screen Time" needs one extra tap:** it opens the Screen Time directory searched by name rather than the student directly, because the phonebook has no `students.id`. (This replaced passing the bank code, which opened the wrong student: 1,186 of 1,204 local bank codes equal another student's id.)
+- **"View screen time" can still need one extra tap:** when the student can't be matched with certainty (no bank code, no unique match, or the API is unreachable) it opens the Screen Time directory searched by name instead of the student directly.
 - **Tap-to-open works on cold start only.** If the app is already running, tapping the card or notification brings it to the front but doesn't open the student; only the splash screen consumes the launch target.
 - **iOS card copy:** "Caller ID is on" says labels look like `HSH · Name · Room · Relation`, but labels have no `HSH ·` prefix (actual format in section 7).
 - **Notification permission:** `POST_NOTIFICATIONS` is never requested at runtime, so on Android 13+ the caller-ID notification may not appear; the popup card still works.

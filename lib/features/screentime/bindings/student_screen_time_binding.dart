@@ -1,9 +1,9 @@
 import 'package:get/get.dart';
-import '../controllers/student_screen_time_controller.dart';
+import '../controllers/screen_time_directory_controller.dart';
 
 class StudentScreenTimeBinding extends Bindings {
   @override
   void dependencies() {
-    Get.lazyPut<StudentScreenTimeController>(() => StudentScreenTimeController());
+    Get.lazyPut<ScreenTimeDirectoryController>(() => ScreenTimeDirectoryController());
   }
 }

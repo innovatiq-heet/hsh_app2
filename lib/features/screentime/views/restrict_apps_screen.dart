@@ -1,4 +1,4 @@
-import 'app_limit_sheet.dart';
+import '../widgets/app_limit_sheet.dart';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import '../../../core/constants/app_colors.dart';
@@ -6,27 +6,27 @@ import '../../../core/constants/app_dimens.dart';
 import '../../../core/constants/app_text_styles.dart';
 import '../../../core/utils/app_snackbar.dart';
 import '../../shared/widgets/app_button.dart';
-import '../controllers/student_screen_time_controller.dart';
-import 'app_brand_icon.dart';
-import '../../shared/widgets/sheet_scaffold.dart';
+import '../controllers/screen_time_utils.dart';
+import '../controllers/student_detail_controller.dart';
+import '../widgets/app_brand_icon.dart';
+import '../widgets/screen_time_page.dart';
 
-/// Bottom sheet to block apps: common presets as tappable tiles, the apps
-/// this student actually used today, and a custom package fallback.
-class RestrictAppSheet extends StatefulWidget {
-  const RestrictAppSheet({super.key});
+/// Block apps for one student, on their own screen: common presets as
+/// tappable tiles, the apps this student actually used today, and a custom
+/// package fallback.
+class RestrictAppsScreen extends StatefulWidget {
+  final StudentDetailController controller;
+  const RestrictAppsScreen({super.key, required this.controller});
 
-  static Future<void> show(BuildContext context) => Get.bottomSheet(
-        const RestrictAppSheet(),
-        isScrollControlled: true,
-        backgroundColor: Colors.transparent,
-      );
+  static Future<void> open(BuildContext context, StudentDetailController controller) =>
+      ScreenTimePage.push(context, RestrictAppsScreen(controller: controller));
 
   @override
-  State<RestrictAppSheet> createState() => _RestrictAppSheetState();
+  State<RestrictAppsScreen> createState() => _RestrictAppsScreenState();
 }
 
-class _RestrictAppSheetState extends State<RestrictAppSheet> {
-  final controller = Get.find<StudentScreenTimeController>();
+class _RestrictAppsScreenState extends State<RestrictAppsScreen> {
+  StudentDetailController get controller => widget.controller;
   final _pkgCtrl = TextEditingController();
   final _nameCtrl = TextEditingController();
   bool _showCustom = false;
@@ -40,14 +40,21 @@ class _RestrictAppSheetState extends State<RestrictAppSheet> {
 
   @override
   Widget build(BuildContext context) {
-    return SheetScaffold(
+    return ScreenTimePage(
       title: 'Restrict apps',
-      subtitle: 'Tap to block or allow. Long-press to set a daily time limit.',
+      subtitle: ScreenTimePage.studentLine(controller.selectedStudent.value),
+      body: Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
+        Text(
+          'Tap to block or allow. Long-press to set a daily time limit.',
+          style: AppTextStyles.bodySm.copyWith(color: AppColors.textSecondary),
+        ),
+        const SizedBox(height: AppDimens.gapLg),
         Obx(() {
           final blocked = controller.blockedPackages;
           // Apps seen on the device that aren't already in the presets.
-          final presetPkgs = StudentScreenTimeController.presetDistractingApps.map((p) => p['pkg']).toSet();
+          final presetPkgs = StudentDetailController.presetDistractingApps.map((p) => p['pkg']).toSet();
           final used = controller.currentDayRawApps
               .whereType<Map>()
               .map((a) => (
@@ -63,7 +70,7 @@ class _RestrictAppSheetState extends State<RestrictAppSheet> {
               Text('Common distractions', style: AppTextStyles.subtitle),
               const SizedBox(height: 10),
               _grid([
-                for (final p in StudentScreenTimeController.presetDistractingApps)
+                for (final p in StudentDetailController.presetDistractingApps)
                   _AppTile(
                     pkg: p['pkg']!,
                     name: p['name']!,
@@ -72,6 +79,7 @@ class _RestrictAppSheetState extends State<RestrictAppSheet> {
                     onTap: () => controller.toggleAppBlock(p['pkg']!, p['name']!, !blocked.contains(p['pkg'])),
                     onLongPress: () => AppLimitSheet.show(
                       context,
+                      controller: controller,
                       packageName: p['pkg']!,
                       appName: p['name']!,
                       currentLimit: controller.appLimits[p['pkg']!] ?? 0,
@@ -92,6 +100,7 @@ class _RestrictAppSheetState extends State<RestrictAppSheet> {
                       onTap: () => controller.toggleAppBlock(a.pkg, a.name, !blocked.contains(a.pkg)),
                       onLongPress: () => AppLimitSheet.show(
                         context,
+                        controller: controller,
                         packageName: a.pkg,
                         appName: a.name.isNotEmpty ? a.name : a.pkg.split('.').last,
                         currentLimit: controller.appLimits[a.pkg] ?? 0,
@@ -165,6 +174,7 @@ class _RestrictAppSheetState extends State<RestrictAppSheet> {
           ),
         ),
       ],
+      ),
     );
   }
 
@@ -239,7 +249,7 @@ class _AppTile extends StatelessWidget {
               Padding(
                 padding: const EdgeInsets.only(top: 2),
                 child: Text(
-                  '${StudentScreenTimeController.formatMinutes(limitMinutes)} limit',
+                  '${formatMinutes(limitMinutes)} limit',
                   style: AppTextStyles.caption.copyWith(
                     fontSize: 9,
                     color: AppColors.primary,

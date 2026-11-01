@@ -4,7 +4,8 @@ import '../../../core/constants/app_colors.dart';
 import '../../../core/constants/app_dimens.dart';
 import '../../../core/constants/app_text_styles.dart';
 import '../../shared/widgets/app_button.dart';
-import '../controllers/student_screen_time_controller.dart';
+import '../controllers/screen_time_utils.dart';
+import '../controllers/student_detail_controller.dart';
 import 'app_brand_icon.dart';
 import '../../shared/widgets/sheet_scaffold.dart';
 
@@ -15,8 +16,12 @@ class AppLimitSheet extends StatefulWidget {
   final int initialLimitMinutes;
   final int currentUsageMinutes;
 
+  /// The opened student's controller (the sheet is outside the page's widget tree).
+  final StudentDetailController controller;
+
   const AppLimitSheet({
     super.key,
+    required this.controller,
     required this.packageName,
     required this.appName,
     this.initialLimitMinutes = 0,
@@ -25,6 +30,7 @@ class AppLimitSheet extends StatefulWidget {
 
   static Future<void> show(
     BuildContext context, {
+    required StudentDetailController controller,
     required String packageName,
     required String appName,
     int currentLimit = 0,
@@ -32,6 +38,7 @@ class AppLimitSheet extends StatefulWidget {
   }) {
     return Get.bottomSheet(
       AppLimitSheet(
+        controller: controller,
         packageName: packageName,
         appName: appName,
         initialLimitMinutes: currentLimit,
@@ -49,7 +56,7 @@ class AppLimitSheet extends StatefulWidget {
 class _AppLimitSheetState extends State<AppLimitSheet> {
   static const _limitPresets = <int>[0, 15, 30, 45, 60, 90, 120, 180, 240];
 
-  final controller = Get.find<StudentScreenTimeController>();
+  StudentDetailController get controller => widget.controller;
   late int _selectedLimit = widget.initialLimitMinutes;
   late final TextEditingController _customCtrl = TextEditingController(
     text: _limitPresets.contains(_selectedLimit) || _selectedLimit == 0
@@ -114,7 +121,7 @@ class _AppLimitSheetState extends State<AppLimitSheet> {
                     ),
                     const SizedBox(height: 2),
                     Text(
-                      'Used today: ${used > 0 ? StudentScreenTimeController.formatMinutes(used) : "None"}',
+                      'Used today: ${used > 0 ? formatMinutes(used) : "None"}',
                       style: AppTextStyles.bodySm.copyWith(color: AppColors.textSecondary),
                     ),
                   ],
@@ -128,7 +135,7 @@ class _AppLimitSheetState extends State<AppLimitSheet> {
                     borderRadius: BorderRadius.circular(AppDimens.radiusPill),
                   ),
                   child: Text(
-                    'Active: ${StudentScreenTimeController.formatMinutes(widget.initialLimitMinutes)}',
+                    'Active: ${formatMinutes(widget.initialLimitMinutes)}',
                     style: AppTextStyles.caption.copyWith(
                       color: AppColors.primary,
                       fontWeight: FontWeight.w700,
@@ -150,7 +157,7 @@ class _AppLimitSheetState extends State<AppLimitSheet> {
           children: [
             for (final m in _limitPresets)
               ChoiceChip(
-                label: Text(m == 0 ? 'No limit' : StudentScreenTimeController.formatMinutes(m)),
+                label: Text(m == 0 ? 'No limit' : formatMinutes(m)),
                 selected: _selectedLimit == m,
                 onSelected: (_) => setState(() {
                   _selectedLimit = m;
@@ -231,8 +238,8 @@ class _AppLimitSheetState extends State<AppLimitSheet> {
                   _selectedLimit == 0
                       ? 'No daily time limit for ${widget.appName}. It can be used freely unless blocked or inside curfew.'
                       : (isExceeded
-                          ? 'Today\'s usage (${StudentScreenTimeController.formatMinutes(used)}) has already reached this limit. ${widget.appName} will be blocked immediately.'
-                          : 'Allowed for ${StudentScreenTimeController.formatMinutes(_selectedLimit)} per day. ${StudentScreenTimeController.formatMinutes(remaining)} left today before automatic block.'),
+                          ? 'Today\'s usage (${formatMinutes(used)}) has already reached this limit. ${widget.appName} will be blocked immediately.'
+                          : 'Allowed for ${formatMinutes(_selectedLimit)} per day. ${formatMinutes(remaining)} left today before automatic block.'),
                   style: AppTextStyles.caption.copyWith(
                     color: isExceeded
                         ? AppColors.cancelledRed

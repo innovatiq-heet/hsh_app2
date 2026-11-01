@@ -5,7 +5,8 @@ import '../../../core/models/geofence/geofence_policy_model.dart';
 import '../../shared/widgets/app_card.dart';
 import '../../shared/widgets/empty_state.dart';
 import '../../shared/widgets/skeleton_loader.dart';
-import '../controllers/student_screen_time_controller.dart';
+import '../controllers/screen_time_directory_controller.dart';
+import '../controllers/screen_time_utils.dart';
 import 'app_brand_icon.dart';
 import 'app_requests_banner.dart';
 
@@ -15,7 +16,7 @@ import 'app_requests_banner.dart';
 /// This is a sliver: the rows are built lazily by a [SliverList] inside the
 /// screen's own scroll view, so only the rows on screen exist however many
 /// students are loaded.
-class StudentDirectoryView extends GetView<StudentScreenTimeController> {
+class StudentDirectoryView extends GetView<ScreenTimeDirectoryController> {
   const StudentDirectoryView({super.key});
 
   @override
@@ -28,7 +29,7 @@ class StudentDirectoryView extends GetView<StudentScreenTimeController> {
             children: [
               const _GlobalCurfewBanner(),
               const SizedBox(height: AppDimens.gapMd),
-              const AppRequestsBanner(),
+              AppRequestsBanner(host: controller),
               _SummaryStrip(),
               const SizedBox(height: AppDimens.gapMd),
               _SearchField(),
@@ -172,7 +173,7 @@ class StudentDirectoryView extends GetView<StudentScreenTimeController> {
 }
 
 /// Four at-a-glance numbers across the whole hostel.
-class _SummaryStrip extends GetView<StudentScreenTimeController> {
+class _SummaryStrip extends GetView<ScreenTimeDirectoryController> {
   @override
   Widget build(BuildContext context) {
     return Obx(() {
@@ -301,7 +302,7 @@ class _SummaryStrip extends GetView<StudentScreenTimeController> {
   }
 }
 
-class _SearchField extends GetView<StudentScreenTimeController> {
+class _SearchField extends GetView<ScreenTimeDirectoryController> {
   @override
   Widget build(BuildContext context) {
     return Obx(() {
@@ -382,7 +383,7 @@ class _SearchField extends GetView<StudentScreenTimeController> {
   }
 }
 
-class _StudentRow extends GetView<StudentScreenTimeController> {
+class _StudentRow extends GetView<ScreenTimeDirectoryController> {
   final dynamic student;
   const _StudentRow({super.key, required this.student});
 
@@ -396,9 +397,9 @@ class _StudentRow extends GetView<StudentScreenTimeController> {
                 student['roomNumber'] ??
                 'N/A')
             .toString();
-    final isOnline = StudentScreenTimeController.isStudentOnline(student);
-    final isScreenOn = StudentScreenTimeController.isStudentScreenOn(student);
-    final totalMins = StudentScreenTimeController.toInt(
+    final isOnline = isStudentOnline(student);
+    final isScreenOn = isStudentScreenOn(student);
+    final totalMins = toInt(
       student['totalScreenTimeMinutes'] ??
           student['todayScreenTimeMinutes'] ??
           student['today_minutes'] ??
@@ -406,13 +407,13 @@ class _StudentRow extends GetView<StudentScreenTimeController> {
           student['minutes'] ??
           0,
     );
-    final nightMins = StudentScreenTimeController.toInt(
+    final nightMins = toInt(
       student['nightScreenTimeMinutes'],
     );
-    final locked = StudentScreenTimeController.isStudentLocked(student);
-    final restricted = StudentScreenTimeController.blockedOf(student).length;
-    final tampered = StudentScreenTimeController.isStudentTampered(student);
-    final lastSeen = StudentScreenTimeController.lastSeenOf(student);
+    final locked = isStudentLocked(student);
+    final restricted = blockedOf(student).length;
+    final tampered = isStudentTampered(student);
+    final lastSeen = lastSeenOf(student);
     final currentApp = (student['currentApp'] ?? '').toString();
     final currentPkg = (student['currentPackage'] ?? '').toString();
 
@@ -426,7 +427,7 @@ class _StudentRow extends GetView<StudentScreenTimeController> {
                     : 'Screen on')
               : 'Standby')
         : (lastSeen != null
-              ? 'Seen ${StudentScreenTimeController.relativeTime(lastSeen)}'
+              ? 'Seen ${relativeTime(lastSeen)}'
               : 'Offline');
 
     final initials = name.trim().isNotEmpty
@@ -621,7 +622,7 @@ class _StudentRow extends GetView<StudentScreenTimeController> {
                   crossAxisAlignment: CrossAxisAlignment.end,
                   children: [
                     Text(
-                      StudentScreenTimeController.formatMinutes(totalMins),
+                      formatMinutes(totalMins),
                       style: const TextStyle(
                         fontSize: 15,
                         fontWeight: FontWeight.w800,
@@ -708,7 +709,7 @@ class _Tag extends StatelessWidget {
 }
 
 /// Hostel-wide Curfew status & quick 1-tap global control banner for wardens.
-class _GlobalCurfewBanner extends GetView<StudentScreenTimeController> {
+class _GlobalCurfewBanner extends GetView<ScreenTimeDirectoryController> {
   const _GlobalCurfewBanner();
 
   @override
@@ -848,7 +849,7 @@ class _GlobalCurfewBanner extends GetView<StudentScreenTimeController> {
 
   void _showEditCurfewHours(
     BuildContext context,
-    StudentScreenTimeController controller,
+    ScreenTimeDirectoryController controller,
     GeofencePolicyModel policy,
   ) {
     TimeOfDay start = policy.startTime;

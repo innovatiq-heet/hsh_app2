@@ -5,12 +5,13 @@ import '../../../core/constants/app_colors.dart';
 import '../../../core/constants/app_dimens.dart';
 import '../../../core/constants/app_text_styles.dart';
 import '../../shared/widgets/animated_counter.dart';
-import '../controllers/student_screen_time_controller.dart';
+import '../controllers/screen_time_utils.dart';
+import 'student_detail_widget.dart';
 
 /// The headline number for the selected day, with the daily allowance and
 /// curfew usage shown against it so the warden sees "how much" *and* "vs what".
-class UsageHeroCard extends GetView<StudentScreenTimeController> {
-  const UsageHeroCard({super.key});
+class UsageHeroCard extends StudentDetailWidget {
+  const UsageHeroCard({super.key, required super.controller});
 
   @override
   Widget build(BuildContext context) {
@@ -84,7 +85,7 @@ class UsageHeroCard extends GetView<StudentScreenTimeController> {
                 children: [
                   Text('Daily allowance', style: AppTextStyles.caption.copyWith(color: Colors.white70)),
                   Text(
-                    '${StudentScreenTimeController.formatMinutes(total)} of ${StudentScreenTimeController.formatMinutes(limit)}',
+                    '${formatMinutes(total)} of ${formatMinutes(limit)}',
                     style: AppTextStyles.caption.copyWith(color: Colors.white, fontWeight: FontWeight.w700),
                   ),
                 ],
@@ -126,7 +127,7 @@ class UsageHeroCard extends GetView<StudentScreenTimeController> {
                     const SizedBox(width: 8),
                     Expanded(
                       child: Text(
-                        '${StudentScreenTimeController.formatMinutes(night)} used during curfew'
+                        '${formatMinutes(night)} used during curfew'
                         '${controller.bedtimeStart.value.isEmpty ? '' : ' (${controller.bedtimeStart.value}–${controller.bedtimeEnd.value})'}',
                         style: AppTextStyles.bodySm.copyWith(color: Colors.white),
                       ),

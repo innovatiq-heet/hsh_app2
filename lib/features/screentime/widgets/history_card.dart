@@ -5,12 +5,14 @@ import '../../../core/constants/app_colors.dart';
 import '../../../core/constants/app_dimens.dart';
 import '../../../core/constants/app_text_styles.dart';
 import '../../shared/widgets/app_card.dart';
-import '../controllers/student_screen_time_controller.dart';
+import '../controllers/student_detail_controller.dart';
+import '../controllers/screen_time_utils.dart';
 
 /// Past days as a compact list; tapping one switches the whole page to it.
 /// Collapsed to the most recent week by default.
 class HistoryCard extends StatefulWidget {
-  const HistoryCard({super.key});
+  final StudentDetailController controller;
+  const HistoryCard({super.key, required this.controller});
 
   @override
   State<HistoryCard> createState() => _HistoryCardState();
@@ -18,7 +20,7 @@ class HistoryCard extends StatefulWidget {
 
 class _HistoryCardState extends State<HistoryCard> {
   static const _collapsedCount = 7;
-  final controller = Get.find<StudentScreenTimeController>();
+  StudentDetailController get controller => widget.controller;
   bool _expanded = false;
 
   @override
@@ -59,13 +61,13 @@ class _HistoryCardState extends State<HistoryCard> {
   }
 
   Widget _row(dynamic rec, int maxMins, DateFormat fmt) {
-    final dayIso = StudentScreenTimeController.extractRecordDate(rec);
+    final dayIso = extractRecordDate(rec);
     String label = dayIso;
     try {
       label = fmt.format(DateTime.parse(dayIso));
     } catch (_) {}
     final mins = _mins(rec);
-    final night = StudentScreenTimeController.toInt(
+    final night = toInt(
       rec['night_screen_time_minutes'] ??
           rec['nightScreenTimeMinutes'] ??
           rec['nightMinutes'] ??
@@ -124,7 +126,7 @@ class _HistoryCardState extends State<HistoryCard> {
             SizedBox(
               width: 52,
               child: Text(
-                StudentScreenTimeController.formatMinutes(mins),
+                formatMinutes(mins),
                 textAlign: TextAlign.right,
                 style: AppTextStyles.bodySm.copyWith(fontWeight: FontWeight.w700, color: AppColors.textPrimary),
               ),
@@ -143,7 +145,7 @@ class _HistoryCardState extends State<HistoryCard> {
 
   static int _mins(dynamic rec) {
     if (rec is! Map) return 0;
-    final direct = StudentScreenTimeController.toInt(
+    final direct = toInt(
       rec['total_screen_time_minutes'] ??
           rec['totalScreenTimeMinutes'] ??
           rec['total_minutes'] ??
@@ -152,12 +154,12 @@ class _HistoryCardState extends State<HistoryCard> {
           rec['minutes'],
     );
     if (direct > 0) return direct;
-    final apps = StudentScreenTimeController.extractAppsListStatic(rec);
+    final apps = extractAppsListStatic(rec);
     if (apps.isNotEmpty) {
       return apps.fold<int>(0, (sum, a) {
         if (a is Map) {
           return sum +
-              StudentScreenTimeController.toInt(
+              toInt(
                 a['minutes'] ??
                     a['total_minutes'] ??
                     a['totalMinutes'] ??

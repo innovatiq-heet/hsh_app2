@@ -5,7 +5,9 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:get/get.dart' hide Response;
 import 'package:hsh_app2/core/network/api_client.dart';
 import 'package:hsh_app2/core/storage/session_store.dart';
-import 'package:hsh_app2/features/screentime/controllers/student_screen_time_controller.dart';
+import 'package:hsh_app2/features/screentime/controllers/screen_time_directory_controller.dart';
+import 'package:hsh_app2/features/screentime/controllers/screen_time_utils.dart';
+import 'package:hsh_app2/features/screentime/controllers/student_detail_controller.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 /// Regression tests for "View Individual Screen Time" opening the wrong
@@ -91,9 +93,9 @@ void main() {
     fail('Timed out waiting for: $reason\nRequests: ${paths().toList()}');
   }
 
-  Future<StudentScreenTimeController> open(Map<String, dynamic>? args) async {
+  Future<ScreenTimeDirectoryController> open(Map<String, dynamic>? args) async {
     Get.routing.args = args;
-    final controller = Get.put(StudentScreenTimeController());
+    final controller = Get.put(ScreenTimeDirectoryController());
     await until(() => requests.any((r) => r.path == '/screen-time/students'), reason: 'directory request');
     return controller;
   }
@@ -124,7 +126,8 @@ void main() {
   });
 
   tearDown(() {
-    if (Get.isRegistered<StudentScreenTimeController>()) Get.delete<StudentScreenTimeController>(force: true);
+    if (Get.isRegistered<ScreenTimeDirectoryController>()) Get.delete<ScreenTimeDirectoryController>(force: true);
+    if (Get.isRegistered<StudentDetailController>(tag: '$studentId')) Get.delete<StudentDetailController>(tag: '$studentId', force: true);
     Get.reset();
     Get.routing.args = null;
   });
@@ -189,7 +192,8 @@ void main() {
   });
 
   test('setting app time limit sends student id and daily_limit_minutes', () async {
-    final controller = await open({'id': studentId, 'name': 'Asha Patel'});
+    final directory = await open({'id': studentId, 'name': 'Asha Patel'});
+    final controller = directory.detail.value!;
     await controller.setAppLimit('com.instagram.android', 'Instagram', 45);
 
     final ruleReq = requests.firstWhere((r) => r.path == '/screen-time/apps/rule');
@@ -248,15 +252,15 @@ void main() {
   });
 
   test('toBool coercions handle MySQL 1/0, bool, and string correctly', () {
-    expect(StudentScreenTimeController.toBool(true), isTrue);
-    expect(StudentScreenTimeController.toBool(false), isFalse);
-    expect(StudentScreenTimeController.toBool(1), isTrue);
-    expect(StudentScreenTimeController.toBool(0), isFalse);
-    expect(StudentScreenTimeController.toBool('1'), isTrue);
-    expect(StudentScreenTimeController.toBool('0'), isFalse);
-    expect(StudentScreenTimeController.toBool('true'), isTrue);
-    expect(StudentScreenTimeController.toBool('false'), isFalse);
-    expect(StudentScreenTimeController.toBool(null), isFalse);
+    expect(toBool(true), isTrue);
+    expect(toBool(false), isFalse);
+    expect(toBool(1), isTrue);
+    expect(toBool(0), isFalse);
+    expect(toBool('1'), isTrue);
+    expect(toBool('0'), isFalse);
+    expect(toBool('true'), isTrue);
+    expect(toBool('false'), isFalse);
+    expect(toBool(null), isFalse);
   });
 
   test('isStudentOnline and isStudentOffline work with MySQL integers and fallback', () {
@@ -272,23 +276,23 @@ void main() {
       'last_seen': DateTime.now().subtract(const Duration(minutes: 15)).toIso8601String(),
     };
 
-    expect(StudentScreenTimeController.isStudentOnline(sOnlineInt), isTrue);
-    expect(StudentScreenTimeController.isStudentOffline(sOnlineInt), isFalse);
-    expect(StudentScreenTimeController.isStudentScreenOn(sOnlineInt), isTrue);
+    expect(isStudentOnline(sOnlineInt), isTrue);
+    expect(isStudentOffline(sOnlineInt), isFalse);
+    expect(isStudentScreenOn(sOnlineInt), isTrue);
 
-    expect(StudentScreenTimeController.isStudentOnline(sOfflineInt), isFalse);
-    expect(StudentScreenTimeController.isStudentOffline(sOfflineInt), isTrue);
-    expect(StudentScreenTimeController.isStudentScreenOn(sOfflineInt), isFalse);
+    expect(isStudentOnline(sOfflineInt), isFalse);
+    expect(isStudentOffline(sOfflineInt), isTrue);
+    expect(isStudentScreenOn(sOfflineInt), isFalse);
 
-    expect(StudentScreenTimeController.isStudentOnline(sOnlineBool), isTrue);
-    expect(StudentScreenTimeController.isStudentScreenOn(sOnlineBool), isFalse);
+    expect(isStudentOnline(sOnlineBool), isTrue);
+    expect(isStudentScreenOn(sOnlineBool), isFalse);
 
-    expect(StudentScreenTimeController.isStudentOnline(sRecentSeen), isTrue);
-    expect(StudentScreenTimeController.isStudentOnline(sOldSeen), isFalse);
+    expect(isStudentOnline(sRecentSeen), isTrue);
+    expect(isStudentOnline(sOldSeen), isFalse);
   });
 
-  test('StudentScreenTimeController directoryCount and directoryFilter handle Online and Offline correctly', () {
-    final controller = StudentScreenTimeController();
+  test('ScreenTimeDirectoryController directoryCount and directoryFilter handle Online and Offline correctly', () {
+    final controller = ScreenTimeDirectoryController();
     controller.allStudents.assignAll([
       {'id': 1, 'name': 'Alpha', 'room': '101', 'isOnline': 1},
       {'id': 2, 'name': 'Beta', 'room': '102', 'isOnline': 0},
@@ -309,7 +313,7 @@ void main() {
   });
 
   test('directoryCount uses the counts from the students API, not the loaded page', () {
-    final controller = StudentScreenTimeController();
+    final controller = ScreenTimeDirectoryController();
     // Only one page of 2 students is loaded locally...
     controller.allStudents.assignAll([
       {'id': 1, 'name': 'Alpha', 'room': '101', 'isOnline': 1},
@@ -336,7 +340,7 @@ void main() {
   });
 
   test('Offline tile is total minus online while only some pages are loaded', () {
-    final controller = StudentScreenTimeController();
+    final controller = ScreenTimeDirectoryController();
     controller.allStudents.assignAll([
       {'id': 1, 'name': 'Alpha', 'room': '101', 'isOnline': 1},
       {'id': 2, 'name': 'Beta', 'room': '102', 'isOnline': 0},
@@ -354,14 +358,14 @@ void main() {
   });
 
   test('extractRecordDate normalizes ISO strings, spaces, and diverse date keys', () {
-    expect(StudentScreenTimeController.extractRecordDate({'date': '2026-10-17'}), '2026-10-17');
-    expect(StudentScreenTimeController.extractRecordDate({'usage_date': '2026-10-17 00:00:00'}), '2026-10-17');
-    expect(StudentScreenTimeController.extractRecordDate({'created_at': '2026-10-17T08:30:00.000Z'}), '2026-10-17');
-    expect(StudentScreenTimeController.extractRecordDate('2026-10-17 14:22:00'), '2026-10-17');
+    expect(extractRecordDate({'date': '2026-10-17'}), '2026-10-17');
+    expect(extractRecordDate({'usage_date': '2026-10-17 00:00:00'}), '2026-10-17');
+    expect(extractRecordDate({'created_at': '2026-10-17T08:30:00.000Z'}), '2026-10-17');
+    expect(extractRecordDate('2026-10-17 14:22:00'), '2026-10-17');
   });
 
   test('date-wise screen time and app usage resolves previous day from history records', () {
-    final controller = StudentScreenTimeController();
+    final controller = StudentDetailController(<String, dynamic>{});
     controller.totalMinutesToday.value = 45;
     controller.historyRecords.assignAll([
       {

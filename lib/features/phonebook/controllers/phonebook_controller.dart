@@ -15,6 +15,7 @@ import '../services/caller_id_service.dart';
 import '../models/phonebook_models.dart';
 import '../services/phonebook_database_service.dart';
 import '../services/phonebook_sync_service.dart';
+import '../widgets/alpha_scroll_rail.dart' show RailEntry;
 
 class PhonebookController extends GetxController {
   final searchController = TextEditingController();
@@ -37,17 +38,30 @@ class PhonebookController extends GetxController {
   /// Same map for alumni, who are listed after all residents.
   final alumniAlphaIndex = <String, int>{}.obs;
 
-  /// Every letter the rail lists: students' letters, plus alumni-only ones.
-  /// The value is where a plain jump lands (students first).
-  Map<String, int> get railLetters => {...alumniAlphaIndex, ...alphaIndex};
+  /// The index rail's letters: student letters first (A-Z, '#' last), then
+  /// alumni letters in the same order.
+  List<RailEntry> get railEntries {
+    int order(String a, String b) {
+      if (a == '#') return 1;
+      if (b == '#') return -1;
+      return a.compareTo(b);
+    }
 
-  /// True when [letter] has both students and alumni, so the rail asks which.
-  bool letterInBothGroups(String letter) =>
-      alphaIndex.containsKey(letter) && alumniAlphaIndex.containsKey(letter);
+    final students = alphaIndex.keys.toList()..sort(order);
+    final alumni = alumniAlphaIndex.keys.toList()..sort(order);
+    return [
+      for (final l in students) RailEntry(l),
+      for (final l in alumni) RailEntry(l, alumni: true),
+    ];
+  }
 
   /// Drives the student SuperSliverList. It jumps straight to an item without
   /// building every card in between, which is what makes the A-Z rail smooth.
   final listController = ListController();
+
+  /// Measures every row in the background once the list has settled, so the
+  /// rail's jumps land on exactly the right row instead of an estimate.
+  final extentPolicy = PrecalculateExtentsPolicy();
 
   /// Section letter for a name: its uppercase first letter, or '#' for anything else.
   static String letterOf(String name) {
@@ -420,6 +434,11 @@ class PhonebookController extends GetxController {
       }
       students.assignAll(results);
       _rebuildAlphaIndex(results);
+      // Once the list has settled, measure the rows in the background so rail
+      // jumps are exact. Not at startup, so the first paint stays fast.
+      Future.delayed(const Duration(milliseconds: 600), () {
+        extentPolicy.enabled = true;
+      });
     } catch (e) {
       AppSnackbar.error('Search error', e.toString());
     } finally {
@@ -453,37 +472,18 @@ class PhonebookController extends GetxController {
     );
   }
 
-  /// Scrolls the student list so the first student for [letter] (with its
-  /// section header) sits just below the pinned header. Jumps while dragging
-  /// the rail, animates on a tap.
+  /// Jumps the list to the first student (or alumni) of a rail letter.
   ///
-  /// [alumni] picks the alumni occurrence of a letter that exists in both
-  /// groups; by default the student one is used.
-  void scrollToLetter(String letter,
-      {bool isDragging = false, bool alumni = false, bool chosen = false}) {
-    // A plain tap on a letter that exists in both groups only opens the
-    // Students/Alumni menu; moving now would scroll twice (tap, then choice).
-    if (!chosen && !isDragging && letterInBothGroups(letter)) return;
-    final index = alumni ? alumniAlphaIndex[letter] : railLetters[letter];
+  /// Always a jump, never an animation: the rail is dragged letter by letter,
+  /// and with row extents precalculated ([extentPolicy]) the jump lands exactly.
+  void scrollToRailEntry(RailEntry entry) {
+    final index = entry.alumni ? alumniAlphaIndex[entry.letter] : alphaIndex[entry.letter];
     if (index == null || !listController.isAttached || !listScrollController.hasClients) return;
-
-    // A picked group can be far away: jump instead of animating across the
-    // whole list, which stutters while row heights are still estimated.
-    if (isDragging || chosen) {
-      listController.jumpToItem(
-        index: index,
-        scrollController: listScrollController,
-        alignment: 0,
-      );
-    } else {
-      listController.animateToItem(
-        index: index,
-        scrollController: listScrollController,
-        alignment: 0,
-        duration: (_) => const Duration(milliseconds: 280),
-        curve: (_) => Curves.easeOutCubic,
-      );
-    }
+    listController.jumpToItem(
+      index: index,
+      scrollController: listScrollController,
+      alignment: 0,
+    );
   }
 
   Future<void> syncNow({bool silent = false}) async {
@@ -729,3 +729,18 @@ class PhonebookController extends GetxController {
 
 }
 
+/// Lets a [SuperSliverList] measure all of its rows in the background once
+/// [enabled], so scroll offsets (and the index rail's jumps) are exact.
+class PrecalculateExtentsPolicy extends ExtentPrecalculationPolicy {
+  bool _enabled = false;
+
+  set enabled(bool value) {
+    if (value == _enabled) return;
+    _enabled = value;
+    valueDidChange();
+  }
+
+  @override
+  bool shouldPrecalculateExtents(ExtentPrecalculationContext context) =>
+      _enabled && context.numberOfItemsWithEstimatedExtent > 0;
+}

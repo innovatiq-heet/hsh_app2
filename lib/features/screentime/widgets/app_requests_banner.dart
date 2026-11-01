@@ -4,19 +4,20 @@ import '../../../core/constants/app_colors.dart';
 import '../../../core/constants/app_dimens.dart';
 import '../../../core/constants/app_text_styles.dart';
 import '../../shared/widgets/app_card.dart';
-import '../controllers/student_screen_time_controller.dart';
+import '../controllers/app_requests_host.dart';
 import 'app_brand_icon.dart';
 
 /// Displays pending app installation requests from students.
 /// Wardens can approve or reject each request directly from here.
-class AppRequestsBanner extends GetView<StudentScreenTimeController> {
+class AppRequestsBanner extends StatelessWidget {
+  final AppRequestsHost host;
   final bool compact;
-  const AppRequestsBanner({super.key, this.compact = false});
+  const AppRequestsBanner({super.key, required this.host, this.compact = false});
 
   @override
   Widget build(BuildContext context) {
     return Obx(() {
-      final requests = controller.pendingAppRequests;
+      final requests = host.pendingAppRequests;
       if (requests.isEmpty) return const SizedBox.shrink();
 
       return Container(
@@ -140,7 +141,7 @@ class AppRequestsBanner extends GetView<StudentScreenTimeController> {
                       const SizedBox(width: 8),
                       // Reject Button
                       IconButton(
-                        onPressed: () => controller.reviewAppRequest(id, 'reject'),
+                        onPressed: () => host.reviewAppRequest(id, 'reject'),
                         tooltip: 'Reject',
                         icon: const Icon(Icons.close_rounded, color: AppColors.errorRed, size: 20),
                         style: IconButton.styleFrom(
@@ -152,7 +153,7 @@ class AppRequestsBanner extends GetView<StudentScreenTimeController> {
                       const SizedBox(width: 8),
                       // Approve Button with 15-Minute Window
                       FilledButton.icon(
-                        onPressed: () => controller.reviewAppRequest(id, 'approve', durationMinutes: 15),
+                        onPressed: () => host.reviewAppRequest(id, 'approve', durationMinutes: 15),
                         icon: const Icon(Icons.check_rounded, size: 16),
                         label: const Text('Allow (15m)'),
                         style: FilledButton.styleFrom(

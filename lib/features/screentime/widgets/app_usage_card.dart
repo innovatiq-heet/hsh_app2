@@ -6,13 +6,14 @@ import '../../../core/constants/app_dimens.dart';
 import '../../../core/constants/app_text_styles.dart';
 import '../../shared/widgets/app_card.dart';
 import '../../shared/widgets/empty_state.dart';
-import '../controllers/student_screen_time_controller.dart';
+import '../controllers/screen_time_utils.dart';
+import 'student_detail_widget.dart';
 import 'app_brand_icon.dart';
-import 'restrict_app_sheet.dart';
+import '../views/restrict_apps_screen.dart';
 
 /// Per-app usage for the selected day, with a block/allow toggle on each row.
-class AppUsageCard extends GetView<StudentScreenTimeController> {
-  const AppUsageCard({super.key});
+class AppUsageCard extends StudentDetailWidget {
+  const AppUsageCard({super.key, required super.controller});
 
   @override
   Widget build(BuildContext context) {
@@ -45,7 +46,7 @@ class AppUsageCard extends GetView<StudentScreenTimeController> {
                   ),
                 ),
                 TextButton.icon(
-                  onPressed: () => RestrictAppSheet.show(context),
+                  onPressed: () => RestrictAppsScreen.open(context, controller),
                   icon: const Icon(Icons.add_moderator_rounded, size: 18),
                   label: const Text('Restrict'),
                   style: TextButton.styleFrom(foregroundColor: AppColors.cancelledRed),
@@ -146,7 +147,7 @@ class AppUsageCard extends GetView<StudentScreenTimeController> {
                     : (isToday
                         ? 'Usage appears once the phone reports in (every ~5 minutes).'
                         : (total > 0
-                            ? 'Daily total is ${StudentScreenTimeController.formatMinutes(total)}. Individual app breakdown is logged live during each day.'
+                            ? 'Daily total is ${formatMinutes(total)}. Individual app breakdown is logged live during each day.'
                             : 'No usage was logged on this day.')),
               )
             else
@@ -155,7 +156,7 @@ class AppUsageCard extends GetView<StudentScreenTimeController> {
                 physics: const NeverScrollableScrollPhysics(),
                 itemCount: list.length,
                 separatorBuilder: (_, _) => const SizedBox(height: 6),
-                itemBuilder: (_, i) => _AppRow(item: list[i], dayTotal: total),
+                itemBuilder: (_, i) => _AppRow(item: list[i], dayTotal: total, controller: controller),
               ),
           ],
         ),
@@ -164,16 +165,16 @@ class AppUsageCard extends GetView<StudentScreenTimeController> {
   }
 }
 
-class _AppRow extends GetView<StudentScreenTimeController> {
+class _AppRow extends StudentDetailWidget {
   final Map<String, dynamic> item;
   final int dayTotal;
-  const _AppRow({required this.item, required this.dayTotal});
+  const _AppRow({required this.item, required this.dayTotal, required super.controller});
 
   @override
   Widget build(BuildContext context) {
     final pkg = (item['packageName'] ?? '').toString();
     final name = (item['appName'] ?? pkg).toString();
-    final mins = StudentScreenTimeController.extractAppMinutes(item);
+    final mins = extractAppMinutes(item);
     final blocked = item['isBlocked'] == true;
     final limit = (item['dailyLimitMinutes'] as int?) ?? controller.appLimits[pkg] ?? 0;
     final isLimitReached = limit > 0 && mins >= limit;
@@ -184,6 +185,7 @@ class _AppRow extends GetView<StudentScreenTimeController> {
     return InkWell(
       onTap: () => AppLimitSheet.show(
         context,
+        controller: controller,
         packageName: pkg,
         appName: name,
         currentLimit: limit,
@@ -222,7 +224,7 @@ class _AppRow extends GetView<StudentScreenTimeController> {
                       const SizedBox(width: 8),
                       Text(
                         mins > 0
-                            ? StudentScreenTimeController.formatMinutes(mins)
+                            ? formatMinutes(mins)
                             : (blocked ? 'Blocked' : '0m'),
                         style: AppTextStyles.bodySm.copyWith(
                           fontWeight: FontWeight.w700,
@@ -254,8 +256,8 @@ class _AppRow extends GetView<StudentScreenTimeController> {
                           const SizedBox(width: 3),
                           Text(
                             isLimitReached
-                                ? '${StudentScreenTimeController.formatMinutes(limit)} limit reached'
-                                : '${StudentScreenTimeController.formatMinutes(limit)} limit',
+                                ? '${formatMinutes(limit)} limit reached'
+                                : '${formatMinutes(limit)} limit',
                             style: AppTextStyles.caption.copyWith(
                               fontSize: 10,
                               fontWeight: FontWeight.w700,
@@ -290,7 +292,7 @@ class _AppRow extends GetView<StudentScreenTimeController> {
             const SizedBox(width: 4),
             Tooltip(
               message: limit > 0
-                  ? 'Edit time limit (${StudentScreenTimeController.formatMinutes(limit)})'
+                  ? 'Edit time limit (${formatMinutes(limit)})'
                   : 'Set time limit',
               child: IconButton(
                 icon: Icon(
@@ -300,6 +302,7 @@ class _AppRow extends GetView<StudentScreenTimeController> {
                 ),
                 onPressed: () => AppLimitSheet.show(
                   context,
+                  controller: controller,
                   packageName: pkg,
                   appName: name,
                   currentLimit: limit,

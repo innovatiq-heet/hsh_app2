@@ -44,9 +44,12 @@ class ComplainOrdersController extends GetxController with LoadStateMixin {
     super.onClose();
   }
 
+  /// The filter offers only the categories this solver works on (the API
+  /// returns only their complaints anyway).
   Future<void> _loadCategories() async {
     try {
-      categories.assignAll(await _repository.categories());
+      final all = await _repository.categories();
+      categories.assignAll(ComplaintCategory.limitTo(all, await _repository.assignedCategoryIds()));
     } catch (_) {
       // The category filter is optional; the queue still works without it.
     }

@@ -1721,8 +1721,6 @@ class AdminBirthdayScreen extends GetView<AdminBirthdayController> {
     BuildContext context,
     BirthdayDashboardData? data,
   ) {
-    final logs = data?.recentLogs ?? [];
-
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
@@ -1851,7 +1849,7 @@ class AdminBirthdayScreen extends GetView<AdminBirthdayController> {
         const SizedBox(height: 22),
 
         // Recent Logs Card
-        _buildSectionHeader(title: 'Recent Dispatch Logs (${logs.length})'),
+        Obx(() => _buildSectionHeader(title: 'Recent Dispatch Logs (${controller.allLogs.length})')),
         const SizedBox(height: 10),
 
         Container(
@@ -1868,68 +1866,75 @@ class AdminBirthdayScreen extends GetView<AdminBirthdayController> {
               ),
             ],
           ),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              if (logs.isEmpty)
-                const Padding(
-                  padding: EdgeInsets.symmetric(vertical: 24),
-                  child: Center(
-                    child: Text(
-                      'No delivery logs yet.',
-                      style: TextStyle(color: Color(0xFF94A3B8), fontSize: 13),
-                    ),
-                  ),
-                )
-              else
-                _buildLogsByDate(logs),
-            ],
-          ),
+          child: _buildLogsByDate(context),
         ),
       ],
     );
   }
 
-  /// Dispatch logs under date headers, with a date filter row on top.
-  Widget _buildLogsByDate(List<BirthdayLogModel> logs) {
-    final groups = AdminBirthdayController.groupLogsByDate(logs);
+  /// Dispatch logs under date headers, with a date filter row on top. The
+  /// "Pick a day" chip loads an earlier day's logs, which the dashboard doesn't carry.
+  Widget _buildLogsByDate(BuildContext context) {
     return Obx(() {
+      final logs = controller.allLogs;
+      final groups = AdminBirthdayController.groupLogsByDate(logs);
       var selected = controller.logDateFilter.value;
-      // Forget a filter whose date is no longer in the logs.
-      if (selected != null && !groups.any((g) => g.date == selected)) {
+      // Forget a filter whose date is no longer in the logs; a day loaded on demand stays, even if empty.
+      if (selected != null &&
+          !controller.loadedLogDates.contains(selected) &&
+          !groups.any((g) => g.date == selected)) {
         selected = null;
       }
       final visible = selected == null
           ? groups
           : groups.where((g) => g.date == selected).toList();
+      final emptyDay = selected != null && visible.isEmpty ? selected : null;
 
       return Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          if (groups.length > 1) ...[
-            SingleChildScrollView(
-              scrollDirection: Axis.horizontal,
-              physics: const BouncingScrollPhysics(),
-              child: Row(
-                children: [
+          SingleChildScrollView(
+            scrollDirection: Axis.horizontal,
+            physics: const BouncingScrollPhysics(),
+            child: Row(
+              children: [
+                _logDayPickerChip(context, selected),
+                _logDateChip(
+                  label: 'All dates',
+                  count: logs.length,
+                  isSelected: selected == null,
+                  date: null,
+                ),
+                if (emptyDay != null)
                   _logDateChip(
-                    label: 'All dates',
-                    count: logs.length,
-                    isSelected: selected == null,
-                    date: null,
+                    label: AdminBirthdayController.logDateChipLabel(emptyDay),
+                    count: 0,
+                    isSelected: true,
+                    date: emptyDay,
                   ),
-                  for (final g in groups)
-                    _logDateChip(
-                      label: AdminBirthdayController.logDateChipLabel(g.date),
-                      count: g.logs.length,
-                      isSelected: selected == g.date,
-                      date: g.date,
-                    ),
-                ],
+                for (final g in groups)
+                  _logDateChip(
+                    label: AdminBirthdayController.logDateChipLabel(g.date),
+                    count: g.logs.length,
+                    isSelected: selected == g.date,
+                    date: g.date,
+                  ),
+              ],
+            ),
+          ),
+          const SizedBox(height: 12),
+          if ((logs.isEmpty && selected == null) || emptyDay != null)
+            Padding(
+              padding: const EdgeInsets.symmetric(vertical: 24),
+              child: Center(
+                child: Text(
+                  emptyDay != null
+                      ? 'No wishes were logged on ${AdminBirthdayController.logDateLabel(emptyDay)}.'
+                      : 'No delivery logs yet.',
+                  style: const TextStyle(color: Color(0xFF94A3B8), fontSize: 13),
+                ),
               ),
             ),
-            const SizedBox(height: 12),
-          ],
           for (final g in visible) ...[
             _logDateHeader(g.date, g.logs),
             for (var i = 0; i < g.logs.length; i++) ...[
@@ -1941,6 +1946,54 @@ class AdminBirthdayScreen extends GetView<AdminBirthdayController> {
         ],
       );
     });
+  }
+
+  /// Opens a calendar and loads every wish logged on the chosen day.
+  Widget _logDayPickerChip(BuildContext context, String? selected) {
+    final loading = controller.isLoadingLogs.value;
+    return Padding(
+      padding: const EdgeInsets.only(right: 6),
+      child: ActionChip(
+        onPressed: loading ? null : () => _pickLogDay(context, selected),
+        avatar: loading
+            ? const SizedBox(
+                width: 12,
+                height: 12,
+                child: CircularProgressIndicator(strokeWidth: 1.6),
+              )
+            : const Icon(Icons.event_rounded, size: 14, color: Color(0xFF0284C7)),
+        label: const Text('Pick a day'),
+        labelStyle: const TextStyle(
+          fontSize: 11.5,
+          fontWeight: FontWeight.w700,
+          color: Color(0xFF0284C7),
+        ),
+        backgroundColor: Colors.white,
+        side: const BorderSide(color: Color(0xFFBAE6FD)),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+        visualDensity: VisualDensity.compact,
+      ),
+    );
+  }
+
+  Future<void> _pickLogDay(BuildContext context, String? selected) async {
+    final now = DateFormatting.utcToIst(DateTime.now().toUtc());
+    final today = DateTime(now.year, now.month, now.day);
+    final firstDate = DateTime(2020);
+    var initial = DateTime.tryParse(selected ?? '') ?? today;
+    if (initial.isAfter(today)) initial = today;
+    if (initial.isBefore(firstDate)) initial = firstDate;
+
+    final picked = await showDatePicker(
+      context: context,
+      initialDate: initial,
+      firstDate: firstDate,
+      lastDate: today,
+      helpText: 'Show wishes logged on',
+    );
+    if (picked == null) return;
+    String two(int n) => n.toString().padLeft(2, '0');
+    await controller.loadLogsForDate('${picked.year}-${two(picked.month)}-${two(picked.day)}');
   }
 
   Widget _logDateChip({

@@ -1,5 +1,6 @@
 import 'package:share_plus/share_plus.dart';
 import 'dart:async';
+import 'package:flutter/foundation.dart' show defaultTargetPlatform, TargetPlatform;
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:get/get.dart';
@@ -7,12 +8,14 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'package:super_sliver_list/super_sliver_list.dart';
 import 'package:url_launcher/url_launcher.dart';
 import '../../../core/enums/user_role.dart';
+import '../../../core/network/api_client.dart';
 import '../../../core/storage/session_store.dart';
 import '../../../core/utils/app_snackbar.dart';
 import '../services/caller_id_service.dart';
 import '../models/phonebook_models.dart';
 import '../services/phonebook_database_service.dart';
 import '../services/phonebook_sync_service.dart';
+import '../widgets/alpha_scroll_rail.dart' show RailEntry;
 
 class PhonebookController extends GetxController {
   final searchController = TextEditingController();
@@ -32,9 +35,33 @@ class PhonebookController extends GetxController {
   /// Rebuilt every time [students] changes.
   final alphaIndex = <String, int>{}.obs;
 
+  /// Same map for alumni, who are listed after all residents.
+  final alumniAlphaIndex = <String, int>{}.obs;
+
+  /// The index rail's letters: student letters first (A-Z, '#' last), then
+  /// alumni letters in the same order.
+  List<RailEntry> get railEntries {
+    int order(String a, String b) {
+      if (a == '#') return 1;
+      if (b == '#') return -1;
+      return a.compareTo(b);
+    }
+
+    final students = alphaIndex.keys.toList()..sort(order);
+    final alumni = alumniAlphaIndex.keys.toList()..sort(order);
+    return [
+      for (final l in students) RailEntry(l),
+      for (final l in alumni) RailEntry(l, alumni: true),
+    ];
+  }
+
   /// Drives the student SuperSliverList. It jumps straight to an item without
   /// building every card in between, which is what makes the A-Z rail smooth.
   final listController = ListController();
+
+  /// Measures every row in the background once the list has settled, so the
+  /// rail's jumps land on exactly the right row instead of an estimate.
+  final extentPolicy = PrecalculateExtentsPolicy();
 
   /// Section letter for a name: its uppercase first letter, or '#' for anything else.
   static String letterOf(String name) {
@@ -92,8 +119,17 @@ class PhonebookController extends GetxController {
     'Floor 3',
     'Floor 4',
     'Floor 5',
-    'Floor 6+',
+    'Floor 6',
+    'Floor 7',
+    'Floor 8',
+    'Floor 9',
   ];
+
+  /// Floor number for a [floorOptions] chip ('Ground' is 0), or null for 'All'.
+  static int? floorNumberOf(String option) {
+    if (option == 'Ground') return 0;
+    return int.tryParse(option.replaceAll(RegExp(r'\D'), ''));
+  }
 
   static const List<String> statusOptions = [
     'All',
@@ -340,15 +376,7 @@ class PhonebookController extends GetxController {
       isSearching.value = true;
     }
     try {
-      int? floorNumber;
-      if (selectedFloor.value != 'All') {
-        if (selectedFloor.value == 'Ground') {
-          floorNumber = 0;
-        } else {
-          final digits = selectedFloor.value.replaceAll(RegExp(r'\D'), '');
-          if (digits.isNotEmpty) floorNumber = int.tryParse(digits);
-        }
-      }
+      final floorNumber = floorNumberOf(selectedFloor.value);
 
       String? statusFilter;
       if (selectedStatus.value == 'Active Residents') {
@@ -394,8 +422,23 @@ class PhonebookController extends GetxController {
       if (selectedSort.value == 'Name (A-Z)') {
         results.sort((a, b) => a.name.trim().toLowerCase().compareTo(b.name.trim().toLowerCase()));
       }
+      if (selectedSort.value.startsWith('Name')) {
+        // Residents (with a room) first, alumni after, each keeping name order.
+        // Partitioned (List.sort isn't stable) so the name order is kept.
+        final residents = results.where((st) => !st.isAlumni);
+        final alumni = results.where((st) => st.isAlumni);
+        final ordered = [...residents, ...alumni];
+        results
+          ..clear()
+          ..addAll(ordered);
+      }
       students.assignAll(results);
       _rebuildAlphaIndex(results);
+      // Once the list has settled, measure the rows in the background so rail
+      // jumps are exact. Not at startup, so the first paint stays fast.
+      Future.delayed(const Duration(milliseconds: 600), () {
+        extentPolicy.enabled = true;
+      });
     } catch (e) {
       AppSnackbar.error('Search error', e.toString());
     } finally {
@@ -406,38 +449,41 @@ class PhonebookController extends GetxController {
 
   /// Rebuilds the letter → first-index map from the current student list.
   void _rebuildAlphaIndex(List<PhonebookStudent> list) {
-    final map = <String, int>{};
+    final residents = <String, int>{};
+    final alumni = <String, int>{};
     for (int i = 0; i < list.length; i++) {
-      map.putIfAbsent(letterOf(list[i].name), () => i);
+      final target = list[i].isAlumni ? alumni : residents;
+      target.putIfAbsent(letterOf(list[i].name), () => i);
     }
-    alphaIndex.assignAll(map);
+    alphaIndex.assignAll(residents);
+    alumniAlphaIndex.assignAll(alumni);
   }
 
   @visibleForTesting
   void rebuildAlphaIndex(List<PhonebookStudent> list) => _rebuildAlphaIndex(list);
 
-  /// Scrolls the student list so the first student for [letter] (with its
-  /// section header) sits just below the pinned header. Jumps while dragging
-  /// the rail, animates on a tap.
-  void scrollToLetter(String letter, {bool isDragging = false}) {
-    final index = alphaIndex[letter];
-    if (index == null || !listController.isAttached || !listScrollController.hasClients) return;
+  /// Scrolls the list back to the top (bottom-bar Students tab tapped again).
+  void scrollToTop() {
+    if (!listScrollController.hasClients) return;
+    listScrollController.animateTo(
+      0,
+      duration: const Duration(milliseconds: 350),
+      curve: Curves.easeOutCubic,
+    );
+  }
 
-    if (isDragging) {
-      listController.jumpToItem(
-        index: index,
-        scrollController: listScrollController,
-        alignment: 0,
-      );
-    } else {
-      listController.animateToItem(
-        index: index,
-        scrollController: listScrollController,
-        alignment: 0,
-        duration: (_) => const Duration(milliseconds: 280),
-        curve: (_) => Curves.easeOutCubic,
-      );
-    }
+  /// Jumps the list to the first student (or alumni) of a rail letter.
+  ///
+  /// Always a jump, never an animation: the rail is dragged letter by letter,
+  /// and with row extents precalculated ([extentPolicy]) the jump lands exactly.
+  void scrollToRailEntry(RailEntry entry) {
+    final index = entry.alumni ? alumniAlphaIndex[entry.letter] : alphaIndex[entry.letter];
+    if (index == null || !listController.isAttached || !listScrollController.hasClients) return;
+    listController.jumpToItem(
+      index: index,
+      scrollController: listScrollController,
+      alignment: 0,
+    );
   }
 
   Future<void> syncNow({bool silent = false}) async {
@@ -482,6 +528,54 @@ class PhonebookController extends GetxController {
     }
   }
 
+  static String _norm(dynamic v) =>
+      (v ?? '').toString().trim().toLowerCase().replaceAll(RegExp(r'\s+'), ' ');
+
+  static final _studentIdPattern = RegExp(r'^[1-9]\d*$');
+
+  /// The Screen Time `students.id` of a phonebook student, or null when it
+  /// can't be told for certain (the caller then opens Screen Time searched by
+  /// name instead).
+  ///
+  /// Phonebook records have no `students.id`, so the student is looked up in
+  /// Screen Time's own directory. A result counts only if its bank code is
+  /// the same as this student's bank code (code against code, never code
+  /// against id) AND its name or room also matches, and exactly one result
+  /// qualifies. The id sent on is the one that directory entry carries.
+  Future<String?> findScreenTimeStudentId(PhonebookStudent student) async {
+    final code = _norm(student.bankCode);
+    if (code.isEmpty) return null;
+    final name = _norm(student.name);
+    final room = _norm(student.room);
+    try {
+      final dio = Get.find<ApiClient>().dio;
+      for (final term in {student.name.trim(), student.bankCode!.trim()}) {
+        if (term.isEmpty) continue;
+        final res = await dio.get(
+          '/screen-time/students',
+          queryParameters: {'limit': 50, 'search': term},
+        );
+        var data = res.data is Map ? (res.data['data'] ?? res.data) : res.data;
+        if (data is Map) data = data['students'] ?? data['data'];
+        if (data is! List) continue;
+
+        final matches = data.whereType<Map>().where((e) {
+          final id = (e['id'] ?? '').toString().trim();
+          if (!_studentIdPattern.hasMatch(id)) return false;
+          if (_norm(e['bankCode'] ?? e['bank_code']) != code) return false;
+          final sameName = _norm(e['name'] ?? e['fullName']) == name;
+          final sameRoom = room.isNotEmpty &&
+              _norm(e['room'] ?? e['room_number'] ?? e['roomNumber']) == room;
+          return sameName || sameRoom;
+        }).toList();
+        if (matches.length == 1) return matches.first['id'].toString().trim();
+      }
+    } catch (e) {
+      debugPrint('[Phonebook] findScreenTimeStudentId failed: $e');
+    }
+    return null;
+  }
+
   Future<void> makeCall(String phone) async {
     final cleaned = phone.replaceAll(RegExp(r'[^\d+]'), '');
     if (cleaned.isEmpty) return;
@@ -490,6 +584,38 @@ class PhonebookController extends GetxController {
       await launchUrl(uri);
     } else {
       AppSnackbar.warning('Cannot Place Call', 'Dialer could not be opened for $phone');
+    }
+  }
+
+  /// Opens a new Gmail message to [email]: the Gmail iOS app when installed,
+  /// otherwise Gmail's compose link (which opens the Gmail app on Android and
+  /// the website if the app is missing), and finally any mail app.
+  Future<void> openEmail(String email) async {
+    final to = email.trim();
+    if (to.isEmpty) return;
+    final encoded = Uri.encodeComponent(to);
+    final attempts = <Uri>[
+      if (defaultTargetPlatform == TargetPlatform.iOS)
+        Uri.parse('googlegmail:///co?to=$encoded'),
+      Uri.parse('https://mail.google.com/mail/?view=cm&fs=1&to=$encoded'),
+      Uri(scheme: 'mailto', path: to),
+    ];
+    for (final uri in attempts) {
+      try {
+        if (await launchUrl(uri, mode: LaunchMode.externalApplication)) return;
+      } catch (_) {}
+    }
+    AppSnackbar.warning('Cannot Open Email', 'No email app could be opened for $to');
+  }
+
+  Future<void> sendSms(String phone) async {
+    final cleaned = phone.replaceAll(RegExp(r'[^\d+]'), '');
+    if (cleaned.isEmpty) return;
+    final uri = Uri.parse('sms:$cleaned');
+    if (await canLaunchUrl(uri)) {
+      await launchUrl(uri);
+    } else {
+      AppSnackbar.warning('Cannot Send Message', 'Messaging app could not be opened for $phone');
     }
   }
 
@@ -603,3 +729,18 @@ class PhonebookController extends GetxController {
 
 }
 
+/// Lets a [SuperSliverList] measure all of its rows in the background once
+/// [enabled], so scroll offsets (and the index rail's jumps) are exact.
+class PrecalculateExtentsPolicy extends ExtentPrecalculationPolicy {
+  bool _enabled = false;
+
+  set enabled(bool value) {
+    if (value == _enabled) return;
+    _enabled = value;
+    valueDidChange();
+  }
+
+  @override
+  bool shouldPrecalculateExtents(ExtentPrecalculationContext context) =>
+      _enabled && context.numberOfItemsWithEstimatedExtent > 0;
+}

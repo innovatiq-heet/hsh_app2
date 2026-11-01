@@ -24,7 +24,7 @@ class PhonebookDatabaseService {
 
     return await openDatabase(
       path,
-      version: 4,
+      version: 5,
       onUpgrade: _onUpgrade,
       onCreate: (db, version) async {
         await db.execute('''
@@ -110,6 +110,20 @@ class PhonebookDatabaseService {
       try {
         await db.execute('ALTER TABLE student_cache ADD COLUMN mother_name TEXT');
       } catch (_) {}
+    }
+
+    if (oldVersion < 5) {
+      // Floors were derived from the room's first digit, which left the ground
+      // floor (rooms 1–18) with no floor. Recompute them from the room.
+      final rows = await db.query('student_cache', columns: ['id', 'room_num', 'floor_num']);
+      final batch = db.batch();
+      for (final r in rows) {
+        final floor = PhonebookStudent.floorOfRoom(r['room_num']?.toString());
+        if (floor != r['floor_num']) {
+          batch.update('student_cache', {'floor_num': floor}, where: 'id = ?', whereArgs: [r['id']]);
+        }
+      }
+      await batch.commit(noResult: true);
     }
   }
 

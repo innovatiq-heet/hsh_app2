@@ -1,33 +1,35 @@
 import 'package:flutter/material.dart';
-import 'package:get/get.dart';
 import '../../../core/constants/app_colors.dart';
 import '../../../core/constants/app_dimens.dart';
 import '../../../core/constants/app_text_styles.dart';
 import '../../shared/widgets/app_button.dart';
-import '../controllers/student_screen_time_controller.dart';
-import '../../shared/widgets/sheet_scaffold.dart';
+import '../controllers/screen_time_utils.dart';
+import '../controllers/student_detail_controller.dart';
+import '../widgets/screen_time_page.dart';
 
-/// Bottom sheet for the daily allowance and curfew window.
-class CurfewSettingsSheet extends StatefulWidget {
-  const CurfewSettingsSheet({super.key});
+/// The daily allowance and the curfew window for one student, on their own
+/// screen. Saving sends just these three fields.
+class CurfewLimitScreen extends StatefulWidget {
+  final StudentDetailController controller;
+  const CurfewLimitScreen({super.key, required this.controller});
 
-  static Future<void> show(BuildContext context) => Get.bottomSheet(
-        const CurfewSettingsSheet(),
-        isScrollControlled: true,
-        backgroundColor: Colors.transparent,
-      );
+  static Future<void> open(BuildContext context, StudentDetailController controller) =>
+      ScreenTimePage.push(context, CurfewLimitScreen(controller: controller));
 
   @override
-  State<CurfewSettingsSheet> createState() => _CurfewSettingsSheetState();
+  State<CurfewLimitScreen> createState() => _CurfewLimitScreenState();
 }
 
-class _CurfewSettingsSheetState extends State<CurfewSettingsSheet> {
+class _CurfewLimitScreenState extends State<CurfewLimitScreen> {
   static const _limitPresets = <int>[0, 60, 120, 180, 240, 360];
 
-  final controller = Get.find<StudentScreenTimeController>();
+  StudentDetailController get controller => widget.controller;
   late int _limit = controller.dailyLimitMinutes.value;
   late TimeOfDay _start = _parse(controller.bedtimeStart.value) ?? const TimeOfDay(hour: 23, minute: 0);
   late TimeOfDay _end = _parse(controller.bedtimeEnd.value) ?? const TimeOfDay(hour: 5, minute: 0);
+  /// Off = no bedtime curfew at all (the phone follows only the daily limit).
+  late bool _bedtimeOn =
+      controller.bedtimeStart.value.isNotEmpty && controller.bedtimeEnd.value.isNotEmpty;
   late final _customCtrl = TextEditingController(
     text: _limitPresets.contains(_limit) || _limit == 0 ? '' : '$_limit',
   );
@@ -42,13 +44,20 @@ class _CurfewSettingsSheetState extends State<CurfewSettingsSheet> {
 
   @override
   Widget build(BuildContext context) {
-    final sameTime = _start == _end;
+    final sameTime = _bedtimeOn && _start == _end;
     final duration = _curfewMinutes();
 
-    return SheetScaffold(
-      title: 'Curfew & daily limit',
-      subtitle: 'Enforced on the phone itself, even offline.',
+    return ScreenTimePage(
+      title: 'Daily limit & bedtime',
+      subtitle: ScreenTimePage.studentLine(controller.selectedStudent.value),
+      body: Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
+        Text(
+          'Enforced on the phone itself, even offline.',
+          style: AppTextStyles.bodySm.copyWith(color: AppColors.textSecondary),
+        ),
+        const SizedBox(height: AppDimens.gapLg),
         // ---- Daily limit ----
         _label('Daily screen-time allowance'),
         const SizedBox(height: 8),
@@ -58,7 +67,7 @@ class _CurfewSettingsSheetState extends State<CurfewSettingsSheet> {
           children: [
             for (final m in _limitPresets)
               ChoiceChip(
-                label: Text(m == 0 ? 'No limit' : StudentScreenTimeController.formatMinutes(m)),
+                label: Text(m == 0 ? 'No limit' : formatMinutes(m)),
                 selected: _limit == m,
                 onSelected: (_) => setState(() {
                   _limit = m;
@@ -97,15 +106,30 @@ class _CurfewSettingsSheetState extends State<CurfewSettingsSheet> {
         const SizedBox(height: 6),
         Text(
           _limit > 0
-              ? 'Apps stop opening after ${StudentScreenTimeController.formatMinutes(_limit)} of use in a day. Calls still work.'
+              ? 'Apps stop opening after ${formatMinutes(_limit)} of use in a day. Calls still work.'
               : 'The student can use the phone as long as they like outside curfew.',
           style: AppTextStyles.caption.copyWith(color: AppColors.textMuted),
         ),
         const SizedBox(height: AppDimens.gapXl),
 
         // ---- Curfew ----
-        _label('Curfew hours'),
-        const SizedBox(height: 8),
+        Row(
+          children: [
+            Expanded(child: _label('Bedtime curfew')),
+            Switch(
+              value: _bedtimeOn,
+              activeThumbColor: AppColors.primary,
+              onChanged: (v) => setState(() => _bedtimeOn = v),
+            ),
+          ],
+        ),
+        const SizedBox(height: 4),
+        if (!_bedtimeOn)
+          Text(
+            'No bedtime. The phone follows only the daily limit.',
+            style: AppTextStyles.caption.copyWith(color: AppColors.textMuted),
+          )
+        else ...[
         Row(
           children: [
             Expanded(child: _timeField('From', _start, (t) => setState(() => _start = t))),
@@ -135,7 +159,7 @@ class _CurfewSettingsSheetState extends State<CurfewSettingsSheet> {
                 child: Text(
                   sameTime
                       ? 'Start and end can\'t be the same time.'
-                      : 'Phone blocked for ${StudentScreenTimeController.formatMinutes(duration)} every night'
+                      : 'Phone blocked for ${formatMinutes(duration)} every night'
                           '${_end.hour < _start.hour ? ' (crosses midnight)' : ''}.',
                   style: AppTextStyles.bodySm.copyWith(
                     color: sameTime ? AppColors.cancelledRed : AppColors.textSecondary,
@@ -145,6 +169,7 @@ class _CurfewSettingsSheetState extends State<CurfewSettingsSheet> {
             ],
           ),
         ),
+        ],
         const SizedBox(height: AppDimens.gapXl),
 
         AppButton(
@@ -155,13 +180,14 @@ class _CurfewSettingsSheetState extends State<CurfewSettingsSheet> {
               : () {
                   controller.updateCurfewAndLimit(
                     limitMinutes: _limit,
-                    startBedtime: _fmt(_start),
-                    endBedtime: _fmt(_end),
+                    startBedtime: _bedtimeOn ? _fmt(_start) : null,
+                    endBedtime: _bedtimeOn ? _fmt(_end) : null,
                   );
-                  Get.back();
+                  Navigator.of(context).pop();
                 },
         ),
       ],
+      ),
     );
   }
 

@@ -254,7 +254,9 @@ class StudentContactCard extends StatelessWidget {
                               customSubtitle ??
                                   Text(
                                     isAlumni
-                                        ? 'Alumni Student'
+                                        ? (room != null && room!.isNotEmpty
+                                            ? 'Alumni • Room $room'
+                                            : 'Alumni Student')
                                         : (room != null && room!.isNotEmpty
                                             ? 'Room $room • ${groupName ?? "Resident"}'
                                             : (groupName ?? 'Registered Student')),
@@ -320,7 +322,7 @@ class StudentContactCard extends StatelessWidget {
                       spacing: 6,
                       runSpacing: 4.5,
                       children: [
-                        if (!isAlumni && room != null && room!.isNotEmpty)
+                        if (room != null && room!.isNotEmpty)
                           CelebrantLightChip(
                             icon: Icons.meeting_room_rounded,
                             text: 'Room $room',

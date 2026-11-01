@@ -1,6 +1,6 @@
 # Parental Control & Screen Time
 
-> **Last updated:** 2026-10-10 · **Repos:** `hsh_app2` (Flutter + native Android) and `hsh_api` (Node/Express/MySQL)
+> **Last updated:** 2026-11-01 · **Repos:** `hsh_app2` (Flutter + native Android) and `hsh_api` (Node/Express/MySQL)
 >
 > Paths starting with `lib/` or `android/` are in this repo; paths starting with `hsh_api/` are in the backend repo. Location tracking and curfew breaches are documented separately in [GEOFENCING_DOCS.md](GEOFENCING_DOCS.md).
 
@@ -27,10 +27,12 @@ The curfew geofence **does not lock phones**; remote lock is the only lock warde
 
 ## 2. Architecture
 
+**Warden app structure (Screen Time):** `ScreenTimeRepository` makes every `/screen-time/*` call. `ScreenTimeDirectoryController` owns the student list (paging, search, summary counts), the hostel-wide night curfew and the pending app requests. Opening a student creates a `StudentDetailController` for that student only, registered under the student's id as its Get tag and deleted when the details are closed, so no state carries over to the next student. The details widgets receive that controller from the page; shared read-only helpers are top-level functions in `screen_time_utils.dart`. **Screens:** the student list; one student's *overview* (`StudentOverviewBody`: live status, today against the allowance, controls, top apps, pending requests, and links to the sections below); and a screen per section, each opened from the overview and closed with Back: *Usage & trends* (`StudentUsageScreen`: a 7 / 14 / 30 day range; the selected day against the period average with a limit ring; a stacked daily bar chart (daytime, night, over-limit, dashed limit line; tap a bar to pick the day); plain-language insights; a donut of time by app category; weekday averages with a day/night split; top apps. The numbers come from `UsageAnalytics`; resets to today when closed), *Apps* (`StudentAppsScreen`: time per app, block / limit), *Requests & history* (`StudentHistoryScreen`: pending app requests and a month calendar; each date shows that day's total, tinted by how heavy it was and red over the daily limit, and tapping one shows the day's total, night time and top apps; resets to today when closed), *Daily limit & bedtime* (`CurfewLimitScreen`) and *Restrict apps* (`RestrictAppsScreen`). A single app's time limit is still a small bottom sheet (`AppLimitSheet`). The sub-screens share `ScreenTimePage` and the navy `ScreenTimeSubHeader`.
+
 ```mermaid
 graph TD
     subgraph Warden["Warden app (Flutter / GetX)"]
-        SSTC["StudentScreenTimeController + StudentScreenTimeScreen"]
+        SSTC["ScreenTimeDirectoryController + StudentDetailController (one per opened student) → ScreenTimeRepository"]
     end
 
     subgraph API["hsh_api (Express)"]
@@ -95,10 +97,11 @@ graph TD
 | :--- | :--- |
 | [screen_time_policy.dart](../lib/features/screentime/models/screen_time_policy.dart) | Policy model (`isLocked`, `blockedPackages`, `dailyLimitMinutes`, `bedtimeStart`, `bedtimeEnd`, `version`). `tryParse()` accepts snake_case and camelCase; an explicit `null` bedtime means "off"; `23:00:00` is shown as `23:00`. |
 | [screen_time_service.dart](../lib/core/services/screen_time_service.dart) | `hsh/screen_time` MethodChannel: permissions, start/stop monitoring, `syncNow`, `refreshPolicy`, `getPolicy`, `getCompliance`. |
-| [student_screen_time_controller.dart](../lib/features/screentime/controllers/student_screen_time_controller.dart) | Warden dashboard: student directory and filters, live status, history, and policy actions. |
+| [screen_time_directory_controller.dart](../lib/features/screentime/controllers/screen_time_directory_controller.dart) | Warden dashboard: student directory (paging, search, counts), hostel night curfew, pending app requests. |
+| [student_detail_controller.dart](../lib/features/screentime/controllers/student_detail_controller.dart) | One opened student: live status, usage, history, policy and app-rule actions. |
 | [student_screen_time_screen.dart](../lib/features/screentime/views/student_screen_time_screen.dart) | Warden dashboard UI. Route `Routes.studentScreenTime`. |
-| [parental_controls_card.dart](../lib/features/screentime/widgets/parental_controls_card.dart) | Lock/unlock, curfew, daily limit and blocked-apps tiles; shows "Off" when no bedtime is set. |
-| [restrict_app_sheet.dart](../lib/features/screentime/widgets/restrict_app_sheet.dart), [curfew_settings_sheet.dart](../lib/features/screentime/widgets/curfew_settings_sheet.dart) | Block an app; set bedtime and daily limit. |
+| [parental_controls_card.dart](../lib/features/screentime/widgets/parental_controls_card.dart) | Lock/unlock plus one tile into each settings screen (bedtime & daily limit; blocked apps); shows "Off" when neither is set. |
+| [restrict_apps_screen.dart](../lib/features/screentime/views/restrict_apps_screen.dart), [curfew_limit_screen.dart](../lib/features/screentime/views/curfew_limit_screen.dart) | Block an app; set bedtime and daily limit (each its own screen). |
 | [device_setup_screen.dart](../lib/features/screentime/views/device_setup_screen.dart) | Student onboarding: Usage access, App blocker (Accessibility), Location "all the time", Battery exemption. |
 | [home_controller.dart](../lib/features/home/controllers/home_controller.dart) | On student login/resume: sends the student to setup if a required permission is missing, then calls `syncNow()` and `refreshPolicy()`. |
 | [session_store.dart](../lib/core/storage/session_store.dart) | Starts monitoring for student/leader sessions; stops it on logout. |
@@ -188,6 +191,16 @@ graph TD
 
 `BlockedAppActivity` shows the app icon, reason and package. "Return to Home Screen" and Back go to the launcher; "Open HSH Seva" opens this app. It closes itself when the policy changes to allow the app, re-checking every 3 s while visible.
 
+### 5.4 Self-protection (App info page)
+
+A force-stopped app runs nothing (no service, no ping, no blocker) until the student opens it again. So when Settings (`com.android.settings`, Samsung, MIUI) shows **this app's** App info page, `AppBlockerAccessibilityService` sends the student home and shows a toast.
+
+- Matching is in `SelfProtection.isOwnAppDetailsPage`: the app's name **and** a Force stop / Uninstall control (worded as the device's Settings app words it, plus English) must both be on screen. The Accessibility page and every other Settings screen are left alone.
+- Only for phones with a student session. The page loads late, so it is checked at 0, 250, 700 and 1500 ms after Settings opens.
+- Our own flows that open App info (location "Allow all the time", camera permission) call `ScreenTimeService.allowAppSettings()` first, which lifts the guard for 2 minutes.
+- Needs `canRetrieveWindowContent="true"` in `accessibility_service_config.xml`.
+- Not covered: Uninstall from the launcher's long-press menu, ADB, and Force stop from other Settings paths that don't show the App info page. Closing these fully needs Device Owner/MDM.
+
 ---
 
 ## 6. Usage telemetry
@@ -258,12 +271,13 @@ Mounted at both `/api/screen-time/...` and `/screen-time/...`; all require a Bea
 | `syncNow` | Immediate ping → `ok` / `no_permission` / `no_session` / `unauthorized` / `error` |
 | `refreshPolicy` | Wakes the native sync loop for an immediate policy fetch |
 | `getPolicy` / `getBlockedPackages` / `getCompliance` | Read what the phone currently enforces / reports |
+| `allowAppSettings` | Lets the student open this app's App info page for 2 minutes (see 5.4) |
 
 ---
 
 ## 11. Permissions
 
-`PACKAGE_USAGE_STATS` (granted in Settings → Usage access), the Accessibility service `AppBlockerAccessibilityService` (`BIND_ACCESSIBILITY_SERVICE`, listens to `typeWindowStateChanged`), `RECEIVE_BOOT_COMPLETED`, `FOREGROUND_SERVICE` + `FOREGROUND_SERVICE_SPECIAL_USE` (+ `_LOCATION`), `REQUEST_IGNORE_BATTERY_OPTIMIZATIONS`, `POST_NOTIFICATIONS`. `BlockedAppActivity` is `singleTask`, excluded from recents, full-screen.
+`PACKAGE_USAGE_STATS` (granted in Settings → Usage access), the Accessibility service `AppBlockerAccessibilityService` (`BIND_ACCESSIBILITY_SERVICE`, listens to `typeWindowStateChanged`, reads window content to spot the App info page), `RECEIVE_BOOT_COMPLETED`, `FOREGROUND_SERVICE` + `FOREGROUND_SERVICE_SPECIAL_USE` (+ `_LOCATION`), `REQUEST_IGNORE_BATTERY_OPTIMIZATIONS`, `POST_NOTIFICATIONS`. `BlockedAppActivity` is `singleTask`, excluded from recents, full-screen.
 
 ---
 
@@ -304,3 +318,5 @@ All checks passed. Native code compiles; `flutter analyze` is clean.
 - **Missed app switch:** if Android never reports that the student left an app, the re-check falls back to usage events. If those are unavailable too, nothing is blocked until the next switch (it fails open rather than blocking the wrong app).
 - **Old app builds** still push the policy from Flutter without a version and don't re-check the open app; the new backend still serves them correctly.
 - **Android only:** iOS student phones are not monitored.
+- **Force stop is only guarded on the App info page** (5.4). A student who force-stops by another route, or uninstalls from the launcher, still stops the lock; the phone then goes offline on the warden's dashboard.
+- **Update needed on phones:** the accessibility config changed (`canRetrieveWindowContent`). Some devices only pick that up after the student turns the service off and on once.

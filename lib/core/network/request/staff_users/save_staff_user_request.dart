@@ -7,20 +7,32 @@ class SaveStaffUserRequest {
   final String? role;
   final bool? isActive;
 
+  /// Complaint categories of a complaint solver; `null` means all of them.
+  /// Sent only when [sendCategoryIds] is true, because `null` is a value here.
+  final List<int>? categoryIds;
+  final bool sendCategoryIds;
+
   const SaveStaffUserRequest({
     this.name,
     this.phoneNumber,
     this.role,
     this.isActive,
+    this.categoryIds,
+    this.sendCategoryIds = false,
   });
 
   bool get isEmpty =>
-      name == null && phoneNumber == null && role == null && isActive == null;
+      name == null &&
+      phoneNumber == null &&
+      role == null &&
+      isActive == null &&
+      !sendCategoryIds;
 
   Map<String, dynamic> toJson() => {
         'name': ?name,
         'phone_number': ?phoneNumber,
         'role': ?role,
         'is_active': ?isActive,
+        if (sendCategoryIds) 'category_ids': categoryIds,
       };
 }

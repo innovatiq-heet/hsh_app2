@@ -147,6 +147,19 @@ class PhonebookStudent {
     );
   }
 
+  /// Hostel floor of a room number: 1–18 is the ground floor (0), 101–118 floor 1,
+  /// 201–218 floor 2 and so on up to 901–918 floor 9. The common rooms 3000–9000
+  /// count on their own floor (3000 is floor 3). Null for anything else.
+  static int? floorOfRoom(String? room) {
+    final digits = room?.replaceAll(RegExp(r'\D'), '') ?? '';
+    final number = int.tryParse(digits);
+    if (number == null || number <= 0) return null;
+    if (number < 100) return 0;
+    if (number < 1000) return number ~/ 100;
+    if (number < 10000) return number ~/ 1000;
+    return null;
+  }
+
   factory PhonebookStudent.fromJson(Map<String, dynamic> json) {
     List<PhonebookContact> phonesList = [];
     if (json['phones'] != null && json['phones'] is List) {
@@ -199,12 +212,7 @@ class PhonebookStudent {
     } else if (json['floor'] != null) {
       resolvedFloor = int.tryParse(json['floor'].toString());
     } else if (resolvedRoom != 'Alumni') {
-      final digits = resolvedRoom.replaceAll(RegExp(r'\D'), '');
-      if (digits.length == 5) {
-        resolvedFloor = int.tryParse(digits.substring(0, 2));
-      } else if (digits.length >= 3) {
-        resolvedFloor = int.tryParse(digits.substring(0, 1));
-      }
+      resolvedFloor = floorOfRoom(resolvedRoom);
     }
 
     final rawDob = json['dob']?.toString().trim();

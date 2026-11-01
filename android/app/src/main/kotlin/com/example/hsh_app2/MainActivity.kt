@@ -17,6 +17,7 @@ import com.example.hsh_app2.screentime.LocationSampler
 import com.example.hsh_app2.screentime.PolicyPollService
 import com.example.hsh_app2.screentime.PolicyStore
 import com.example.hsh_app2.screentime.ScreenTimeSync
+import com.example.hsh_app2.screentime.SelfProtection
 import com.example.hsh_app2.screentime.UsageCollector
 import android.Manifest
 import android.content.pm.PackageManager
@@ -96,6 +97,11 @@ class MainActivity : FlutterActivity() {
                         result.success(pm.isIgnoringBatteryOptimizations(packageName))
                     }
                     "requestIgnoreBatteryOptimizations" -> result.success(requestIgnoreBatteryOptimizations())
+                    // The app is about to open its own App info page: let that through briefly.
+                    "allowAppSettings" -> {
+                        SelfProtection.allowAppSettings()
+                        result.success(null)
+                    }
 
                     // ---- monitoring lifecycle ----
                     "startMonitoring" -> {

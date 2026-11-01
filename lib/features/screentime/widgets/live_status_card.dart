@@ -5,13 +5,14 @@ import '../../../core/constants/app_colors.dart';
 import '../../../core/constants/app_dimens.dart';
 import '../../../core/constants/app_text_styles.dart';
 import '../../shared/widgets/app_card.dart';
-import '../controllers/student_screen_time_controller.dart';
+import '../controllers/screen_time_utils.dart';
+import 'student_detail_widget.dart';
 import 'app_brand_icon.dart';
 
 /// "What is this phone doing right now?" — presence, foreground app, last
 /// report time, and a loud warning if the student switched monitoring off.
-class LiveStatusCard extends GetView<StudentScreenTimeController> {
-  const LiveStatusCard({super.key});
+class LiveStatusCard extends StudentDetailWidget {
+  const LiveStatusCard({super.key, required super.controller});
 
   @override
   Widget build(BuildContext context) {
@@ -34,7 +35,7 @@ class LiveStatusCard extends GetView<StudentScreenTimeController> {
       final subtitle = online
           ? (screenOn && app.isNotEmpty && app != 'Idle' ? 'Using $app' : 'Not using the phone')
           : (lastSeen != null
-              ? 'Last report ${StudentScreenTimeController.relativeTime(lastSeen)}'
+              ? 'Last report ${relativeTime(lastSeen)}'
               : 'No report from this phone yet');
 
       return AppCard(

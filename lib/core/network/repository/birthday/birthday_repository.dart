@@ -17,17 +17,44 @@ class BirthdayRepository extends BaseRepository {
     throw Exception('Failed to load birthday dashboard data');
   }
 
-  /// Save automation configuration and message template
+  /// Save automation configuration and message template. A rejected config
+  /// (400) throws with the backend's reason, e.g. a template with no name.
   Future<BirthdayConfigModel> saveConfig(BirthdayConfigModel config) async {
-    final response = await _apiClient.dio.post(
-      '/whatsapp/birthday/config',
-      data: config.toJson(),
-    );
+    final Response response;
+    try {
+      response = await _apiClient.dio.post(
+        '/whatsapp/birthday/config',
+        data: config.toJson(),
+      );
+    } on DioException catch (e) {
+      throw Exception(errorMessage(e, fallback: 'Could not save the birthday settings. Please try again.'));
+    }
     final data = response.data;
     if (data is Map && data['data'] is Map) {
       return BirthdayConfigModel.fromJson(Map<String, dynamic>.from(data['data']));
     }
     return config;
+  }
+
+  /// Wish logs whose wish date is between [from] and [to] (`yyyy-MM-dd`, inclusive;
+  /// [to] defaults to [from]). The dashboard only carries the most recent logs.
+  Future<List<BirthdayLogModel>> fetchLogs({required String from, String? to}) async {
+    final Response response;
+    try {
+      response = await _apiClient.dio.get(
+        '/whatsapp/birthday/logs',
+        queryParameters: {'from': from, 'to': to ?? from},
+      );
+    } on DioException catch (e) {
+      throw Exception(errorMessage(e, fallback: 'Could not load the logs for that day.'));
+    }
+    final data = response.data;
+    if (data is Map && data['data'] is List) {
+      return (data['data'] as List)
+          .map((e) => BirthdayLogModel.fromJson(Map<String, dynamic>.from(e)))
+          .toList();
+    }
+    return [];
   }
 
   /// Manually trigger birthday wishes or send a test wish

@@ -5,15 +5,16 @@ import '../../../core/constants/app_dimens.dart';
 import '../../../core/constants/app_text_styles.dart';
 import '../../shared/widgets/app_button.dart';
 import '../../shared/widgets/app_card.dart';
-import '../controllers/student_screen_time_controller.dart';
-import 'curfew_settings_sheet.dart';
-import 'restrict_app_sheet.dart';
+import '../controllers/screen_time_utils.dart';
+import 'student_detail_widget.dart';
+import '../views/curfew_limit_screen.dart';
+import '../views/restrict_apps_screen.dart';
 
 /// The warden's control panel: current enforcement state, the three actions
 /// they actually take (lock, restrict, curfew), and whether the phone has
 /// picked up the latest rules yet.
-class ParentalControlsCard extends GetView<StudentScreenTimeController> {
-  const ParentalControlsCard({super.key});
+class ParentalControlsCard extends StudentDetailWidget {
+  const ParentalControlsCard({super.key, required super.controller});
 
   @override
   Widget build(BuildContext context) {
@@ -64,7 +65,7 @@ class ParentalControlsCard extends GetView<StudentScreenTimeController> {
                       ],
                     ),
                   ),
-                  _AppliedBadge(dark: locked),
+                  _AppliedBadge(dark: locked, controller: controller),
                 ],
               ),
             ),
@@ -74,31 +75,23 @@ class ParentalControlsCard extends GetView<StudentScreenTimeController> {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
-                  // Rule tiles
+                  // Rule tiles: one way into each settings screen
                   Row(
                     children: [
                       _RuleTile(
                         icon: Icons.nightlight_round,
-                        label: 'Curfew',
-                        value: start.isEmpty || end.isEmpty ? 'Off' : '$start–$end',
+                        label: 'Bedtime & daily limit',
+                        value: _bedtimeAndLimit(start, end, limit),
                         color: AppColors.secondary,
-                        onTap: () => CurfewSettingsSheet.show(context),
-                      ),
-                      const SizedBox(width: AppDimens.gapSm),
-                      _RuleTile(
-                        icon: Icons.hourglass_bottom_rounded,
-                        label: 'Daily limit',
-                        value: limit > 0 ? StudentScreenTimeController.formatMinutes(limit) : 'None',
-                        color: AppColors.primary,
-                        onTap: () => CurfewSettingsSheet.show(context),
+                        onTap: () => CurfewLimitScreen.open(context, controller),
                       ),
                       const SizedBox(width: AppDimens.gapSm),
                       _RuleTile(
                         icon: Icons.block_rounded,
-                        label: 'Blocked',
-                        value: '$blocked app${blocked == 1 ? '' : 's'}',
+                        label: 'Blocked apps',
+                        value: blocked == 0 ? 'None' : '$blocked app${blocked == 1 ? '' : 's'}',
                         color: AppColors.cancelledRed,
-                        onTap: () => RestrictAppSheet.show(context),
+                        onTap: () => RestrictAppsScreen.open(context, controller),
                       ),
                     ],
                   ),
@@ -112,28 +105,6 @@ class ParentalControlsCard extends GetView<StudentScreenTimeController> {
                     isLoading: busy,
                     onPressed: () => _confirmLock(context, !locked),
                   ),
-                  const SizedBox(height: AppDimens.gapSm),
-                  Row(
-                    children: [
-                      Expanded(
-                        child: AppButton(
-                          label: 'Restrict app',
-                          icon: Icons.add_moderator_rounded,
-                          variant: AppButtonVariant.outline,
-                          onPressed: () => RestrictAppSheet.show(context),
-                        ),
-                      ),
-                      const SizedBox(width: AppDimens.gapSm),
-                      Expanded(
-                        child: AppButton(
-                          label: 'Curfew & limit',
-                          icon: Icons.tune_rounded,
-                          variant: AppButtonVariant.outline,
-                          onPressed: () => CurfewSettingsSheet.show(context),
-                        ),
-                      ),
-                    ],
-                  ),
                 ],
               ),
             ),
@@ -143,11 +114,19 @@ class ParentalControlsCard extends GetView<StudentScreenTimeController> {
     });
   }
 
+  /// "22:00–06:00 · 2h", "Off", or just the part that is set.
+  String _bedtimeAndLimit(String start, String end, int limit) {
+    final bedtime = start.isNotEmpty && end.isNotEmpty ? '$start–$end' : '';
+    final allowance = limit > 0 ? formatMinutes(limit) : '';
+    if (bedtime.isEmpty && allowance.isEmpty) return 'Off';
+    return [bedtime, allowance].where((p) => p.isNotEmpty).join(' · ');
+  }
+
   String _summary(int blocked, int appLimitsCount, int limit, String start, String end) {
     final parts = <String>[
       if (blocked > 0) '$blocked app${blocked == 1 ? '' : 's'} blocked',
       if (appLimitsCount > 0) '$appLimitsCount app limit${appLimitsCount == 1 ? '' : 's'}',
-      if (limit > 0) '${StudentScreenTimeController.formatMinutes(limit)} per day',
+      if (limit > 0) '${formatMinutes(limit)} per day',
       if (start.isNotEmpty && end.isNotEmpty) 'curfew $start–$end',
     ];
     return parts.isEmpty ? 'No restrictions' : parts.join(' • ');
@@ -186,9 +165,9 @@ class ParentalControlsCard extends GetView<StudentScreenTimeController> {
 
 /// "Applied on phone 2 min ago" vs "Waiting for phone": compares the version
 /// the device last reported against what the warden has saved.
-class _AppliedBadge extends GetView<StudentScreenTimeController> {
+class _AppliedBadge extends StudentDetailWidget {
   final bool dark;
-  const _AppliedBadge({required this.dark});
+  const _AppliedBadge({required this.dark, required super.controller});
 
   @override
   Widget build(BuildContext context) {
@@ -209,7 +188,7 @@ class _AppliedBadge extends GetView<StudentScreenTimeController> {
           ? 'Not applied yet'
           : pending
               ? 'Syncing…'
-              : 'On phone ${StudentScreenTimeController.relativeTime(appliedAt)}';
+              : 'On phone ${relativeTime(appliedAt)}';
 
       return Tooltip(
         message: 'Whether the student\'s phone has received the latest rules',

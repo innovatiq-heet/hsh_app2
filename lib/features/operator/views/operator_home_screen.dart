@@ -9,8 +9,10 @@ import '../../../core/constants/app_text_styles.dart';
 import '../../../core/enums/user_role.dart';
 import '../../../core/services/shorebird_service.dart';
 import '../../../core/storage/session_store.dart';
+import '../../phonebook/controllers/phonebook_controller.dart';
 import '../../phonebook/bindings/phonebook_binding.dart';
 import '../../phonebook/views/phonebook_screen.dart';
+import '../../screentime/controllers/screen_time_directory_controller.dart';
 import '../../screentime/bindings/student_screen_time_binding.dart';
 import '../../screentime/views/student_screen_time_screen.dart';
 import '../../shared/widgets/staggered_slide_fade.dart';
@@ -188,6 +190,9 @@ class _OperatorHomeScreenState extends State<OperatorHomeScreen> {
         canPop: _currentNavIndex == 0,
         onPopInvokedWithResult: (didPop, result) {
           if (didPop) return;
+          // A student's screen time is open: Back closes it (handled by that
+          // screen) and returns to the list, not to Home.
+          if (_studentScreenTimeOpen) return;
           if (_currentNavIndex != 0) {
             setState(() => _currentNavIndex = 0);
           }
@@ -209,18 +214,50 @@ class _OperatorHomeScreenState extends State<OperatorHomeScreen> {
               const StudentScreenTimeScreen(showBackButton: false),
             ],
           ),
-          bottomNavigationBar: _OperatorBottomNavBar(
+          // Hidden while one student's screen time details are open on the
+          // Safety tab, so the details read as their own screen.
+          bottomNavigationBar: Obx(() {
+            final detailOpen = _studentScreenTimeOpen;
+            return AnimatedSize(
+              duration: const Duration(milliseconds: 200),
+              curve: Curves.easeOut,
+              alignment: Alignment.bottomCenter,
+              child: detailOpen ? const SizedBox(width: double.infinity) : _bottomBar(),
+            );
+          }),
+        ),
+      ),
+    );
+  }
+
+  /// True while the Safety tab shows one student's details (not the list).
+  /// Always reads the observable so [Obx] callers track it.
+  bool get _studentScreenTimeOpen {
+    final open = Get.isRegistered<ScreenTimeDirectoryController>() &&
+        Get.find<ScreenTimeDirectoryController>().selectedStudent.value != null;
+    return open && _currentNavIndex == 2;
+  }
+
+  Widget _bottomBar() {
+    return _OperatorBottomNavBar(
             currentIndex: _currentNavIndex,
             onTap: (index) {
               if (index == 3) {
                 _showProfileSheet(context);
+              } else if (index == 1 && _currentNavIndex == 1) {
+                // Students tab tapped while already open: back to the top.
+                if (Get.isRegistered<PhonebookController>()) {
+                  Get.find<PhonebookController>().scrollToTop();
+                }
+              } else if (index == 2 && _currentNavIndex == 2) {
+                // Safety tab tapped while already open: back to the top.
+                if (Get.isRegistered<ScreenTimeDirectoryController>()) {
+                  Get.find<ScreenTimeDirectoryController>().scrollToTop();
+                }
               } else {
                 setState(() => _currentNavIndex = index);
               }
             },
-          ),
-        ),
-      ),
     );
   }
 }

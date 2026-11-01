@@ -92,7 +92,7 @@ class StudentOverviewBody extends StudentDetailWidget {
                 icon: Icons.history_rounded,
                 color: AppColors.accentLight,
                 title: 'Requests & history',
-                subtitle: 'App requests and past days',
+                subtitle: 'App requests and a calendar of past days',
                 onTap: openHistory,
               ),
             ],

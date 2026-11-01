@@ -592,6 +592,27 @@ class StudentDetailController extends GetxController with WidgetsBindingObserver
 
   bool _isOurApp(String pkg) => pkg == _ownPackage;
 
+  /// Screen time on [dateStr] (`yyyy-MM-dd`) as far as it is known, or null
+  /// when nothing is recorded for that day. Used by the calendar.
+  int? minutesOnDate(String dateStr) {
+    final d = normalizeDateString(dateStr);
+    if (d.isEmpty) return null;
+    if (d == todayDateStr) return totalMinutesToday.value;
+    final cached = dateSpecificTotals[d];
+    if (cached != null && cached > 0) return cached;
+    final rec = _findHistoryRecord(d);
+    if (rec == null) return null;
+    final total = toInt(
+      rec['total_screen_time_minutes'] ??
+          rec['totalScreenTimeMinutes'] ??
+          rec['totalMinutes'] ??
+          rec['total_minutes'] ??
+          rec['usage_minutes'] ??
+          rec['minutes'],
+    );
+    return total > 0 ? total : null;
+  }
+
   int get selectedDayTotalMinutes {
     if (isTodaySelected) {
       final apps = appBreakdown;

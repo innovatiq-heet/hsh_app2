@@ -1,4 +1,6 @@
 import 'package:flutter/material.dart';
+import 'package:get/get.dart';
+import 'package:intl/intl.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:hsh_app2/features/screentime/controllers/student_detail_controller.dart';
 import 'package:hsh_app2/features/screentime/widgets/student_overview_body.dart';
@@ -9,6 +11,7 @@ import 'package:hsh_app2/features/screentime/views/restrict_apps_screen.dart';
 import 'package:hsh_app2/features/screentime/views/student_apps_screen.dart';
 import 'package:hsh_app2/features/screentime/views/student_history_screen.dart';
 import 'package:hsh_app2/features/screentime/views/student_usage_screen.dart';
+import 'package:hsh_app2/features/screentime/widgets/usage_calendar_card.dart';
 import 'package:hsh_app2/features/shared/widgets/skeleton_loader.dart';
 
 /// The student overview is a short set of cards; long content (charts, the
@@ -128,8 +131,8 @@ void main() {
       await tester.pumpAndSettle();
     });
 
-    testWidgets('the history screen explains when there is nothing yet', (tester) async {
-      final c = student();
+    testWidgets('the history screen shows the month calendar with the selected day', (tester) async {
+      final c = student()..totalMinutesToday.value = 80;
       late BuildContext host;
       await tester.pumpWidget(
         MaterialApp(
@@ -141,7 +144,46 @@ void main() {
       );
       StudentHistoryScreen.open(host, c);
       await tester.pumpAndSettle();
-      expect(find.text('Nothing here yet'), findsOneWidget);
+
+      final now = DateTime.now();
+      expect(find.text(DateFormat('MMMM yyyy').format(now)), findsOneWidget);
+      // Today is selected by default: its day card and its total in the grid.
+      expect(find.text('Today'), findsOneWidget);
+      expect(find.text('1h 20m'), findsWidgets);
+      expect(find.text('Top apps'), findsOneWidget);
+      // Nothing earlier on record, so there is no previous month to go to.
+      final back = tester.widget<IconButton>(find.widgetWithIcon(IconButton, Icons.chevron_left_rounded));
+      expect(back.onPressed, isNull);
+    });
+
+    testWidgets('tapping a day on the calendar selects it', (tester) async {
+      final c = student();
+      c.historyRecords.assignAll([
+        {'date': UsageCalendarCard.dateKey(DateTime.now().subtract(const Duration(days: 40))), 'total_screen_time_minutes': 50},
+      ]);
+      final first = DateTime(DateTime.now().year, DateTime.now().month, 1);
+      late BuildContext host;
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Builder(builder: (context) {
+            host = context;
+            return const Scaffold(body: SizedBox());
+          }),
+        ),
+      );
+      StudentHistoryScreen.open(host, c);
+      await tester.pumpAndSettle();
+
+      // An older month has data, so the calendar can go back to it.
+      final back = tester.widget<IconButton>(find.widgetWithIcon(IconButton, Icons.chevron_left_rounded));
+      expect(back.onPressed, isNotNull);
+
+      // Pick the 1st of this month (a past or current day).
+      if (first.isBefore(DateTime.now()) || first.day == DateTime.now().day) {
+        await tester.tap(find.text('1').first);
+        await tester.pump();
+        expect(c.selectedDate.value, UsageCalendarCard.dateKey(first));
+      }
     });
 
     testWidgets('the apps screen shows the app list card', (tester) async {
@@ -198,6 +240,31 @@ void main() {
     expect(find.text('22:30'), findsNothing);
     expect(find.text('No bedtime. The phone follows only the daily limit.'), findsOneWidget);
     expect(find.text('Save rules'), findsOneWidget);
+  });
+
+  group('UsageCalendarCard', () {
+    test('the month grid starts on Monday: blanks, then every day', () {
+      // October 2026 starts on a Thursday and has 31 days.
+      final cells = UsageCalendarCard.monthCells(DateTime(2026, 10));
+      expect(cells.take(3), [null, null, null]);
+      expect(cells[3], 1);
+      expect(cells.length, 3 + 31);
+      expect(cells.last, 31);
+      // A month that starts on Monday has no leading blanks.
+      expect(UsageCalendarCard.monthCells(DateTime(2026, 6)).first, 1);
+    });
+
+    test('minutesOnDate: today, a recorded day, and a day with nothing', () {
+      final c = student()..totalMinutesToday.value = 45;
+      c.historyRecords.assignAll([
+        {'date': '2020-03-05', 'total_screen_time_minutes': 130},
+        {'date': '2020-03-06', 'total_screen_time_minutes': 0},
+      ]);
+      expect(c.minutesOnDate(c.todayDateStr), 45);
+      expect(c.minutesOnDate('2020-03-05'), 130);
+      expect(c.minutesOnDate('2020-03-06'), isNull);
+      expect(c.minutesOnDate('2020-03-07'), isNull);
+    });
   });
 
   group('TopAppsCard.topApps', () {

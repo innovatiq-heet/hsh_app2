@@ -67,6 +67,7 @@ dependencies {
     // Encrypted storage for the session token + policy, notifications for the foreground poller
     implementation("androidx.security:security-crypto:1.1.0-alpha06")
     implementation("androidx.core:core-ktx:1.15.0")
+    testImplementation("junit:junit:4.13.2")
 }
 
 if (file("google-services.json").exists()) {

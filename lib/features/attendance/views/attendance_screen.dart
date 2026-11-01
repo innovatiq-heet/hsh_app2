@@ -8,6 +8,7 @@ import '../../../core/constants/app_colors.dart';
 import '../../../core/constants/app_dimens.dart';
 import '../../../core/constants/app_text_styles.dart';
 import '../../../core/network/responses/attendance/attendance_models.dart';
+import '../../../core/services/screen_time_service.dart';
 import '../../shared/widgets/app_button.dart';
 import '../../shared/widgets/app_card.dart';
 import '../../shared/widgets/app_refresh_indicator.dart';
@@ -402,9 +403,10 @@ class _AttendanceScreenState extends State<AttendanceScreen>
                             backgroundColor: AppColors.primary,
                             foregroundColor: Colors.white,
                           ),
-                          onPressed: () {
+                          onPressed: () async {
                             Navigator.of(ctx).pop();
-                            openAppSettings();
+                            await ScreenTimeService.allowAppSettings();
+                            await openAppSettings();
                           },
                           child: const Text('Open Settings'),
                         ),

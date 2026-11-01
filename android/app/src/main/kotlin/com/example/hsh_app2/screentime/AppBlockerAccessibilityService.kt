@@ -9,6 +9,9 @@ import android.provider.Settings
 import android.text.TextUtils
 import android.util.Log
 import android.view.accessibility.AccessibilityEvent
+import android.view.accessibility.AccessibilityNodeInfo
+import android.widget.Toast
+import com.example.hsh_app2.R
 import java.util.concurrent.Executors
 
 /**
@@ -28,6 +31,8 @@ class AppBlockerAccessibilityService : AccessibilityService() {
         private const val TAG = "AppBlockerService"
         private const val DEBOUNCE_MS = 800L
         private const val MAX_ACTIVITY_CACHE = 512
+        private const val MAX_NODES_SCANNED = 400
+        private val GUARD_CHECK_DELAYS_MS = longArrayOf(0L, 250L, 700L, 1500L)
 
         @Volatile private var instance: AppBlockerAccessibilityService? = null
 
@@ -58,6 +63,7 @@ class AppBlockerAccessibilityService : AccessibilityService() {
 
     private var lastBlockedPkg: String? = null
     private var lastBlockedAt = 0L
+    private var lastGuardAt = 0L
 
     /** Package of the last *activity* window shown (dialogs, keyboards and the shade don't count). */
     @Volatile private var foregroundPkg: String? = null
@@ -109,6 +115,7 @@ class AppBlockerAccessibilityService : AccessibilityService() {
         if (event?.eventType != AccessibilityEvent.TYPE_WINDOW_STATE_CHANGED) return
         val pkg = event.packageName?.toString() ?: return
         ensureBackgroundSync()
+        if (pkg in SelfProtection.SETTINGS_PACKAGES) guardOwnAppInfo()
         if (isActivityWindow(pkg, event.className?.toString()) && foregroundPkg != pkg) {
             foregroundPkg = pkg
             switchSeq++
@@ -167,6 +174,48 @@ class AppBlockerAccessibilityService : AccessibilityService() {
         // so the prohibited app cannot remain in use.
         if (!launched) {
             runCatching { performGlobalAction(GLOBAL_ACTION_HOME) }
+        }
+    }
+
+    /**
+     * Sends the student home if Settings is showing *this app's* App info page,
+     * where Force stop / Uninstall would switch the parent lock off. The page's
+     * content isn't loaded yet when the window opens, so look a few times.
+     */
+    private fun guardOwnAppInfo() {
+        if (!PolicyStore.hasSession(this) || SelfProtection.inGrace()) return
+        for (delay in GUARD_CHECK_DELAYS_MS) {
+            mainHandler.postDelayed({ checkOwnAppInfo() }, delay)
+        }
+    }
+
+    private fun checkOwnAppInfo() {
+        if (SelfProtection.inGrace()) return
+        val root = rootInActiveWindow ?: return
+        if (root.packageName?.toString() !in SelfProtection.SETTINGS_PACKAGES) return
+        val texts = ArrayList<String>()
+        collectTexts(root, texts)
+        val appLabel = applicationInfo.loadLabel(packageManager).toString()
+        if (!SelfProtection.isOwnAppDetailsPage(texts, appLabel, SelfProtection.dangerLabels(this))) return
+
+        val now = System.currentTimeMillis()
+        if (now - lastGuardAt < DEBOUNCE_MS) return
+        lastGuardAt = now
+        Log.w(TAG, "Blocked access to own App info page")
+        performGlobalAction(GLOBAL_ACTION_HOME)
+        Toast.makeText(this, R.string.app_info_protected, Toast.LENGTH_LONG).show()
+    }
+
+    /** Breadth-first, capped, so a huge Settings list can't stall the main thread. */
+    private fun collectTexts(root: AccessibilityNodeInfo, out: MutableList<String>) {
+        val queue = ArrayDeque<AccessibilityNodeInfo>()
+        queue.add(root)
+        var seen = 0
+        while (queue.isNotEmpty() && seen++ < MAX_NODES_SCANNED) {
+            val node = queue.removeFirst()
+            node.text?.toString()?.let { out.add(it) }
+            node.contentDescription?.toString()?.let { out.add(it) }
+            for (i in 0 until node.childCount) node.getChild(i)?.let { queue.add(it) }
         }
     }
 

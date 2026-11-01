@@ -2,6 +2,7 @@ import 'dart:developer' as developer;
 import 'dart:io' show Platform;
 import 'package:flutter/services.dart';
 import 'package:permission_handler/permission_handler.dart';
+import 'screen_time_service.dart';
 
 /// Student-side bridge to the native curfew geofence.
 ///
@@ -34,7 +35,10 @@ class GeofenceDeviceService {
     if (!fg.isGranted) return locationPermission();
     // Android 10+: a second, separate grant; on 11+ this opens the Settings page.
     final always = await Permission.locationAlways.request();
-    if (always.isPermanentlyDenied) await openAppSettings();
+    if (always.isPermanentlyDenied) {
+      await ScreenTimeService.allowAppSettings();
+      await openAppSettings();
+    }
     return locationPermission();
   }
 

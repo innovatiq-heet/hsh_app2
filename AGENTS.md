@@ -58,6 +58,7 @@ test/                  unit tests (offline); tag tests that hit real APIs with @
 - Responses are applied in **`policy_version` order**; an older version is discarded.
 - Warden writes are targeted: `POST /screen-time/apps/rule` for one app; `PUT /screen-time/policies/:id` with **only the fields being changed** (it is a partial update). Never send a full policy object.
 - `AppBlockerAccessibilityService` must re-check the **app already on screen** when the policy changes. Never block protected packages (dialer, emergency, keyboard, launcher, Settings, this app). When unsure which app is in front, fail open rather than block the wrong one.
+- **One exception inside Settings:** `SelfProtection` sends the student home when Settings shows *this app's* App info page (name plus a Force stop / Uninstall control), because a force-stopped app enforces nothing. Never widen it to other Settings screens (the Accessibility page is needed during setup). Our own flows that open App info (`openAppSettings()`) must call `ScreenTimeService.allowAppSettings()` first. This needs `canRetrieveWindowContent="true"` on the accessibility service, so the Play accessibility disclosure must mention it.
 - A `null` bedtime means "no bedtime" (never a 23:00–05:00 default).
 
 **Geofence and location**

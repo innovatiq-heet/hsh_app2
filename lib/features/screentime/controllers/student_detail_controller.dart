@@ -773,7 +773,11 @@ class StudentDetailController extends GetxController with WidgetsBindingObserver
   // -------------------------------------------------------------
 
   /// 7-day chronological usage points for trend graphs
-  List<Map<String, dynamic>> get trendGraphPoints {
+  List<Map<String, dynamic>> get trendGraphPoints => usagePoints(7);
+
+  /// The last [days] calendar days, oldest first and ending today: total and
+  /// night minutes per day (0 where nothing is recorded).
+  List<Map<String, dynamic>> usagePoints(int days) {
     final list = <Map<String, dynamic>>[];
     final now = DateTime.now();
 
@@ -795,8 +799,8 @@ class StudentDetailController extends GetxController with WidgetsBindingObserver
       'nightMinutes': nightMinutesToday.value,
     };
 
-    // Build the last 7 calendar days in chronological order (Oldest -> Today)
-    for (int i = 6; i >= 0; i--) {
+    // Build the last [days] calendar days in chronological order (Oldest -> Today)
+    for (int i = days - 1; i >= 0; i--) {
       final dt = now.subtract(Duration(days: i));
       final dStr = '${dt.year.toString().padLeft(4, '0')}-${dt.month
           .toString()

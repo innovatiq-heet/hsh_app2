@@ -40,6 +40,11 @@ class ScreenTimeService {
   static Future<bool> requestIgnoreBatteryOptimizations() =>
       _bool('requestIgnoreBatteryOptimizations');
 
+  /// Call right before `openAppSettings()`. The monitor stops students from
+  /// opening this app's App info page (Force stop / Uninstall); this lets our
+  /// own permission flows through for a couple of minutes.
+  static Future<void> allowAppSettings() => _invoke('allowAppSettings');
+
   // ---------- Monitoring lifecycle ----------
 
   /// Hands the session token to the native side and schedules background sync.

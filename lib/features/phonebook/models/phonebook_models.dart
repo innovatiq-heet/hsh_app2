@@ -1,4 +1,5 @@
 import 'package:intl/intl.dart';
+import '../../../core/models/tags/student_tag_model.dart';
 
 class PhonebookContact {
   final String? id;
@@ -65,6 +66,7 @@ class PhonebookStudent {
   final String? status;
   final String? bankCode;
   final int? floor;
+  final List<StudentTag> tags;
 
   const PhonebookStudent({
     required this.id,
@@ -91,6 +93,7 @@ class PhonebookStudent {
     this.status,
     this.bankCode,
     this.floor,
+    this.tags = const [],
   });
 
   PhonebookStudent copyWith({
@@ -118,6 +121,7 @@ class PhonebookStudent {
     String? status,
     String? bankCode,
     int? floor,
+    List<StudentTag>? tags,
   }) {
     return PhonebookStudent(
       id: id ?? this.id,
@@ -144,6 +148,7 @@ class PhonebookStudent {
       status: status ?? this.status,
       bankCode: bankCode ?? this.bankCode,
       floor: floor ?? this.floor,
+      tags: tags ?? this.tags,
     );
   }
 
@@ -259,6 +264,14 @@ class PhonebookStudent {
         ? rawPin
         : null;
 
+    List<StudentTag> tagsList = [];
+    if (json['tags'] != null && json['tags'] is List) {
+      tagsList = (json['tags'] as List)
+          .whereType<Map>()
+          .map((t) => StudentTag.fromJson(Map<String, dynamic>.from(t)))
+          .toList();
+    }
+
     return PhonebookStudent(
       id: json['id']?.toString() ?? json['internal_id']?.toString() ?? '',
       studentId: json['student_id']?.toString() ?? '',
@@ -284,7 +297,14 @@ class PhonebookStudent {
       status: cleanStatus,
       bankCode: cleanBankCode,
       floor: resolvedFloor,
+      tags: tagsList,
     );
+  }
+
+  /// True if student has a tag with the specified name (case-insensitive)
+  bool hasTag(String tagName) {
+    final norm = tagName.trim().toLowerCase();
+    return tags.any((t) => t.name.trim().toLowerCase() == norm);
   }
 
   String get primaryPhone {

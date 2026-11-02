@@ -11,6 +11,8 @@ import '../../../core/enums/user_role.dart';
 import '../../../core/network/api_client.dart';
 import '../../../core/storage/session_store.dart';
 import '../../../core/utils/app_snackbar.dart';
+import '../../../core/models/tags/student_tag_model.dart';
+import '../../../core/network/repository/tags/tags_repository.dart';
 import '../services/caller_id_service.dart';
 import '../models/phonebook_models.dart';
 import '../services/phonebook_database_service.dart';
@@ -27,6 +29,10 @@ class PhonebookController extends GetxController {
   final isLoading = true.obs;
   final isSyncing = false.obs;
   final isSearching = false.obs;
+
+  // Tag filter
+  final selectedTag = 'All'.obs;
+  final availableTags = <StudentTag>[].obs;
 
   // Scroll controller exposed so the alphabet rail can jump to a letter
   final listScrollController = ScrollController();
@@ -151,6 +157,7 @@ class PhonebookController extends GetxController {
     if (selectedGroup.value != 'All') count++;
     if (selectedFloor.value != 'All') count++;
     if (selectedStatus.value != 'All') count++;
+    if (selectedTag.value != 'All') count++;
     if (onlyWithDob.value) count++;
     if (onlyWithParents.value) count++;
     if (onlyWithWhatsApp.value) count++;
@@ -168,6 +175,16 @@ class PhonebookController extends GetxController {
     super.onInit();
     _checkAdminAccess();
     _startPeriodicSync();
+    _loadAvailableTags();
+  }
+
+  Future<void> _loadAvailableTags() async {
+    try {
+      if (Get.isRegistered<TagsRepository>()) {
+        final tags = await Get.find<TagsRepository>().getTags();
+        availableTags.assignAll(tags);
+      }
+    } catch (_) {}
   }
 
   @override
@@ -315,6 +332,11 @@ class PhonebookController extends GetxController {
     search();
   }
 
+  void selectTag(String tag) {
+    selectedTag.value = tag;
+    search();
+  }
+
   void selectSort(String sort) {
     selectedSort.value = sort;
     search();
@@ -349,6 +371,7 @@ class PhonebookController extends GetxController {
     selectedGroup.value = 'All';
     selectedFloor.value = 'All';
     selectedStatus.value = 'All';
+    selectedTag.value = 'All';
     onlyWithDob.value = false;
     onlyWithParents.value = false;
     onlyWithWhatsApp.value = false;
@@ -412,6 +435,7 @@ class PhonebookController extends GetxController {
         group: selectedGroup.value == 'All' ? null : selectedGroup.value,
         floor: floorNumber,
         status: statusFilter,
+        tag: selectedTag.value == 'All' ? null : selectedTag.value,
         hasDob: onlyWithDob.value ? true : null,
         hasParent: onlyWithParents.value ? true : null,
         hasWhatsApp: onlyWithWhatsApp.value ? true : null,
@@ -445,6 +469,16 @@ class PhonebookController extends GetxController {
       isLoading.value = false;
       isSearching.value = false;
     }
+  }
+
+  /// Updates student tags in memory and SQLite cache without full reload
+  void updateStudentTagsInList(String studentId, List<StudentTag> newTags) {
+    final idx = students.indexWhere((s) => s.id == studentId || s.studentId == studentId);
+    if (idx != -1) {
+      students[idx] = students[idx].copyWith(tags: newTags);
+      students.refresh();
+    }
+    PhonebookDatabaseService.instance.updateStudentTags(studentId, newTags);
   }
 
   /// Rebuilds the letter → first-index map from the current student list.

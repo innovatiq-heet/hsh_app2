@@ -1,5 +1,3 @@
-import 'dart:developer';
-
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:get/get.dart';
@@ -274,6 +272,47 @@ class PhonebookScreen extends GetView<PhonebookController> {
                         }).toList(),
                       ),
                       const SizedBox(height: 20),
+
+                      // 3b. TAGS & ROLES
+                      Obx(() {
+                        final tags = controller.availableTags;
+                        if (tags.isEmpty) return const SizedBox.shrink();
+                        final tagNames = ['All', ...tags.map((t) => t.name)];
+                        return Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            _filterSectionHeader('STUDENT TAGS & ROLES', Icons.label_rounded),
+                            const SizedBox(height: 10),
+                            Wrap(
+                              spacing: 8,
+                              runSpacing: 8,
+                              children: tagNames.map((t) {
+                                final sel = controller.selectedTag.value == t;
+                                return FilterChip(
+                                  label: Text(t),
+                                  selected: sel,
+                                  selectedColor: const Color(0xFF6366F1),
+                                  checkmarkColor: Colors.white,
+                                  labelStyle: TextStyle(
+                                    color: sel ? Colors.white : const Color(0xFF334155),
+                                    fontWeight: sel ? FontWeight.w700 : FontWeight.w600,
+                                    fontSize: 12.5,
+                                  ),
+                                  backgroundColor: const Color(0xFFF1F5F9),
+                                  shape: RoundedRectangleBorder(
+                                    borderRadius: BorderRadius.circular(12),
+                                    side: BorderSide(
+                                      color: sel ? const Color(0xFF6366F1) : const Color(0xFFE2E8F0),
+                                    ),
+                                  ),
+                                  onSelected: (v) => controller.selectTag(t),
+                                );
+                              }).toList(),
+                            ),
+                            const SizedBox(height: 20),
+                          ],
+                        );
+                      }),
 
                       // 4. ATTRIBUTES & PROFILE DATA
                       _filterSectionHeader('PROFILE ATTRIBUTES & RECORDS', Icons.check_circle_outline_rounded),
@@ -1470,6 +1509,17 @@ class _StudentPhonebookCard extends StatelessWidget {
       onCall: onCall,
       onWhatsApp: onWhatsApp,
       onShare: onShare,
+      extraChips: student.tags.isEmpty
+          ? null
+          : student.tags.map((t) {
+              return CelebrantLightChip(
+                icon: Icons.label_rounded,
+                text: t.name,
+                bgColor: t.backgroundColor,
+                borderColor: t.borderColor,
+                textColor: t.color,
+              );
+            }).toList(),
       margin: EdgeInsets.zero,
     );
   }

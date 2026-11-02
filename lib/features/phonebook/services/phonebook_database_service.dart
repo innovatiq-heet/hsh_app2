@@ -1,5 +1,7 @@
+import 'dart:convert';
 import 'package:sqflite/sqflite.dart';
 import 'package:path/path.dart' as p;
+import '../../../core/models/tags/student_tag_model.dart';
 import '../models/phonebook_models.dart';
 import 'phone_number_normalizer.dart';
 
@@ -24,7 +26,7 @@ class PhonebookDatabaseService {
 
     return await openDatabase(
       path,
-      version: 5,
+      version: 6,
       onUpgrade: _onUpgrade,
       onCreate: (db, version) async {
         await db.execute('''
@@ -54,7 +56,8 @@ class PhonebookDatabaseService {
             bank_code TEXT,
             room_num TEXT,
             group_name TEXT,
-            floor_num INTEGER
+            floor_num INTEGER,
+            tags TEXT
           )
         ''');
 
@@ -125,6 +128,12 @@ class PhonebookDatabaseService {
       }
       await batch.commit(noResult: true);
     }
+
+    if (oldVersion < 6) {
+      try {
+        await db.execute('ALTER TABLE student_cache ADD COLUMN tags TEXT');
+      } catch (_) {}
+    }
   }
 
   /// Everything caller ID needs, one row per phone number.
@@ -183,6 +192,7 @@ class PhonebookDatabaseService {
             'room_num': r['room_num'],
             'group_name': r['group_name'],
             'floor_num': r['floor_num'],
+            'tags': r['tags'] is String ? r['tags'] : (r['tags'] != null ? jsonEncode(r['tags']) : null),
           },
           conflictAlgorithm: ConflictAlgorithm.replace,
         );
@@ -200,6 +210,7 @@ class PhonebookDatabaseService {
     String? group,
     int? floor,
     String? status, // 'all', 'active', 'alumni'
+    String? tag,
     bool? hasDob,
     bool? hasParent,
     bool? hasWhatsApp,
@@ -306,6 +317,12 @@ class PhonebookDatabaseService {
       whereClauses.add('(aadhar IS NOT NULL AND aadhar != "" AND aadhar != "null")');
     }
 
+    // Tag filter
+    if (tag != null && tag.isNotEmpty && tag.toLowerCase() != 'all') {
+      whereClauses.add('(tags LIKE ?)');
+      whereArgs.add('%$tag%');
+    }
+
     final whereString =
         whereClauses.isNotEmpty ? whereClauses.join(' AND ') : null;
 
@@ -371,6 +388,7 @@ class PhonebookDatabaseService {
           'room_num': row['room_num'],
           'group_name': row['group_name'],
           'floor_num': row['floor_num'],
+          'tags': _parseTagsJson(row['tags']),
           'phones': <Map<String, dynamic>>[],
           'updated_at': row['updated_at'],
         };
@@ -393,6 +411,32 @@ class PhonebookDatabaseService {
     return studentMap.values
         .map((data) => PhonebookStudent.fromJson(data))
         .toList();
+  }
+
+  static List<dynamic>? _parseTagsJson(dynamic raw) {
+    if (raw == null) return null;
+    if (raw is List) return raw;
+    if (raw is String && raw.isNotEmpty && raw != 'null') {
+      try {
+        final decoded = jsonDecode(raw);
+        if (decoded is List) return decoded;
+      } catch (_) {}
+    }
+    return null;
+  }
+
+  /// Updates tags in the local cache for a specific student.
+  Future<void> updateStudentTags(String studentId, List<StudentTag> tags) async {
+    try {
+      final db = await database;
+      final tagsJson = jsonEncode(tags.map((t) => t.toJson()).toList());
+      await db.update(
+        'student_cache',
+        {'tags': tagsJson},
+        where: 'student_id = ? OR id = ? OR bank_code = ?',
+        whereArgs: [studentId, studentId, studentId],
+      );
+    } catch (_) {}
   }
 
   /// Group and status per bank code, for showing them elsewhere (birthday cards).

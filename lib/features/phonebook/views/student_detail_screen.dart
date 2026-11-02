@@ -6,14 +6,17 @@ import '../../../core/constants/app_colors.dart';
 import '../../../core/constants/app_dimens.dart';
 import '../../../core/constants/app_routes.dart';
 import '../../../core/constants/app_text_styles.dart';
+import '../../../core/models/tags/student_tag_model.dart';
 import '../../shared/widgets/app_button.dart';
 import '../../shared/widgets/app_card.dart';
 import '../../shared/widgets/icon_badge.dart';
 import '../../shared/widgets/section_header.dart';
 import '../../shared/widgets/status_badge.dart';
+import '../../shared/widgets/student_contact_card.dart';
 import '../controllers/phonebook_controller.dart';
 import '../models/phonebook_models.dart';
 import '../services/phone_number_normalizer.dart';
+import '../widgets/student_tag_sheet.dart';
 
 /// Full-screen profile of one phonebook student: navy header, quick actions,
 /// hostel / personal / family details and every contact number with its own
@@ -78,6 +81,8 @@ class StudentDetailScreen extends StatelessWidget {
                     _studentContactCard(),
                     const SizedBox(height: AppDimens.gapMd),
                   ],
+                  _StudentDetailTagsCard(student: student),
+                  const SizedBox(height: AppDimens.gapMd),
                   _hostelCard(),
                   const SizedBox(height: AppDimens.gapMd),
                   _personalCard(),
@@ -377,6 +382,136 @@ class StudentDetailScreen extends StatelessWidget {
           onTap: () => _c.makeCall(phone),
         ),
       ],
+    );
+  }
+}
+
+/// Card displaying the student's assigned tags and roles (e.g. Karyakarta, Wing Leader)
+/// with an action to edit or assign new tags via [StudentTagSheet].
+class _StudentDetailTagsCard extends StatefulWidget {
+  final PhonebookStudent student;
+  const _StudentDetailTagsCard({required this.student});
+
+  @override
+  State<_StudentDetailTagsCard> createState() => _StudentDetailTagsCardState();
+}
+
+class _StudentDetailTagsCardState extends State<_StudentDetailTagsCard> {
+  late List<StudentTag> _tags;
+
+  @override
+  void initState() {
+    super.initState();
+    _tags = List.from(widget.student.tags);
+  }
+
+  @override
+  void didUpdateWidget(covariant _StudentDetailTagsCard oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.student != widget.student) {
+      _tags = List.from(widget.student.tags);
+    }
+  }
+
+  Future<void> _editTags() async {
+    final updated = await StudentTagSheet.show(
+      context,
+      widget.student.copyWith(tags: _tags),
+      onTagsUpdated: (newTags) {
+        if (mounted) {
+          setState(() {
+            _tags = List.from(newTags);
+          });
+        }
+      },
+    );
+    if (updated != null && mounted) {
+      setState(() {
+        _tags = List.from(updated);
+      });
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return AppCard(
+      padding: const EdgeInsets.fromLTRB(
+        AppDimens.cardPadding,
+        AppDimens.gapMd,
+        AppDimens.cardPadding,
+        AppDimens.gapMd,
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Text('TAGS & ROLES', style: AppTextStyles.overline),
+              InkWell(
+                onTap: _editTags,
+                borderRadius: BorderRadius.circular(AppDimens.radiusSm),
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      const Icon(Icons.edit_outlined, size: 14, color: AppColors.primary),
+                      const SizedBox(width: 4),
+                      Text(
+                        _tags.isEmpty ? 'Add' : 'Edit',
+                        style: AppTextStyles.caption.copyWith(
+                          color: AppColors.primary,
+                          fontWeight: FontWeight.w700,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: AppDimens.gapSm),
+          if (_tags.isEmpty)
+            InkWell(
+              onTap: _editTags,
+              borderRadius: BorderRadius.circular(AppDimens.radiusSm),
+              child: Padding(
+                padding: const EdgeInsets.symmetric(vertical: 4),
+                child: Row(
+                  children: [
+                    const Icon(Icons.add_circle_outline_rounded, size: 16, color: AppColors.textMuted),
+                    const SizedBox(width: 6),
+                    Expanded(
+                      child: Text(
+                        'No tags assigned yet. Tap to assign roles (e.g. Karyakarta) or tags.',
+                        style: AppTextStyles.bodySm.copyWith(
+                          color: AppColors.textMuted,
+                          fontStyle: FontStyle.italic,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            )
+          else
+            Wrap(
+              spacing: 8,
+              runSpacing: 8,
+              children: [
+                for (final tag in _tags)
+                  CelebrantLightChip(
+                    icon: tag.isSystem ? Icons.lock_outline_rounded : Icons.label_rounded,
+                    text: tag.name,
+                    bgColor: tag.backgroundColor,
+                    borderColor: tag.borderColor,
+                    textColor: tag.displayColor,
+                  ),
+              ],
+            ),
+        ],
+      ),
     );
   }
 }

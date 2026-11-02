@@ -266,10 +266,9 @@ class PhonebookStudent {
 
     List<StudentTag> tagsList = [];
     if (json['tags'] != null && json['tags'] is List) {
-      tagsList = (json['tags'] as List)
+      tagsList = dedupeTags((json['tags'] as List)
           .whereType<Map>()
-          .map((t) => StudentTag.fromJson(Map<String, dynamic>.from(t)))
-          .toList();
+          .map((t) => StudentTag.fromJson(Map<String, dynamic>.from(t))));
     }
 
     return PhonebookStudent(

@@ -12,6 +12,7 @@ import '../../../core/network/api_client.dart';
 import '../../../core/storage/session_store.dart';
 import '../../../core/utils/app_snackbar.dart';
 import '../../../core/models/tags/student_tag_model.dart';
+import '../../../core/network/repository/screentime/screen_time_repository.dart';
 import '../../../core/network/repository/tags/tags_repository.dart';
 import '../services/caller_id_service.dart';
 import '../models/phonebook_models.dart';
@@ -182,7 +183,7 @@ class PhonebookController extends GetxController {
     try {
       if (Get.isRegistered<TagsRepository>()) {
         final tags = await Get.find<TagsRepository>().getTags();
-        availableTags.assignAll(tags);
+        availableTags.assignAll(dedupeTags(tags));
       }
     } catch (_) {}
   }
@@ -608,6 +609,57 @@ class PhonebookController extends GetxController {
       debugPrint('[Phonebook] findScreenTimeStudentId failed: $e');
     }
     return null;
+  }
+
+  final Map<String, int> _tagStudentIds = {};
+
+  /// `students.id` for tag calls, without asking anyone: the strict
+  /// [findScreenTimeStudentId] match first, then a lone Screen Time entry with
+  /// the same name (and room, when both have one). Null when unsure. Cached
+  /// per phonebook student.
+  Future<int?> resolveStudentIdForTags(PhonebookStudent student) async {
+    final cached = _tagStudentIds[student.id];
+    if (cached != null) return cached;
+
+    int? id = int.tryParse(await findScreenTimeStudentId(student) ?? '');
+    if (id == null) {
+      try {
+        final page = await ScreenTimeRepository()
+            .students(limit: 20, offset: 0, search: student.name.trim());
+        final name = _norm(student.name);
+        final room = _norm(student.room);
+        final matches = page.students.whereType<Map>().where((e) {
+          if (int.tryParse((e['id'] ?? '').toString().trim()) == null) return false;
+          if (_norm(e['name'] ?? e['fullName']) != name) return false;
+          final r = _norm(e['room'] ?? e['room_number'] ?? e['roomNumber']);
+          return room.isEmpty || r.isEmpty || r == room;
+        }).toList();
+        if (matches.length == 1) {
+          id = int.tryParse(matches.first['id'].toString().trim());
+        }
+      } catch (e) {
+        debugPrint('[Phonebook] resolveStudentIdForTags failed: $e');
+      }
+    }
+    if (id != null) _tagStudentIds[student.id] = id;
+    return id;
+  }
+
+  /// Loads the student's current tags (system + assigned) and stores them in
+  /// the list and cache. Returns null when the student can't be resolved or
+  /// the request fails.
+  Future<List<StudentTag>?> refreshStudentTags(PhonebookStudent student) async {
+    try {
+      final id = await resolveStudentIdForTags(student);
+      if (id == null) return null;
+      final res = await Get.find<TagsRepository>().getStudentTags(id);
+      final tags = dedupeTags(res.allTags);
+      updateStudentTagsInList(student.id, tags);
+      return tags;
+    } catch (e) {
+      debugPrint('[Phonebook] refreshStudentTags failed: $e');
+      return null;
+    }
   }
 
   Future<void> makeCall(String phone) async {

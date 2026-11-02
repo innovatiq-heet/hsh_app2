@@ -3,6 +3,7 @@ import 'package:flutter/services.dart';
 import 'package:get/get.dart';
 import 'package:intl/intl.dart';
 import 'package:super_sliver_list/super_sliver_list.dart';
+import '../../../core/models/tags/student_tag_model.dart';
 import '../../shared/widgets/empty_state.dart';
 import '../../shared/widgets/staggered_slide_fade.dart';
 import '../../shared/widgets/student_contact_card.dart';
@@ -1511,7 +1512,7 @@ class _StudentPhonebookCard extends StatelessWidget {
       onShare: onShare,
       extraChips: student.tags.isEmpty
           ? null
-          : student.tags.map((t) {
+          : dedupeTags(student.tags).map((t) {
               return CelebrantLightChip(
                 icon: Icons.label_rounded,
                 text: t.name,

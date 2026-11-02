@@ -402,14 +402,23 @@ class _StudentDetailTagsCardState extends State<_StudentDetailTagsCard> {
   @override
   void initState() {
     super.initState();
-    _tags = List.from(widget.student.tags);
+    _tags = dedupeTags(widget.student.tags);
+    _refreshTags();
+  }
+
+  /// The cached phonebook tags can be empty or stale (system tags like
+  /// Irregular are calculated by the server), so load the current ones.
+  Future<void> _refreshTags() async {
+    if (!Get.isRegistered<PhonebookController>()) return;
+    final fresh = await Get.find<PhonebookController>().refreshStudentTags(widget.student);
+    if (fresh != null && mounted) setState(() => _tags = fresh);
   }
 
   @override
   void didUpdateWidget(covariant _StudentDetailTagsCard oldWidget) {
     super.didUpdateWidget(oldWidget);
     if (oldWidget.student != widget.student) {
-      _tags = List.from(widget.student.tags);
+      _tags = dedupeTags(widget.student.tags);
     }
   }
 
@@ -420,14 +429,14 @@ class _StudentDetailTagsCardState extends State<_StudentDetailTagsCard> {
       onTagsUpdated: (newTags) {
         if (mounted) {
           setState(() {
-            _tags = List.from(newTags);
+            _tags = dedupeTags(newTags);
           });
         }
       },
     );
     if (updated != null && mounted) {
       setState(() {
-        _tags = List.from(updated);
+        _tags = dedupeTags(updated);
       });
     }
   }

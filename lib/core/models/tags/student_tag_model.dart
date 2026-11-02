@@ -1,5 +1,22 @@
 import 'package:flutter/material.dart';
 
+/// Drops repeated tags (same id, or same name ignoring case), keeping the
+/// first. The API can list a system tag both as `system_tag` and among the
+/// assigned/phonebook tags.
+List<StudentTag> dedupeTags(Iterable<StudentTag> tags) {
+  final ids = <int>{};
+  final names = <String>{};
+  final out = <StudentTag>[];
+  for (final t in tags) {
+    final name = t.name.trim().toLowerCase();
+    if (ids.contains(t.id) || names.contains(name)) continue;
+    ids.add(t.id);
+    names.add(name);
+    out.add(t);
+  }
+  return out;
+}
+
 /// Represents a student tag defined in the backend (`student_tags`).
 class StudentTag {
   final int id;

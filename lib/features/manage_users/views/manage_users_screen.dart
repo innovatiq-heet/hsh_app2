@@ -16,6 +16,7 @@ import '../../shared/widgets/skeleton_loader.dart';
 import '../../shared/widgets/staggered_slide_fade.dart';
 import '../../shared/widgets/status_badge.dart';
 import '../controllers/manage_users_controller.dart';
+import '../widgets/assign_tag_sheet.dart';
 import '../widgets/staff_user_form_sheet.dart';
 
 /// Admin → Manage Users: list, add, edit, switch on/off and delete staff
@@ -1017,6 +1018,16 @@ class _StudentTagCard extends StatelessWidget {
               ],
             ),
           ),
+          if (!tag.isSystem)
+            IconButton(
+              icon: const Icon(Icons.person_add_alt_1_rounded, color: AppColors.primary, size: 20),
+              tooltip: 'Assign to student',
+              onPressed: () => AssignTagSheet.show(
+                context,
+                tag,
+                onAssigned: () => controller.loadTags(showLoading: false),
+              ),
+            ),
           if (!tag.isSystem)
             IconButton(
               icon: const Icon(Icons.delete_outline_rounded, color: AppColors.errorRed, size: 20),

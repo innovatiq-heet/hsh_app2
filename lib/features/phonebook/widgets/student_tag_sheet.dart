@@ -4,6 +4,7 @@ import '../../../core/constants/app_colors.dart';
 import '../../../core/constants/app_text_styles.dart';
 import '../../../core/models/tags/student_tag_model.dart';
 import '../../../core/network/api_exception.dart';
+import '../../../core/network/repository/screentime/screen_time_repository.dart';
 import '../../../core/network/repository/tags/tags_repository.dart';
 import '../../../core/utils/app_snackbar.dart';
 import '../controllers/phonebook_controller.dart';
@@ -63,19 +64,17 @@ class _StudentTagSheetState extends State<StudentTagSheet> {
     });
 
     try {
-      // 1. Resolve numeric student_id
-      int? numId = int.tryParse(widget.student.studentId) ?? int.tryParse(widget.student.id);
-      if (numId == null || numId == 0) {
-        if (Get.isRegistered<PhonebookController>()) {
-          final foundId = await Get.find<PhonebookController>().findScreenTimeStudentId(widget.student);
-          if (foundId != null) {
-            numId = int.tryParse(foundId);
-          }
-        }
+      // 1. Resolve the numeric students.id. Phonebook ids / bank codes are not
+      // students.id, so only the Screen Time directory (or the warden's pick
+      // from it) is trusted.
+      int? numId = _resolvedStudentId;
+      if (numId == null && Get.isRegistered<PhonebookController>()) {
+        numId = await Get.find<PhonebookController>().resolveStudentIdForTags(widget.student);
       }
+      numId ??= await _pickStudentFromDirectory();
 
       if (numId == null || numId == 0) {
-        throw const ApiException('Could not find student account in hostel database.');
+        throw const ApiException('Could not find this student\'s account. Tap Retry to pick the student.');
       }
       _resolvedStudentId = numId;
 
@@ -100,10 +99,12 @@ class _StudentTagSheetState extends State<StudentTagSheet> {
       // Also incorporate tags already stored on PhonebookStudent if not empty
       for (final t in widget.student.tags) {
         _assignedTagIds.add(t.id);
-        if (!_currentTags.any((cur) => cur.id == t.id || cur.name.toLowerCase() == t.name.toLowerCase())) {
-          _currentTags.add(t);
-        }
+        _currentTags.add(t);
       }
+      final unique = dedupeTags(_currentTags);
+      _currentTags
+        ..clear()
+        ..addAll(unique);
     } on ApiException catch (e) {
       _error = e.message;
     } catch (e) {
@@ -113,6 +114,56 @@ class _StudentTagSheetState extends State<StudentTagSheet> {
         setState(() => _isLoading = false);
       }
     }
+  }
+
+  /// Fallback when the phonebook student can't be matched for certain: the
+  /// warden picks the right entry from the Screen Time directory (by name).
+  Future<int?> _pickStudentFromDirectory() async {
+    final page = await ScreenTimeRepository().students(
+      limit: 20,
+      offset: 0,
+      search: widget.student.name.trim(),
+    );
+    final candidates = page.students
+        .whereType<Map>()
+        .where((e) => int.tryParse((e['id'] ?? '').toString().trim()) != null)
+        .toList();
+    if (candidates.isEmpty || !mounted) return null;
+
+    // Same name AND same room, and only one such entry: no need to ask.
+    String norm(Object? v) => (v ?? '').toString().trim().toLowerCase();
+    final room = norm(widget.student.room);
+    if (room.isNotEmpty) {
+      final exact = candidates.where((e) =>
+          norm(e['name'] ?? e['fullName']) == norm(widget.student.name) &&
+          norm(e['room'] ?? e['room_number'] ?? e['roomNumber']) == room);
+      if (exact.length == 1) {
+        return int.tryParse(exact.first['id'].toString().trim());
+      }
+    }
+    if (candidates.length == 1 &&
+        norm(candidates.first['name'] ?? candidates.first['fullName']) ==
+            norm(widget.student.name)) {
+      return int.tryParse(candidates.first['id'].toString().trim());
+    }
+
+    final picked = await showDialog<Map>(
+      context: context,
+      builder: (ctx) => SimpleDialog(
+        title: const Text('Select the student'),
+        children: [
+          for (final c in candidates)
+            SimpleDialogOption(
+              onPressed: () => Navigator.of(ctx).pop(c),
+              child: Text(
+                '${c['name'] ?? c['fullName'] ?? 'Student'}'
+                '${(c['room'] ?? c['room_number'] ?? c['roomNumber'] ?? '').toString().isEmpty ? '' : ' · Room ${c['room'] ?? c['room_number'] ?? c['roomNumber']}'}',
+              ),
+            ),
+        ],
+      ),
+    );
+    return int.tryParse((picked?['id'] ?? '').toString().trim());
   }
 
   Future<void> _toggleTag(StudentTag tag) async {

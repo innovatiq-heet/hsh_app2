@@ -2,8 +2,10 @@ import 'package:flutter/material.dart';
 import 'package:flutter_map/flutter_map.dart';
 import 'package:get/get.dart';
 import 'package:latlong2/latlong.dart' as ll;
+import '../../../core/models/geofence/location_trail.dart';
 import '../../../core/models/geofence/student_location.dart';
 import '../../../core/services/geofence_service.dart';
+import '../../../core/utils/date_formatting.dart';
 import '../controllers/student_locations_controller.dart';
 
 /// Interactive radar & map visualization of Hari Saurabh Hostel perimeter
@@ -23,6 +25,182 @@ class CampusMapView extends StatefulWidget {
 class _CampusMapViewState extends State<CampusMapView> {
   final MapController _mapController = MapController();
   static final ll.LatLng _campusCenter = const ll.LatLng(22.5565, 72.9185);
+
+  Worker? _trailWorker;
+  int? _activeDot;
+
+  @override
+  void initState() {
+    super.initState();
+    // Frame the whole trail once it has loaded.
+    _trailWorker = ever(widget.controller.selectedStudentTrail, (_) {
+      final trail = _parse(widget.controller.selectedStudentTrail);
+      _activeDot = null;
+      if (!trail.hasPath) return;
+      try {
+        _mapController.fitCamera(CameraFit.coordinates(
+          coordinates: trail.latLngs,
+          padding: const EdgeInsets.fromLTRB(48, 150, 48, 260),
+          maxZoom: 18,
+        ));
+      } catch (_) {}
+    });
+  }
+
+  @override
+  void dispose() {
+    _trailWorker?.dispose();
+    super.dispose();
+  }
+
+  LocationTrail _parse(List<Map<String, dynamic>> rows) => LocationTrail.parse(rows.toList());
+
+  /// Start and latest pins plus a tappable dot for every fix in between.
+  List<Marker> _trailMarkers(LocationTrail trail) {
+    final pts = trail.points;
+    final markers = <Marker>[];
+    for (var i = 1; i < pts.length - 1; i++) {
+      final p = pts[i];
+      markers.add(Marker(
+        point: p.point,
+        width: 22,
+        height: 22,
+        child: GestureDetector(
+          onTap: () => setState(() => _activeDot = _activeDot == i ? null : i),
+          child: Center(
+            child: Container(
+              width: _activeDot == i ? 13 : 9,
+              height: _activeDot == i ? 13 : 9,
+              decoration: BoxDecoration(
+                color: p.mocked ? const Color(0xFFD97706) : Colors.white,
+                shape: BoxShape.circle,
+                border: Border.all(color: const Color(0xFFDC2626), width: 2),
+              ),
+            ),
+          ),
+        ),
+      ));
+    }
+    markers.add(_endpointMarker(pts.first, 'Start', const Color(0xFF16A34A), Icons.trip_origin_rounded));
+    markers.add(_endpointMarker(pts.last, 'Latest', const Color(0xFFDC2626), Icons.flag_rounded));
+
+    final dot = _activeDot;
+    if (dot != null && dot < pts.length) {
+      markers.add(Marker(
+        point: pts[dot].point,
+        width: 120,
+        height: 56,
+        alignment: Alignment.topCenter,
+        child: _pointBubble(pts[dot]),
+      ));
+    }
+    return markers;
+  }
+
+  Marker _endpointMarker(TrailPoint p, String label, Color color, IconData icon) {
+    return Marker(
+      point: p.point,
+      width: 76,
+      height: 44,
+      alignment: Alignment.topCenter,
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+            decoration: BoxDecoration(
+              color: color,
+              borderRadius: BorderRadius.circular(10),
+              border: Border.all(color: Colors.white, width: 1.5),
+            ),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Icon(icon, size: 11, color: Colors.white),
+                const SizedBox(width: 3),
+                Text(label, style: const TextStyle(color: Colors.white, fontSize: 10, fontWeight: FontWeight.w800)),
+              ],
+            ),
+          ),
+          Icon(Icons.arrow_drop_down, color: color, size: 16),
+        ],
+      ),
+    );
+  }
+
+  Widget _pointBubble(TrailPoint p) {
+    final t = p.time;
+    final time = t == null
+        ? 'Time unknown'
+        : '${t.hour.toString().padLeft(2, '0')}:${t.minute.toString().padLeft(2, '0')} · ${DateFormatting.relativeTime(t)}';
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 5),
+      decoration: BoxDecoration(
+        color: const Color(0xFF0F172A),
+        borderRadius: BorderRadius.circular(10),
+      ),
+      child: Text(
+        p.accuracyMeters > 0 ? '$time\n±${p.accuracyMeters.round()} m' : time,
+        textAlign: TextAlign.center,
+        style: const TextStyle(color: Colors.white, fontSize: 10.5, fontWeight: FontWeight.w600),
+      ),
+    );
+  }
+
+  /// "Trail: 14 fixes · 1.2 km · over 2h 10m" — or the loading / empty state.
+  Widget _trailSummary(StudentLocationsController controller) {
+    return Obx(() {
+      if (controller.isLoadingTrail.value) {
+        return _summaryChip(
+          const SizedBox(width: 12, height: 12, child: CircularProgressIndicator(strokeWidth: 2)),
+          'Loading movement trail…',
+        );
+      }
+      final trail = _parse(controller.selectedStudentTrail);
+      if (!trail.hasPath) {
+        return _summaryChip(
+          const Icon(Icons.timeline_rounded, size: 14, color: Color(0xFF94A3B8)),
+          'No movement recorded yet',
+        );
+      }
+      final d = trail.distanceMeters;
+      final dist = d >= 1000 ? '${(d / 1000).toStringAsFixed(1)} km' : '${d.round()} m';
+      final span = trail.span;
+      final over = span == null
+          ? ''
+          : span.inMinutes < 60
+              ? ' · over ${span.inMinutes}m'
+              : ' · over ${span.inHours}h ${span.inMinutes % 60}m';
+      return _summaryChip(
+        const Icon(Icons.timeline_rounded, size: 14, color: Color(0xFFDC2626)),
+        'Trail: ${trail.points.length} stops · $dist$over',
+      );
+    });
+  }
+
+  Widget _summaryChip(Widget leading, String text) {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+      decoration: BoxDecoration(
+        color: const Color(0xFFF8FAFC),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: const Color(0xFFE2E8F0)),
+      ),
+      child: Row(
+        children: [
+          leading,
+          const SizedBox(width: 8),
+          Expanded(
+            child: Text(
+              text,
+              style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: Color(0xFF334155)),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -73,27 +251,23 @@ class _CampusMapViewState extends State<CampusMapView> {
             );
           }
 
-          // Breadcrumb Polyline for selected student
+          // Movement trail of the selected student: faint (old) to strong (latest).
+          final parsedTrail = _parse(trail);
           final polylines = <Polyline>[];
-          if (trail.isNotEmpty) {
-            final trailPoints = trail
-                .map((m) {
-                  final lat = (m['latitude'] ?? m['lat']) as num?;
-                  final lng = (m['longitude'] ?? m['lng']) as num?;
-                  if (lat == null || lng == null || lat == 0 || lng == 0) return null;
-                  return ll.LatLng(lat.toDouble(), lng.toDouble());
-                })
-                .whereType<ll.LatLng>()
-                .toList();
-            if (trailPoints.isNotEmpty) {
-              polylines.add(
-                Polyline(
-                  points: trailPoints,
-                  color: const Color(0xFFDC2626),
-                  strokeWidth: 3.5,
-                ),
-              );
-            }
+          final trailMarkers = <Marker>[];
+          if (parsedTrail.hasPath) {
+            polylines.add(
+              Polyline(
+                points: parsedTrail.latLngs,
+                strokeWidth: 4.5,
+                borderStrokeWidth: 2,
+                borderColor: Colors.white,
+                strokeCap: StrokeCap.round,
+                strokeJoin: StrokeJoin.round,
+                gradientColors: const [Color(0xFFFCA5A5), Color(0xFFDC2626)],
+              ),
+            );
+            trailMarkers.addAll(_trailMarkers(parsedTrail));
           }
 
           return FlutterMap(
@@ -126,7 +300,12 @@ class _CampusMapViewState extends State<CampusMapView> {
                 ],
               ),
               if (polylines.isNotEmpty) PolylineLayer(polylines: polylines),
+              MarkerLayer(markers: trailMarkers),
               MarkerLayer(markers: markers),
+              const RichAttributionWidget(
+                alignment: AttributionAlignment.bottomLeft,
+                attributions: [TextSourceAttribution('OpenStreetMap contributors')],
+              ),
             ],
           );
         }),
@@ -592,6 +771,8 @@ class _CampusMapViewState extends State<CampusMapView> {
               ],
             ),
           ),
+          const SizedBox(height: 8),
+          _trailSummary(controller),
           const SizedBox(height: 14),
 
           // Actions: Call, Google Maps

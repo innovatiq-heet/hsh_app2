@@ -17,6 +17,7 @@ import '../controllers/phonebook_controller.dart';
 import '../models/phonebook_models.dart';
 import '../services/phone_number_normalizer.dart';
 import '../services/phonebook_database_service.dart';
+import '../widgets/add_contact_number_sheet.dart';
 import '../widgets/manage_contacts_sheet.dart';
 import '../widgets/student_tag_sheet.dart';
 
@@ -55,6 +56,17 @@ class _StudentDetailScreenState extends State<StudentDetailScreen> {
       context,
       _student,
       onContactsUpdated: _refreshStudent,
+    );
+    if (res == true) {
+      await _refreshStudent();
+    }
+  }
+
+  Future<void> _openAddContactNumber() async {
+    final res = await AddContactNumberSheet.show(
+      context,
+      student: _student,
+      onSaved: _refreshStudent,
     );
     if (res == true) {
       await _refreshStudent();
@@ -151,6 +163,19 @@ class _StudentDetailScreenState extends State<StudentDetailScreen> {
                     ..._familyContacts(),
                   ],
                   const SizedBox(height: AppDimens.gapMd),
+                  AppButton(
+                    label: 'Add Contact Number',
+                    icon: Icons.add_call,
+                    onPressed: _openAddContactNumber,
+                  ),
+                  const SizedBox(height: AppDimens.gapSm),
+                  AppButton(
+                    label: 'Manage All Contacts',
+                    icon: Icons.contact_phone_outlined,
+                    variant: AppButtonVariant.outline,
+                    onPressed: _openManageContacts,
+                  ),
+                  const SizedBox(height: AppDimens.gapSm),
                   AppButton(
                     label: 'Share complete details',
                     icon: Icons.ios_share_rounded,
@@ -255,6 +280,7 @@ class _StudentDetailScreenState extends State<StudentDetailScreen> {
 
     return _CollapsibleContactCard(
       onManage: _openManageContacts,
+      onAdd: _openAddContactNumber,
       lines: [
         for (final n in _studentNumbers)
           _CopyLine(
@@ -1360,11 +1386,13 @@ class _CollapsibleContactCard extends StatefulWidget {
   final List<Widget> lines;
   final Widget actions;
   final VoidCallback? onManage;
+  final VoidCallback? onAdd;
 
   const _CollapsibleContactCard({
     required this.lines,
     required this.actions,
     this.onManage,
+    this.onAdd,
   });
 
   @override
@@ -1420,8 +1448,32 @@ class _CollapsibleContactCardState extends State<_CollapsibleContactCard> {
                   ),
                 ),
               ),
-              if (widget.onManage != null) ...[
+              if (widget.onAdd != null) ...[
                 const SizedBox(width: 8),
+                InkWell(
+                  onTap: widget.onAdd,
+                  borderRadius: BorderRadius.circular(AppDimens.radiusSm),
+                  child: Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        const Icon(Icons.add_call, size: 14, color: AppColors.primary),
+                        const SizedBox(width: 4),
+                        Text(
+                          'Add Number',
+                          style: AppTextStyles.caption.copyWith(
+                            color: AppColors.primary,
+                            fontWeight: FontWeight.w700,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              ],
+              if (widget.onManage != null) ...[
+                const SizedBox(width: 6),
                 InkWell(
                   onTap: widget.onManage,
                   borderRadius: BorderRadius.circular(AppDimens.radiusSm),
@@ -1430,13 +1482,13 @@ class _CollapsibleContactCardState extends State<_CollapsibleContactCard> {
                     child: Row(
                       mainAxisSize: MainAxisSize.min,
                       children: [
-                        const Icon(Icons.edit_outlined, size: 14, color: AppColors.primary),
-                        const SizedBox(width: 4),
+                        const Icon(Icons.edit_outlined, size: 13, color: Color(0xFF64748B)),
+                        const SizedBox(width: 3),
                         Text(
-                          'Edit',
+                          'Manage',
                           style: AppTextStyles.caption.copyWith(
-                            color: AppColors.primary,
-                            fontWeight: FontWeight.w700,
+                            color: const Color(0xFF64748B),
+                            fontWeight: FontWeight.w600,
                           ),
                         ),
                       ],

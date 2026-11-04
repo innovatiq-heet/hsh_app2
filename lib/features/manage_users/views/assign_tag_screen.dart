@@ -16,6 +16,7 @@ import '../../phonebook/services/phonebook_database_service.dart';
 import '../../phonebook/widgets/alpha_scroll_rail.dart';
 import '../../shared/widgets/empty_state.dart';
 import '../../shared/widgets/staggered_slide_fade.dart';
+import '../../shared/widgets/student_contact_card.dart';
 
 enum TagSortMode {
   roomWise,
@@ -31,6 +32,7 @@ class TagAssignableStudent {
   final int? floor;
   final String studentCode;
   final String? phone;
+  final String? groupName;
   final bool isAlumni;
   final List<StudentTag> tags;
 
@@ -41,6 +43,7 @@ class TagAssignableStudent {
     this.floor,
     required this.studentCode,
     this.phone,
+    this.groupName,
     this.isAlumni = false,
     this.tags = const [],
   });
@@ -59,6 +62,7 @@ class TagAssignableStudent {
       floor: floor,
       studentCode: studentCode,
       phone: phone,
+      groupName: groupName,
       isAlumni: isAlumni,
       tags: tags ?? this.tags,
     );
@@ -159,7 +163,17 @@ class _AssignTagScreenState extends State<AssignTagScreen> {
     try {
       final List<TagAssignableStudent> parsedList = [];
 
-      // Primary source: backend /students with tag joins
+      // 1. Fetch from local phonebook database first to get full student details and group names
+      final cached = await PhonebookDatabaseService.instance.searchStudents();
+      final cacheMap = <int, PhonebookStudent>{};
+      for (final c in cached) {
+        final numId = int.tryParse(c.studentId) ?? int.tryParse(c.id);
+        if (numId != null && numId > 0) {
+          cacheMap[numId] = c;
+        }
+      }
+
+      // 2. Fetch latest student tags & records from backend if possible
       List<Map<String, dynamic>> rawBackend = [];
       try {
         rawBackend = await _tagsRepo.getStudentsForAssignment();
@@ -182,8 +196,9 @@ class _AssignTagScreenState extends State<AssignTagScreen> {
           final numId = int.tryParse(rawId?.toString() ?? '');
           if (numId == null || numId == 0) continue;
 
-          final name = (m['name'] ?? m['fullName'] ?? 'Student').toString().trim();
-          final rawRoom = (m['room_number'] ?? m['room'] ?? '').toString().trim();
+          final cachedStudent = cacheMap[numId];
+          final name = (m['name'] ?? m['fullName'] ?? cachedStudent?.name ?? 'Student').toString().trim();
+          final rawRoom = (m['room_number'] ?? m['room'] ?? cachedStudent?.room ?? '').toString().trim();
           final isAlumni = rawRoom.isEmpty ||
               rawRoom.toLowerCase() == 'alumni' ||
               rawRoom.toLowerCase() == 'n/a' ||
@@ -195,12 +210,16 @@ class _AssignTagScreenState extends State<AssignTagScreen> {
             floor = int.tryParse(m['floor_id'].toString());
           } else if (m['floorId'] != null) {
             floor = int.tryParse(m['floorId'].toString());
+          } else if (cachedStudent?.floor != null) {
+            floor = cachedStudent?.floor;
           } else if (!isAlumni) {
             floor = PhonebookStudent.floorOfRoom(room);
           }
 
-          final studentCode = (m['student_code'] ?? m['bank_code'] ?? '').toString().trim();
-          final phone = m['phone_number']?.toString() ?? m['phone']?.toString();
+          final studentCode = (m['student_code'] ?? m['bank_code'] ?? cachedStudent?.bankCode ?? cachedStudent?.studentId ?? '').toString().trim();
+          final phone = m['phone_number']?.toString() ?? m['phone']?.toString() ?? cachedStudent?.primaryPhone;
+          final rawGroup = (m['group_name'] ?? m['group'] ?? m['wing'] ?? m['department'] ?? cachedStudent?.groupName)?.toString().trim();
+          final groupName = (rawGroup != null && rawGroup.isNotEmpty) ? rawGroup : cachedStudent?.groupName;
 
           final tagsList = <StudentTag>[];
           if (m['tags'] is List) {
@@ -209,6 +228,8 @@ class _AssignTagScreenState extends State<AssignTagScreen> {
                 tagsList.add(StudentTag.fromJson(Map<String, dynamic>.from(t)));
               }
             }
+          } else if (cachedStudent != null) {
+            tagsList.addAll(cachedStudent.tags);
           }
 
           parsedList.add(TagAssignableStudent(
@@ -218,6 +239,7 @@ class _AssignTagScreenState extends State<AssignTagScreen> {
             floor: floor,
             studentCode: studentCode,
             phone: phone,
+            groupName: groupName,
             isAlumni: isAlumni,
             tags: tagsList,
           ));
@@ -226,7 +248,6 @@ class _AssignTagScreenState extends State<AssignTagScreen> {
 
       // Fallback 2: Local SQLite cache if backend couldn't be reached
       if (parsedList.isEmpty) {
-        final cached = await PhonebookDatabaseService.instance.searchStudents();
         for (final c in cached) {
           final numId = int.tryParse(c.studentId) ?? int.tryParse(c.id);
           if (numId == null || numId == 0) continue;
@@ -238,6 +259,7 @@ class _AssignTagScreenState extends State<AssignTagScreen> {
             floor: c.floor,
             studentCode: c.bankCode ?? c.studentId,
             phone: c.primaryPhone,
+            groupName: c.groupName,
             isAlumni: c.isAlumni,
             tags: c.tags,
           ));
@@ -654,94 +676,131 @@ class _AssignTagScreenState extends State<AssignTagScreen> {
       pinned: true,
       elevation: 0,
       expandedHeight: topPad + 130,
-      backgroundColor: widget.tag.displayColor,
-      leading: IconButton(
-        icon: const Icon(Icons.arrow_back_ios_new_rounded, color: Colors.white, size: 20),
-        onPressed: () => Navigator.pop(context),
+      backgroundColor: const Color(0xFF032B4F),
+      leading: Padding(
+        padding: const EdgeInsets.all(8.0),
+        child: Material(
+          color: Colors.transparent,
+          child: InkWell(
+            onTap: () => Navigator.pop(context),
+            borderRadius: BorderRadius.circular(24),
+            child: Container(
+              decoration: BoxDecoration(
+                color: Colors.white.withValues(alpha: 0.16),
+                shape: BoxShape.circle,
+                border: Border.all(
+                  color: Colors.white.withValues(alpha: 0.25),
+                  width: 1,
+                ),
+              ),
+              child: const Icon(
+                Icons.arrow_back_rounded,
+                color: Colors.white,
+                size: 20,
+              ),
+            ),
+          ),
+        ),
       ),
       flexibleSpace: FlexibleSpaceBar(
         background: Container(
-          decoration: BoxDecoration(
+          decoration: const BoxDecoration(
             gradient: LinearGradient(
               begin: Alignment.topLeft,
               end: Alignment.bottomRight,
               colors: [
-                const Color(0xFF0F172A),
-                widget.tag.displayColor,
-                widget.tag.displayColor.withValues(alpha: 0.85),
+                Color(0xFF03192E),
+                Color(0xFF032B4F),
+                Color(0xFF025A8D),
+                Color(0xFF0369A1),
               ],
+              stops: [0.0, 0.38, 0.75, 1.0],
             ),
           ),
-          padding: EdgeInsets.fromLTRB(20, topPad + 48, 20, 16),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            mainAxisAlignment: MainAxisAlignment.end,
+          child: Stack(
+            fit: StackFit.expand,
             children: [
-              Row(
-                children: [
-                  Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 4),
-                    decoration: BoxDecoration(
-                      color: Colors.white.withValues(alpha: 0.2),
-                      borderRadius: BorderRadius.circular(8),
-                      border: Border.all(color: Colors.white.withValues(alpha: 0.3)),
-                    ),
-                    child: Row(
-                      mainAxisSize: MainAxisSize.min,
+              CustomPaint(painter: _HeaderOrbPainter()),
+              Padding(
+                padding: EdgeInsets.fromLTRB(20, topPad + 48, 20, 16),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  mainAxisAlignment: MainAxisAlignment.end,
+                  children: [
+                    Row(
                       children: [
-                        const Icon(Icons.label_rounded, size: 14, color: Colors.white),
-                        const SizedBox(width: 5),
-                        Text(
-                          widget.tag.name,
-                          style: const TextStyle(
-                            fontSize: 13,
-                            fontWeight: FontWeight.w800,
-                            color: Colors.white,
+                        Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 4),
+                          decoration: BoxDecoration(
+                            color: widget.tag.displayColor.withValues(alpha: 0.9),
+                            borderRadius: BorderRadius.circular(8),
+                            boxShadow: [
+                              BoxShadow(
+                                color: widget.tag.displayColor.withValues(alpha: 0.35),
+                                blurRadius: 8,
+                                offset: const Offset(0, 2),
+                              ),
+                            ],
+                          ),
+                          child: Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              const Icon(Icons.label_rounded, size: 14, color: Colors.white),
+                              const SizedBox(width: 5),
+                              Text(
+                                widget.tag.name,
+                                style: const TextStyle(
+                                  fontSize: 13,
+                                  fontWeight: FontWeight.w800,
+                                  color: Colors.white,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                        const SizedBox(width: 8),
+                        Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                          decoration: BoxDecoration(
+                            color: const Color(0xFF10B981).withValues(alpha: 0.9),
+                            borderRadius: BorderRadius.circular(8),
+                          ),
+                          child: Text(
+                            '$assignedCount Assigned',
+                            style: const TextStyle(
+                              fontSize: 11.5,
+                              fontWeight: FontWeight.w800,
+                              color: Colors.white,
+                            ),
                           ),
                         ),
                       ],
                     ),
-                  ),
-                  const SizedBox(width: 8),
-                  Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                    decoration: BoxDecoration(
-                      color: const Color(0xFF10B981).withValues(alpha: 0.9),
-                      borderRadius: BorderRadius.circular(8),
-                    ),
-                    child: Text(
-                      '$assignedCount Assigned',
+                    const SizedBox(height: 6),
+                    Text(
+                      'Assign "${widget.tag.name}" Tag',
                       style: const TextStyle(
-                        fontSize: 11.5,
+                        fontSize: 20,
                         fontWeight: FontWeight.w800,
                         color: Colors.white,
+                        letterSpacing: -0.3,
                       ),
                     ),
-                  ),
-                ],
-              ),
-              const SizedBox(height: 6),
-              Text(
-                'Assign "${widget.tag.name}" Tag',
-                style: const TextStyle(
-                  fontSize: 20,
-                  fontWeight: FontWeight.w800,
-                  color: Colors.white,
-                  letterSpacing: -0.3,
+                    if (widget.tag.description != null && widget.tag.description!.isNotEmpty) ...[
+                      const SizedBox(height: 2),
+                      Text(
+                        widget.tag.description!,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: TextStyle(
+                          fontSize: 12,
+                          color: Colors.white.withValues(alpha: 0.85),
+                        ),
+                      ),
+                    ],
+                  ],
                 ),
               ),
-              if (widget.tag.description != null && widget.tag.description!.isNotEmpty) ...[
-                const SizedBox(height: 2),
-                Text(
-                  widget.tag.description!,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: TextStyle(
-                    fontSize: 12,
-                    color: Colors.white.withValues(alpha: 0.85),
-                  ),
-                ),
-              ],
             ],
           ),
         ),
@@ -762,7 +821,7 @@ class _AssignTagScreenState extends State<AssignTagScreen> {
             onChanged: _onSearchChanged,
             decoration: InputDecoration(
               hintText: 'Search by student name, room (e.g. 204), or ID',
-              prefixIcon: const Icon(Icons.search_rounded, color: Color(0xFF64748B), size: 21),
+              prefixIcon: const Icon(Icons.search_rounded, color: Color(0xFF0284C7), size: 21),
               suffixIcon: _searchCtrl.text.isNotEmpty
                   ? IconButton(
                       icon: const Icon(Icons.clear_rounded, size: 18),
@@ -773,11 +832,19 @@ class _AssignTagScreenState extends State<AssignTagScreen> {
                     )
                   : null,
               filled: true,
-              fillColor: const Color(0xFFF1F5F9),
+              fillColor: const Color(0xFFF8FAFC),
               contentPadding: const EdgeInsets.symmetric(vertical: 11, horizontal: 14),
               border: OutlineInputBorder(
                 borderRadius: BorderRadius.circular(12),
-                borderSide: BorderSide.none,
+                borderSide: const BorderSide(color: Color(0xFFE2E8F0)),
+              ),
+              enabledBorder: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(12),
+                borderSide: const BorderSide(color: Color(0xFFE2E8F0)),
+              ),
+              focusedBorder: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(12),
+                borderSide: const BorderSide(color: Color(0xFF0284C7), width: 1.5),
               ),
             ),
           ),
@@ -813,6 +880,8 @@ class _AssignTagScreenState extends State<AssignTagScreen> {
             child: Row(
               children: _floorOptions.map((f) {
                 final selected = _selectedFloor == f;
+                final isAlumni = f == 'Alumni';
+                final activeColor = isAlumni ? const Color(0xFF9333EA) : const Color(0xFF0284C7);
                 String displayLabel = f;
                 if (f == 'All') {
                   displayLabel = 'All Rooms';
@@ -830,18 +899,18 @@ class _AssignTagScreenState extends State<AssignTagScreen> {
                       style: TextStyle(
                         fontSize: 11.5,
                         fontWeight: selected ? FontWeight.w700 : FontWeight.w500,
-                        color: selected ? Colors.white : const Color(0xFF475569),
+                        color: selected ? Colors.white : const Color(0xFF334155),
                       ),
                     ),
                     selected: selected,
-                    selectedColor: AppColors.primary,
-                    backgroundColor: const Color(0xFFF8FAFC),
+                    selectedColor: activeColor,
+                    backgroundColor: const Color(0xFFF1F5F9),
                     showCheckmark: false,
                     padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
                     shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(8),
+                      borderRadius: BorderRadius.circular(10),
                       side: BorderSide(
-                        color: selected ? AppColors.primary : const Color(0xFFE2E8F0),
+                        color: selected ? activeColor : const Color(0xFFE2E8F0),
                       ),
                     ),
                     onSelected: (val) {
@@ -879,10 +948,10 @@ class _AssignTagScreenState extends State<AssignTagScreen> {
           duration: const Duration(milliseconds: 180),
           padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 4),
           decoration: BoxDecoration(
-            color: isSelected ? AppColors.primary : const Color(0xFFF8FAFC),
+            color: isSelected ? const Color(0xFF0284C7) : const Color(0xFFF8FAFC),
             borderRadius: BorderRadius.circular(10),
             border: Border.all(
-              color: isSelected ? AppColors.primary : const Color(0xFFE2E8F0),
+              color: isSelected ? const Color(0xFF0284C7) : const Color(0xFFE2E8F0),
             ),
           ),
           child: Row(
@@ -977,24 +1046,50 @@ class _AssignTagScreenState extends State<AssignTagScreen> {
   }
 
   Widget _buildFloorSectionHeader(String label) {
+    final isAlumni = label.toLowerCase().contains('alumni');
+    final accent = isAlumni ? const Color(0xFF9333EA) : const Color(0xFF0284C7);
+    final textAccent = isAlumni ? const Color(0xFF7E22CE) : const Color(0xFF0369A1);
+
     return Container(
+      height: 42,
       margin: const EdgeInsets.only(top: 10, bottom: 8),
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 7),
+      padding: const EdgeInsets.symmetric(horizontal: 14),
       decoration: BoxDecoration(
-        color: const Color(0xFFE2E8F0).withValues(alpha: 0.6),
-        borderRadius: BorderRadius.circular(8),
+        gradient: LinearGradient(
+          colors: [
+            accent.withValues(alpha: 0.12),
+            accent.withValues(alpha: 0.04),
+          ],
+        ),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(
+          color: accent.withValues(alpha: 0.20),
+        ),
       ),
       child: Row(
         children: [
-          const Icon(Icons.apartment_rounded, size: 16, color: Color(0xFF475569)),
-          const SizedBox(width: 8),
+          Container(
+            width: 26,
+            height: 26,
+            decoration: BoxDecoration(
+              color: accent,
+              shape: BoxShape.circle,
+            ),
+            alignment: Alignment.center,
+            child: Icon(
+              isAlumni ? Icons.school_rounded : Icons.apartment_rounded,
+              color: Colors.white,
+              size: 14,
+            ),
+          ),
+          const SizedBox(width: 10),
           Text(
-            label.toUpperCase(),
-            style: const TextStyle(
-              fontSize: 11,
+            isAlumni ? 'ALUMNI & OTHER STUDENTS' : label.toUpperCase(),
+            style: TextStyle(
+              fontSize: 12.5,
               fontWeight: FontWeight.w800,
-              color: Color(0xFF334155),
-              letterSpacing: 0.5,
+              color: textAccent,
+              letterSpacing: 0.3,
             ),
           ),
         ],
@@ -1003,38 +1098,54 @@ class _AssignTagScreenState extends State<AssignTagScreen> {
   }
 
   Widget _buildLetterSectionHeader(String letter, bool isAlumni) {
+    final accent = isAlumni ? const Color(0xFF9333EA) : const Color(0xFF0284C7);
+    final textAccent = isAlumni ? const Color(0xFF7E22CE) : const Color(0xFF0369A1);
+
     return Container(
+      height: 42,
       margin: const EdgeInsets.only(top: 10, bottom: 8),
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+      padding: const EdgeInsets.symmetric(horizontal: 14),
       decoration: BoxDecoration(
         gradient: LinearGradient(
           colors: [
-            (isAlumni ? const Color(0xFF9333EA) : AppColors.primary).withValues(alpha: 0.12),
-            (isAlumni ? const Color(0xFF9333EA) : AppColors.primary).withValues(alpha: 0.04),
+            accent.withValues(alpha: 0.12),
+            accent.withValues(alpha: 0.04),
           ],
         ),
-        borderRadius: BorderRadius.circular(8),
+        borderRadius: BorderRadius.circular(12),
         border: Border.all(
-          color: (isAlumni ? const Color(0xFF9333EA) : AppColors.primary).withValues(alpha: 0.2),
+          color: accent.withValues(alpha: 0.20),
         ),
       ),
       child: Row(
         children: [
-          Text(
-            letter,
-            style: TextStyle(
-              fontSize: 13,
-              fontWeight: FontWeight.w900,
-              color: isAlumni ? const Color(0xFF9333EA) : AppColors.primary,
+          Container(
+            width: 26,
+            height: 26,
+            decoration: BoxDecoration(
+              color: accent,
+              shape: BoxShape.circle,
+            ),
+            alignment: Alignment.center,
+            child: Text(
+              letter,
+              style: const TextStyle(
+                fontSize: 14,
+                fontWeight: FontWeight.w900,
+                color: Colors.white,
+              ),
             ),
           ),
-          const SizedBox(width: 8),
+          const SizedBox(width: 10),
           Text(
-            isAlumni ? 'Alumni' : 'Residents',
+            isAlumni
+                ? 'Alumni starting with "$letter"'
+                : 'Students starting with "$letter"',
             style: TextStyle(
-              fontSize: 10.5,
-              fontWeight: FontWeight.w600,
-              color: isAlumni ? const Color(0xFF9333EA) : AppColors.primary,
+              fontSize: 12.5,
+              fontWeight: FontWeight.w700,
+              color: textAccent,
+              letterSpacing: 0.2,
             ),
           ),
         ],
@@ -1047,211 +1158,342 @@ class _AssignTagScreenState extends State<AssignTagScreen> {
     final isBusy = _busyIds.contains(student.id);
     final isAlumni = student.isAlumni;
 
+    final gColor = isAlumni ? const Color(0xFF9333EA) : StudentContactCard.groupColor(student.groupName);
+    final gBg = isAlumni ? const Color(0xFFF3E8FF) : StudentContactCard.groupBgColor(student.groupName);
+    final wave = StudentContactCard.waveColor(student.groupName, isAlumni: isAlumni);
+
     return Container(
-      padding: const EdgeInsets.fromLTRB(12, 11, 12, 11),
       decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(14),
+        color: hasCurrentTag ? const Color(0xFFF0FDF4) : Colors.white,
+        borderRadius: BorderRadius.circular(20),
         border: Border.all(
-          color: hasCurrentTag
-              ? widget.tag.displayColor.withValues(alpha: 0.35)
-              : const Color(0xFFE2E8F0),
-          width: hasCurrentTag ? 1.5 : 1,
+          color: hasCurrentTag ? const Color(0xFF16A34A).withValues(alpha: 0.4) : const Color(0xFFF1F5F9),
+          width: hasCurrentTag ? 1.6 : 1.2,
         ),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withValues(alpha: 0.02),
-            blurRadius: 4,
-            offset: const Offset(0, 1),
+            color: hasCurrentTag
+                ? const Color(0xFF16A34A).withValues(alpha: 0.08)
+                : const Color(0xFF0F172A).withValues(alpha: 0.04),
+            blurRadius: 14,
+            offset: const Offset(0, 4),
           ),
         ],
       ),
-      child: Row(
+      clipBehavior: Clip.antiAlias,
+      child: Stack(
         children: [
-          // Room Badge
-          Container(
-            width: 52,
-            padding: const EdgeInsets.symmetric(vertical: 6),
-            decoration: BoxDecoration(
-              color: isAlumni ? const Color(0xFFFAF5FF) : const Color(0xFFF1F5F9),
-              borderRadius: BorderRadius.circular(10),
-              border: Border.all(
-                color: isAlumni ? const Color(0xFFE9D5FF) : const Color(0xFFCBD5E1),
+          // Bottom-right organic corner wave (phonebook signature)
+          Positioned(
+            bottom: 0,
+            right: 0,
+            child: CustomPaint(
+              size: const Size(100, 65),
+              painter: CornerWavePainter(
+                color: wave.withValues(alpha: 0.55),
               ),
             ),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Icon(
-                  isAlumni ? Icons.school_rounded : Icons.meeting_room_rounded,
-                  size: 15,
-                  color: isAlumni ? const Color(0xFF9333EA) : AppColors.primary,
-                ),
-                const SizedBox(height: 2),
-                Text(
-                  student.room,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: TextStyle(
-                    fontSize: isAlumni ? 9 : 12,
-                    fontWeight: FontWeight.w800,
-                    color: isAlumni ? const Color(0xFF9333EA) : const Color(0xFF0F172A),
-                  ),
-                ),
-              ],
-            ),
           ),
-          const SizedBox(width: 12),
 
-          // Name and Details
-          Expanded(
+          // Main Card Content
+          Padding(
+            padding: const EdgeInsets.all(14),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(
-                  student.name,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: const TextStyle(
-                    fontSize: 14,
-                    fontWeight: FontWeight.w700,
-                    color: AppColors.textPrimary,
-                  ),
-                ),
-                const SizedBox(height: 2),
+                // Identity row
                 Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    if (!isAlumni && student.floor != null) ...[
-                      Text(
-                        student.floor == 0 ? 'Ground Floor' : 'Floor ${student.floor}',
-                        style: const TextStyle(fontSize: 11, color: Color(0xFF64748B)),
-                      ),
-                      const Text(' · ', style: TextStyle(color: Color(0xFF94A3B8))),
-                    ],
-                    if (student.studentCode.isNotEmpty)
-                      Text(
-                        student.studentCode,
-                        style: const TextStyle(
-                          fontSize: 11,
-                          fontWeight: FontWeight.w600,
-                          color: Color(0xFF64748B),
-                        ),
-                      ),
-                  ],
-                ),
-                if (student.tags.isNotEmpty) ...[
-                  const SizedBox(height: 5),
-                  Wrap(
-                    spacing: 4,
-                    runSpacing: 4,
-                    children: student.tags.map((t) {
-                      final isThisTag = t.id == widget.tag.id;
-                      return Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1.5),
-                        decoration: BoxDecoration(
-                          color: isThisTag
-                              ? widget.tag.displayColor
-                              : t.displayColor.withValues(alpha: 0.12),
-                          borderRadius: BorderRadius.circular(4),
-                          border: Border.all(
-                            color: isThisTag
-                                ? widget.tag.displayColor
-                                : t.displayColor.withValues(alpha: 0.3),
-                            width: 0.8,
+                    // Squircle Avatar in group colors
+                    Stack(
+                      clipBehavior: Clip.none,
+                      children: [
+                        Container(
+                          width: 46,
+                          height: 46,
+                          decoration: BoxDecoration(
+                            color: gBg,
+                            borderRadius: BorderRadius.circular(14),
+                            border: Border.all(
+                              color: gColor.withValues(alpha: 0.25),
+                              width: 1.2,
+                            ),
+                          ),
+                          alignment: Alignment.center,
+                          child: Text(
+                            student.name.isNotEmpty ? student.name[0].toUpperCase() : 'S',
+                            style: TextStyle(
+                              color: gColor,
+                              fontWeight: FontWeight.w800,
+                              fontSize: 20,
+                            ),
                           ),
                         ),
-                        child: Text(
-                          t.name,
-                          style: TextStyle(
-                            fontSize: 9.5,
-                            fontWeight: FontWeight.w700,
-                            color: isThisTag ? Colors.white : t.displayColor,
+                        Positioned(
+                          bottom: -2,
+                          right: -2,
+                          child: Container(
+                            padding: const EdgeInsets.all(2.5),
+                            decoration: BoxDecoration(
+                              color: gColor,
+                              shape: BoxShape.circle,
+                              border: Border.all(color: Colors.white, width: 1.5),
+                            ),
+                            child: Icon(
+                              isAlumni ? Icons.school_rounded : Icons.person_rounded,
+                              color: Colors.white,
+                              size: 9,
+                            ),
                           ),
                         ),
-                      );
-                    }).toList(),
-                  ),
-                ],
-              ],
-            ),
-          ),
-          const SizedBox(width: 8),
+                      ],
+                    ),
+                    const SizedBox(width: 12),
 
-          // Action Button
-          if (isBusy)
-            const SizedBox(
-              width: 24,
-              height: 24,
-              child: CircularProgressIndicator(strokeWidth: 2),
-            )
-          else if (hasCurrentTag)
-            InkWell(
-              onTap: () => _unassignTag(student),
-              borderRadius: BorderRadius.circular(8),
-              child: Container(
-                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
-                decoration: BoxDecoration(
-                  color: const Color(0xFFDCFCE7),
-                  borderRadius: BorderRadius.circular(8),
-                  border: Border.all(color: const Color(0xFF86EFAC)),
-                ),
-                child: const Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Icon(Icons.check_circle_rounded, size: 14, color: Color(0xFF16A34A)),
-                    SizedBox(width: 4),
-                    Text(
-                      'Assigned',
-                      style: TextStyle(
-                        fontSize: 11.5,
-                        fontWeight: FontWeight.w800,
-                        color: Color(0xFF16A34A),
+                    // Name + Subtitle
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            student.name,
+                            style: const TextStyle(
+                              fontSize: 15,
+                              fontWeight: FontWeight.w700,
+                              color: Color(0xFF0F172A),
+                              letterSpacing: -0.2,
+                              height: 1.2,
+                            ),
+                            maxLines: 2,
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                          const SizedBox(height: 3),
+                          Text(
+                            isAlumni
+                                ? (student.room != 'Alumni' && student.room != 'N/A'
+                                    ? 'Alumni • Room ${student.room}'
+                                    : 'Alumni Student')
+                                : (student.room != 'N/A' && student.room != 'Alumni'
+                                    ? 'Room ${student.room} • ${student.groupName ?? "Resident"}'
+                                    : (student.groupName ?? 'Hostel Resident')),
+                            style: TextStyle(
+                              fontSize: 11.5,
+                              fontWeight: FontWeight.w600,
+                              color: gColor,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+
+                    const SizedBox(width: 8),
+
+                    // Top-right Wing/Status Pill
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 8.5, vertical: 4),
+                      decoration: BoxDecoration(
+                        color: gBg,
+                        borderRadius: BorderRadius.circular(20),
+                        border: Border.all(
+                          color: gColor.withValues(alpha: 0.3),
+                          width: 1,
+                        ),
+                      ),
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Container(
+                            width: 6,
+                            height: 6,
+                            decoration: BoxDecoration(
+                              color: gColor,
+                              shape: BoxShape.circle,
+                            ),
+                          ),
+                          const SizedBox(width: 4.5),
+                          Text(
+                            isAlumni ? 'Alumni' : (student.groupName ?? 'Resident'),
+                            style: TextStyle(
+                              color: gColor,
+                              fontSize: 10.5,
+                              fontWeight: FontWeight.w800,
+                            ),
+                          ),
+                        ],
                       ),
                     ),
                   ],
                 ),
-              ),
-            )
-          else if (student.manualTagCount >= 3)
-            Container(
-              padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 5),
-              decoration: BoxDecoration(
-                color: const Color(0xFFFEF3C7),
-                borderRadius: BorderRadius.circular(8),
-              ),
-              child: const Text(
-                'Max 3 Tags',
-                style: TextStyle(
-                  fontSize: 10.5,
-                  fontWeight: FontWeight.w700,
-                  color: Color(0xFFD97706),
+
+                const SizedBox(height: 10),
+
+                // Celebrant Metadata Chips (Room, ID, Floor, Tags)
+                Wrap(
+                  spacing: 6,
+                  runSpacing: 4.5,
+                  children: [
+                    if (student.room.isNotEmpty && student.room != 'Alumni' && student.room != 'N/A')
+                      CelebrantLightChip(
+                        icon: Icons.meeting_room_rounded,
+                        text: 'Room ${student.room}',
+                        bgColor: const Color(0xFFF1F5F9),
+                        borderColor: const Color(0xFFE2E8F0),
+                        textColor: const Color(0xFF334155),
+                      ),
+                    if (student.studentCode.isNotEmpty)
+                      CelebrantLightChip(
+                        icon: Icons.tag_rounded,
+                        text: 'ID: ${student.studentCode}',
+                        bgColor: const Color(0xFFF8FAFC),
+                        borderColor: const Color(0xFFE2E8F0),
+                        textColor: const Color(0xFF475569),
+                      ),
+                    if (!isAlumni && student.floor != null)
+                      CelebrantLightChip(
+                        icon: Icons.layers_rounded,
+                        text: student.floor == 0 ? 'Ground' : 'Floor ${student.floor}',
+                        bgColor: const Color(0xFFF8FAFC),
+                        borderColor: const Color(0xFFE2E8F0),
+                        textColor: const Color(0xFF64748B),
+                      ),
+                    ...student.tags.map((t) {
+                      final isThisTag = t.id == widget.tag.id;
+                      return CelebrantLightChip(
+                        icon: Icons.label_rounded,
+                        text: t.name,
+                        bgColor: isThisTag ? widget.tag.displayColor.withValues(alpha: 0.15) : t.backgroundColor,
+                        borderColor: isThisTag ? widget.tag.displayColor : t.borderColor,
+                        textColor: isThisTag ? widget.tag.displayColor : t.color,
+                      );
+                    }),
+                  ],
                 ),
-              ),
-            )
-          else
-            ElevatedButton(
-              onPressed: () => _assignTag(student),
-              style: ElevatedButton.styleFrom(
-                backgroundColor: widget.tag.displayColor,
-                foregroundColor: Colors.white,
-                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 7),
-                minimumSize: Size.zero,
-                tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(8),
+
+                const SizedBox(height: 10),
+                const Divider(height: 1, color: Color(0xFFF1F5F9)),
+                const SizedBox(height: 8),
+
+                // Bottom row: Primary phone on left + Action button on right
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    // Phone Info
+                    if (student.phone != null && student.phone!.isNotEmpty && student.phone != 'No Phone')
+                      Row(
+                        children: [
+                          const Icon(Icons.phone_outlined, size: 13, color: Color(0xFF64748B)),
+                          const SizedBox(width: 4),
+                          Text(
+                            student.phone!,
+                            style: const TextStyle(
+                              fontSize: 11.5,
+                              fontWeight: FontWeight.w600,
+                              color: Color(0xFF64748B),
+                            ),
+                          ),
+                        ],
+                      )
+                    else
+                      const SizedBox.shrink(),
+
+                    // Action Button (Assigned / Max 3 Tags / Assign)
+                    if (isBusy)
+                      const SizedBox(
+                        width: 22,
+                        height: 22,
+                        child: CircularProgressIndicator(strokeWidth: 2),
+                      )
+                    else if (hasCurrentTag)
+                      InkWell(
+                        onTap: () => _unassignTag(student),
+                        borderRadius: BorderRadius.circular(10),
+                        child: Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5.5),
+                          decoration: BoxDecoration(
+                            color: const Color(0xFFDCFCE7),
+                            borderRadius: BorderRadius.circular(10),
+                            border: Border.all(color: const Color(0xFF86EFAC)),
+                          ),
+                          child: const Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Icon(Icons.check_circle_rounded, size: 14, color: Color(0xFF16A34A)),
+                              SizedBox(width: 5),
+                              Text(
+                                'Assigned',
+                                style: TextStyle(
+                                  fontSize: 11.5,
+                                  fontWeight: FontWeight.w800,
+                                  color: Color(0xFF16A34A),
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      )
+                    else if (student.manualTagCount >= 3)
+                      Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 5.5),
+                        decoration: BoxDecoration(
+                          color: const Color(0xFFFEF3C7),
+                          borderRadius: BorderRadius.circular(10),
+                          border: Border.all(color: const Color(0xFFFDE68A)),
+                        ),
+                        child: const Text(
+                          'Max 3 Tags',
+                          style: TextStyle(
+                            fontSize: 11,
+                            fontWeight: FontWeight.w700,
+                            color: Color(0xFFD97706),
+                          ),
+                        ),
+                      )
+                    else
+                      ElevatedButton.icon(
+                        onPressed: () => _assignTag(student),
+                        icon: const Icon(Icons.add_rounded, size: 14),
+                        label: const Text('Assign'),
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: const Color(0xFF0284C7),
+                          foregroundColor: Colors.white,
+                          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
+                          minimumSize: Size.zero,
+                          tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(10),
+                          ),
+                          elevation: 0,
+                          textStyle: const TextStyle(
+                            fontSize: 12,
+                            fontWeight: FontWeight.w700,
+                          ),
+                        ),
+                      ),
+                  ],
                 ),
-                elevation: 0,
-              ),
-              child: const Text(
-                'Assign',
-                style: TextStyle(
-                  fontSize: 12,
-                  fontWeight: FontWeight.w700,
-                ),
-              ),
+              ],
             ),
+          ),
         ],
       ),
     );
   }
+}
+
+class _HeaderOrbPainter extends CustomPainter {
+  @override
+  void paint(Canvas canvas, Size size) {
+    final strokePaint = Paint()
+      ..color = Colors.white.withValues(alpha: 0.05)
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 1.2;
+
+    canvas.drawCircle(Offset(size.width * 0.88, size.height * 0.08), size.width * 0.38, strokePaint);
+    canvas.drawCircle(Offset(size.width * 0.88, size.height * 0.08), size.width * 0.62, strokePaint);
+    canvas.drawCircle(Offset(size.width * 0.88, size.height * 0.08), size.width * 0.86, strokePaint);
+  }
+
+  @override
+  bool shouldRepaint(covariant CustomPainter oldDelegate) => false;
 }

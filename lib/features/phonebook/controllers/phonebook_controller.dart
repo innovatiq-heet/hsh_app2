@@ -98,7 +98,9 @@ class PhonebookController extends GetxController {
   final selectedStudentIds = <String>{}.obs;
 
   int get selectedCount => selectedStudentIds.length;
-  bool isStudentSelected(String id) => selectedStudentIds.contains(id); // 'Name (A-Z)', 'Name (Z-A)', 'Room (Low-High)', 'Room (High-Low)'
+  bool isStudentSelected(String id) => selectedStudentIds.contains(id);
+  bool get areAllVisibleSelected =>
+      students.isNotEmpty && students.every((s) => selectedStudentIds.contains(s.id));
 
   final lastSync = Rxn<DateTime>();
   final totalCachedCount = 0.obs;
@@ -319,22 +321,34 @@ class PhonebookController extends GetxController {
   }
 
   void selectGroup(String group) {
-    selectedGroup.value = group;
+    if (selectedGroup.value == group) {
+      selectedGroup.value = 'All';
+    } else {
+      selectedGroup.value = group;
+    }
+    selectedStudentIds.clear();
+    isSelectionMode.value = false;
     search();
   }
 
   void selectFloor(String floor) {
     selectedFloor.value = floor;
+    selectedStudentIds.clear();
+    isSelectionMode.value = false;
     search();
   }
 
   void selectStatus(String status) {
     selectedStatus.value = status;
+    selectedStudentIds.clear();
+    isSelectionMode.value = false;
     search();
   }
 
   void selectTag(String tag) {
     selectedTag.value = tag;
+    selectedStudentIds.clear();
+    isSelectionMode.value = false;
     search();
   }
 
@@ -393,6 +407,51 @@ class PhonebookController extends GetxController {
     search();
   }
 
+  /// Extracts the numeric prefix and any alphanumeric suffix from a room string.
+  /// E.g. "2" -> (number: 2, suffix: ""), "10" -> (number: 10, suffix: ""), "101A" -> (number: 101, suffix: "A")
+  static ({int number, String suffix}) parseRoomNumber(String? room) {
+    if (room == null || room.trim().isEmpty) return (number: 999999, suffix: '');
+    final trimmed = room.trim();
+    if (trimmed.toLowerCase() == 'alumni' || trimmed.toLowerCase() == 'n/a') {
+      return (number: 999999, suffix: trimmed);
+    }
+    final match = RegExp(r'^(\d+)(.*)$').firstMatch(trimmed);
+    if (match != null) {
+      final num = int.tryParse(match.group(1)!) ?? 999999;
+      final suffix = match.group(2)?.trim() ?? '';
+      return (number: num, suffix: suffix);
+    }
+    return (number: 999999, suffix: trimmed);
+  }
+
+  /// Compares two student rooms naturally (numeric room values, e.g. 2 < 10),
+  /// keeping Alumni/NA consistently at the end.
+  static int compareRooms(PhonebookStudent a, PhonebookStudent b, {bool ascending = true}) {
+    final aRoom = a.room;
+    final bRoom = b.room;
+    final aAlumni = a.isAlumni || aRoom == null || aRoom.toLowerCase() == 'alumni' || aRoom.toLowerCase() == 'n/a';
+    final bAlumni = b.isAlumni || bRoom == null || bRoom.toLowerCase() == 'alumni' || bRoom.toLowerCase() == 'n/a';
+
+    if (aAlumni && !bAlumni) return 1;
+    if (!aAlumni && bAlumni) return -1;
+    if (aAlumni && bAlumni) {
+      return a.name.trim().toLowerCase().compareTo(b.name.trim().toLowerCase());
+    }
+
+    final pA = parseRoomNumber(aRoom);
+    final pB = parseRoomNumber(bRoom);
+
+    int cmp = pA.number.compareTo(pB.number);
+    if (cmp == 0) {
+      cmp = pA.suffix.compareTo(pB.suffix);
+    }
+    if (cmp == 0) {
+      cmp = a.name.trim().toLowerCase().compareTo(b.name.trim().toLowerCase());
+    }
+
+    return ascending ? cmp : -cmp;
+  }
+
   Future<void> search({bool forceLoading = false}) async {
     if (forceLoading || students.isEmpty) {
       isLoading.value = true;
@@ -446,6 +505,12 @@ class PhonebookController extends GetxController {
       );
       if (selectedSort.value == 'Name (A-Z)') {
         results.sort((a, b) => a.name.trim().toLowerCase().compareTo(b.name.trim().toLowerCase()));
+      } else if (selectedSort.value == 'Name (Z-A)') {
+        results.sort((a, b) => b.name.trim().toLowerCase().compareTo(a.name.trim().toLowerCase()));
+      } else if (selectedSort.value == 'Room (Low-High)') {
+        results.sort((a, b) => compareRooms(a, b, ascending: true));
+      } else if (selectedSort.value == 'Room (High-Low)') {
+        results.sort((a, b) => compareRooms(a, b, ascending: false));
       }
       if (selectedSort.value.startsWith('Name')) {
         // Residents (with a room) first, alumni after, each keeping name order.
@@ -741,6 +806,7 @@ class PhonebookController extends GetxController {
         isSelectionMode.value = false;
       }
     } else {
+      isSelectionMode.value = true;
       selectedStudentIds.add(id);
     }
   }
@@ -751,9 +817,26 @@ class PhonebookController extends GetxController {
   }
 
   void toggleSelectAll() {
-    if (selectedStudentIds.length == students.length) {
-      selectedStudentIds.clear();
+    if (areAllVisibleSelected) {
+      for (final s in students) {
+        selectedStudentIds.remove(s.id);
+      }
+      if (selectedStudentIds.isEmpty) {
+        isSelectionMode.value = false;
+      }
     } else {
+      isSelectionMode.value = true;
+      selectedStudentIds.addAll(students.map((s) => s.id));
+    }
+  }
+
+  void selectStudentGroup(String group) {
+    selectGroup(group);
+  }
+
+  void selectAllInCurrentGroup() {
+    if (students.isNotEmpty) {
+      isSelectionMode.value = true;
       selectedStudentIds.addAll(students.map((s) => s.id));
     }
   }

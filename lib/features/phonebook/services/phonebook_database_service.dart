@@ -332,10 +332,10 @@ class PhonebookDatabaseService {
         orderByClause = 'name COLLATE NOCASE DESC';
         break;
       case 'room_asc':
-        orderByClause = 'CASE WHEN room_num IS NULL OR room_num = "" OR LOWER(room_num) = "alumni" THEN 1 ELSE 0 END, room_num ASC, name COLLATE NOCASE ASC';
+        orderByClause = 'CASE WHEN room_num IS NULL OR room_num = "" OR LOWER(room_num) = "alumni" OR LOWER(room_num) = "n/a" THEN 1 ELSE 0 END ASC, CAST(room_num AS INTEGER) ASC, room_num ASC, name COLLATE NOCASE ASC';
         break;
       case 'room_desc':
-        orderByClause = 'CASE WHEN room_num IS NULL OR room_num = "" OR LOWER(room_num) = "alumni" THEN 1 ELSE 0 END, room_num DESC, name COLLATE NOCASE ASC';
+        orderByClause = 'CASE WHEN room_num IS NULL OR room_num = "" OR LOWER(room_num) = "alumni" OR LOWER(room_num) = "n/a" THEN 1 ELSE 0 END ASC, CAST(room_num AS INTEGER) DESC, room_num DESC, name COLLATE NOCASE ASC';
         break;
       case 'floor_asc':
         orderByClause = 'CASE WHEN floor_num IS NULL THEN 1 ELSE 0 END, floor_num ASC, room_num ASC, name COLLATE NOCASE ASC';
@@ -367,7 +367,7 @@ class PhonebookDatabaseService {
 
       if (!studentMap.containsKey(sId)) {
         studentMap[sId] = {
-          'id': row['id'],
+          'id': sId,
           'student_id': row['student_id'],
           'name': row['name'],
           'enrollment_number': row['enrollment_number'],
@@ -508,5 +508,91 @@ class PhonebookDatabaseService {
   Future<void> clearCache() async {
     final db = await database;
     await db.delete('student_cache');
+  }
+
+  /// Inserts or replaces an additional contact phone record in local cache
+  Future<void> insertAdditionalPhone({
+    required String studentId,
+    required String phone,
+    required String label,
+    bool isPrimary = false,
+  }) async {
+    final db = await database;
+    final rows = await db.query(
+      'student_cache',
+      where: 'student_id = ? OR id = ? OR bank_code = ?',
+      whereArgs: [studentId, studentId, studentId],
+      limit: 1,
+    );
+    if (rows.isEmpty) return;
+    final existing = Map<String, dynamic>.from(rows.first);
+    final normPhone = PhoneNumberNormalizer.normalize(phone) ?? phone;
+    final cacheId = '${existing['student_id']}_${phone}_$label';
+
+    await db.insert(
+      'student_cache',
+      {
+        ...existing,
+        'id': cacheId,
+        'phone': phone,
+        'phone_normalized': normPhone,
+        'phone_label': label,
+        'is_primary': isPrimary ? 1 : 0,
+        'updated_at': DateTime.now().toIso8601String(),
+      },
+      conflictAlgorithm: ConflictAlgorithm.replace,
+    );
+  }
+
+  /// Deletes a specific additional phone number record from local cache
+  Future<void> deleteAdditionalPhone({
+    required String studentId,
+    required String phone,
+  }) async {
+    final db = await database;
+    final normPhone = PhoneNumberNormalizer.normalize(phone) ?? phone;
+    await db.delete(
+      'student_cache',
+      where: '(student_id = ? OR bank_code = ?) AND (phone = ? OR phone_normalized = ?)',
+      whereArgs: [studentId, studentId, phone, normPhone],
+    );
+  }
+
+  /// Updates base student contact information across all rows of this student
+  Future<void> updateBaseContacts({
+    required String studentId,
+    String? primaryPhone,
+    String? whatsappNumber,
+    String? fatherPhone,
+    String? motherPhone,
+  }) async {
+    final db = await database;
+    final updates = <String, dynamic>{
+      'updated_at': DateTime.now().toIso8601String(),
+    };
+    if (whatsappNumber != null) updates['whatsapp_number'] = whatsappNumber;
+    if (fatherPhone != null) updates['father_phone'] = fatherPhone;
+    if (motherPhone != null) updates['mother_phone'] = motherPhone;
+
+    if (primaryPhone != null && primaryPhone.isNotEmpty) {
+      final norm = PhoneNumberNormalizer.normalize(primaryPhone) ?? primaryPhone;
+      await db.update(
+        'student_cache',
+        {
+          ...updates,
+          'phone': primaryPhone,
+          'phone_normalized': norm,
+        },
+        where: '(student_id = ? OR bank_code = ?) AND is_primary = 1',
+        whereArgs: [studentId, studentId],
+      );
+    }
+
+    await db.update(
+      'student_cache',
+      updates,
+      where: 'student_id = ? OR bank_code = ?',
+      whereArgs: [studentId, studentId],
+    );
   }
 }

@@ -16,14 +16,71 @@ import '../../shared/widgets/student_contact_card.dart';
 import '../controllers/phonebook_controller.dart';
 import '../models/phonebook_models.dart';
 import '../services/phone_number_normalizer.dart';
+import '../services/phonebook_database_service.dart';
+import '../widgets/manage_contacts_sheet.dart';
 import '../widgets/student_tag_sheet.dart';
 
 /// Full-screen profile of one phonebook student: navy header, quick actions,
 /// hostel / personal / family details and every contact number with its own
 /// copy, WhatsApp, message and call actions.
-class StudentDetailScreen extends StatelessWidget {
+class StudentDetailScreen extends StatefulWidget {
   final PhonebookStudent student;
   const StudentDetailScreen({super.key, required this.student});
+
+  @override
+  State<StudentDetailScreen> createState() => _StudentDetailScreenState();
+}
+
+class _StudentDetailScreenState extends State<StudentDetailScreen> {
+  late PhonebookStudent _student;
+
+  PhonebookStudent get student => _student;
+
+  @override
+  void initState() {
+    super.initState();
+    _student = widget.student;
+  }
+
+  @override
+  void didUpdateWidget(covariant StudentDetailScreen oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.student != widget.student) {
+      _student = widget.student;
+    }
+  }
+
+  Future<void> _openManageContacts() async {
+    final res = await ManageContactsSheet.show(
+      context,
+      _student,
+      onContactsUpdated: _refreshStudent,
+    );
+    if (res == true) {
+      await _refreshStudent();
+    }
+  }
+
+  Future<void> _refreshStudent() async {
+    try {
+      final query = _student.studentId.isNotEmpty ? _student.studentId : _student.name;
+      final results = await PhonebookDatabaseService.instance.searchStudents(
+        query: query,
+        limit: 10,
+      );
+      if (results.isNotEmpty) {
+        final match = results.firstWhere(
+          (s) => s.studentId == _student.studentId || s.id == _student.id,
+          orElse: () => results.first,
+        );
+        if (mounted) {
+          setState(() {
+            _student = match;
+          });
+        }
+      }
+    } catch (_) {}
+  }
 
   static const Color _googleBlue = Color(0xFF1A73E8);
 
@@ -77,10 +134,8 @@ class StudentDetailScreen extends StatelessWidget {
               ),
               sliver: SliverList.list(
                 children: [
-                  if (_hasPhone || _has(student.email) || _studentNumbers.isNotEmpty) ...[
-                    _studentContactCard(),
-                    const SizedBox(height: AppDimens.gapMd),
-                  ],
+                  _studentContactCard(),
+                  const SizedBox(height: AppDimens.gapMd),
                   _StudentDetailTagsCard(student: student),
                   const SizedBox(height: AppDimens.gapMd),
                   _hostelCard(),
@@ -138,61 +193,122 @@ class StudentDetailScreen extends StatelessWidget {
   /// One card on top: the student's numbers and email (tap to copy) and the
   /// round Call / WhatsApp / Message / Gmail actions.
   Widget _studentContactCard() {
+    if (_studentNumbers.isEmpty && !_hasPhone && !_has(student.email)) {
+      return AppCard(
+        padding: const EdgeInsets.all(AppDimens.cardPadding),
+        child: Row(
+          children: [
+            Container(
+              padding: const EdgeInsets.all(8),
+              decoration: BoxDecoration(
+                color: AppColors.primary.withValues(alpha: 0.1),
+                borderRadius: BorderRadius.circular(10),
+              ),
+              child: const Icon(
+                Icons.phone_disabled_rounded,
+                color: AppColors.primary,
+                size: 20,
+              ),
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Text(
+                    'No Contact Number',
+                    style: TextStyle(
+                      fontWeight: FontWeight.w700,
+                      fontSize: 13.5,
+                      color: AppColors.textPrimary,
+                    ),
+                  ),
+                  const SizedBox(height: 2),
+                  Text(
+                    'Add a mobile or USA contact number',
+                    style: AppTextStyles.caption,
+                  ),
+                ],
+              ),
+            ),
+            ElevatedButton.icon(
+              onPressed: _openManageContacts,
+              icon: const Icon(Icons.add, size: 14),
+              label: const Text('Add'),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: AppColors.primary,
+                foregroundColor: Colors.white,
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                textStyle:
+                    const TextStyle(fontSize: 12, fontWeight: FontWeight.bold),
+                minimumSize: Size.zero,
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(8),
+                ),
+              ),
+            ),
+          ],
+        ),
+      );
+    }
+
     return _CollapsibleContactCard(
+      onManage: _openManageContacts,
       lines: [
         for (final n in _studentNumbers)
-            _CopyLine(
-              icon: n.label.toLowerCase().contains('whatsapp')
-                  ? Icons.chat_rounded
-                  : Icons.smartphone_rounded,
-              color: n.label.toLowerCase().contains('whatsapp')
-                  ? AppColors.successGreen
-                  : AppColors.primary,
-              text: n.phone,
-              caption: n.label,
-              onTap: () => _c.copyToClipboard(n.phone, n.label),
-            ),
-          if (_has(student.email))
-            _CopyLine(
-              icon: Icons.mail_rounded,
-              color: AppColors.cancelledRed,
-              text: student.email!,
-              caption: 'Email',
-              onTap: () => _c.copyToClipboard(student.email!, 'Email'),
-            ),
+          _CopyLine(
+            icon: n.label.toLowerCase().contains('whatsapp')
+                ? Icons.chat_rounded
+                : Icons.smartphone_rounded,
+            color: n.label.toLowerCase().contains('whatsapp')
+                ? AppColors.successGreen
+                : AppColors.primary,
+            text: n.phone,
+            caption: n.label,
+            onTap: () => _c.copyToClipboard(n.phone, n.label),
+          ),
+        if (_has(student.email))
+          _CopyLine(
+            icon: Icons.mail_rounded,
+            color: AppColors.cancelledRed,
+            text: student.email!,
+            caption: 'Email',
+            onTap: () => _c.copyToClipboard(student.email!, 'Email'),
+          ),
       ],
       actions: Row(
-            children: [
-              if (_hasPhone) ...[
-                _QuickAction(
-                  icon: const Icon(Icons.call_rounded, size: 22),
-                  label: 'Call',
-                  color: AppColors.primary,
-                  onTap: () => _c.makeCall(student.primaryPhone),
-                ),
-                _QuickAction(
-                  icon: const FaIcon(FontAwesomeIcons.whatsapp, size: 22),
-                  label: 'WhatsApp',
-                  color: AppColors.successGreen,
-                  onTap: () => _c.openWhatsApp(_whatsappTarget),
-                ),
-                _QuickAction(
-                  icon: const Icon(Icons.message_rounded, size: 22),
-                  label: 'Message',
-                  color: _googleBlue,
-                  onTap: () => _c.sendSms(student.primaryPhone),
-                ),
-              ],
-              if (_has(student.email))
-                _QuickAction(
-                  icon: const GmailIcon(size: 24),
-                  label: 'Gmail',
-                  color: AppColors.cancelledRed,
-                  tinted: false,
-                  onTap: () => _c.openEmail(student.email!),
-                ),
-            ],
-          ),
+        children: [
+          if (_hasPhone) ...[
+            _QuickAction(
+              icon: const Icon(Icons.call_rounded, size: 22),
+              label: 'Call',
+              color: AppColors.primary,
+              onTap: () => _c.makeCall(student.primaryPhone),
+            ),
+            _QuickAction(
+              icon: const FaIcon(FontAwesomeIcons.whatsapp, size: 22),
+              label: 'WhatsApp',
+              color: AppColors.successGreen,
+              onTap: () => _c.openWhatsApp(_whatsappTarget),
+            ),
+            _QuickAction(
+              icon: const Icon(Icons.message_rounded, size: 22),
+              label: 'Message',
+              color: _googleBlue,
+              onTap: () => _c.sendSms(student.primaryPhone),
+            ),
+          ],
+          if (_has(student.email))
+            _QuickAction(
+              icon: const GmailIcon(size: 24),
+              label: 'Gmail',
+              color: AppColors.cancelledRed,
+              tinted: false,
+              onTap: () => _c.openEmail(student.email!),
+            ),
+        ],
+      ),
     );
   }
 
@@ -1243,7 +1359,13 @@ class _GmailPainter extends CustomPainter {
 class _CollapsibleContactCard extends StatefulWidget {
   final List<Widget> lines;
   final Widget actions;
-  const _CollapsibleContactCard({required this.lines, required this.actions});
+  final VoidCallback? onManage;
+
+  const _CollapsibleContactCard({
+    required this.lines,
+    required this.actions,
+    this.onManage,
+  });
 
   @override
   State<_CollapsibleContactCard> createState() => _CollapsibleContactCardState();
@@ -1264,35 +1386,65 @@ class _CollapsibleContactCardState extends State<_CollapsibleContactCard> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          InkWell(
-            onTap: () => setState(() => _expanded = !_expanded),
-            borderRadius: BorderRadius.circular(AppDimens.radiusSm),
-            child: Padding(
-              padding: const EdgeInsets.symmetric(vertical: AppDimens.gapSm),
-              child: Row(
-                children: [
-                  Expanded(
-                    child: Text('STUDENT CONTACT', style: AppTextStyles.overline),
-                  ),
-                  if (!_expanded)
-                    Padding(
-                      padding: const EdgeInsets.only(right: 6),
-                      child: Text(
-                        '${widget.lines.length} ${widget.lines.length == 1 ? 'item' : 'items'}',
-                        style: AppTextStyles.bodySm,
-                      ),
+          Row(
+            children: [
+              Expanded(
+                child: InkWell(
+                  onTap: () => setState(() => _expanded = !_expanded),
+                  borderRadius: BorderRadius.circular(AppDimens.radiusSm),
+                  child: Padding(
+                    padding: const EdgeInsets.symmetric(vertical: AppDimens.gapSm),
+                    child: Row(
+                      children: [
+                        Expanded(
+                          child: Text('STUDENT CONTACT', style: AppTextStyles.overline),
+                        ),
+                        if (!_expanded)
+                          Padding(
+                            padding: const EdgeInsets.only(right: 6),
+                            child: Text(
+                              '${widget.lines.length} ${widget.lines.length == 1 ? 'item' : 'items'}',
+                              style: AppTextStyles.bodySm,
+                            ),
+                          ),
+                        AnimatedRotation(
+                          turns: _expanded ? 0.5 : 0,
+                          duration: const Duration(milliseconds: 200),
+                          child: const Icon(
+                            Icons.keyboard_arrow_down_rounded,
+                            color: AppColors.textSecondary,
+                          ),
+                        ),
+                      ],
                     ),
-                  AnimatedRotation(
-                    turns: _expanded ? 0.5 : 0,
-                    duration: const Duration(milliseconds: 200),
-                    child: const Icon(
-                      Icons.keyboard_arrow_down_rounded,
-                      color: AppColors.textSecondary,
-                    ),
                   ),
-                ],
+                ),
               ),
-            ),
+              if (widget.onManage != null) ...[
+                const SizedBox(width: 8),
+                InkWell(
+                  onTap: widget.onManage,
+                  borderRadius: BorderRadius.circular(AppDimens.radiusSm),
+                  child: Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        const Icon(Icons.edit_outlined, size: 14, color: AppColors.primary),
+                        const SizedBox(width: 4),
+                        Text(
+                          'Edit',
+                          style: AppTextStyles.caption.copyWith(
+                            color: AppColors.primary,
+                            fontWeight: FontWeight.w700,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              ],
+            ],
           ),
           AnimatedSize(
             duration: const Duration(milliseconds: 200),

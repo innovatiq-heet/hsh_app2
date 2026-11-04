@@ -11,6 +11,7 @@ import './repository/leave/leave_repository.dart';
 import './repository/operator/operator_repository.dart';
 import './repository/staff_users/staff_users_repository.dart';
 import './repository/student_profile/student_profile_repository.dart';
+import './repository/students/student_contacts_repository.dart';
 import './repository/tags/tags_repository.dart';
 import '../storage/session_store.dart';
 import '../services/aadhar_service.dart';
@@ -45,6 +46,7 @@ class GlobalBindings extends Bindings {
     Get.put(OperatorRepository(), permanent: true);
     Get.put(StaffUsersRepository(), permanent: true);
     Get.put(TagsRepository(), permanent: true);
+    Get.put(StudentContactsRepository(), permanent: true);
 
     // Services (depend on repositories above)
     Get.put(AadharService(), permanent: true);

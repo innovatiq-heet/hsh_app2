@@ -555,7 +555,11 @@ class PhonebookScreen extends GetView<PhonebookController> {
         bottomNavigationBar: Obx(() {
           if (!controller.isSelectionMode.value) return const SizedBox.shrink();
           final count = controller.selectedCount;
-          final allSelected = count == controller.students.length && count > 0;
+          final allSelected = controller.areAllVisibleSelected;
+          final currentGroup = controller.selectedGroup.value;
+          final selectLabel = allSelected
+              ? (currentGroup != 'All' ? 'Deselect All ($currentGroup)' : 'Deselect All')
+              : (currentGroup != 'All' ? 'Select All ($currentGroup)' : 'Select All');
 
           return Container(
             padding: const EdgeInsets.fromLTRB(16, 12, 16, 16),
@@ -589,7 +593,7 @@ class PhonebookScreen extends GetView<PhonebookController> {
                             ),
                             const SizedBox(width: 6),
                             Text(
-                              allSelected ? 'Deselect All' : 'Select All',
+                              selectLabel,
                               style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 13, color: Color(0xFF0F172A)),
                             ),
                           ],
@@ -839,6 +843,11 @@ class PhonebookScreen extends GetView<PhonebookController> {
                                   child: InkWell(
                                     borderRadius: BorderRadius.circular(20),
                                     onTap: () => controller.selectGroup(g),
+                                    onLongPress: () {
+                                      HapticFeedback.heavyImpact();
+                                      controller.selectGroup(g);
+                                      controller.selectAllInCurrentGroup();
+                                    },
                                     child: AnimatedContainer(
                                       duration: const Duration(milliseconds: 200),
                                       padding: const EdgeInsets.symmetric(

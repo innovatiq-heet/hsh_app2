@@ -4,6 +4,8 @@ import 'package:dio/dio.dart';
 import 'package:flutter/foundation.dart';
 import 'phone_number_normalizer.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
+import 'package:get/get.dart';
+import '../../../core/network/repository/students/student_contacts_repository.dart';
 import '../models/phonebook_models.dart';
 import 'phonebook_database_service.dart';
 
@@ -376,10 +378,36 @@ class PhonebookSyncService {
         }
       }
 
-      final syncedCount = await PhonebookDatabaseService.instance.syncRecords(
+      int syncedCount = await PhonebookDatabaseService.instance.syncRecords(
         records,
         fullReplace: true,
       );
+
+      // Overlay additional / international contacts saved on HAMS backend
+      try {
+        if (Get.isRegistered<StudentContactsRepository>()) {
+          final additionalList =
+              await Get.find<StudentContactsRepository>().getAllAdditionalContacts();
+          for (final addPhone in additionalList) {
+            await PhonebookDatabaseService.instance.insertAdditionalPhone(
+              studentId: addPhone.studentId.toString(),
+              phone: addPhone.phone,
+              label: addPhone.label,
+              isPrimary: addPhone.isPrimary,
+            );
+            syncedCount++;
+          }
+          if (additionalList.isNotEmpty) {
+            debugPrint(
+              '[PhonebookSync] Merged ${additionalList.length} additional contacts from backend.',
+            );
+          }
+        }
+      } catch (err) {
+        debugPrint(
+          '[PhonebookSync] Non-fatal: Failed to fetch backend additional contacts: $err',
+        );
+      }
 
       await _storage.write(key: _kLastSync, value: nowIso);
       await _storage.write(

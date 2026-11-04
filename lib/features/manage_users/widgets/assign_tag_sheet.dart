@@ -9,6 +9,7 @@ import '../../../core/network/api_exception.dart';
 import '../../../core/network/repository/screentime/screen_time_repository.dart';
 import '../../../core/network/repository/tags/tags_repository.dart';
 import '../../../core/utils/app_snackbar.dart';
+import '../views/assign_tag_screen.dart';
 
 /// Pick a student and assign [tag] to them. Students come from the Screen Time
 /// directory so the numeric `students.id` is always the identifier sent.
@@ -23,11 +24,10 @@ class AssignTagSheet extends StatefulWidget {
     StudentTag tag, {
     VoidCallback? onAssigned,
   }) {
-    return showModalBottomSheet<void>(
-      context: context,
-      isScrollControlled: true,
-      backgroundColor: Colors.transparent,
-      builder: (_) => AssignTagSheet(tag: tag, onAssigned: onAssigned),
+    return Navigator.of(context).push<void>(
+      MaterialPageRoute(
+        builder: (_) => AssignTagScreen(tag: tag, onAssigned: onAssigned),
+      ),
     );
   }
 

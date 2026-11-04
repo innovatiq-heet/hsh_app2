@@ -16,8 +16,8 @@ import '../../shared/widgets/skeleton_loader.dart';
 import '../../shared/widgets/staggered_slide_fade.dart';
 import '../../shared/widgets/status_badge.dart';
 import '../controllers/manage_users_controller.dart';
-import '../widgets/assign_tag_sheet.dart';
 import '../widgets/staff_user_form_sheet.dart';
+import 'assign_tag_screen.dart';
 
 /// Admin → Manage Users: list, add, edit, switch on/off and delete staff
 /// accounts that sign in with their mobile number.
@@ -925,6 +925,16 @@ class _StudentTagCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return AppCard(
+      onTap: tag.isSystem
+          ? null
+          : () => Navigator.of(context).push(
+                MaterialPageRoute(
+                  builder: (_) => AssignTagScreen(
+                    tag: tag,
+                    onAssigned: () => controller.loadTags(showLoading: false),
+                  ),
+                ),
+              ),
       child: Row(
         children: [
           // Tag color badge circle
@@ -1022,10 +1032,13 @@ class _StudentTagCard extends StatelessWidget {
             IconButton(
               icon: const Icon(Icons.person_add_alt_1_rounded, color: AppColors.primary, size: 20),
               tooltip: 'Assign to student',
-              onPressed: () => AssignTagSheet.show(
-                context,
-                tag,
-                onAssigned: () => controller.loadTags(showLoading: false),
+              onPressed: () => Navigator.of(context).push(
+                MaterialPageRoute(
+                  builder: (_) => AssignTagScreen(
+                    tag: tag,
+                    onAssigned: () => controller.loadTags(showLoading: false),
+                  ),
+                ),
               ),
             ),
           if (!tag.isSystem)

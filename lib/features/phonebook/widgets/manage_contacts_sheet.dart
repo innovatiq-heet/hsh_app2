@@ -102,6 +102,9 @@ class _ManageContactsSheetState extends State<ManageContactsSheet> {
       final data = await _repo.getContacts(_resolvedIdentifier!);
       if (mounted) {
         setState(() {
+          if (data.studentId > 0) {
+            _resolvedIdentifier = data.studentId.toString();
+          }
           _primaryPhone = data.primaryPhone ?? _primaryPhone;
           _whatsappNumber = data.whatsappNumber ?? _whatsappNumber;
           _fatherPhone = data.fatherPhone ?? _fatherPhone;

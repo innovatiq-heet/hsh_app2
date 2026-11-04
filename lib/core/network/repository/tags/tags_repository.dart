@@ -121,4 +121,20 @@ class TagsRepository extends BaseRepository {
       _guard(() async {
         await _dio.delete('/tags/student/$studentId/$tagId');
       });
+
+  /// Fetches all students with their assigned tags and room information.
+  Future<List<Map<String, dynamic>>> getStudentsForAssignment() =>
+      _guard(() async {
+        final response =
+            await _dio.get('/students', queryParameters: {'all': 'true'});
+        final body = response.data;
+        final data = body is Map ? (body['data'] ?? body['students']) : body;
+        if (data is List) {
+          return data
+              .whereType<Map>()
+              .map((e) => Map<String, dynamic>.from(e))
+              .toList();
+        }
+        return const [];
+      });
 }

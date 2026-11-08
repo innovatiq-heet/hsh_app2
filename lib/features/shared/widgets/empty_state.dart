@@ -1,4 +1,4 @@
-﻿import 'package:flutter/material.dart';
+import 'package:flutter/material.dart';
 import '../../../core/constants/app_colors.dart';
 import '../../../core/constants/app_dimens.dart';
 import '../../../core/constants/app_text_styles.dart';
@@ -10,6 +10,7 @@ class EmptyState extends StatelessWidget {
   final String? message;
   final String? actionLabel;
   final VoidCallback? onAction;
+  final IconData? actionIcon;
 
   const EmptyState({
     super.key,
@@ -18,6 +19,7 @@ class EmptyState extends StatelessWidget {
     this.message,
     this.actionLabel,
     this.onAction,
+    this.actionIcon,
   });
 
   @override
@@ -60,7 +62,7 @@ class EmptyState extends StatelessWidget {
                 label: actionLabel!,
                 onPressed: onAction,
                 expand: false,
-                icon: Icons.refresh_rounded,
+                icon: actionIcon ?? Icons.refresh_rounded,
               ),
             ],
           ],

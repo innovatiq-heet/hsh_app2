@@ -1798,9 +1798,12 @@ class StudentDetailController extends GetxController
       final isBlocked = item['isBlocked'] == true;
       final mins = (item['minutes'] as int?) ?? 0;
 
-      if (tab == 'Used' || tab == 'Used Today' || tab == 'Used on Day')
+      if (tab == 'Used' || tab == 'Used Today' || tab == 'Used on Day') {
         return mins > 0;
-      if (tab == 'Restricted') return isBlocked;
+      }
+      if (tab == 'Restricted') {
+        return isBlocked;
+      }
       return true;
     }).toList();
 

@@ -15,6 +15,7 @@ import '../../shared/widgets/section_header.dart';
 import '../../shared/widgets/skeleton_loader.dart';
 import '../../shared/widgets/staggered_slide_fade.dart';
 import '../../shared/widgets/status_badge.dart';
+import '../../../core/utils/string_formatting.dart';
 import '../controllers/manage_users_controller.dart';
 import '../widgets/staff_user_form_sheet.dart';
 import 'assign_tag_screen.dart';
@@ -99,14 +100,19 @@ class ManageUsersScreen extends GetView<ManageUsersController> {
                               ),
                             ),
                             if (isUsersTab) ...[
-                              if (users.isEmpty)
-                                const EmptyState(
-                                  icon: Icons.manage_accounts_outlined,
-                                  title: 'No users yet',
-                                  message:
-                                      'Add complaint solvers and laundry staff. They sign in with their mobile number.',
-                                )
-                              else ...[
+                              if (users.isEmpty) ...[
+                                AppCard(
+                                  child: EmptyState(
+                                    icon: Icons.manage_accounts_outlined,
+                                    title: 'No staff users yet',
+                                    message:
+                                        'Add complaint solvers and laundry staff. They sign in passwordless with their mobile number.',
+                                    actionLabel: 'Add staff user',
+                                    actionIcon: Icons.person_add_alt_1_rounded,
+                                    onAction: () => StaffUserFormSheet.show(),
+                                  ),
+                                ),
+                              ] else ...[
                                 const SectionHeader(title: 'Staff users'),
                                 for (int i = 0; i < users.length; i++)
                                   StaggeredSlideFade(
@@ -147,13 +153,20 @@ class ManageUsersScreen extends GetView<ManageUsersController> {
                                   ],
                                 ),
                               ),
-                              if (controller.tags.isEmpty)
-                                const EmptyState(
-                                  icon: Icons.label_off_outlined,
-                                  title: 'No tags available',
-                                  message: 'Tap "+ Add tag" to create custom student tags and roles.',
-                                )
-                              else ...[
+                              if (controller.tags.isEmpty) ...[
+                                AppCard(
+                                  child: EmptyState(
+                                    icon: Icons.label_off_outlined,
+                                    title: 'No tags available',
+                                    message:
+                                        'Tap "+ Add tag" to create custom student tags and roles.',
+                                    actionLabel: 'Add tag',
+                                    actionIcon: Icons.add_rounded,
+                                    onAction: () =>
+                                        _showCreateTagDialog(context, controller),
+                                  ),
+                                ),
+                              ] else ...[
                                 for (int i = 0; i < controller.tags.length; i++)
                                   StaggeredSlideFade(
                                     index: i,
@@ -523,7 +536,7 @@ class _StaffUserCard extends GetView<ManageUsersController> {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Text(
-                    user.name,
+                    formatPersonName(user.name),
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
                     style: AppTextStyles.subtitle.copyWith(

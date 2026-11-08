@@ -27,6 +27,7 @@ class AdminBirthdayController extends GetxController {
   final RxString error = ''.obs;
 
   final RxInt selectedTab = 0.obs;
+  final RxString directoryFilter = 'all'.obs; // 'all', 'hostel', 'alumni', 'has_dob'
 
   // Template editor & config fields
   /// Body of the template open in the editor (see [editingTemplateId]).
@@ -123,7 +124,21 @@ class AdminBirthdayController extends GetxController {
     error.value = '';
     try {
       final data = await _repository.fetchDashboard();
-      dashboard.value = data;
+
+      // Ensure celebrants are stably sorted: active hostel students first, then alumni
+      final sortedTodays = [...data.todaysBirthdays];
+      sortStudentsList(sortedTodays);
+      final sortedTomorrows = [...data.tomorrowsBirthdays];
+      sortStudentsList(sortedTomorrows);
+
+      dashboard.value = BirthdayDashboardData(
+        config: data.config,
+        todaysBirthdays: sortedTodays,
+        tomorrowsBirthdays: sortedTomorrows,
+        recentLogs: data.recentLogs,
+        isWhatsAppConnected: data.isWhatsAppConnected,
+        senderPhone: data.senderPhone,
+      );
 
       // Sync form fields
       isAutoEnabled.value = data.config.isEnabled;
@@ -144,7 +159,7 @@ class AdminBirthdayController extends GetxController {
 
       // If none of today's celebrants have actually been sent according to the backend,
       // reset hasSentToday so the user is never locked out with a disabled button.
-      final todays = data.todaysBirthdays;
+      final todays = sortedTodays;
       if (todays.isNotEmpty && todays.every((s) => !s.alreadySentToday)) {
         hasSentToday.value = false;
         final prefs = await SharedPreferences.getInstance();
@@ -173,6 +188,28 @@ class AdminBirthdayController extends GetxController {
         }
       }
       _phonebookInfo.assignAll(info);
+
+      // Re-sort celebrants and manual directory lists with updated phonebook statuses
+      if (dashboard.value != null) {
+        final current = dashboard.value!;
+        final sortedTodays = [...current.todaysBirthdays];
+        sortStudentsList(sortedTodays);
+        final sortedTomorrows = [...current.tomorrowsBirthdays];
+        sortStudentsList(sortedTomorrows);
+        dashboard.value = BirthdayDashboardData(
+          config: current.config,
+          todaysBirthdays: sortedTodays,
+          tomorrowsBirthdays: sortedTomorrows,
+          recentLogs: current.recentLogs,
+          isWhatsAppConnected: current.isWhatsAppConnected,
+          senderPhone: current.senderPhone,
+        );
+      }
+      if (allStudents.isNotEmpty) {
+        final sorted = [...allStudents];
+        sortStudentsList(sorted);
+        allStudents.assignAll(sorted);
+      }
     } catch (e) {
       debugPrint('[AdminBirthdayController] phonebook lookup unavailable: $e');
     }
@@ -184,6 +221,40 @@ class AdminBirthdayController extends GetxController {
   String? groupFor(BirthdayStudentModel s) => groupFrom(s, _phonebookInfoFor(s));
 
   bool isAlumni(BirthdayStudentModel s) => alumniFrom(s, _phonebookInfoFor(s));
+
+  /// Stable comparator that orders:
+  /// 1. Active hostel students first, Alumni students afterwards
+  /// 2. Students with a known birthday date (DOB) first, without DOB afterwards
+  /// 3. Room-wise (natural numerical order) for hostel students
+  /// 4. Alphabetical by name
+  int compareBirthdayStudents(BirthdayStudentModel a, BirthdayStudentModel b) {
+    final aAlumni = isAlumni(a);
+    final bAlumni = isAlumni(b);
+    if (aAlumni != bAlumni) {
+      return aAlumni ? 1 : -1; // Active hostel student first, Alumni afterwards
+    }
+    final aHasDob = a.dob.trim().isNotEmpty;
+    final bHasDob = b.dob.trim().isNotEmpty;
+    if (aHasDob != bHasDob) {
+      return aHasDob ? -1 : 1; // Known birthday date first
+    }
+    if (!aAlumni) {
+      final aRoomDigits = a.room.replaceAll(RegExp(r'\D'), '');
+      final bRoomDigits = b.room.replaceAll(RegExp(r'\D'), '');
+      final aRoomNum = int.tryParse(aRoomDigits);
+      final bRoomNum = int.tryParse(bRoomDigits);
+      if (aRoomNum != null && bRoomNum != null && aRoomNum != bRoomNum) {
+        return aRoomNum.compareTo(bRoomNum);
+      }
+      final roomComp = a.room.compareTo(b.room);
+      if (roomComp != 0) return roomComp;
+    }
+    return a.name.toLowerCase().compareTo(b.name.toLowerCase());
+  }
+
+  void sortStudentsList(List<BirthdayStudentModel> list) {
+    list.sort(compareBirthdayStudents);
+  }
 
   /// Group for a birthday card: the API's value, else the synced phonebook's.
   static String? groupFrom(BirthdayStudentModel s, PhonebookGroupInfo? phonebook) {
@@ -606,6 +677,7 @@ class AdminBirthdayController extends GetxController {
     isLoadingStudents.value = true;
     try {
       final students = await _repository.fetchAllStudents(search: query);
+      sortStudentsList(students);
       allStudents.assignAll(students);
     } catch (e) {
       debugPrint('[AdminBirthdayController] fetchStudents error: $e');

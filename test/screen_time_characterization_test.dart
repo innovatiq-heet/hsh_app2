@@ -379,6 +379,24 @@ void main() {
       expect(review.data, {'action': 'approve', 'duration_minutes': 30});
       expect(c.pendingAppRequests, isEmpty);
     });
+
+    test('approving drops request when id is a string', () async {
+      replies['GET /screen-time/apps/requests'] = (_) => {
+            'success': true,
+            'data': [
+              {'id': '8', 'student_id': studentId, 'app_name': 'Zoom'},
+            ],
+          };
+      replies['POST /screen-time/apps/request/8/review'] = (_) => {'success': true};
+      final c = await openStudent();
+      await until(() => c.pendingAppRequests.isNotEmpty, reason: 'pending request');
+
+      await c.reviewAppRequest(8, 'approve', durationMinutes: 15);
+
+      final review = called('POST /screen-time/apps/request/8/review').single;
+      expect(review.data, {'action': 'approve', 'duration_minutes': 15});
+      expect(c.pendingAppRequests, isEmpty);
+    });
   });
 }
 

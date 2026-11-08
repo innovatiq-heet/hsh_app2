@@ -21,8 +21,11 @@ data class DevicePolicy(
     val version: String = "",
     /** When true, prevents installing APKs and opening app stores without warden approval. */
     val restrictAppInstalls: Boolean = true,
+    /** Epoch ms timestamp until which app stores / installers are temporarily unlocked. */
+    val installPassUntil: Long = 0L,
 ) {
     val hasBedtime: Boolean get() = bedtimeStart.isNotBlank() && bedtimeEnd.isNotBlank()
+    val hasActiveInstallPass: Boolean get() = installPassUntil > System.currentTimeMillis()
 }
 
 /**
@@ -70,6 +73,7 @@ object PolicyStore {
     private const val KEY_POLICY_APPLIED_AT = "policy_applied_at"
     private const val KEY_POLICY_VERSION_NUM = "policy_version_num"
     private const val KEY_RESTRICT_APP_INSTALLS = "restrict_app_installs"
+    private const val KEY_INSTALL_PASS_UNTIL = "install_pass_until"
     /** Longer than any policy request can be in flight (long-poll 25 s + timeouts). */
     private const val STALE_WINDOW_MS = 2 * 60 * 1000L
 
@@ -163,6 +167,7 @@ object PolicyStore {
             bedtimeEnd = p.getString(KEY_BEDTIME_END, "") ?: "",
             version = p.getString(KEY_POLICY_VERSION, "") ?: "",
             restrictAppInstalls = p.getBoolean(KEY_RESTRICT_APP_INSTALLS, true),
+            installPassUntil = p.getLong(KEY_INSTALL_PASS_UNTIL, 0L),
         ).also { policyCache = it }
     }
 
@@ -181,6 +186,7 @@ object PolicyStore {
             .putString(KEY_BEDTIME_END, policy.bedtimeEnd)
             .putString(KEY_POLICY_VERSION, policy.version)
             .putBoolean(KEY_RESTRICT_APP_INSTALLS, policy.restrictAppInstalls)
+            .putLong(KEY_INSTALL_PASS_UNTIL, policy.installPassUntil)
             .putLong(KEY_POLICY_APPLIED_AT, System.currentTimeMillis())
             .also { if (versionNumber != null) it.putInt(KEY_POLICY_VERSION_NUM, versionNumber) }
             .apply()
@@ -243,6 +249,9 @@ object PolicyStore {
         val end = optStr(pol, "bedtime_end", "bedtimeEnd")
         val bedtimeOff = bedtimeSent && (start == null || end == null)
 
+        val rawPassUntil = optLong(pol, "install_pass_until", "installPassUntil")
+            ?: optLong(data, "install_pass_until", "installPassUntil")
+
         val updated = DevicePolicy(
             isLocked = optBool(pol, "is_locked", "isLocked") ?: optBool(data, "is_locked", "isLocked") ?: current.isLocked,
             blockedPackages = blocked,
@@ -251,6 +260,7 @@ object PolicyStore {
             bedtimeEnd = if (bedtimeOff) "" else end ?: current.bedtimeEnd,
             version = optStr(pol, "updatedAt", "updated_at") ?: optStr(pol, "version", "policyVersion") ?: current.version,
             restrictAppInstalls = optBool(pol, "restrict_app_installs", "restrictAppInstalls") ?: current.restrictAppInstalls,
+            installPassUntil = rawPassUntil ?: current.installPassUntil,
         )
         savePolicy(context, updated, incomingVersion)
         return updated
@@ -505,6 +515,17 @@ object PolicyStore {
             return when (val v = o.opt(k)) {
                 is Number -> v.toInt()
                 is String -> v.toDoubleOrNull()?.toInt()
+                else -> null
+            }
+        }
+        return null
+    }
+
+    private fun optLong(o: JSONObject, vararg keys: String): Long? {
+        for (k in keys) if (o.has(k) && !o.isNull(k)) {
+            return when (val v = o.opt(k)) {
+                is Number -> v.toLong()
+                is String -> v.toLongOrNull() ?: v.toDoubleOrNull()?.toLong()
                 else -> null
             }
         }

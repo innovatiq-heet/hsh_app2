@@ -6,6 +6,7 @@ import 'phone_number_normalizer.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:get/get.dart';
 import '../../../core/network/repository/students/student_contacts_repository.dart';
+import '../../../core/utils/string_formatting.dart';
 import '../models/phonebook_models.dart';
 import 'phonebook_database_service.dart';
 
@@ -133,6 +134,7 @@ class PhonebookSyncService {
         } else {
           fullName = 'Unknown Student';
         }
+        fullName = formatPersonName(fullName);
 
         final bankCode = s['bankCode']?.toString().trim();
         final aadhar = s['aadhar']?.toString().trim();
@@ -229,8 +231,10 @@ class PhonebookSyncService {
             ? rawExternalPin
             : null;
 
-        final resolvedFatherName = rawMiddle.isNotEmpty ? rawMiddle : null;
-        final resolvedMotherName = rawMother.isNotEmpty ? rawMother : null;
+        final resolvedFatherName =
+            rawMiddle.isNotEmpty ? formatPersonName(rawMiddle) : null;
+        final resolvedMotherName =
+            rawMother.isNotEmpty ? formatPersonName(rawMother) : null;
         final resolvedFatherPhone = (s['fatherPhone']?.toString().trim().isNotEmpty == true)
             ? s['fatherPhone']?.toString().trim()
             : null;
@@ -275,8 +279,8 @@ class PhonebookSyncService {
         if (fatherPhone != null &&
             fatherPhone.isNotEmpty &&
             fatherPhone != phone) {
-          final fatherLabel = (rawMiddle.isNotEmpty)
-              ? 'Father ($rawMiddle)'
+          final fatherLabel = (resolvedFatherName != null)
+              ? 'Father ($resolvedFatherName)'
               : 'Father Contact';
           records.add({
             'internal_id': 'stu_${i + 1}',
@@ -295,9 +299,10 @@ class PhonebookSyncService {
             'aadhar': aadhar,
             'address': address,
             'pin_code': pinCode,
-            'father_name': rawMiddle.isNotEmpty ? rawMiddle : null,
-            'father_phone': fatherPhone,
-            'mother_phone': s['motherPhone']?.toString().trim(),
+            'father_name': resolvedFatherName,
+            'mother_name': resolvedMotherName,
+            'father_phone': resolvedFatherPhone,
+            'mother_phone': resolvedMotherPhone,
             'whatsapp_number': whatsappNumber,
             'status': status,
             'bank_code': bankCode,
@@ -330,9 +335,10 @@ class PhonebookSyncService {
             'aadhar': aadhar,
             'address': address,
             'pin_code': pinCode,
-            'father_name': rawMiddle.isNotEmpty ? rawMiddle : null,
-            'father_phone': fatherPhone,
-            'mother_phone': motherPhone,
+            'father_name': resolvedFatherName,
+            'mother_name': resolvedMotherName,
+            'father_phone': resolvedFatherPhone,
+            'mother_phone': resolvedMotherPhone,
             'whatsapp_number': whatsappNumber,
             'status': status,
             'bank_code': bankCode,
@@ -365,9 +371,10 @@ class PhonebookSyncService {
             'aadhar': aadhar,
             'address': address,
             'pin_code': pinCode,
-            'father_name': rawMiddle.isNotEmpty ? rawMiddle : null,
-            'father_phone': fatherPhone,
-            'mother_phone': motherPhone,
+            'father_name': resolvedFatherName,
+            'mother_name': resolvedMotherName,
+            'father_phone': resolvedFatherPhone,
+            'mother_phone': resolvedMotherPhone,
             'whatsapp_number': whatsappNumber,
             'status': status,
             'bank_code': bankCode,

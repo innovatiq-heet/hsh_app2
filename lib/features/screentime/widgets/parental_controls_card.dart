@@ -105,6 +105,25 @@ class ParentalControlsCard extends StudentDetailWidget {
                     isLoading: busy,
                     onPressed: () => _confirmLock(context, !locked),
                   ),
+
+                  // Quick action: 15-min temporary install pass
+                  const SizedBox(height: AppDimens.gapSm),
+                  if (controller.hasActiveInstallPass)
+                    AppButton(
+                      label: 'Revoke Play Store pass (${controller.installPassRemainingMinutes}m left)',
+                      icon: Icons.lock_clock_rounded,
+                      variant: AppButtonVariant.outline,
+                      isLoading: busy,
+                      onPressed: () => controller.revokeInstallPass(),
+                    )
+                  else
+                    AppButton(
+                      label: 'Grant 15-min install pass',
+                      icon: Icons.install_mobile_rounded,
+                      variant: AppButtonVariant.secondary,
+                      isLoading: busy,
+                      onPressed: () => _confirmInstallPass(context),
+                    ),
                 ],
               ),
             ),
@@ -160,6 +179,34 @@ class ParentalControlsCard extends StudentDetailWidget {
       ),
     );
     if (ok == true) controller.toggleDeviceLock(lock);
+  }
+
+  Future<void> _confirmInstallPass(BuildContext context) async {
+    final name = controller.selectedStudent.value is Map
+        ? (controller.selectedStudent.value['name'] ?? 'this student').toString()
+        : 'this student';
+    final ok = await Get.dialog<bool>(
+      AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(AppDimens.radiusLg)),
+        title: Text('Grant 15-min install pass?'),
+        content: Text(
+          'Google Play Store will be temporarily unlocked on $name\'s phone for 15 minutes to allow downloading or updating apps. '
+          'It will automatically lock again when the 15 minutes expire.',
+          style: AppTextStyles.bodyMd.copyWith(color: AppColors.textSecondary),
+        ),
+        actions: [
+          TextButton(onPressed: () => Get.back(result: false), child: const Text('Cancel')),
+          AppButton(
+            label: 'Grant 15 mins',
+            icon: Icons.install_mobile_rounded,
+            variant: AppButtonVariant.primary,
+            expand: false,
+            onPressed: () => Get.back(result: true),
+          ),
+        ],
+      ),
+    );
+    if (ok == true) controller.grantInstallPass(minutes: 15);
   }
 }
 

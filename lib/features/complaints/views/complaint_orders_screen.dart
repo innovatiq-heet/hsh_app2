@@ -11,10 +11,8 @@ import '../../../core/storage/session_store.dart';
 import '../../shared/widgets/app_button.dart';
 import '../../shared/widgets/app_card.dart';
 import '../../shared/widgets/app_refresh_indicator.dart';
-import '../../shared/widgets/app_text_field.dart';
 import '../../shared/widgets/async_state_view.dart';
 import '../../shared/widgets/empty_state.dart';
-import '../../shared/widgets/section_header.dart';
 import '../../shared/widgets/skeleton_loader.dart';
 import '../controllers/complaint_orders_controller.dart';
 import '../widgets/complaint_card.dart';
@@ -45,7 +43,7 @@ class ComplainOrdersScreen extends GetView<ComplainOrdersController> {
             onRetry: controller.load,
             loadingWidget: _ComplainOrdersShimmer(isRoot: isRoot),
             builder: (context) => Obx(() {
-              final list = controller.complaints;
+              final list = controller.filteredComplaints;
               final status = controller.statusFilter.value;
               return AppRefreshIndicator(
                 onRefresh: () => controller.load(showLoading: false),
@@ -74,23 +72,60 @@ class ComplainOrdersScreen extends GetView<ComplainOrdersController> {
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.stretch,
                           children: [
+                            const _SearchBar(),
+                            const SizedBox(height: AppDimens.gapMd),
                             const _FiltersCard(),
                             const SizedBox(height: AppDimens.gapLg),
-                            SectionHeader(
-                              title: status == null
-                                  ? 'All complaints'
-                                  : '${status.staffLabel} complaints',
+                            Row(
+                              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                              children: [
+                                Text(
+                                  status == null
+                                      ? 'All Complaints (${list.length})'
+                                      : '${status.staffLabel} Complaints (${list.length})',
+                                  style: const TextStyle(
+                                    fontSize: 16,
+                                    fontWeight: FontWeight.w800,
+                                    color: Color(0xFF0F172A),
+                                    letterSpacing: -0.3,
+                                  ),
+                                ),
+                                if (controller.hasFilters)
+                                  TextButton.icon(
+                                    onPressed: controller.resetAllFilters,
+                                    style: TextButton.styleFrom(
+                                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                                      minimumSize: const Size(50, 30),
+                                      tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                                    ),
+                                    icon: const Icon(Icons.refresh_rounded, size: 14, color: Color(0xFF0284C7)),
+                                    label: const Text(
+                                      'Reset Filters',
+                                      style: TextStyle(
+                                        fontSize: 12.5,
+                                        fontWeight: FontWeight.w700,
+                                        color: Color(0xFF0284C7),
+                                      ),
+                                    ),
+                                  ),
+                              ],
                             ),
                             const SizedBox(height: AppDimens.gapSm),
                             if (list.isEmpty)
                               Padding(
                                 padding: const EdgeInsets.symmetric(vertical: 40),
                                 child: EmptyState(
-                                  icon: Icons.assignment_outlined,
-                                  title: 'No complaints found',
+                                  icon: controller.hasFilters
+                                      ? Icons.search_off_rounded
+                                      : Icons.assignment_outlined,
+                                  title: controller.hasFilters
+                                      ? 'No matching complaints'
+                                      : 'No complaints found',
                                   message: controller.hasFilters
-                                      ? 'No complaints match these filters.'
-                                      : 'There are no room complaints yet.',
+                                      ? 'No complaints match your current search or filters.'
+                                      : 'There are no room complaints in this queue.',
+                                  actionLabel: controller.hasFilters ? 'Reset Filters' : null,
+                                  onAction: controller.hasFilters ? controller.resetAllFilters : null,
                                 ),
                               )
                             else ...[
@@ -112,7 +147,7 @@ class ComplainOrdersScreen extends GetView<ComplainOrdersController> {
                                     trailing: _StatusMenu(complaint: c),
                                   ),
                                 ),
-                              if (controller.hasMore.value)
+                              if (controller.hasMore.value && controller.searchQuery.value.isEmpty)
                                 AppButton(
                                   label: 'Load more',
                                   icon: Icons.expand_more_rounded,
@@ -136,43 +171,133 @@ class ComplainOrdersScreen extends GetView<ComplainOrdersController> {
   }
 }
 
-/// Room search plus status and category chips.
+/// Modern Search Bar matching the design of Phonebook and Laundry screens
+class _SearchBar extends GetView<ComplainOrdersController> {
+  const _SearchBar();
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: const Color(0xFFE2E8F0), width: 1.2),
+        boxShadow: [
+          BoxShadow(
+            color: const Color(0xFF0F172A).withValues(alpha: 0.04),
+            blurRadius: 12,
+            offset: const Offset(0, 3),
+          ),
+        ],
+      ),
+      child: TextField(
+        controller: controller.searchController,
+        onChanged: controller.onSearchChanged,
+        style: const TextStyle(
+          color: Color(0xFF0F172A),
+          fontSize: 14.5,
+          fontWeight: FontWeight.w600,
+        ),
+        decoration: InputDecoration(
+          hintText: 'Search room, student, item or category...',
+          hintStyle: const TextStyle(
+            color: Color(0xFF94A3B8),
+            fontSize: 13.5,
+            fontWeight: FontWeight.w400,
+          ),
+          prefixIcon: const Icon(
+            Icons.search_rounded,
+            color: Color(0xFF0284C7),
+            size: 22,
+          ),
+          suffixIcon: Obx(() {
+            if (controller.searchQuery.value.isEmpty) {
+              return const SizedBox.shrink();
+            }
+            return IconButton(
+              icon: const Icon(
+                Icons.close_rounded,
+                size: 18,
+                color: Color(0xFF64748B),
+              ),
+              onPressed: controller.clearSearch,
+            );
+          }),
+          border: InputBorder.none,
+          contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+        ),
+      ),
+    );
+  }
+}
+
+/// Status and category filter chips with modern card container
 class _FiltersCard extends GetView<ComplainOrdersController> {
   const _FiltersCard();
 
   @override
   Widget build(BuildContext context) {
-    return AppCard(
+    return Container(
       padding: const EdgeInsets.all(AppDimens.gapMd),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: const Color(0xFFE2E8F0), width: 1.2),
+        boxShadow: [
+          BoxShadow(
+            color: const Color(0xFF0F172A).withValues(alpha: 0.03),
+            blurRadius: 10,
+            offset: const Offset(0, 2),
+          ),
+        ],
+      ),
       child: Obx(() {
         final status = controller.statusFilter.value;
         final category = controller.categoryFilter.value;
+
         return Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            AppTextField(
-              controller: controller.roomController,
-              label: 'Room',
-              hint: 'Exact room number, e.g. 101',
-              prefixIcon: Icons.meeting_room_outlined,
-              onChanged: (value) => controller.roomQuery.value = value,
-              suffix: controller.roomQuery.value.isEmpty
-                  ? null
-                  : IconButton(
-                      icon: const Icon(Icons.close_rounded, size: 20),
-                      tooltip: 'Clear room',
-                      onPressed: controller.clearRoom,
+            Row(
+              children: [
+                const Icon(
+                  Icons.filter_list_rounded,
+                  size: 16,
+                  color: Color(0xFF0284C7),
+                ),
+                const SizedBox(width: 6),
+                const Text(
+                  'Status Filter',
+                  style: TextStyle(
+                    fontSize: 12.5,
+                    fontWeight: FontWeight.w700,
+                    color: Color(0xFF0F172A),
+                    letterSpacing: -0.2,
+                  ),
+                ),
+                const Spacer(),
+                if (controller.hasFilters)
+                  GestureDetector(
+                    onTap: controller.resetAllFilters,
+                    child: const Text(
+                      'Clear',
+                      style: TextStyle(
+                        fontSize: 12,
+                        fontWeight: FontWeight.w600,
+                        color: Color(0xFF0284C7),
+                      ),
                     ),
+                  ),
+              ],
             ),
-            const SizedBox(height: AppDimens.gapMd),
-            _label('Status'),
-            const SizedBox(height: AppDimens.gapXs),
+            const SizedBox(height: 10),
             SingleChildScrollView(
               scrollDirection: Axis.horizontal,
+              physics: const BouncingScrollPhysics(),
               child: Row(
                 children: [
                   _FilterChip(
-                    label: 'All',
+                    label: 'All (${controller.totalCount})',
                     icon: Icons.list_rounded,
                     isSelected: status == null,
                     onSelected: () => controller.setStatusFilter(null),
@@ -190,28 +315,36 @@ class _FiltersCard extends GetView<ComplainOrdersController> {
                 ],
               ),
             ),
-            // A solver limited to one category has nothing to choose from.
-            if (controller.categories.length == 1) ...[
-              const SizedBox(height: AppDimens.gapMd),
-              _label('Category'),
-              const SizedBox(height: AppDimens.gapXs),
-              Text(
-                '${controller.categories.single.name} complaints only',
-                style: AppTextStyles.bodySm.copyWith(color: AppColors.textSecondary),
-              ),
-            ],
             if (controller.categories.length > 1) ...[
-              const SizedBox(height: AppDimens.gapMd),
-              _label('Category'),
-              const SizedBox(height: AppDimens.gapXs),
+              const SizedBox(height: 14),
+              Row(
+                children: [
+                  const Icon(
+                    Icons.category_outlined,
+                    size: 15,
+                    color: Color(0xFF64748B),
+                  ),
+                  const SizedBox(width: 6),
+                  const Text(
+                    'Category',
+                    style: TextStyle(
+                      fontSize: 12,
+                      fontWeight: FontWeight.w700,
+                      color: Color(0xFF475569),
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 8),
               SingleChildScrollView(
                 scrollDirection: Axis.horizontal,
+                physics: const BouncingScrollPhysics(),
                 child: Row(
                   children: [
                     _FilterChip(
                       label: 'All Categories',
                       isSelected: category == null,
-                      activeColor: AppColors.secondary,
+                      activeColor: const Color(0xFF0284C7),
                       onSelected: () => controller.setCategoryFilter(null),
                     ),
                     for (final cat in controller.categories) ...[
@@ -219,7 +352,7 @@ class _FiltersCard extends GetView<ComplainOrdersController> {
                       _FilterChip(
                         label: cat.name,
                         isSelected: category?.id == cat.id,
-                        activeColor: AppColors.secondary,
+                        activeColor: const Color(0xFF0284C7),
                         onSelected: () => controller.setCategoryFilter(
                           category?.id == cat.id ? null : cat,
                         ),
@@ -234,14 +367,6 @@ class _FiltersCard extends GetView<ComplainOrdersController> {
       }),
     );
   }
-
-  Widget _label(String text) => Text(
-        text,
-        style: AppTextStyles.label.copyWith(
-          color: AppColors.textSecondary,
-          fontSize: 12,
-        ),
-      );
 }
 
 /// Quick status change on a queue row; any status may move to any other.
@@ -387,7 +512,6 @@ class _ComplaintsHeaderDelegate extends SliverPersistentHeaderDelegate {
     final cornerRadius = Radius.circular((34.0 * (1.0 - progress)).clamp(0.0, 34.0));
 
     return Obx(() {
-      final totalCount = controller.complaints.length;
       final status = controller.statusFilter.value;
       final roomFilter = controller.roomFilter.value;
 
@@ -454,31 +578,37 @@ class _ComplaintsHeaderDelegate extends SliverPersistentHeaderDelegate {
                 height: 46,
                 child: Row(
                   children: [
-                    // Back / placeholder button
-                    // Material(
-                    //   color: Colors.transparent,
-                    //   child: InkWell(
-                    //     onTap: () => Get.back(),
-                    //     borderRadius: BorderRadius.circular(24),
-                    //     child: Container(
-                    //       width: 42,
-                    //       height: 42,
-                    //       decoration: BoxDecoration(
-                    //         color: Colors.white.withValues(alpha: 0.16),
-                    //         shape: BoxShape.circle,
-                    //         border: Border.all(
-                    //           color: Colors.white.withValues(alpha: 0.25),
-                    //         ),
-                    //       ),
-                    //       child: Icon(
-                    //         isRoot ? Icons.menu_rounded : Icons.arrow_back_rounded,
-                    //         color: Colors.white,
-                    //         size: 20,
-                    //       ),
-                    //     ),
-                    //   ),
-                    // ),
-                    // const SizedBox(width: 12),
+                    // Back button
+                    Material(
+                      color: Colors.transparent,
+                      child: InkWell(
+                        onTap: () {
+                          if (Navigator.of(context).canPop()) {
+                            Navigator.of(context).pop();
+                          } else {
+                            Get.back();
+                          }
+                        },
+                        borderRadius: BorderRadius.circular(24),
+                        child: Container(
+                          width: 42,
+                          height: 42,
+                          decoration: BoxDecoration(
+                            color: Colors.white.withValues(alpha: 0.16),
+                            shape: BoxShape.circle,
+                            border: Border.all(
+                              color: Colors.white.withValues(alpha: 0.25),
+                            ),
+                          ),
+                          child: const Icon(
+                            Icons.arrow_back_rounded,
+                            color: Colors.white,
+                            size: 20,
+                          ),
+                        ),
+                      ),
+                    ),
+                    const SizedBox(width: 12),
 
                     // Collapsed title
                     Expanded(
@@ -613,15 +743,38 @@ class _ComplaintsHeaderDelegate extends SliverPersistentHeaderDelegate {
                           child: Row(
                             children: [
                               _headerPill(
-                                icon: status?.icon ?? Icons.assignment_rounded,
-                                label: '$totalCount${controller.hasMore.value ? '+' : ''} '
-                                    '${status?.staffLabel ?? 'All'}',
+                                icon: Icons.assignment_rounded,
+                                label: '${controller.totalCount} Total',
+                                isSelected: status == null,
+                                onTap: () => controller.setStatusFilter(null),
+                              ),
+                              const SizedBox(width: 8),
+                              _headerPill(
+                                icon: Icons.pending_actions_rounded,
+                                label: '${controller.openCount} Open',
+                                isSelected: status == ComplaintStatus.open,
+                                onTap: () => controller.setStatusFilter(ComplaintStatus.open),
+                              ),
+                              const SizedBox(width: 8),
+                              _headerPill(
+                                icon: Icons.engineering_rounded,
+                                label: '${controller.inProgressCount} In Progress',
+                                isSelected: status == ComplaintStatus.inProgress,
+                                onTap: () => controller.setStatusFilter(ComplaintStatus.inProgress),
+                              ),
+                              const SizedBox(width: 8),
+                              _headerPill(
+                                icon: Icons.check_circle_rounded,
+                                label: '${controller.resolvedCount} Resolved',
+                                isSelected: status == ComplaintStatus.resolved,
+                                onTap: () => controller.setStatusFilter(ComplaintStatus.resolved),
                               ),
                               if (roomFilter.isNotEmpty) ...[
                                 const SizedBox(width: 8),
                                 _headerPill(
                                   icon: Icons.meeting_room_outlined,
                                   label: 'Room $roomFilter',
+                                  onTap: controller.clearRoom,
                                 ),
                               ],
                             ],
@@ -638,28 +791,42 @@ class _ComplaintsHeaderDelegate extends SliverPersistentHeaderDelegate {
     });
   }
 
-  Widget _headerPill({required IconData icon, required String label}) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4.5),
-      decoration: BoxDecoration(
-        color: Colors.white.withValues(alpha: 0.14),
-        borderRadius: BorderRadius.circular(20),
-        border: Border.all(color: Colors.white.withValues(alpha: 0.22)),
-      ),
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Icon(icon, size: 12, color: Colors.white),
-          const SizedBox(width: 5),
-          Text(
-            label,
-            style: const TextStyle(
-              color: Colors.white,
-              fontSize: 11,
-              fontWeight: FontWeight.w600,
-            ),
+  Widget _headerPill({
+    required IconData icon,
+    required String label,
+    bool isSelected = false,
+    VoidCallback? onTap,
+  }) {
+    return GestureDetector(
+      onTap: onTap,
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4.5),
+        decoration: BoxDecoration(
+          color: isSelected
+              ? Colors.white.withValues(alpha: 0.28)
+              : Colors.white.withValues(alpha: 0.14),
+          borderRadius: BorderRadius.circular(20),
+          border: Border.all(
+            color: isSelected
+                ? Colors.white.withValues(alpha: 0.6)
+                : Colors.white.withValues(alpha: 0.22),
           ),
-        ],
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(icon, size: 12, color: Colors.white),
+            const SizedBox(width: 5),
+            Text(
+              label,
+              style: TextStyle(
+                color: Colors.white,
+                fontSize: 11.5,
+                fontWeight: isSelected ? FontWeight.w700 : FontWeight.w600,
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }

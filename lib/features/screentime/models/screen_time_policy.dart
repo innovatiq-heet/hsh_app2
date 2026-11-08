@@ -20,6 +20,9 @@ class ScreenTimePolicy {
   /// Per-app daily limit in minutes (0 = no limit).
   final Map<String, int> appLimits;
 
+  /// Expiry timestamp (epoch milliseconds) of a temporary install window (0 = none).
+  final int installPassUntil;
+
   const ScreenTimePolicy({
     this.isLocked = false,
     this.blockedPackages = const {},
@@ -28,9 +31,12 @@ class ScreenTimePolicy {
     this.bedtimeEnd = '',
     this.version = '',
     this.appLimits = const {},
+    this.installPassUntil = 0,
   });
 
   bool get hasBedtime => bedtimeStart.isNotEmpty && bedtimeEnd.isNotEmpty;
+  bool get hasActiveInstallPass =>
+      installPassUntil > DateTime.now().millisecondsSinceEpoch;
 
   /// Parses a response body. Returns null when no policy field is present at
   /// all, so callers can keep their current value instead of resetting it.
@@ -87,7 +93,15 @@ class ScreenTimePolicy {
       }
     }
 
-    if (blocked == null && locked == null && limit == null && !hasBedtime && parsedAppLimits == null) {
+    final passUntil = _pick(pol, ['install_pass_until', 'installPassUntil']) ??
+        _pick(data, ['install_pass_until', 'installPassUntil']);
+
+    if (blocked == null &&
+        locked == null &&
+        limit == null &&
+        !hasBedtime &&
+        parsedAppLimits == null &&
+        passUntil == null) {
       return null;
     }
 
@@ -103,6 +117,7 @@ class ScreenTimePolicy {
       bedtimeEnd: bedtimeOff ? '' : (end == null ? base.bedtimeEnd : _hhmm(end)),
       version: version?.toString() ?? base.version,
       appLimits: parsedAppLimits ?? base.appLimits,
+      installPassUntil: _toInt(passUntil) ?? base.installPassUntil,
     );
   }
 
@@ -127,6 +142,7 @@ class ScreenTimePolicy {
     String? bedtimeEnd,
     String? version,
     Map<String, int>? appLimits,
+    int? installPassUntil,
   }) =>
       ScreenTimePolicy(
         isLocked: isLocked ?? this.isLocked,
@@ -136,6 +152,7 @@ class ScreenTimePolicy {
         bedtimeEnd: bedtimeEnd ?? this.bedtimeEnd,
         version: version ?? this.version,
         appLimits: appLimits ?? this.appLimits,
+        installPassUntil: installPassUntil ?? this.installPassUntil,
       );
 
   /// Body for `PUT /screen-time/policies/:id`.
@@ -146,6 +163,7 @@ class ScreenTimePolicy {
         'bedtime_start': bedtimeStart,
         'bedtime_end': bedtimeEnd,
         'app_limits': appLimits,
+        if (installPassUntil > 0) 'install_pass_until': installPassUntil,
       };
 
   static dynamic _pick(Map m, List<String> keys) {

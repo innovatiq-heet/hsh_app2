@@ -18,8 +18,11 @@ import 'screen_time_utils.dart';
 /// One instance per opened student, registered with the student's id as its
 /// tag and deleted when the details are closed, so nothing carries over to
 /// the next student. Created by [ScreenTimeDirectoryController.selectStudent].
-class StudentDetailController extends GetxController with WidgetsBindingObserver implements AppRequestsHost {
-  StudentDetailController(dynamic student) : selectedStudent = Rx<dynamic>(student);
+class StudentDetailController extends GetxController
+    with WidgetsBindingObserver
+    implements AppRequestsHost {
+  StudentDetailController(dynamic student)
+    : selectedStudent = Rx<dynamic>(student);
 
   /// The directory entry this controller is for (a raw API map).
   final Rx<dynamic> selectedStudent;
@@ -27,7 +30,9 @@ class StudentDetailController extends GetxController with WidgetsBindingObserver
   /// Get tag for [student]: its numeric id, or a per-entry key for a student
   /// who has not finished device setup yet (no id).
   static String tagFor(dynamic student) {
-    final id = student is Map ? (student['id'] ?? student['_id'] ?? '').toString().trim() : '';
+    final id = student is Map
+        ? (student['id'] ?? student['_id'] ?? '').toString().trim()
+        : '';
     return isStudentId(id) ? id : 'noid-${identityHashCode(student)}';
   }
 
@@ -49,7 +54,9 @@ class StudentDetailController extends GetxController with WidgetsBindingObserver
     _refreshTimer?.cancel();
     // The details are still on screen for the frame in which the controller is
     // deleted, so the search field's text controller outlives it by one frame.
-    WidgetsBinding.instance.addPostFrameCallback((_) => appSearchController.dispose());
+    WidgetsBinding.instance.addPostFrameCallback(
+      (_) => appSearchController.dispose(),
+    );
     super.onClose();
   }
 
@@ -80,10 +87,40 @@ class StudentDetailController extends GetxController with WidgetsBindingObserver
     isScreenOn.value = isStudentScreenOn(student);
     currentApp.value = (student['currentApp'] ?? 'Idle').toString();
 
+    final dirBattery =
+        student['batteryLevel'] ??
+        student['battery_level'] ??
+        student['battery'] ??
+        (student['compliance'] is Map
+            ? (student['compliance']['batteryLevel'] ??
+                  student['compliance']['battery_level'])
+            : null);
+    if (dirBattery != null) {
+      final b = toInt(dirBattery);
+      if (b >= 0) batteryLevel.value = b;
+    } else {
+      batteryLevel.value = -1;
+    }
+    final dirCharging =
+        student['isCharging'] ??
+        student['is_charging'] ??
+        (student['compliance'] is Map
+            ? (student['compliance']['isCharging'] ??
+                  student['compliance']['is_charging'])
+            : null);
+    if (dirCharging != null) {
+      isCharging.value = toBool(dirCharging);
+    } else {
+      isCharging.value = false;
+    }
+
     // Extract blocked packages & policy from student if present
-    final directBlocked = student['blockedPackages'] ?? student['blocked_packages'];
+    final directBlocked =
+        student['blockedPackages'] ?? student['blocked_packages'];
     if (directBlocked is List) {
-      blockedPackages.assignAll(directBlocked.map((e) => e.toString()).toList());
+      blockedPackages.assignAll(
+        directBlocked.map((e) => e.toString()).toList(),
+      );
     } else {
       blockedPackages.clear();
     }
@@ -95,6 +132,7 @@ class StudentDetailController extends GetxController with WidgetsBindingObserver
         dailyLimitMinutes.value = pol.dailyLimitMinutes;
         bedtimeStart.value = pol.bedtimeStart;
         bedtimeEnd.value = pol.bedtimeEnd;
+        installPassUntil.value = pol.installPassUntil;
       }
     }
 
@@ -112,7 +150,8 @@ class StudentDetailController extends GetxController with WidgetsBindingObserver
     }
 
     debugPrint(
-        '[ScreenTime] open student: ${student['name']}, id=$_studentId, initialMins=${totalMinutesToday.value}, appsCount=${appBreakdown.length}');
+      '[ScreenTime] open student: ${student['name']}, id=$_studentId, initialMins=${totalMinutesToday.value}, appsCount=${appBreakdown.length}',
+    );
 
     fetchLiveStatus();
     fetchHistory();
@@ -140,7 +179,8 @@ class StudentDetailController extends GetxController with WidgetsBindingObserver
 
   final RxList<dynamic> historyRecords = <dynamic>[].obs;
 
-  final RxMap<String, List<dynamic>> dateSpecificApps = <String, List<dynamic>>{}.obs;
+  final RxMap<String, List<dynamic>> dateSpecificApps =
+      <String, List<dynamic>>{}.obs;
 
   final RxMap<String, int> dateSpecificTotals = <String, int>{}.obs;
 
@@ -150,7 +190,8 @@ class StudentDetailController extends GetxController with WidgetsBindingObserver
 
   /// List of student app installation requests pending warden approval
   @override
-  final RxList<Map<String, dynamic>> pendingAppRequests = <Map<String, dynamic>>[].obs;
+  final RxList<Map<String, dynamic>> pendingAppRequests =
+      <Map<String, dynamic>>[].obs;
 
   final RxBool isLoadingAppRequests = false.obs;
 
@@ -163,23 +204,46 @@ class StudentDetailController extends GetxController with WidgetsBindingObserver
   /// Package of the foreground app (for its icon); [currentApp] is the label.
   final RxString currentPackage = ''.obs;
 
+  /// Real-time battery percentage (0–100), or -1 when unknown.
+  final RxInt batteryLevel = (-1).obs;
+
+  /// True if the student's phone is currently plugged in and charging.
+  final RxBool isCharging = false.obs;
+
+  /// True if the student's phone has been unreachable for >30 minutes while off.
+  bool get isOfflineSuspected {
+    if (lastSeenAt.value == null) return false;
+    return !isOnline.value &&
+        DateTime.now().difference(lastSeenAt.value!).inMinutes > 30;
+  }
+
+  /// Expiry timestamp (epoch milliseconds) of a temporary install window (0 = none).
+  final RxInt installPassUntil = 0.obs;
+
+  /// Whether a temporary Play Store install window is currently active.
+  bool get hasActiveInstallPass =>
+      installPassUntil.value > DateTime.now().millisecondsSinceEpoch;
+
+  /// Remaining minutes of the temporary install window.
+  int get installPassRemainingMinutes {
+    final diff = installPassUntil.value - DateTime.now().millisecondsSinceEpoch;
+    return diff > 0 ? (diff / 60000).ceil() : 0;
+  }
+
   /// Monitoring on the selected student's phone has been switched off.
   bool get isTampered => isStudentTampered({'compliance': compliance});
 
   /// Share of the daily allowance used on the selected day (0 when unlimited).
-  double get limitProgress =>
-      dailyLimitMinutes.value > 0
-          ? (selectedDayTotalMinutes / dailyLimitMinutes.value).clamp(0.0, 1.0)
-          : 0.0;
+  double get limitProgress => dailyLimitMinutes.value > 0
+      ? (selectedDayTotalMinutes / dailyLimitMinutes.value).clamp(0.0, 1.0)
+      : 0.0;
 
   // Day-wise selection state
   final RxString selectedDate = ''.obs; // 'yyyy-MM-dd' or empty for today
 
   String get todayDateStr {
     final now = DateTime.now();
-    return '${now.year.toString().padLeft(4, '0')}-${now.month
-        .toString()
-        .padLeft(2, '0')}-${now.day.toString().padLeft(2, '0')}';
+    return '${now.year.toString().padLeft(4, '0')}-${now.month.toString().padLeft(2, '0')}-${now.day.toString().padLeft(2, '0')}';
   }
 
   bool get isTodaySelected {
@@ -199,7 +263,10 @@ class StudentDetailController extends GetxController with WidgetsBindingObserver
       final prefs = await SharedPreferences.getInstance();
 
       // 1. Today's cached apps & totals
-      final todayAppsJson = prefs.getString('${_kScreenTimeCachePrefix}apps_${studentId}_$todayDateStr') ??
+      final todayAppsJson =
+          prefs.getString(
+            '${_kScreenTimeCachePrefix}apps_${studentId}_$todayDateStr',
+          ) ??
           prefs.getString('${_kScreenTimeCachePrefix}apps_${studentId}_today');
       if (todayAppsJson != null && todayAppsJson.isNotEmpty) {
         try {
@@ -214,14 +281,20 @@ class StudentDetailController extends GetxController with WidgetsBindingObserver
         } catch (_) {}
       }
 
-      final todayTotal = prefs.getInt('${_kScreenTimeCachePrefix}total_${studentId}_$todayDateStr') ??
+      final todayTotal =
+          prefs.getInt(
+            '${_kScreenTimeCachePrefix}total_${studentId}_$todayDateStr',
+          ) ??
           prefs.getInt('${_kScreenTimeCachePrefix}total_${studentId}_today');
       if (todayTotal != null && todayTotal > 0) {
         if (totalMinutesToday.value == 0) totalMinutesToday.value = todayTotal;
         dateSpecificTotals[todayDateStr] = todayTotal;
       }
 
-      final todayNight = prefs.getInt('${_kScreenTimeCachePrefix}night_${studentId}_$todayDateStr') ??
+      final todayNight =
+          prefs.getInt(
+            '${_kScreenTimeCachePrefix}night_${studentId}_$todayDateStr',
+          ) ??
           prefs.getInt('${_kScreenTimeCachePrefix}night_${studentId}_today');
       if (todayNight != null && todayNight > 0) {
         if (nightMinutesToday.value == 0) nightMinutesToday.value = todayNight;
@@ -229,7 +302,9 @@ class StudentDetailController extends GetxController with WidgetsBindingObserver
       }
 
       // 2. Cached history records
-      final historyJson = prefs.getString('${_kScreenTimeCachePrefix}history_$studentId');
+      final historyJson = prefs.getString(
+        '${_kScreenTimeCachePrefix}history_$studentId',
+      );
       if (historyJson != null && historyJson.isNotEmpty) {
         try {
           final decoded = jsonDecode(historyJson);
@@ -243,9 +318,12 @@ class StudentDetailController extends GetxController with WidgetsBindingObserver
       final now = DateTime.now();
       for (int i = 1; i <= 7; i++) {
         final dt = now.subtract(Duration(days: i));
-        final dStr = '${dt.year.toString().padLeft(4, '0')}-${dt.month.toString().padLeft(2, '0')}-${dt.day.toString().padLeft(2, '0')}';
+        final dStr =
+            '${dt.year.toString().padLeft(4, '0')}-${dt.month.toString().padLeft(2, '0')}-${dt.day.toString().padLeft(2, '0')}';
 
-        final dayAppsJson = prefs.getString('${_kScreenTimeCachePrefix}apps_${studentId}_$dStr');
+        final dayAppsJson = prefs.getString(
+          '${_kScreenTimeCachePrefix}apps_${studentId}_$dStr',
+        );
         if (dayAppsJson != null && dayAppsJson.isNotEmpty) {
           try {
             final decoded = jsonDecode(dayAppsJson);
@@ -255,12 +333,16 @@ class StudentDetailController extends GetxController with WidgetsBindingObserver
           } catch (_) {}
         }
 
-        final dayTotal = prefs.getInt('${_kScreenTimeCachePrefix}total_${studentId}_$dStr');
+        final dayTotal = prefs.getInt(
+          '${_kScreenTimeCachePrefix}total_${studentId}_$dStr',
+        );
         if (dayTotal != null && dayTotal > 0) {
           dateSpecificTotals[dStr] = dayTotal;
         }
 
-        final dayNight = prefs.getInt('${_kScreenTimeCachePrefix}night_${studentId}_$dStr');
+        final dayNight = prefs.getInt(
+          '${_kScreenTimeCachePrefix}night_${studentId}_$dStr',
+        );
         if (dayNight != null && dayNight > 0) {
           dateSpecificNight[dStr] = dayNight;
         }
@@ -270,28 +352,52 @@ class StudentDetailController extends GetxController with WidgetsBindingObserver
     }
   }
 
-  Future<void> _saveCachedDateUsage(String studentId, String dateStr, List<dynamic> apps, int total, int night) async {
+  Future<void> _saveCachedDateUsage(
+    String studentId,
+    String dateStr,
+    List<dynamic> apps,
+    int total,
+    int night,
+  ) async {
     if (studentId.isEmpty || dateStr.isEmpty) return;
     try {
       final prefs = await SharedPreferences.getInstance();
       if (apps.isNotEmpty) {
-        await prefs.setString('${_kScreenTimeCachePrefix}apps_${studentId}_$dateStr', jsonEncode(apps));
+        await prefs.setString(
+          '${_kScreenTimeCachePrefix}apps_${studentId}_$dateStr',
+          jsonEncode(apps),
+        );
       }
       if (total > 0) {
-        await prefs.setInt('${_kScreenTimeCachePrefix}total_${studentId}_$dateStr', total);
+        await prefs.setInt(
+          '${_kScreenTimeCachePrefix}total_${studentId}_$dateStr',
+          total,
+        );
       }
       if (night > 0) {
-        await prefs.setInt('${_kScreenTimeCachePrefix}night_${studentId}_$dateStr', night);
+        await prefs.setInt(
+          '${_kScreenTimeCachePrefix}night_${studentId}_$dateStr',
+          night,
+        );
       }
       if (dateStr == todayDateStr) {
         if (apps.isNotEmpty) {
-          await prefs.setString('${_kScreenTimeCachePrefix}apps_${studentId}_today', jsonEncode(apps));
+          await prefs.setString(
+            '${_kScreenTimeCachePrefix}apps_${studentId}_today',
+            jsonEncode(apps),
+          );
         }
         if (total > 0) {
-          await prefs.setInt('${_kScreenTimeCachePrefix}total_${studentId}_today', total);
+          await prefs.setInt(
+            '${_kScreenTimeCachePrefix}total_${studentId}_today',
+            total,
+          );
         }
         if (night > 0) {
-          await prefs.setInt('${_kScreenTimeCachePrefix}night_${studentId}_today', night);
+          await prefs.setInt(
+            '${_kScreenTimeCachePrefix}night_${studentId}_today',
+            night,
+          );
         }
       }
     } catch (e) {
@@ -299,11 +405,17 @@ class StudentDetailController extends GetxController with WidgetsBindingObserver
     }
   }
 
-  Future<void> _saveCachedHistory(String studentId, List<dynamic> records) async {
+  Future<void> _saveCachedHistory(
+    String studentId,
+    List<dynamic> records,
+  ) async {
     if (studentId.isEmpty || records.isEmpty) return;
     try {
       final prefs = await SharedPreferences.getInstance();
-      await prefs.setString('${_kScreenTimeCachePrefix}history_$studentId', jsonEncode(records));
+      await prefs.setString(
+        '${_kScreenTimeCachePrefix}history_$studentId',
+        jsonEncode(records),
+      );
     } catch (e) {
       debugPrint('[ScreenTime] _saveCachedHistory error: $e');
     }
@@ -313,27 +425,33 @@ class StudentDetailController extends GetxController with WidgetsBindingObserver
     final map = <String, Map<String, dynamic>>{};
     for (final it in rawApps) {
       if (it is! Map) continue;
-      final pkg = (it['packageName'] ??
-              it['package_name'] ??
-              it['package'] ??
-              it['pkg'] ??
-              '')
-          .toString()
-          .trim();
+      final pkg =
+          (it['packageName'] ??
+                  it['package_name'] ??
+                  it['package'] ??
+                  it['pkg'] ??
+                  '')
+              .toString()
+              .trim();
       if (pkg.isEmpty || _isOurApp(pkg) || _isSystemPackage(pkg)) continue;
 
-      final rawName = (it['appName'] ??
-              it['app_name'] ??
-              it['name'] ??
-              it['title'] ??
-              it['label'] ??
-              '')
-          .toString()
-          .trim();
-      final name = (rawName.isNotEmpty && rawName != pkg) ? rawName : _guessAppName(pkg);
+      final rawName =
+          (it['appName'] ??
+                  it['app_name'] ??
+                  it['name'] ??
+                  it['title'] ??
+                  it['label'] ??
+                  '')
+              .toString()
+              .trim();
+      final name = (rawName.isNotEmpty && rawName != pkg)
+          ? rawName
+          : _guessAppName(pkg);
       final mins = extractAppMinutes(it);
-      final icon = (it['icon'] ?? it['iconBase64'] ?? it['icon_base64'])?.toString();
-      final isBlocked = blockedPackages.contains(pkg) ||
+      final icon = (it['icon'] ?? it['iconBase64'] ?? it['icon_base64'])
+          ?.toString();
+      final isBlocked =
+          blockedPackages.contains(pkg) ||
           it['isBlocked'] == true ||
           it['is_blocked'] == true ||
           it['is_blocked'] == 1;
@@ -374,14 +492,18 @@ class StudentDetailController extends GetxController with WidgetsBindingObserver
     selectedDate.value = normalized;
     if (normalized.isNotEmpty && normalized != todayDateStr) {
       final rec = _findHistoryRecord(normalized);
-      final hasApps = (rec != null && _extractAppsList(rec).isNotEmpty) ||
+      final hasApps =
+          (rec != null && _extractAppsList(rec).isNotEmpty) ||
           (dateSpecificApps[normalized]?.isNotEmpty == true);
-      final hasTotal = (dateSpecificTotals[normalized] ?? 0) > 0 ||
+      final hasTotal =
+          (dateSpecificTotals[normalized] ?? 0) > 0 ||
           (rec != null &&
-              toInt(rec['total_screen_time_minutes'] ??
-                      rec['totalScreenTimeMinutes'] ??
-                      rec['totalMinutes'] ??
-                      rec['total_minutes']) >
+              toInt(
+                    rec['total_screen_time_minutes'] ??
+                        rec['totalScreenTimeMinutes'] ??
+                        rec['totalMinutes'] ??
+                        rec['total_minutes'],
+                  ) >
                   0);
       if (!hasApps || !hasTotal) {
         fetchUsageForDate(normalized);
@@ -473,7 +595,9 @@ class StudentDetailController extends GetxController with WidgetsBindingObserver
             }
           }
         }
-        if (candidateMap == null && candidateList.length == 1 && candidateList.first is Map) {
+        if (candidateMap == null &&
+            candidateList.length == 1 &&
+            candidateList.first is Map) {
           candidateMap = Map<String, dynamic>.from(candidateList.first);
         }
       }
@@ -507,7 +631,10 @@ class StudentDetailController extends GetxController with WidgetsBindingObserver
       dateSpecificApps[normalizedTarget] = filteredApps;
       AppIconCache.ingest(filteredApps);
 
-      final appSum = filteredApps.fold<int>(0, (acc, item) => acc + extractAppMinutes(item));
+      final appSum = filteredApps.fold<int>(
+        0,
+        (acc, item) => acc + extractAppMinutes(item),
+      );
       if (appSum > 0 && (total == null || total == 0)) {
         total = appSum;
       }
@@ -551,8 +678,8 @@ class StudentDetailController extends GetxController with WidgetsBindingObserver
     final now = DateTime.now();
     final today = todayDateStr;
     final yest = now.subtract(const Duration(days: 1));
-    final yestStr = '${yest.year.toString().padLeft(4, '0')}-${yest.month
-        .toString().padLeft(2, '0')}-${yest.day.toString().padLeft(2, '0')}';
+    final yestStr =
+        '${yest.year.toString().padLeft(4, '0')}-${yest.month.toString().padLeft(2, '0')}-${yest.day.toString().padLeft(2, '0')}';
 
     list.add({'date': today, 'label': 'Today'});
     list.add({'date': yestStr, 'label': 'Yesterday'});
@@ -619,8 +746,12 @@ class StudentDetailController extends GetxController with WidgetsBindingObserver
       if (apps.isNotEmpty) {
         final sum = apps.fold<int>(0, (acc, item) {
           if (item is Map) {
-            final pkg = (item['packageName'] ?? item['package_name'] ?? item['package'] ?? '')
-                .toString();
+            final pkg =
+                (item['packageName'] ??
+                        item['package_name'] ??
+                        item['package'] ??
+                        '')
+                    .toString();
             if (_isOurApp(pkg) || _isSystemPackage(pkg)) return acc;
             return acc + extractAppMinutes(item);
           }
@@ -633,7 +764,8 @@ class StudentDetailController extends GetxController with WidgetsBindingObserver
 
     final targetDate = effectiveSelectedDate;
     // 1. Check date-specific total cache
-    if (dateSpecificTotals.containsKey(targetDate) && dateSpecificTotals[targetDate]! > 0) {
+    if (dateSpecificTotals.containsKey(targetDate) &&
+        dateSpecificTotals[targetDate]! > 0) {
       return dateSpecificTotals[targetDate]!;
     }
 
@@ -656,8 +788,12 @@ class StudentDetailController extends GetxController with WidgetsBindingObserver
     if (apps.isNotEmpty) {
       final sum = apps.fold<int>(0, (acc, item) {
         if (item is Map) {
-          final pkg = (item['packageName'] ?? item['package_name'] ?? item['package'] ?? '')
-              .toString();
+          final pkg =
+              (item['packageName'] ??
+                      item['package_name'] ??
+                      item['package'] ??
+                      '')
+                  .toString();
           if (_isOurApp(pkg) || _isSystemPackage(pkg)) return acc;
           return acc + extractAppMinutes(item);
         }
@@ -674,7 +810,8 @@ class StudentDetailController extends GetxController with WidgetsBindingObserver
       return nightMinutesToday.value;
     }
     final targetDate = effectiveSelectedDate;
-    if (dateSpecificNight.containsKey(targetDate) && dateSpecificNight[targetDate]! > 0) {
+    if (dateSpecificNight.containsKey(targetDate) &&
+        dateSpecificNight[targetDate]! > 0) {
       return dateSpecificNight[targetDate]!;
     }
     final rec = _findHistoryRecord(targetDate);
@@ -715,7 +852,8 @@ class StudentDetailController extends GetxController with WidgetsBindingObserver
     }
     final targetDate = effectiveSelectedDate;
     // 1. Check dateSpecificApps cache first
-    if (dateSpecificApps.containsKey(targetDate) && dateSpecificApps[targetDate]!.isNotEmpty) {
+    if (dateSpecificApps.containsKey(targetDate) &&
+        dateSpecificApps[targetDate]!.isNotEmpty) {
       return dateSpecificApps[targetDate]!;
     }
     // 2. Check historyRecords
@@ -727,7 +865,9 @@ class StudentDetailController extends GetxController with WidgetsBindingObserver
       }
 
       // 3. Fallback: If no array breakdown exists, but the record has an active current_app (not "Idle" or empty)
-      final curApp = (rec['current_app'] ?? rec['currentApp'] ?? '').toString().trim();
+      final curApp = (rec['current_app'] ?? rec['currentApp'] ?? '')
+          .toString()
+          .trim();
       final totalMins = toInt(
         rec['total_screen_time_minutes'] ??
             rec['totalScreenTimeMinutes'] ??
@@ -745,20 +885,22 @@ class StudentDetailController extends GetxController with WidgetsBindingObserver
             'packageName': curApp.toLowerCase().replaceAll(' ', '.'),
             'appName': curApp,
             'minutes': totalMins,
-          }
+          },
         ];
       }
     }
     return [];
   }
 
-  int get usedAppsCount => currentDayRawApps.where((a) => extractAppMinutes(a) > 0).length;
+  int get usedAppsCount =>
+      currentDayRawApps.where((a) => extractAppMinutes(a) > 0).length;
 
   int get totalAvailableAppsCount {
     final pkgs = <String>{};
     for (final a in currentDayRawApps) {
       if (a is Map) {
-        final p = (a['packageName'] ?? a['package_name'] ?? a['package'] ?? '').toString();
+        final p = (a['packageName'] ?? a['package_name'] ?? a['package'] ?? '')
+            .toString();
         if (p.isNotEmpty && !_isOurApp(p) && !_isSystemPackage(p)) pkgs.add(p);
       }
     }
@@ -802,9 +944,8 @@ class StudentDetailController extends GetxController with WidgetsBindingObserver
     // Build the last [days] calendar days in chronological order (Oldest -> Today)
     for (int i = days - 1; i >= 0; i--) {
       final dt = now.subtract(Duration(days: i));
-      final dStr = '${dt.year.toString().padLeft(4, '0')}-${dt.month
-          .toString()
-          .padLeft(2, '0')}-${dt.day.toString().padLeft(2, '0')}';
+      final dStr =
+          '${dt.year.toString().padLeft(4, '0')}-${dt.month.toString().padLeft(2, '0')}-${dt.day.toString().padLeft(2, '0')}';
       final rec = mapByDate[dStr];
 
       int total = 0;
@@ -825,23 +966,45 @@ class StudentDetailController extends GetxController with WidgetsBindingObserver
           final apps = _extractAppsList(rec);
           if (apps.isNotEmpty) {
             final appSum = apps.fold<int>(0, (sum, a) {
-              final pkg = (a is Map ? (a['packageName'] ?? a['package_name'] ?? a['package'] ?? '') : '').toString();
+              final pkg =
+                  (a is Map
+                          ? (a['packageName'] ??
+                                a['package_name'] ??
+                                a['package'] ??
+                                '')
+                          : '')
+                      .toString();
               if (_isOurApp(pkg)) return sum;
-              return sum + toInt(
-                  a['minutes'] ?? a['total_minutes'] ?? a['totalMinutes'] ??
-                      a['duration'] ?? a['time'] ?? a['usage_minutes']);
+              return sum +
+                  toInt(
+                    a['minutes'] ??
+                        a['total_minutes'] ??
+                        a['totalMinutes'] ??
+                        a['duration'] ??
+                        a['time'] ??
+                        a['usage_minutes'],
+                  );
             });
             if (appSum > 0) total = appSum;
           }
           if (total == 0) {
-            total = toInt(rec['total_screen_time_minutes'] ??
-                rec['totalScreenTimeMinutes'] ?? rec['totalMinutes'] ?? rec['total_minutes'] ??
-                rec['usage_minutes'] ?? rec['minutes']);
+            total = toInt(
+              rec['total_screen_time_minutes'] ??
+                  rec['totalScreenTimeMinutes'] ??
+                  rec['totalMinutes'] ??
+                  rec['total_minutes'] ??
+                  rec['usage_minutes'] ??
+                  rec['minutes'],
+            );
           }
           if (night == 0) {
             night = toInt(
-                rec['night_screen_time_minutes'] ?? rec['nightScreenTimeMinutes'] ??
-                    rec['nightMinutes'] ?? rec['night_minutes'] ?? rec['night']);
+              rec['night_screen_time_minutes'] ??
+                  rec['nightScreenTimeMinutes'] ??
+                  rec['nightMinutes'] ??
+                  rec['night_minutes'] ??
+                  rec['night'],
+            );
           }
         }
       }
@@ -877,7 +1040,9 @@ class StudentDetailController extends GetxController with WidgetsBindingObserver
     final nonZero = pts.where((p) => (p['totalMinutes'] as int) > 0).toList();
     if (nonZero.isEmpty) return selectedDayTotalMinutes;
     final sum = nonZero.fold<int>(
-        0, (acc, p) => acc + (p['totalMinutes'] as int));
+      0,
+      (acc, p) => acc + (p['totalMinutes'] as int),
+    );
     return sum ~/ nonZero.length;
   }
 
@@ -939,16 +1104,16 @@ class StudentDetailController extends GetxController with WidgetsBindingObserver
   final RxMap<String, int> appLimits = <String, int>{}.obs;
 
   /// The selected student's policy as currently shown in the UI.
-  ScreenTimePolicy get currentPolicy =>
-      ScreenTimePolicy(
-        isLocked: isDeviceLocked.value,
-        blockedPackages: blockedPackages.toSet(),
-        dailyLimitMinutes: dailyLimitMinutes.value,
-        bedtimeStart: bedtimeStart.value,
-        bedtimeEnd: bedtimeEnd.value,
-        version: policyVersion.value,
-        appLimits: Map<String, int>.from(appLimits),
-      );
+  ScreenTimePolicy get currentPolicy => ScreenTimePolicy(
+    isLocked: isDeviceLocked.value,
+    blockedPackages: blockedPackages.toSet(),
+    dailyLimitMinutes: dailyLimitMinutes.value,
+    bedtimeStart: bedtimeStart.value,
+    bedtimeEnd: bedtimeEnd.value,
+    version: policyVersion.value,
+    appLimits: Map<String, int>.from(appLimits),
+    installPassUntil: installPassUntil.value,
+  );
 
   void _applyPolicy(ScreenTimePolicy p) {
     isDeviceLocked.value = p.isLocked;
@@ -958,6 +1123,7 @@ class StudentDetailController extends GetxController with WidgetsBindingObserver
     bedtimeEnd.value = p.bedtimeEnd;
     policyVersion.value = p.version;
     appLimits.assignAll(p.appLimits);
+    installPassUntil.value = p.installPassUntil;
     _syncBlockedStatusToApps();
   }
 
@@ -982,8 +1148,7 @@ class StudentDetailController extends GetxController with WidgetsBindingObserver
     return isStudentId(id);
   }
 
-  final RxString selectedAppFilter = 'Used'
-      .obs; // 'Used', 'All', 'Restricted'
+  final RxString selectedAppFilter = 'Used'.obs; // 'Used', 'All', 'Restricted'
 
   final RxString appSearchQuery = ''.obs;
 
@@ -1017,19 +1182,20 @@ class StudentDetailController extends GetxController with WidgetsBindingObserver
       isOnline.value = toBool(onlineVal);
     }
 
-    final screenVal = data['isScreenOn'] ?? data['is_screen_on'] ??
-        data['screenOn'] ?? data['screen_on'];
+    final screenVal =
+        data['isScreenOn'] ??
+        data['is_screen_on'] ??
+        data['screenOn'] ??
+        data['screen_on'];
     if (screenVal != null) {
       isScreenOn.value = toBool(screenVal);
     }
 
-    if (data['currentApp'] != null && data['currentApp']
-        .toString()
-        .isNotEmpty) {
+    if (data['currentApp'] != null &&
+        data['currentApp'].toString().isNotEmpty) {
       currentApp.value = data['currentApp'].toString();
-    } else if (data['current_app'] != null && data['current_app']
-        .toString()
-        .isNotEmpty) {
+    } else if (data['current_app'] != null &&
+        data['current_app'].toString().isNotEmpty) {
       currentApp.value = data['current_app'].toString();
     }
 
@@ -1071,6 +1237,30 @@ class StudentDetailController extends GetxController with WidgetsBindingObserver
     if (data['compliance'] is Map) {
       compliance.assignAll(Map<String, dynamic>.from(data['compliance']));
     }
+
+    final rawBattery =
+        data['batteryLevel'] ??
+        data['battery_level'] ??
+        data['battery'] ??
+        (data['compliance'] is Map
+            ? (data['compliance']['batteryLevel'] ??
+                  data['compliance']['battery_level'])
+            : null);
+    if (rawBattery != null) {
+      final b = toInt(rawBattery);
+      if (b >= 0) batteryLevel.value = b;
+    }
+
+    final rawCharging =
+        data['isCharging'] ??
+        data['is_charging'] ??
+        (data['compliance'] is Map
+            ? (data['compliance']['isCharging'] ??
+                  data['compliance']['is_charging'])
+            : null);
+    if (rawCharging != null) {
+      isCharging.value = toBool(rawCharging);
+    }
     currentPackage.value =
         (data['currentPackage'] ?? data['current_package'] ?? '').toString();
 
@@ -1080,8 +1270,9 @@ class StudentDetailController extends GetxController with WidgetsBindingObserver
       appBreakdown.assignAll(newApps);
       dateSpecificApps[todayDateStr] = newApps;
       AppIconCache.ingest(newApps);
-      debugPrint('[ScreenTime] updated appBreakdown with ${appBreakdown
-          .length} apps. First app: ${appBreakdown.first}');
+      debugPrint(
+        '[ScreenTime] updated appBreakdown with ${appBreakdown.length} apps. First app: ${appBreakdown.first}',
+      );
 
       final appsSum = newApps.fold<int>(
         0,
@@ -1134,8 +1325,7 @@ class StudentDetailController extends GetxController with WidgetsBindingObserver
     try {
       final body = await _repo.policy(id);
       if (id != _studentId) return; // another student was selected meanwhile
-      final policy = ScreenTimePolicy.tryParse(
-          body, current: currentPolicy);
+      final policy = ScreenTimePolicy.tryParse(body, current: currentPolicy);
       if (policy != null) _applyPolicy(policy);
     } catch (e) {
       debugPrint('[ScreenTime] fetchStudentPolicies error: $e');
@@ -1154,8 +1344,11 @@ class StudentDetailController extends GetxController with WidgetsBindingObserver
   }
 
   /// Set daily time limit for an app in minutes (0 = no limit)
-  Future<void> setAppLimit(String packageName, String appName,
-      int limitMinutes) async {
+  Future<void> setAppLimit(
+    String packageName,
+    String appName,
+    int limitMinutes,
+  ) async {
     final studentName = selectedStudent.value is Map
         ? (selectedStudent.value['name'] ?? 'Student')
         : 'Student';
@@ -1191,8 +1384,7 @@ class StudentDetailController extends GetxController with WidgetsBindingObserver
       if (limitMinutes > 0) {
         AppSnackbar.success(
           'Limit Set',
-          '$appName limited to ${formatMinutes(
-              limitMinutes)}/day for $studentName.',
+          '$appName limited to ${formatMinutes(limitMinutes)}/day for $studentName.',
         );
       } else {
         AppSnackbar.info(
@@ -1203,14 +1395,19 @@ class StudentDetailController extends GetxController with WidgetsBindingObserver
     } catch (e) {
       debugPrint('[ScreenTime] setAppLimit error: $e');
       _applyPolicy(previous);
-      AppSnackbar.error('Not Saved',
-          'Could not update limit for $appName for $studentName. Please try again.');
+      AppSnackbar.error(
+        'Not Saved',
+        'Could not update limit for $appName for $studentName. Please try again.',
+      );
     }
   }
 
   /// Toggle blocking or unblocking an app (Admin / Warden action)
-  Future<void> toggleAppBlock(String packageName, String appName,
-      bool block) async {
+  Future<void> toggleAppBlock(
+    String packageName,
+    String appName,
+    bool block,
+  ) async {
     final studentName = selectedStudent.value is Map
         ? (selectedStudent.value['name'] ?? 'Student')
         : 'Student';
@@ -1244,28 +1441,36 @@ class StudentDetailController extends GetxController with WidgetsBindingObserver
       policyVersion.value = DateTime.now().toIso8601String();
       if (block) {
         AppSnackbar.warning(
-            'App Restricted', '$appName is now restricted for $studentName.');
+          'App Restricted',
+          '$appName is now restricted for $studentName.',
+        );
       } else {
         AppSnackbar.success(
-            'App Allowed', '$appName restriction removed for $studentName.');
+          'App Allowed',
+          '$appName restriction removed for $studentName.',
+        );
       }
     } catch (e) {
       debugPrint('[ScreenTime] toggleAppBlock error: $e');
       _applyPolicy(previous);
-      AppSnackbar.error('Not Saved',
-          'Could not update $appName for $studentName. Please try again.');
+      AppSnackbar.error(
+        'Not Saved',
+        'Could not update $appName for $studentName. Please try again.',
+      );
     }
   }
 
   /// Manually block an app by package name or preset
   Future<void> addCustomBlockedApp(String packageName, String appName) async {
     final pkg = packageName.trim();
-    final name = appName
-        .trim()
-        .isNotEmpty ? appName.trim() : _guessAppName(pkg);
+    final name = appName.trim().isNotEmpty
+        ? appName.trim()
+        : _guessAppName(pkg);
     if (pkg.isEmpty) {
       AppSnackbar.warning(
-          'Invalid Package', 'Please enter a valid package identifier.');
+        'Invalid Package',
+        'Please enter a valid package identifier.',
+      );
       return;
     }
     await toggleAppBlock(pkg, name, true);
@@ -1287,11 +1492,28 @@ class StudentDetailController extends GetxController with WidgetsBindingObserver
 
   /// Approve or reject an app installation request (Warden action)
   @override
-  Future<void> reviewAppRequest(int requestId, String action, {int durationMinutes = 15}) async {
+  Future<void> reviewAppRequest(
+    int requestId,
+    String action, {
+    int durationMinutes = 15,
+  }) async {
+    if (requestId <= 0) {
+      AppSnackbar.error('Action Failed', 'Invalid request ID.');
+      return;
+    }
     try {
-      await _repo.reviewAppRequest(requestId, action, durationMinutes: durationMinutes);
+      await _repo.reviewAppRequest(
+        requestId,
+        action,
+        durationMinutes: durationMinutes,
+      );
       final isApproved = action == 'approve';
-      pendingAppRequests.removeWhere((r) => r['id'] == requestId);
+      pendingAppRequests.removeWhere((r) {
+        final rId = int.tryParse(
+          (r['id'] ?? r['request_id'] ?? r['requestId'])?.toString() ?? '',
+        );
+        return rId == requestId;
+      });
       if (isApproved) {
         AppSnackbar.success(
           'App Approved',
@@ -1372,6 +1594,62 @@ class StudentDetailController extends GetxController with WidgetsBindingObserver
     }
   }
 
+  /// Grant a temporary window (default 15 minutes) where Play Store is
+  /// unlocked on the student's phone for app installation without permanently
+  /// lifting installation restrictions.
+  Future<void> grantInstallPass({int minutes = 15}) async {
+    final studentName = selectedStudent.value is Map
+        ? (selectedStudent.value['name'] ?? 'Student')
+        : 'Student';
+    final id = _studentId;
+    if (id.isEmpty) {
+      AppSnackbar.info(
+        'Device Not Setup',
+        '$studentName has not installed the monitoring app on their phone yet.',
+      );
+      return;
+    }
+    final previous = currentPolicy;
+    final expiry =
+        DateTime.now().millisecondsSinceEpoch + (minutes * 60 * 1000);
+    _applyPolicy(previous.copyWith(installPassUntil: expiry));
+
+    try {
+      await _putPolicy({'install_pass_until': expiry});
+      AppSnackbar.success(
+        'Install Pass Active',
+        'Play Store unlocked for $minutes minutes on $studentName\'s phone.',
+      );
+    } catch (e) {
+      debugPrint('[ScreenTime] grantInstallPass error: $e');
+      _applyPolicy(previous);
+      AppSnackbar.error('Failed', 'Could not grant temporary install pass.');
+    }
+  }
+
+  /// Immediately revoke the temporary Play Store install pass.
+  Future<void> revokeInstallPass() async {
+    final studentName = selectedStudent.value is Map
+        ? (selectedStudent.value['name'] ?? 'Student')
+        : 'Student';
+    final id = _studentId;
+    if (id.isEmpty) return;
+    final previous = currentPolicy;
+    _applyPolicy(previous.copyWith(installPassUntil: 0));
+
+    try {
+      await _putPolicy({'install_pass_until': 0});
+      AppSnackbar.info(
+        'Install Pass Revoked',
+        'Play Store has been locked again on $studentName\'s phone.',
+      );
+    } catch (e) {
+      debugPrint('[ScreenTime] revokeInstallPass error: $e');
+      _applyPolicy(previous);
+      AppSnackbar.error('Failed', 'Could not revoke install pass.');
+    }
+  }
+
   /// Save the daily screen limit and the bedtime curfew. Leave [startBedtime]
   /// and [endBedtime] null (or empty) to switch the curfew off: both are then
   /// cleared on the server, and no bedtime is enforced.
@@ -1388,16 +1666,19 @@ class StudentDetailController extends GetxController with WidgetsBindingObserver
       );
       return;
     }
-    final curfewOff = startBedtime == null ||
+    final curfewOff =
+        startBedtime == null ||
         endBedtime == null ||
         startBedtime.isEmpty ||
         endBedtime.isEmpty;
     final previous = currentPolicy;
-    _applyPolicy(previous.copyWith(
-      dailyLimitMinutes: limitMinutes,
-      bedtimeStart: curfewOff ? '' : startBedtime,
-      bedtimeEnd: curfewOff ? '' : endBedtime,
-    ));
+    _applyPolicy(
+      previous.copyWith(
+        dailyLimitMinutes: limitMinutes,
+        bedtimeStart: curfewOff ? '' : startBedtime,
+        bedtimeEnd: curfewOff ? '' : endBedtime,
+      ),
+    );
 
     try {
       await _putPolicy({
@@ -1415,8 +1696,10 @@ class StudentDetailController extends GetxController with WidgetsBindingObserver
     } catch (e) {
       debugPrint('[ScreenTime] updateCurfewAndLimit error: $e');
       _applyPolicy(previous);
-      AppSnackbar.error('Not Saved',
-          'Could not save the curfew and daily limit. Please try again.');
+      AppSnackbar.error(
+        'Not Saved',
+        'Could not save the curfew and daily limit. Please try again.',
+      );
     }
   }
 
@@ -1436,27 +1719,32 @@ class StudentDetailController extends GetxController with WidgetsBindingObserver
     // 1. Add apps from the selected day's usage breakdown (excluding our own app and system framework)
     for (final it in currentDayRawApps) {
       if (it is Map) {
-        final pkg = (it['packageName'] ??
-            it['package_name'] ??
-            it['package'] ??
-            it['pkg'] ??
-            it['appName'] ??
-            it['name'] ??
-            '')
-            .toString();
+        final pkg =
+            (it['packageName'] ??
+                    it['package_name'] ??
+                    it['package'] ??
+                    it['pkg'] ??
+                    it['appName'] ??
+                    it['name'] ??
+                    '')
+                .toString();
         if (_isOurApp(pkg) || _isSystemPackage(pkg)) continue;
 
-        final rawName = (it['appName'] ??
-            it['app_name'] ??
-            it['name'] ??
-            it['title'] ??
-            it['label'] ??
-            '')
-            .toString()
-            .trim();
-        final name = (rawName.isNotEmpty && rawName != pkg) ? rawName : _guessAppName(pkg);
+        final rawName =
+            (it['appName'] ??
+                    it['app_name'] ??
+                    it['name'] ??
+                    it['title'] ??
+                    it['label'] ??
+                    '')
+                .toString()
+                .trim();
+        final name = (rawName.isNotEmpty && rawName != pkg)
+            ? rawName
+            : _guessAppName(pkg);
         final mins = extractAppMinutes(it);
-        final icon = (it['icon'] ?? it['iconBase64'] ?? it['icon_base64'])?.toString();
+        final icon = (it['icon'] ?? it['iconBase64'] ?? it['icon_base64'])
+            ?.toString();
         if (map.containsKey(pkg)) {
           final prevMins = (map[pkg]!['minutes'] as int?) ?? 0;
           map[pkg]!['minutes'] = prevMins + mins;
@@ -1472,7 +1760,8 @@ class StudentDetailController extends GetxController with WidgetsBindingObserver
             'appName': name,
             'minutes': mins,
             if (icon != null && icon.isNotEmpty) 'icon': icon,
-            'isBlocked': blockedPackages.contains(pkg) ||
+            'isBlocked':
+                blockedPackages.contains(pkg) ||
                 it['isBlocked'] == true ||
                 it['is_blocked'] == true ||
                 it['is_blocked'] == 1,
@@ -1509,7 +1798,8 @@ class StudentDetailController extends GetxController with WidgetsBindingObserver
       final isBlocked = item['isBlocked'] == true;
       final mins = (item['minutes'] as int?) ?? 0;
 
-      if (tab == 'Used' || tab == 'Used Today' || tab == 'Used on Day') return mins > 0;
+      if (tab == 'Used' || tab == 'Used Today' || tab == 'Used on Day')
+        return mins > 0;
       if (tab == 'Restricted') return isBlocked;
       return true;
     }).toList();
@@ -1707,7 +1997,9 @@ class StudentDetailController extends GetxController with WidgetsBindingObserver
         }
       }
       historyRecords.assignAll(records);
-      debugPrint('[ScreenTime] loaded ${historyRecords.length} history records: ${historyRecords.first}');
+      debugPrint(
+        '[ScreenTime] loaded ${historyRecords.length} history records: ${historyRecords.first}',
+      );
       _extractAppsFromHistoryIfEmpty();
 
       final id = _studentId;
@@ -1749,8 +2041,10 @@ class StudentDetailController extends GetxController with WidgetsBindingObserver
     for (int i = 1; i <= 7; i++) {
       if (id != _studentId) return; // Student selection changed
       final dt = now.subtract(Duration(days: i));
-      final dStr = '${dt.year.toString().padLeft(4, '0')}-${dt.month.toString().padLeft(2, '0')}-${dt.day.toString().padLeft(2, '0')}';
-      if (!dateSpecificApps.containsKey(dStr) || dateSpecificApps[dStr]!.isEmpty) {
+      final dStr =
+          '${dt.year.toString().padLeft(4, '0')}-${dt.month.toString().padLeft(2, '0')}-${dt.day.toString().padLeft(2, '0')}';
+      if (!dateSpecificApps.containsKey(dStr) ||
+          dateSpecificApps[dStr]!.isEmpty) {
         await fetchUsageForDate(dStr);
       }
     }
@@ -1768,7 +2062,9 @@ class StudentDetailController extends GetxController with WidgetsBindingObserver
           if (filteredApps.isNotEmpty) {
             appBreakdown.assignAll(filteredApps);
             _syncBlockedStatusToApps();
-            debugPrint('[ScreenTime] extracted ${appBreakdown.length} apps from today history');
+            debugPrint(
+              '[ScreenTime] extracted ${appBreakdown.length} apps from today history',
+            );
             return;
           }
         }
@@ -1782,12 +2078,15 @@ class StudentDetailController extends GetxController with WidgetsBindingObserver
         if (filteredApps.isNotEmpty) {
           appBreakdown.assignAll(filteredApps);
           _syncBlockedStatusToApps();
-          debugPrint('[ScreenTime] extracted ${appBreakdown.length} apps from history');
+          debugPrint(
+            '[ScreenTime] extracted ${appBreakdown.length} apps from history',
+          );
           break;
         }
       }
     }
   }
 
-  List<dynamic> _extractAppsList(dynamic source) => extractAppsListStatic(source);
+  List<dynamic> _extractAppsList(dynamic source) =>
+      extractAppsListStatic(source);
 }

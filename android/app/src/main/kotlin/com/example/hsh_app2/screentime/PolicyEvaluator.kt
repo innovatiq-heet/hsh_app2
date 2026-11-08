@@ -94,6 +94,9 @@ object PolicyEvaluator {
         val policy = PolicyStore.policy(context)
         if (policy.isLocked) return BlockReason.DEVICE_LOCKED
         if (policy.restrictAppInstalls && packageName in INSTALLER_PACKAGES) {
+            if (policy.hasActiveInstallPass) {
+                return null // Allowed during active 15-minute install pass
+            }
             return BlockReason.INSTALLER_BLOCKED
         }
         if (packageName in policy.blockedPackages) return BlockReason.APP_BLOCKED

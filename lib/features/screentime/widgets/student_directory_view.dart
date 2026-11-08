@@ -7,6 +7,7 @@ import '../../shared/widgets/empty_state.dart';
 import '../../shared/widgets/skeleton_loader.dart';
 import '../controllers/screen_time_directory_controller.dart';
 import '../controllers/screen_time_utils.dart';
+import '../../../core/utils/string_formatting.dart';
 import 'app_brand_icon.dart';
 import 'app_requests_banner.dart';
 
@@ -389,8 +390,9 @@ class _StudentRow extends GetView<ScreenTimeDirectoryController> {
 
   @override
   Widget build(BuildContext context) {
-    final name = (student['name'] ?? student['fullName'] ?? 'Student')
+    final rawName = (student['name'] ?? student['fullName'] ?? 'Student')
         .toString();
+    final name = formatPersonName(rawName);
     final room =
         (student['room'] ??
                 student['room_number'] ??
@@ -416,6 +418,31 @@ class _StudentRow extends GetView<ScreenTimeDirectoryController> {
     final lastSeen = lastSeenOf(student);
     final currentApp = (student['currentApp'] ?? '').toString();
     final currentPkg = (student['currentPackage'] ?? '').toString();
+
+    final rawBattery = student['batteryLevel'] ??
+        student['battery_level'] ??
+        student['battery'] ??
+        (student['compliance'] is Map
+            ? (student['compliance']['batteryLevel'] ??
+                student['compliance']['battery_level'])
+            : null);
+    final battery = rawBattery != null ? toInt(rawBattery) : -1;
+    final isCharging = toBool(
+        student['isCharging'] ??
+        student['is_charging'] ??
+        (student['compliance'] is Map
+            ? (student['compliance']['isCharging'] ??
+                student['compliance']['is_charging'])
+            : false));
+
+    final passUntil = student['installPassUntil'] ??
+        student['install_pass_until'] ??
+        (student['policy'] is Map
+            ? (student['policy']['installPassUntil'] ??
+                student['policy']['install_pass_until'])
+            : null);
+    final hasInstallPass = passUntil != null &&
+        toInt(passUntil) > DateTime.now().millisecondsSinceEpoch;
 
     final statusColor = isOnline
         ? (isScreenOn ? const Color(0xFF16A34A) : const Color(0xFFD97706))
@@ -573,22 +600,42 @@ class _StudentRow extends GetView<ScreenTimeDirectoryController> {
                         ],
                       ),
                       const SizedBox(height: 3),
-                      Text(
-                        statusText,
-                        style: TextStyle(
-                          fontSize: 12,
-                          color: statusColor,
-                          fontWeight: FontWeight.w600,
-                        ),
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
+                      Row(
+                        children: [
+                          Flexible(
+                            child: Text(
+                              statusText,
+                              style: TextStyle(
+                                fontSize: 12,
+                                color: statusColor,
+                                fontWeight: FontWeight.w600,
+                              ),
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                          ),
+                          if (battery >= 0) ...[
+                            const SizedBox(width: 6),
+                            _DirectoryBatteryPill(
+                              level: battery,
+                              isCharging: isCharging,
+                            ),
+                          ],
+                        ],
                       ),
-                      if (locked || restricted > 0 || tampered) ...[
+                      if (locked || restricted > 0 || tampered || hasInstallPass) ...[
                         const SizedBox(height: 6),
                         Wrap(
                           spacing: 6,
                           runSpacing: 4,
                           children: [
+                            if (hasInstallPass)
+                              const _Tag(
+                                icon: Icons.install_mobile_rounded,
+                                label: 'Install pass',
+                                color: Color(0xFF0284C7),
+                                bg: Color(0xFFE0F2FE),
+                              ),
                             if (tampered)
                               const _Tag(
                                 icon: Icons.gpp_bad_rounded,
@@ -1176,5 +1223,51 @@ class _CurfewToggleButton extends StatelessWidget {
         ),
       );
     }
+  }
+}
+
+class _DirectoryBatteryPill extends StatelessWidget {
+  final int level;
+  final bool isCharging;
+  const _DirectoryBatteryPill({required this.level, required this.isCharging});
+
+  @override
+  Widget build(BuildContext context) {
+    final isLow = level <= 20;
+    final isModerate = level <= 35;
+    final color = isLow
+        ? const Color(0xFFDC2626)
+        : (isModerate ? const Color(0xFFD97706) : const Color(0xFF16A34A));
+    final bg = isLow
+        ? const Color(0xFFFEF2F2)
+        : (isModerate ? const Color(0xFFFEF3C7) : const Color(0xFFF0FDF4));
+
+    final IconData icon = isCharging
+        ? Icons.battery_charging_full_rounded
+        : (level <= 15 ? Icons.battery_alert_rounded : Icons.battery_full_rounded);
+
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1.5),
+      decoration: BoxDecoration(
+        color: bg,
+        borderRadius: BorderRadius.circular(5),
+        border: Border.all(color: color.withValues(alpha: 0.25)),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(icon, size: 10, color: color),
+          const SizedBox(width: 2.5),
+          Text(
+            '$level%',
+            style: TextStyle(
+              fontSize: 9.5,
+              fontWeight: FontWeight.w700,
+              color: color,
+            ),
+          ),
+        ],
+      ),
+    );
   }
 }

@@ -14,6 +14,7 @@ class ComplainOrdersController extends GetxController with LoadStateMixin {
   final ComplaintsRepository _repository = Get.find();
 
   final roomController = TextEditingController();
+  final searchController = TextEditingController();
 
   final complaints = <ComplaintResponse>[].obs;
   final categories = <ComplaintCategory>[].obs;
@@ -25,10 +26,39 @@ class ComplainOrdersController extends GetxController with LoadStateMixin {
 
   /// What is typed in the room box; applied as [roomFilter] after a pause.
   final roomQuery = ''.obs;
+  final searchQuery = ''.obs;
 
   final hasMore = false.obs;
   final isLoadingMore = false.obs;
   final updatingId = RxnString();
+
+  int get totalCount => complaints.length;
+  int get openCount => complaints.where((c) => c.status == ComplaintStatus.open).length;
+  int get inProgressCount => complaints.where((c) => c.status == ComplaintStatus.inProgress).length;
+  int get resolvedCount => complaints.where((c) => c.status == ComplaintStatus.resolved).length;
+  int get closedCount => complaints.where((c) => c.status == ComplaintStatus.closed).length;
+
+  /// Real-time client-side filtered list across room, student name, code, item, category and comments.
+  List<ComplaintResponse> get filteredComplaints {
+    final q = searchQuery.value.trim().toLowerCase();
+    if (q.isEmpty) return complaints;
+    return complaints.where((c) {
+      final room = c.roomId.toLowerCase();
+      final item = c.item.toLowerCase();
+      final cat = c.category.toLowerCase();
+      final comment = (c.comment ?? '').toLowerCase();
+      final name = (c.student?.name ?? '').toLowerCase();
+      final code = (c.student?.studentCode ?? '').toLowerCase();
+      final id = c.id.toLowerCase();
+      return room.contains(q) ||
+          item.contains(q) ||
+          cat.contains(q) ||
+          comment.contains(q) ||
+          name.contains(q) ||
+          code.contains(q) ||
+          id.contains(q);
+    }).toList();
+  }
 
   @override
   void onInit() {
@@ -41,6 +71,7 @@ class ComplainOrdersController extends GetxController with LoadStateMixin {
   @override
   void onClose() {
     roomController.dispose();
+    searchController.dispose();
     super.onClose();
   }
 
@@ -96,6 +127,36 @@ class ComplainOrdersController extends GetxController with LoadStateMixin {
     load();
   }
 
+  void onSearchChanged(String val) {
+    searchQuery.value = val;
+    // Also sync with backend room query if numeric
+    final clean = val.trim();
+    if (RegExp(r'^\d+$').hasMatch(clean)) {
+      roomQuery.value = clean;
+    } else if (roomFilter.value.isNotEmpty) {
+      roomFilter.value = '';
+      load();
+    }
+  }
+
+  void clearSearch() {
+    searchController.clear();
+    searchQuery.value = '';
+    roomController.clear();
+    roomQuery.value = '';
+    if (roomFilter.value.isNotEmpty) {
+      roomFilter.value = '';
+      load();
+    }
+  }
+
+  void resetAllFilters() {
+    statusFilter.value = null;
+    categoryFilter.value = null;
+    clearSearch();
+    load();
+  }
+
   /// Rooms are matched exactly by the API (e.g. "101").
   void searchRoom(String room) {
     final clean = room.trim();
@@ -113,6 +174,7 @@ class ComplainOrdersController extends GetxController with LoadStateMixin {
   bool get hasFilters =>
       statusFilter.value != null ||
       categoryFilter.value != null ||
+      searchQuery.value.isNotEmpty ||
       roomFilter.value.isNotEmpty;
 
   /// Any status may move to any other; the row is replaced with the

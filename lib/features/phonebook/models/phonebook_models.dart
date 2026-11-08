@@ -1,5 +1,6 @@
 import 'package:intl/intl.dart';
 import '../../../core/models/tags/student_tag_model.dart';
+import '../../../core/utils/string_formatting.dart';
 
 class PhonebookContact {
   final String? id;
@@ -20,7 +21,8 @@ class PhonebookContact {
     return PhonebookContact(
       id: json['id']?.toString(),
       phone: json['phone']?.toString() ?? '',
-      phoneNormalized: json['phone_normalized']?.toString() ??
+      phoneNormalized:
+          json['phone_normalized']?.toString() ??
           json['phone']?.toString() ??
           '',
       label: json['label']?.toString() ?? 'Mobile',
@@ -126,7 +128,7 @@ class PhonebookStudent {
     return PhonebookStudent(
       id: id ?? this.id,
       studentId: studentId ?? this.studentId,
-      name: name ?? this.name,
+      name: name != null ? formatPersonName(name) : this.name,
       enrollmentNumber: enrollmentNumber ?? this.enrollmentNumber,
       department: department ?? this.department,
       batch: batch ?? this.batch,
@@ -140,8 +142,12 @@ class PhonebookStudent {
       address: address ?? this.address,
       pinCode: pinCode ?? this.pinCode,
       bloodGroup: bloodGroup ?? this.bloodGroup,
-      fatherName: fatherName ?? this.fatherName,
-      motherName: motherName ?? this.motherName,
+      fatherName: fatherName != null
+          ? formatPersonName(fatherName)
+          : this.fatherName,
+      motherName: motherName != null
+          ? formatPersonName(motherName)
+          : this.motherName,
       fatherPhone: fatherPhone ?? this.fatherPhone,
       motherPhone: motherPhone ?? this.motherPhone,
       whatsappNumber: whatsappNumber ?? this.whatsappNumber,
@@ -175,11 +181,12 @@ class PhonebookStudent {
     } else if (json['phone'] != null) {
       phonesList = [
         PhonebookContact(
-          phone: json['phone_raw']?.toString() ?? json['phone']?.toString() ?? '',
+          phone:
+              json['phone_raw']?.toString() ?? json['phone']?.toString() ?? '',
           phoneNormalized: json['phone']?.toString() ?? '',
           label: json['phone_label']?.toString() ?? 'Student Mobile',
           isPrimary: json['is_primary'] == 1 || json['is_primary'] == true,
-        )
+        ),
       ];
     }
 
@@ -195,19 +202,27 @@ class PhonebookStudent {
     }
     if (dept.contains(' • ')) {
       derivedGroup = dept.split(' • ').first.trim();
-    } else if (['param', 'pavitra', 'pulkit', 'paramanand']
-        .contains(dept.toLowerCase().trim())) {
+    } else if ([
+      'param',
+      'pavitra',
+      'pulkit',
+      'paramanand',
+    ].contains(dept.toLowerCase().trim())) {
       derivedGroup = dept.trim();
     }
 
-    final rawRoom = json['room']?.toString().trim() ?? json['room_num']?.toString().trim();
-    final isRoomNa = rawRoom == null ||
+    final rawRoom =
+        json['room']?.toString().trim() ?? json['room_num']?.toString().trim();
+    final isRoomNa =
+        rawRoom == null ||
         rawRoom.isEmpty ||
         rawRoom.toLowerCase() == 'n/a' ||
         rawRoom.toLowerCase() == 'none' ||
         rawRoom.toLowerCase() == 'null';
     final resolvedRoom = isRoomNa
-        ? (dept.toLowerCase().contains('alumni') ? 'Alumni' : (derivedRoom ?? 'Alumni'))
+        ? (dept.toLowerCase().contains('alumni')
+              ? 'Alumni'
+              : (derivedRoom ?? 'Alumni'))
         : rawRoom;
 
     // Derive Floor
@@ -221,34 +236,85 @@ class PhonebookStudent {
     }
 
     final rawDob = json['dob']?.toString().trim();
-    final cleanDob = (rawDob != null && rawDob.isNotEmpty && rawDob != 'null') ? rawDob : null;
+    final cleanDob = (rawDob != null && rawDob.isNotEmpty && rawDob != 'null')
+        ? rawDob
+        : null;
 
     final rawAadhar = json['aadhar']?.toString().trim();
-    final cleanAadhar = (rawAadhar != null && rawAadhar.isNotEmpty && rawAadhar != 'null') ? rawAadhar : null;
+    final cleanAadhar =
+        (rawAadhar != null && rawAadhar.isNotEmpty && rawAadhar != 'null')
+        ? rawAadhar
+        : null;
 
-    final rawBankCode = json['bank_code']?.toString().trim() ?? json['bankCode']?.toString().trim();
-    final cleanBankCode = (rawBankCode != null && rawBankCode.isNotEmpty && rawBankCode != 'null') ? rawBankCode : null;
+    final rawBankCode =
+        json['bank_code']?.toString().trim() ??
+        json['bankCode']?.toString().trim();
+    final cleanBankCode =
+        (rawBankCode != null && rawBankCode.isNotEmpty && rawBankCode != 'null')
+        ? rawBankCode
+        : null;
 
-    final rawFatherName = json['father_name']?.toString().trim() ?? json['middleName']?.toString().trim();
-    final cleanFatherName = (rawFatherName != null && rawFatherName.isNotEmpty && rawFatherName != 'null') ? rawFatherName : null;
+    final rawFatherName =
+        json['father_name']?.toString().trim() ??
+        json['middleName']?.toString().trim();
+    final cleanFatherName =
+        (rawFatherName != null &&
+            rawFatherName.isNotEmpty &&
+            rawFatherName != 'null')
+        ? rawFatherName
+        : null;
 
-    final rawMotherName = json['mother_name']?.toString().trim() ?? json['motherName']?.toString().trim() ?? json['mother']?.toString().trim();
-    final cleanMotherName = (rawMotherName != null && rawMotherName.isNotEmpty && rawMotherName != 'null') ? rawMotherName : null;
+    final rawMotherName =
+        json['mother_name']?.toString().trim() ??
+        json['motherName']?.toString().trim() ??
+        json['mother']?.toString().trim();
+    final cleanMotherName =
+        (rawMotherName != null &&
+            rawMotherName.isNotEmpty &&
+            rawMotherName != 'null')
+        ? rawMotherName
+        : null;
 
-    final rawFatherPhone = json['father_phone']?.toString().trim() ?? json['fatherPhone']?.toString().trim();
-    final cleanFatherPhone = (rawFatherPhone != null && rawFatherPhone.isNotEmpty && rawFatherPhone != 'null') ? rawFatherPhone : null;
+    final rawFatherPhone =
+        json['father_phone']?.toString().trim() ??
+        json['fatherPhone']?.toString().trim();
+    final cleanFatherPhone =
+        (rawFatherPhone != null &&
+            rawFatherPhone.isNotEmpty &&
+            rawFatherPhone != 'null')
+        ? rawFatherPhone
+        : null;
 
-    final rawMotherPhone = json['mother_phone']?.toString().trim() ?? json['motherPhone']?.toString().trim();
-    final cleanMotherPhone = (rawMotherPhone != null && rawMotherPhone.isNotEmpty && rawMotherPhone != 'null') ? rawMotherPhone : null;
+    final rawMotherPhone =
+        json['mother_phone']?.toString().trim() ??
+        json['motherPhone']?.toString().trim();
+    final cleanMotherPhone =
+        (rawMotherPhone != null &&
+            rawMotherPhone.isNotEmpty &&
+            rawMotherPhone != 'null')
+        ? rawMotherPhone
+        : null;
 
-    final rawWhatsApp = json['whatsapp_number']?.toString().trim() ?? json['whatsAppNumber']?.toString().trim();
-    final cleanWhatsApp = (rawWhatsApp != null && rawWhatsApp.isNotEmpty && rawWhatsApp != 'null') ? rawWhatsApp : null;
+    final rawWhatsApp =
+        json['whatsapp_number']?.toString().trim() ??
+        json['whatsAppNumber']?.toString().trim();
+    final cleanWhatsApp =
+        (rawWhatsApp != null && rawWhatsApp.isNotEmpty && rawWhatsApp != 'null')
+        ? rawWhatsApp
+        : null;
 
     final rawStatus = json['status']?.toString().trim();
-    final cleanStatus = (rawStatus != null && rawStatus.isNotEmpty && rawStatus != 'null') ? rawStatus : null;
+    final cleanStatus =
+        (rawStatus != null && rawStatus.isNotEmpty && rawStatus != 'null')
+        ? rawStatus
+        : null;
 
-    final rawAddress = (json['address'] ?? json['permanent_address'] ?? json['home_address'])?.toString().trim();
-    final cleanAddress = (rawAddress != null &&
+    final rawAddress =
+        (json['address'] ?? json['permanent_address'] ?? json['home_address'])
+            ?.toString()
+            .trim();
+    final cleanAddress =
+        (rawAddress != null &&
             rawAddress.isNotEmpty &&
             rawAddress != 'null' &&
             !rawAddress.contains('Hari Smruti Hostel') &&
@@ -256,8 +322,11 @@ class PhonebookStudent {
         ? rawAddress
         : null;
 
-    final rawPin = json['pin_code']?.toString().trim() ?? json['pinCode']?.toString().trim();
-    final cleanPin = (rawPin != null &&
+    final rawPin =
+        json['pin_code']?.toString().trim() ??
+        json['pinCode']?.toString().trim();
+    final cleanPin =
+        (rawPin != null &&
             rawPin.isNotEmpty &&
             rawPin != 'null' &&
             (cleanAddress != null || rawPin != '388120'))
@@ -266,15 +335,24 @@ class PhonebookStudent {
 
     List<StudentTag> tagsList = [];
     if (json['tags'] != null && json['tags'] is List) {
-      tagsList = dedupeTags((json['tags'] as List)
-          .whereType<Map>()
-          .map((t) => StudentTag.fromJson(Map<String, dynamic>.from(t))));
+      tagsList = dedupeTags(
+        (json['tags'] as List).whereType<Map>().map(
+          (t) => StudentTag.fromJson(Map<String, dynamic>.from(t)),
+        ),
+      );
     }
+
+    final formattedFatherName = cleanFatherName != null
+        ? formatPersonName(cleanFatherName)
+        : null;
+    final formattedMotherName = cleanMotherName != null
+        ? formatPersonName(cleanMotherName)
+        : null;
 
     return PhonebookStudent(
       id: json['id']?.toString() ?? json['internal_id']?.toString() ?? '',
       studentId: json['student_id']?.toString() ?? '',
-      name: json['name']?.toString() ?? '',
+      name: formatPersonName(json['name']?.toString()),
       enrollmentNumber: json['enrollment_number']?.toString() ?? '',
       department: dept,
       batch: json['batch']?.toString() ?? 'ACTIVE',
@@ -287,9 +365,10 @@ class PhonebookStudent {
       aadhar: cleanAadhar,
       address: cleanAddress,
       pinCode: cleanPin,
-      bloodGroup: json['blood_group']?.toString() ?? json['bloodGroup']?.toString(),
-      fatherName: cleanFatherName,
-      motherName: cleanMotherName,
+      bloodGroup:
+          json['blood_group']?.toString() ?? json['bloodGroup']?.toString(),
+      fatherName: formattedFatherName,
+      motherName: formattedMotherName,
       fatherPhone: cleanFatherPhone,
       motherPhone: cleanMotherPhone,
       whatsappNumber: cleanWhatsApp,
@@ -308,8 +387,10 @@ class PhonebookStudent {
 
   String get primaryPhone {
     if (phones.isEmpty) return 'No Phone';
-    final primary =
-        phones.firstWhere((p) => p.isPrimary, orElse: () => phones.first);
+    final primary = phones.firstWhere(
+      (p) => p.isPrimary,
+      orElse: () => phones.first,
+    );
     return primary.phone.isNotEmpty ? primary.phone : primary.phoneNormalized;
   }
 
@@ -330,9 +411,12 @@ class PhonebookStudent {
 
   bool get hasDob => dob != null && dob!.trim().isNotEmpty;
   bool get hasMotherName => motherName != null && motherName!.trim().isNotEmpty;
-  bool get hasFatherPhone => fatherPhone != null && fatherPhone!.trim().isNotEmpty;
-  bool get hasMotherPhone => motherPhone != null && motherPhone!.trim().isNotEmpty;
-  bool get hasWhatsApp => whatsappNumber != null && whatsappNumber!.trim().isNotEmpty;
+  bool get hasFatherPhone =>
+      fatherPhone != null && fatherPhone!.trim().isNotEmpty;
+  bool get hasMotherPhone =>
+      motherPhone != null && motherPhone!.trim().isNotEmpty;
+  bool get hasWhatsApp =>
+      whatsappNumber != null && whatsappNumber!.trim().isNotEmpty;
 
   /// Formatted Date of Birth: e.g. "29 Mar 2007"
   String get formattedDob {
@@ -344,9 +428,17 @@ class PhonebookStudent {
         final parts = clean.split('-');
         if (parts.length == 3) {
           if (parts[0].length == 4) {
-            parsed = DateTime(int.parse(parts[0]), int.parse(parts[1]), int.parse(parts[2]));
+            parsed = DateTime(
+              int.parse(parts[0]),
+              int.parse(parts[1]),
+              int.parse(parts[2]),
+            );
           } else {
-            parsed = DateTime(int.parse(parts[2]), int.parse(parts[1]), int.parse(parts[0]));
+            parsed = DateTime(
+              int.parse(parts[2]),
+              int.parse(parts[1]),
+              int.parse(parts[0]),
+            );
           }
         }
       }
@@ -367,7 +459,8 @@ class PhonebookStudent {
       if (parsed != null) {
         final now = DateTime.now();
         int age = now.year - parsed.year;
-        if (now.month < parsed.month || (now.month == parsed.month && now.day < parsed.day)) {
+        if (now.month < parsed.month ||
+            (now.month == parsed.month && now.day < parsed.day)) {
           age--;
         }
         if (age > 0 && age < 100) return '$age yrs';
@@ -415,7 +508,9 @@ class PhonebookStudent {
     buffer.writeln('🎓 *Student Profile - Hari Smruti Hostel (HSH)*');
     buffer.writeln('👤 *Name:* $name');
     final w = groupName != null
-        ? (groupName!.toLowerCase().endsWith('wing') ? groupName! : '$groupName Wing')
+        ? (groupName!.toLowerCase().endsWith('wing')
+              ? groupName!
+              : '$groupName Wing')
         : 'Hostel';
     if (room != null && room != 'Alumni' && room != 'N/A') {
       buffer.writeln('🚪 *Room:* $room ($w)');
@@ -423,7 +518,9 @@ class PhonebookStudent {
       buffer.writeln('🏢 *Wing:* $w');
     }
     if (floor != null) {
-      buffer.writeln('📶 *Floor:* ${floor == 0 ? 'Ground Floor' : 'Floor $floor'}');
+      buffer.writeln(
+        '📶 *Floor:* ${floor == 0 ? 'Ground Floor' : 'Floor $floor'}',
+      );
     }
     if (primaryPhone != 'No Phone') {
       buffer.writeln('📞 *Mobile:* $primaryPhone');
@@ -431,12 +528,14 @@ class PhonebookStudent {
     if (whatsappNumber != null && whatsappNumber!.isNotEmpty) {
       buffer.writeln('💬 *WhatsApp:* $whatsappNumber');
     }
-    if (fatherName != null || (fatherPhone != null && fatherPhone!.isNotEmpty)) {
+    if (fatherName != null ||
+        (fatherPhone != null && fatherPhone!.isNotEmpty)) {
       final fName = fatherName ?? 'Father';
       final fPhone = fatherPhone != null ? ' (Ph: $fatherPhone)' : '';
       buffer.writeln('👨 *Father:* $fName$fPhone');
     }
-    if (motherName != null || (motherPhone != null && motherPhone!.isNotEmpty)) {
+    if (motherName != null ||
+        (motherPhone != null && motherPhone!.isNotEmpty)) {
       final mName = motherName ?? 'Mother';
       final mPhone = motherPhone != null ? ' (Ph: $motherPhone)' : '';
       buffer.writeln('👩 *Mother:* $mName$mPhone');

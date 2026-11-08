@@ -228,7 +228,7 @@ class PhonebookDatabaseService {
       final cleanedNum = cleanQuery.replaceAll(RegExp(r'\D'), '');
       if (cleanedNum.isNotEmpty && cleanedNum.length >= 3) {
         whereClauses.add(
-          '(phone LIKE ? OR phone_normalized LIKE ? OR name LIKE ? OR student_id LIKE ? OR enrollment_number LIKE ? OR department LIKE ? OR aadhar LIKE ? OR bank_code LIKE ? OR father_name LIKE ? OR mother_name LIKE ? OR room_num LIKE ?)',
+          '(phone LIKE ? OR phone_normalized LIKE ? OR name LIKE ? OR student_id LIKE ? OR enrollment_number LIKE ? OR aadhar LIKE ? OR bank_code LIKE ? OR father_name LIKE ? OR mother_name LIKE ? OR room_num LIKE ?)',
         );
         whereArgs.addAll([
           '%$cleanQuery%',
@@ -244,10 +244,9 @@ class PhonebookDatabaseService {
         ]);
       } else {
         whereClauses.add(
-          '(name LIKE ? OR student_id LIKE ? OR enrollment_number LIKE ? OR department LIKE ? OR aadhar LIKE ? OR bank_code LIKE ? OR father_name LIKE ? OR mother_name LIKE ? OR room_num LIKE ?)',
+          '(name LIKE ? OR student_id LIKE ? OR enrollment_number LIKE ? OR aadhar LIKE ? OR bank_code LIKE ? OR father_name LIKE ? OR mother_name LIKE ? OR room_num LIKE ?)',
         );
         whereArgs.addAll([
-          '%$cleanQuery%',
           '%$cleanQuery%',
           '%$cleanQuery%',
           '%$cleanQuery%',

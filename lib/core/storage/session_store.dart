@@ -10,6 +10,7 @@ import '../services/aadhar_service.dart';
 import '../services/push_notification_service.dart';
 import '../services/screen_time_service.dart';
 import '../../features/phonebook/services/caller_id_service.dart';
+import '../../features/phonebook/services/phonebook_favourites_service.dart';
 
 /// Clean, OOP-based Session and Student Data Store backed by [SharedPreferences].
 ///
@@ -229,6 +230,8 @@ class SessionStore extends GetxService {
     // 3. Stop screen-time monitoring and caller ID
     await ScreenTimeService.stopMonitoring();
     await CallerIdService.setActive(false);
+    // Favourites belong to this admin; the server keeps them for next login.
+    await PhonebookFavouritesService.instance.clearLocal();
 
     // 4. Invalidate Aadhar cache
     if (Get.isRegistered<AadharService>()) {

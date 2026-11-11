@@ -70,6 +70,17 @@ import '../../features/birthday/bindings/admin_birthday_binding.dart';
 import '../../features/birthday/views/admin_birthday_screen.dart';
 import '../../features/manage_users/bindings/manage_users_binding.dart';
 import '../../features/manage_users/views/manage_users_screen.dart';
+import '../../features/broadcast/bindings/broadcast_bindings.dart';
+import '../../features/broadcast/views/broadcast_compose_screen.dart';
+import '../../features/broadcast/views/broadcast_detail_screen.dart';
+import '../../features/broadcast/views/broadcast_history_screen.dart';
+import '../../features/broadcast/views/broadcast_inbox_screen.dart';
+import '../../features/forms/bindings/forms_bindings.dart';
+import '../../features/forms/views/form_analytics_screen.dart';
+import '../../features/forms/views/form_editor_screen.dart';
+import '../../features/forms/views/forms_list_screen.dart';
+import '../../features/forms/views/student_form_fill_screen.dart';
+import '../../features/forms/views/student_forms_screen.dart';
 import '../../features/shared/screens/no_internet_screen.dart';
 import 'app_routes.dart';
 
@@ -335,6 +346,51 @@ class AppPages {
       name: Routes.operatorManageUsers,
       page: () => const ManageUsersScreen(),
       binding: ManageUsersBinding(),
+    ),
+    GetPage(
+      name: Routes.operatorBroadcasts,
+      page: () => const BroadcastHistoryScreen(),
+      binding: BroadcastHistoryBinding(),
+    ),
+    GetPage(
+      name: Routes.operatorBroadcastCompose,
+      page: () => const BroadcastComposeScreen(),
+      binding: BroadcastComposeBinding(),
+    ),
+    GetPage(
+      name: Routes.operatorBroadcastDetail,
+      page: () => const BroadcastDetailScreen(),
+      binding: BroadcastDetailBinding(),
+    ),
+    GetPage(
+      name: Routes.broadcastInbox,
+      page: () => const BroadcastInboxScreen(),
+      binding: BroadcastInboxBinding(),
+    ),
+    GetPage(
+      name: Routes.operatorForms,
+      page: () => const FormsListScreen(),
+      binding: FormsListBinding(),
+    ),
+    GetPage(
+      name: Routes.operatorFormEditor,
+      page: () => const FormEditorScreen(),
+      binding: FormEditorBinding(),
+    ),
+    GetPage(
+      name: Routes.operatorFormAnalytics,
+      page: () => const FormAnalyticsScreen(),
+      binding: FormAnalyticsBinding(),
+    ),
+    GetPage(
+      name: Routes.studentForms,
+      page: () => const StudentFormsScreen(),
+      binding: StudentFormsBinding(),
+    ),
+    GetPage(
+      name: Routes.studentFormFill,
+      page: () => const StudentFormFillScreen(),
+      binding: StudentFormsBinding(),
     ),
 
 

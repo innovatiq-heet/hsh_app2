@@ -310,7 +310,7 @@ class _StudentDetailScreenState extends State<StudentDetailScreen> {
               icon: const Icon(Icons.call_rounded, size: 22),
               label: 'Call',
               color: AppColors.primary,
-              onTap: () => _c.makeCall(student.primaryPhone),
+              onTap: () => _c.makeCall(student.primaryPhone, student: student),
             ),
             _QuickAction(
               icon: const FaIcon(FontAwesomeIcons.whatsapp, size: 22),
@@ -521,7 +521,7 @@ class _StudentDetailScreenState extends State<StudentDetailScreen> {
           icon: const Icon(Icons.call_rounded, size: 19),
           label: 'Call',
           color: AppColors.primary,
-          onTap: () => _c.makeCall(phone),
+          onTap: () => _c.makeCall(phone, student: student),
         ),
       ],
     );

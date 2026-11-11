@@ -7,7 +7,7 @@ Rules and context for anyone (human or AI agent) changing this repo. Read this b
 - Flutter app (GetX) for Hari Saurabh Hostel: students, leaders, wardens / operator console, staff.
 - Backend is the separate **`hsh_api`** repo (Node + Express + MySQL). It has its own `AGENTS.md`.
 - Background behaviour on student phones (screen time, app blocking, geofence, location) is **native Android Kotlin**, so it runs with the Flutter UI closed. Caller ID is native on Android and iOS.
-- Feature docs: [docs/GEOFENCING_DOCS.md](docs/GEOFENCING_DOCS.md), [docs/PARENT_CONTROL_DOCS.md](docs/PARENT_CONTROL_DOCS.md), [docs/PHONEBOOK_DOCS.md](docs/PHONEBOOK_DOCS.md), [docs/COMPLAINTS_DOCS.md](docs/COMPLAINTS_DOCS.md), [docs/BIRTHDAY_DOCS.md](docs/BIRTHDAY_DOCS.md).
+- Feature docs: [docs/GEOFENCING_DOCS.md](docs/GEOFENCING_DOCS.md), [docs/PARENT_CONTROL_DOCS.md](docs/PARENT_CONTROL_DOCS.md), [docs/PHONEBOOK_DOCS.md](docs/PHONEBOOK_DOCS.md), [docs/COMPLAINTS_DOCS.md](docs/COMPLAINTS_DOCS.md), [docs/BIRTHDAY_DOCS.md](docs/BIRTHDAY_DOCS.md), [docs/BROADCAST_DOCS.md](docs/BROADCAST_DOCS.md), [docs/FORMS_DOCS.md](docs/FORMS_DOCS.md).
 
 ## 2. Commands
 
@@ -50,6 +50,8 @@ test/                  unit tests (offline); tag tests that hit real APIs with @
 
 - Screen Time and every warden action identify a student **only by the numeric `students.id`** (the `id` of a `/screen-time/students` entry). Never send a bank code / `student_code` / `HSH-…` id as an identifier. Bank codes are numeric (`0768`, `1043`) and collide with other students' ids; this once made a lock hit the wrong student.
 - The phonebook has no `students.id`; it opens Screen Time with `{name, room}` only, and the warden picks the student. Do not add bank-code or name auto-matching.
+- Exception, bookmark only: phonebook **Favourites** (`/phonebook/calls`, `/phonebook/favourites`) store the phonebook's `student_key` (`HSH-…`) as an opaque string per user. Neither side may resolve it to a `students.id` or use it for any action on a student.
+- Broadcast recipients and Forms & Polls `target_student_ids` send numeric `students.id` only: the shared `StudentPickerSource` / `studentIdOf` reads a row's `id` (positive integer, no leading zero), never `student_id` / `student_code`, and never the phonebook cache.
 - Exception, display only: birthday cards borrow a student's group/status from the synced phonebook by bank code (`PhonebookDatabaseService.groupInfoByBankCode`). Never use that lookup to pick a student for an action.
 
 **Parental control / screen time**
@@ -60,6 +62,7 @@ test/                  unit tests (offline); tag tests that hit real APIs with @
 - `AppBlockerAccessibilityService` must re-check the **app already on screen** when the policy changes. Never block protected packages (dialer, emergency, keyboard, launcher, Settings, this app). When unsure which app is in front, fail open rather than block the wrong one.
 - **One exception inside Settings:** `SelfProtection` sends the student home when Settings shows *this app's* App info page (name plus a Force stop / Uninstall control), because a force-stopped app enforces nothing. Never widen it to other Settings screens (the Accessibility page is needed during setup). Our own flows that open App info (`openAppSettings()`) must call `ScreenTimeService.allowAppSettings()` first. This needs `canRetrieveWindowContent="true"` on the accessibility service, so the Play accessibility disclosure must mention it.
 - A `null` bedtime means "no bedtime" (never a 23:00–05:00 default).
+- A missing `restrict_app_installs` means the Play Store (and other stores/installers) is **blocked**; only an explicit `false` allows it. The warden switch sends only that field.
 
 **Geofence and location**
 

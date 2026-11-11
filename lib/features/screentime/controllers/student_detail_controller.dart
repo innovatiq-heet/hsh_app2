@@ -133,6 +133,7 @@ class StudentDetailController extends GetxController
         bedtimeStart.value = pol.bedtimeStart;
         bedtimeEnd.value = pol.bedtimeEnd;
         installPassUntil.value = pol.installPassUntil;
+        playStoreBlocked.value = pol.restrictAppInstalls;
       }
     }
 
@@ -219,6 +220,10 @@ class StudentDetailController extends GetxController
 
   /// Expiry timestamp (epoch milliseconds) of a temporary install window (0 = none).
   final RxInt installPassUntil = 0.obs;
+
+  /// Play Store (and other app stores / APK installers) blocked on the
+  /// student's phone. Backend field `restrict_app_installs`, default true.
+  final RxBool playStoreBlocked = true.obs;
 
   /// Whether a temporary Play Store install window is currently active.
   bool get hasActiveInstallPass =>
@@ -1113,6 +1118,7 @@ class StudentDetailController extends GetxController
     version: policyVersion.value,
     appLimits: Map<String, int>.from(appLimits),
     installPassUntil: installPassUntil.value,
+    restrictAppInstalls: playStoreBlocked.value,
   );
 
   void _applyPolicy(ScreenTimePolicy p) {
@@ -1124,6 +1130,7 @@ class StudentDetailController extends GetxController
     policyVersion.value = p.version;
     appLimits.assignAll(p.appLimits);
     installPassUntil.value = p.installPassUntil;
+    playStoreBlocked.value = p.restrictAppInstalls;
     _syncBlockedStatusToApps();
   }
 
@@ -1590,6 +1597,55 @@ class StudentDetailController extends GetxController
       AppSnackbar.error(
         lock ? 'Lock Failed' : 'Unlock Failed',
         "Could not reach the server. $studentName's phone is unchanged.",
+      );
+    }
+  }
+
+  /// Permanently block or allow the Play Store (and the other app stores and
+  /// APK installers the phone treats the same way) on the student's phone.
+  /// Sends only `restrict_app_installs`; blocking also ends a running install
+  /// pass, so "Block" takes effect at once instead of when the pass expires.
+  Future<void> setPlayStoreBlocked(bool blocked) async {
+    final studentName = selectedStudent.value is Map
+        ? (selectedStudent.value['name'] ?? 'Student')
+        : 'Student';
+    final id = _studentId;
+    if (id.isEmpty) {
+      AppSnackbar.info(
+        'Device Not Setup',
+        '$studentName has not installed the monitoring app on their phone yet.',
+      );
+      return;
+    }
+    final previous = currentPolicy;
+    final endPass = blocked && previous.hasActiveInstallPass;
+    _applyPolicy(previous.copyWith(
+      restrictAppInstalls: blocked,
+      installPassUntil: endPass ? 0 : null,
+    ));
+
+    try {
+      await _putPolicy({
+        'restrict_app_installs': blocked,
+        if (endPass) 'install_pass_until': 0,
+      });
+      if (blocked) {
+        AppSnackbar.warning(
+          'Play Store Blocked',
+          "$studentName can no longer open the Play Store. The phone applies it within about 30 seconds.",
+        );
+      } else {
+        AppSnackbar.success(
+          'Play Store Allowed',
+          "$studentName can now open the Play Store and install apps.",
+        );
+      }
+    } catch (e) {
+      debugPrint('[ScreenTime] setPlayStoreBlocked error: $e');
+      _applyPolicy(previous);
+      AppSnackbar.error(
+        'Failed',
+        "Could not reach the server. $studentName's Play Store access is unchanged.",
       );
     }
   }

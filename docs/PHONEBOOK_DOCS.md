@@ -1,6 +1,6 @@
 # Student Phonebook & Caller ID
 
-> **Last updated:** 2026-11-01 · **Repo:** `hsh_app2` (Flutter, native Android, native iOS). The phonebook does not use `hsh_api`; it reads the AVD VVN directory API directly.
+> **Last updated:** 2026-11-11 · **Repo:** `hsh_app2` (Flutter, native Android, native iOS). The directory itself comes straight from the AVD VVN API; only **Favourites** (section 5.1) uses `hsh_api`.
 >
 > iOS signing and Xcode setup for caller ID: [ios/CALLER_ID_SETUP.md](../ios/CALLER_ID_SETUP.md) (quick reference) and [ios/CALLER_ID_HANDOFF.md](../ios/CALLER_ID_HANDOFF.md) (full guide).
 
@@ -182,6 +182,23 @@ Operator home → **Student Phonebook** (`Routes.operatorDirectory`).
 - **A-Z index rail** (Name A-Z sort, no search): two independent sections on the right edge, **Students** (blue) and **Alumni** (purple), each resting as its own small tab. Tapping a tab smoothly grows just that section into a strip of its letters while the other stays a tab (opening one folds the other); the open strip folds back after 3 seconds without a touch. On an open strip, slide a finger anywhere; the list jumps letter by letter with a haptic tick (`PhonebookController.railEntries`). Jumps are exact because `PrecalculateExtentsPolicy` measures every row in the background shortly after the list loads.
 - **Student details screen** (tap a card): a full screen with the navy header, a collapsible *Student contact* card (numbers + email, Call / WhatsApp / Message / Gmail), Hostel, Personal and Family cards, and family numbers (one card when father and mother share a number). **View screen time** (residents only; alumni don't have it) resolves the student's Screen Time `students.id` through Screen Time's own directory (bank code equal AND name or room equal, exactly one match) and opens that student directly; otherwise it opens Screen Time searched by name. A bank code is never sent as an id.
 - Call uses `tel:`; WhatsApp opens `https://wa.me/91XXXXXXXXXX` in the external app.
+
+### 5.1 Favourites (most dialled)
+
+A horizontal strip above **Student contacts**, filled automatically: every call placed from the phonebook (list card, profile Call button, any number on the profile) is counted for the logged-in admin, and students called at least **2** times appear here, up to **10**, most-called first (latest call breaks ties). Hidden while searching, in selection mode, or when empty.
+
+- Tile: initials in the group colour, first name, "N calls". Tap opens the profile; the green button calls the **most-dialled number** for that student (e.g. the father's if that is what is usually called). Long press: Call / View profile / Remove from Favourites (resets that student's count).
+- Code: `PhonebookFavouritesService` (counts, sync), `PhonebookController.favourites` / `loadFavourites()` / `removeFavourite()`, `_FavouriteTile` in `phonebook_screen.dart`.
+- **Sync across phones:** the server is the source of truth, per user (`req.user.id`). The app updates its local copy instantly, then uploads; failed uploads/removals are queued in SharedPreferences and retried before every refresh, in order. Each call has a `client_call_id`, so retries never double count. Local data is cleared on logout. Until the endpoints below exist, the app silently works from local counts and uploads the queue once they go live.
+- Student key: `PhonebookStudent.id` (`HSH-<bankCode>`, or the name when the record has no id). It is not a `students.id`.
+
+Backend handoff (table, SQL, validation, e2e tests): [PHONEBOOK_FAVOURITES_BACKEND_HANDOFF.md](PHONEBOOK_FAVOURITES_BACKEND_HANDOFF.md).
+
+| Endpoint (`hsh_api`, admin + warden only) | Body / query | Response |
+| :--- | :--- | :--- |
+| `POST /phonebook/calls` | `{ calls: [{ client_call_id, student_key, student_name, phone, phone_normalized, called_at }] }` (1-100, `called_at` ISO UTC) | `200 { success: true, data: { inserted, duplicates } }`. Duplicate `(user, client_call_id)` is ignored, not an error. |
+| `GET /phonebook/favourites` | `?limit=10&min_calls=2` | `{ success: true, data: [{ student_key, student_name, total_calls, last_called_at, numbers: [{ phone, phone_normalized, calls }] }] }`, sorted `total_calls DESC, last_called_at DESC`. |
+| `DELETE /phonebook/favourites/:studentKey` | key URL-encoded | `200 { success: true }`. Deletes that user's calls for the student; 404 is treated as done. |
 
 ---
 

@@ -3,6 +3,7 @@ import 'dart:developer' as developer;
 import 'dart:io';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_messaging/firebase_messaging.dart';
+import 'package:flutter/foundation.dart' show visibleForTesting;
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import 'package:get/get.dart';
 import 'package:permission_handler/permission_handler.dart';
@@ -41,6 +42,43 @@ class PushNotificationService extends GetxService {
 
   /// Whether Firebase and notification listeners have initialized successfully.
   final RxBool isInitialized = false.obs;
+
+  /// A notification tapped while the splash screen was still showing (app
+  /// launched from a killed state). Splash replaces the whole route stack
+  /// right after, which would wipe a screen pushed now, so the tap waits and
+  /// is replayed by [openPendingNotification].
+  Map<String, dynamic>? _pendingPayload;
+
+  /// True while a tapped notification must wait for splash to finish.
+  @visibleForTesting
+  static bool mustWaitForStartup(String currentRoute) =>
+      currentRoute.isEmpty || currentRoute == Routes.splash;
+
+  /// Where a `type: broadcast` notification opens: the inbox message for
+  /// students, the broadcast detail for admins.
+  static ({String route, Object? arguments}) broadcastTarget(
+    Map<String, dynamic> data, {
+    required bool isOperator,
+  }) {
+    final id = int.tryParse(data['broadcast_id']?.toString() ?? '');
+    if (isOperator) {
+      return id == null
+          ? (route: Routes.operatorBroadcasts, arguments: null)
+          : (route: Routes.operatorBroadcastDetail, arguments: id);
+    }
+    return (
+      route: Routes.broadcastInbox,
+      arguments: <String, dynamic>{'broadcast_id': ?id},
+    );
+  }
+
+  /// Opens the notification tapped during startup, if any. Called by splash
+  /// once the signed-in user's home screen is in place.
+  void openPendingNotification() {
+    final payload = _pendingPayload;
+    _pendingPayload = null;
+    if (payload != null) _navigateFromPayload(payload);
+  }
 
   /// High importance notification channel for Android.
   static const AndroidNotificationChannel _channel = AndroidNotificationChannel(
@@ -266,6 +304,10 @@ class PushNotificationService extends GetxService {
 
   /// Dispatches navigation based on notification payload data.
   void _navigateFromPayload(Map<String, dynamic> data) {
+    if (mustWaitForStartup(Get.currentRoute)) {
+      _pendingPayload = data;
+      return;
+    }
     final targetRoute = data['route'] ?? data['screen'];
     if (targetRoute is String && targetRoute.isNotEmpty) {
       Get.toNamed(targetRoute, arguments: data);
@@ -313,6 +355,12 @@ class PushNotificationService extends GetxService {
         break;
       case 'app_request_decision':
         Get.toNamed(Routes.studentHome, arguments: data);
+        break;
+      case 'broadcast':
+        final isOperator =
+            Get.isRegistered<SessionStore>() && Get.find<SessionStore>().canOperate;
+        final target = broadcastTarget(data, isOperator: isOperator);
+        Get.toNamed(target.route, arguments: target.arguments);
         break;
       default:
         break;

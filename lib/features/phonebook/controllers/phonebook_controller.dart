@@ -16,7 +16,9 @@ import '../../../core/network/repository/screentime/screen_time_repository.dart'
 import '../../../core/network/repository/tags/tags_repository.dart';
 import '../services/caller_id_service.dart';
 import '../models/phonebook_models.dart';
+import '../services/phone_number_normalizer.dart';
 import '../services/phonebook_database_service.dart';
+import '../services/phonebook_favourites_service.dart';
 import '../services/phonebook_sync_service.dart';
 import '../widgets/alpha_scroll_rail.dart' show RailEntry;
 
@@ -104,6 +106,10 @@ class PhonebookController extends GetxController {
 
   final lastSync = Rxn<DateTime>();
   final totalCachedCount = 0.obs;
+
+  /// Students this admin dials most, shown in the Favourites strip.
+  /// Filled automatically from call counts kept on this device.
+  final favourites = <PhonebookFavourite>[].obs;
 
   /// Truecaller-style caller ID for this warden's phone.
   final callerId = const CallerIdStatus().obs;
@@ -244,6 +250,7 @@ class PhonebookController extends GetxController {
     // 2. Concurrently load local SQLite cached data for immediate zero-latency display
     await _loadMetadata();
     await search();
+    await loadFavourites();
     await refreshCallerIdStatus();
 
     // iOS: if Caller ID is already enabled, push a fresh directory every time
@@ -599,6 +606,7 @@ class PhonebookController extends GetxController {
       if (res.success) {
         await _loadMetadata();
         await search();
+        await loadFavourites();
         CallerIdService.syncDirectory();
         debugPrint(
           '[PhonebookController] ✅ syncNow completed: ${res.totalStudents} students, ${res.totalPhones} phones',
@@ -727,15 +735,98 @@ class PhonebookController extends GetxController {
     }
   }
 
-  Future<void> makeCall(String phone) async {
+  /// Opens the dialer for [phone]. When [student] is given, the call is
+  /// counted so frequently dialled students appear in Favourites.
+  Future<void> makeCall(String phone, {PhonebookStudent? student}) async {
     final cleaned = phone.replaceAll(RegExp(r'[^\d+]'), '');
     if (cleaned.isEmpty) return;
     final uri = Uri.parse('tel:$cleaned');
     if (await canLaunchUrl(uri)) {
       await launchUrl(uri);
+      if (student != null) {
+        await PhonebookFavouritesService.instance.recordCall(
+          studentKey: student.id,
+          name: student.name,
+          phone: phone,
+        );
+        await loadFavourites();
+      }
     } else {
       AppSnackbar.warning('Cannot Place Call', 'Dialer could not be opened for $phone');
     }
+  }
+
+  // --- FAVOURITES (most dialled) ---
+
+  /// Rebuilds [favourites] from the stored call counts, using the latest
+  /// directory data for each student. Students no longer in the directory
+  /// are skipped.
+  Future<void> loadFavourites() async {
+    try {
+      final stats = await PhonebookFavouritesService.instance.topFavourites();
+      final result = <PhonebookFavourite>[];
+      for (final stat in stats) {
+        final student = await _findStudentByKey(stat.studentKey, stat.name);
+        if (student == null) continue;
+        final phone = stat.mostDialledNumber.isNotEmpty
+            ? stat.mostDialledNumber
+            : student.primaryPhone;
+        result.add(PhonebookFavourite(
+          student: student,
+          callCount: stat.totalCalls,
+          phone: phone,
+          phoneLabel: _labelForNumber(student, phone),
+        ));
+      }
+      favourites.assignAll(result);
+    } catch (e) {
+      debugPrint('[PhonebookController] loadFavourites failed: $e');
+    }
+  }
+
+  Future<PhonebookStudent?> _findStudentByKey(String key, String name) async {
+    for (final s in students) {
+      if (s.id == key) return s;
+    }
+    for (final query in {key, name}) {
+      if (query.trim().isEmpty) continue;
+      final results = await PhonebookDatabaseService.instance.searchStudents(
+        query: query,
+        limit: 20,
+      );
+      for (final s in results) {
+        if (s.id == key) return s;
+      }
+    }
+    return null;
+  }
+
+  /// Who a dialled number belongs to: the student's own number label,
+  /// or Father / Mother / WhatsApp.
+  static String _labelForNumber(PhonebookStudent student, String phone) {
+    final n = PhoneNumberNormalizer.normalize(phone);
+    bool same(String? other) =>
+        other != null && n != null && PhoneNumberNormalizer.normalize(other) == n;
+    for (final p in student.phones) {
+      if (same(p.phone) || same(p.phoneNormalized)) {
+        return p.label.isNotEmpty ? p.label : 'Mobile';
+      }
+    }
+    if (same(student.fatherPhone)) return 'Father';
+    if (same(student.motherPhone)) return 'Mother';
+    if (same(student.whatsappNumber)) return 'WhatsApp';
+    return 'Mobile';
+  }
+
+  /// Takes a student out of Favourites (their call count is reset).
+  Future<void> removeFavourite(PhonebookFavourite favourite) async {
+    HapticFeedback.mediumImpact();
+    await PhonebookFavouritesService.instance.remove(favourite.student.id);
+    favourites.removeWhere((f) => f.student.id == favourite.student.id);
+    AppSnackbar.success(
+      'Removed from Favourites',
+      '${favourite.student.name} will return here if you call them often again.',
+    );
   }
 
   /// Opens a new Gmail message to [email]: the Gmail iOS app when installed,
@@ -912,4 +1003,20 @@ class PrecalculateExtentsPolicy extends ExtentPrecalculationPolicy {
   @override
   bool shouldPrecalculateExtents(ExtentPrecalculationContext context) =>
       _enabled && context.numberOfItemsWithEstimatedExtent > 0;
+}
+
+/// One entry of the Favourites strip: a frequently dialled student and the
+/// number dialled most often for them.
+class PhonebookFavourite {
+  final PhonebookStudent student;
+  final int callCount;
+  final String phone;
+  final String phoneLabel;
+
+  const PhonebookFavourite({
+    required this.student,
+    required this.callCount,
+    required this.phone,
+    required this.phoneLabel,
+  });
 }

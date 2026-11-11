@@ -217,6 +217,7 @@ object PolicyStore {
         val hasAny = listOf(
             "is_locked", "isLocked", "blockedPackages", "blocked_packages",
             "daily_limit_minutes", "dailyLimitMinutes", "bedtime_start", "bedtimeStart",
+            "restrict_app_installs", "restrictAppInstalls", "install_pass_until", "installPassUntil",
         ).any { pol.has(it) || data.has(it) }
         if (!hasAny) return null
 
@@ -259,7 +260,9 @@ object PolicyStore {
             bedtimeStart = if (bedtimeOff) "" else start ?: current.bedtimeStart,
             bedtimeEnd = if (bedtimeOff) "" else end ?: current.bedtimeEnd,
             version = optStr(pol, "updatedAt", "updated_at") ?: optStr(pol, "version", "policyVersion") ?: current.version,
-            restrictAppInstalls = optBool(pol, "restrict_app_installs", "restrictAppInstalls") ?: current.restrictAppInstalls,
+            restrictAppInstalls = optBool(pol, "restrict_app_installs", "restrictAppInstalls")
+                ?: optBool(data, "restrict_app_installs", "restrictAppInstalls")
+                ?: current.restrictAppInstalls,
             installPassUntil = rawPassUntil ?: current.installPassUntil,
         )
         savePolicy(context, updated, incomingVersion)

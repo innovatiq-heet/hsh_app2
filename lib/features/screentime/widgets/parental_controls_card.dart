@@ -26,6 +26,7 @@ class ParentalControlsCard extends StudentDetailWidget {
       final blocked = controller.blockedPackages.length;
       final appLimitsCount = controller.appLimits.length;
       final busy = controller.isUpdatingPolicy.value;
+      final playStoreBlocked = controller.playStoreBlocked.value;
 
       return AppCard(
         padding: EdgeInsets.zero,
@@ -106,24 +107,36 @@ class ParentalControlsCard extends StudentDetailWidget {
                     onPressed: () => _confirmLock(context, !locked),
                   ),
 
-                  // Quick action: 15-min temporary install pass
-                  const SizedBox(height: AppDimens.gapSm),
-                  if (controller.hasActiveInstallPass)
-                    AppButton(
-                      label: 'Revoke Play Store pass (${controller.installPassRemainingMinutes}m left)',
-                      icon: Icons.lock_clock_rounded,
-                      variant: AppButtonVariant.outline,
-                      isLoading: busy,
-                      onPressed: () => controller.revokeInstallPass(),
-                    )
-                  else
-                    AppButton(
-                      label: 'Grant 15-min install pass',
-                      icon: Icons.install_mobile_rounded,
-                      variant: AppButtonVariant.secondary,
-                      isLoading: busy,
-                      onPressed: () => _confirmInstallPass(context),
-                    ),
+                  // Play Store: permanent block / allow
+                  const SizedBox(height: AppDimens.gapLg),
+                  _PlayStoreRow(
+                    blocked: playStoreBlocked,
+                    passMinutesLeft: controller.hasActiveInstallPass
+                        ? controller.installPassRemainingMinutes
+                        : 0,
+                    onChanged: (allow) => _confirmPlayStore(context, block: !allow),
+                  ),
+
+                  // While blocked: a 15-min install pass for a one-off download.
+                  if (playStoreBlocked) ...[
+                    const SizedBox(height: AppDimens.gapSm),
+                    if (controller.hasActiveInstallPass)
+                      AppButton(
+                        label: 'Revoke Play Store pass (${controller.installPassRemainingMinutes}m left)',
+                        icon: Icons.lock_clock_rounded,
+                        variant: AppButtonVariant.outline,
+                        isLoading: busy,
+                        onPressed: () => controller.revokeInstallPass(),
+                      )
+                    else
+                      AppButton(
+                        label: 'Grant 15-min install pass',
+                        icon: Icons.install_mobile_rounded,
+                        variant: AppButtonVariant.secondary,
+                        isLoading: busy,
+                        onPressed: () => _confirmInstallPass(context),
+                      ),
+                  ],
                 ],
               ),
             ),
@@ -179,6 +192,38 @@ class ParentalControlsCard extends StudentDetailWidget {
       ),
     );
     if (ok == true) controller.toggleDeviceLock(lock);
+  }
+
+  Future<void> _confirmPlayStore(BuildContext context, {required bool block}) async {
+    final name = controller.selectedStudent.value is Map
+        ? (controller.selectedStudent.value['name'] ?? 'this student').toString()
+        : 'this student';
+    final ok = await Get.dialog<bool>(
+      AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(AppDimens.radiusLg)),
+        title: Text(block ? 'Block Play Store for $name?' : 'Allow Play Store for $name?'),
+        content: Text(
+          block
+              ? '$name will not be able to open the Play Store, other app stores or install APK files. '
+                  'They can still send you a request from the block screen.'
+                  '${controller.hasActiveInstallPass ? ' The running install pass ends now.' : ''}'
+              : '$name will be able to open the Play Store and install or update apps until you block it again. '
+                  'Apps you have blocked stay blocked.',
+          style: AppTextStyles.bodyMd.copyWith(color: AppColors.textSecondary),
+        ),
+        actions: [
+          TextButton(onPressed: () => Get.back(result: false), child: const Text('Cancel')),
+          AppButton(
+            label: block ? 'Block' : 'Allow',
+            icon: block ? Icons.block_rounded : Icons.check_rounded,
+            variant: block ? AppButtonVariant.danger : AppButtonVariant.primary,
+            expand: false,
+            onPressed: () => Get.back(result: true),
+          ),
+        ],
+      ),
+    );
+    if (ok == true) controller.setPlayStoreBlocked(block);
   }
 
   Future<void> _confirmInstallPass(BuildContext context) async {
@@ -256,6 +301,60 @@ class _AppliedBadge extends StudentDetailWidget {
         ),
       );
     });
+  }
+}
+
+/// "Play Store · Blocked / Allowed" with a switch that is on when allowed.
+class _PlayStoreRow extends StatelessWidget {
+  final bool blocked;
+
+  /// Minutes left on a running install pass (0 = none).
+  final int passMinutesLeft;
+  final ValueChanged<bool> onChanged;
+
+  const _PlayStoreRow({
+    required this.blocked,
+    required this.passMinutesLeft,
+    required this.onChanged,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final color = blocked ? AppColors.cancelledRed : AppColors.successGreen;
+    final status = !blocked
+        ? 'Allowed: can install and update apps'
+        : passMinutesLeft > 0
+            ? 'Blocked · install pass open (${passMinutesLeft}m left)'
+            : 'Blocked, along with other app stores and APK installs';
+
+    return Container(
+      padding: const EdgeInsets.fromLTRB(12, 8, 4, 8),
+      decoration: BoxDecoration(
+        color: AppColors.surfaceMuted,
+        borderRadius: BorderRadius.circular(AppDimens.radiusMd),
+        border: Border.all(color: AppColors.borderLight),
+      ),
+      child: Row(
+        children: [
+          Icon(Icons.shop_rounded, size: 20, color: color),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text('Play Store', style: AppTextStyles.bodyMd.copyWith(fontWeight: FontWeight.w700)),
+                Text(status, style: AppTextStyles.caption.copyWith(color: color)),
+              ],
+            ),
+          ),
+          Switch(
+            value: !blocked,
+            activeThumbColor: AppColors.successGreen,
+            onChanged: onChanged,
+          ),
+        ],
+      ),
+    );
   }
 }
 

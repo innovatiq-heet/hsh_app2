@@ -3,6 +3,7 @@ import 'package:get/get.dart';
 import '../../../core/constants/app_colors.dart';
 import '../../../core/constants/app_dimens.dart';
 import '../../../core/constants/app_text_styles.dart';
+import '../../../core/utils/string_formatting.dart';
 import '../../shared/widgets/app_card.dart';
 import '../controllers/app_requests_host.dart';
 import 'app_brand_icon.dart';
@@ -80,11 +81,30 @@ class AppRequestsBanner extends StatelessWidget {
                 separatorBuilder: (_, _) => const Divider(height: 16),
                 itemBuilder: (ctx, i) {
                   final req = requests[i];
-                  final id = req['id'] as int? ?? 0;
-                  final appName = (req['appName'] ?? req['packageName'] ?? 'App').toString();
-                  final pkg = (req['packageName'] ?? '').toString();
-                  final studentName = (req['studentName'] ?? 'Student').toString();
-                  final room = (req['room'] ?? '').toString();
+                  final id = int.tryParse(
+                          (req['id'] ?? req['request_id'] ?? req['requestId'])
+                              ?.toString() ??
+                              '') ??
+                      0;
+                  final rawAppName =
+                      (req['app_name'] ?? req['appName'])?.toString().trim();
+                  final rawPkg =
+                      (req['package_name'] ?? req['packageName'])?.toString().trim() ??
+                          '';
+                  final appName = (rawAppName != null && rawAppName.isNotEmpty)
+                      ? rawAppName
+                      : (rawPkg.isNotEmpty ? rawPkg : 'App');
+                  final pkg = rawPkg;
+                  final rawStudentName = (req['student_name'] ??
+                          req['studentName'] ??
+                          req['name'] ??
+                          'Student')
+                      .toString();
+                  final formattedStudentName = formatPersonName(rawStudentName);
+                  final studentName = formattedStudentName.isNotEmpty
+                      ? formattedStudentName
+                      : rawStudentName;
+                  final room = (req['room'] ?? req['room_num'] ?? '').toString();
 
                   final reason = (req['reason'] ?? '').toString();
 
@@ -141,7 +161,7 @@ class AppRequestsBanner extends StatelessWidget {
                       const SizedBox(width: 8),
                       // Reject Button
                       IconButton(
-                        onPressed: () => host.reviewAppRequest(id, 'reject'),
+                        onPressed: id > 0 ? () => host.reviewAppRequest(id, 'reject') : null,
                         tooltip: 'Reject',
                         icon: const Icon(Icons.close_rounded, color: AppColors.errorRed, size: 20),
                         style: IconButton.styleFrom(
@@ -153,7 +173,9 @@ class AppRequestsBanner extends StatelessWidget {
                       const SizedBox(width: 8),
                       // Approve Button with 15-Minute Window
                       FilledButton.icon(
-                        onPressed: () => host.reviewAppRequest(id, 'approve', durationMinutes: 15),
+                        onPressed: id > 0
+                            ? () => host.reviewAppRequest(id, 'approve', durationMinutes: 15)
+                            : null,
                         icon: const Icon(Icons.check_rounded, size: 16),
                         label: const Text('Allow (15m)'),
                         style: FilledButton.styleFrom(

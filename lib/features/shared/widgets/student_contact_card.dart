@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../../../core/utils/string_formatting.dart';
 
 /// Reusable executive student contact card featuring the signature
 /// organic corner wave, squircle avatar, light metadata chips,
@@ -106,6 +107,7 @@ class StudentContactCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final displayName = formatPersonName(name);
     final gColor = isAlumni ? const Color(0xFF9333EA) : groupColor(groupName);
     final gBg = isAlumni ? const Color(0xFFF3E8FF) : groupBgColor(groupName);
     final wave = waveColor(groupName, isAlumni: isAlumni);
@@ -170,15 +172,15 @@ class StudentContactCard extends StatelessWidget {
                               decoration: BoxDecoration(
                                 color: isSelectionMode
                                     ? (isSelected
-                                        ? const Color(0xFF0284C7)
-                                        : const Color(0xFFF1F5F9))
+                                          ? const Color(0xFF0284C7)
+                                          : const Color(0xFFF1F5F9))
                                     : gBg,
                                 borderRadius: BorderRadius.circular(15),
                                 border: Border.all(
                                   color: isSelectionMode
                                       ? (isSelected
-                                          ? const Color(0xFF0284C7)
-                                          : const Color(0xFFCBD5E1))
+                                            ? const Color(0xFF0284C7)
+                                            : const Color(0xFFCBD5E1))
                                       : gColor.withValues(alpha: 0.25),
                                   width: isSelectionMode && isSelected ? 2 : 1,
                                 ),
@@ -195,9 +197,11 @@ class StudentContactCard extends StatelessWidget {
                                       size: 22,
                                     )
                                   : Text(
-                                      name.isNotEmpty
-                                          ? name[0].toUpperCase()
-                                          : 'S',
+                                      displayName.isNotEmpty
+                                          ? displayName[0].toUpperCase()
+                                          : (name.isNotEmpty
+                                                ? name[0].toUpperCase()
+                                                : 'S'),
                                       style: TextStyle(
                                         color: gColor,
                                         fontWeight: FontWeight.w800,
@@ -239,7 +243,7 @@ class StudentContactCard extends StatelessWidget {
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
                               Text(
-                                name,
+                                displayName.isNotEmpty ? displayName : name,
                                 style: const TextStyle(
                                   fontWeight: FontWeight.w700,
                                   fontSize: 15.5,
@@ -255,11 +259,12 @@ class StudentContactCard extends StatelessWidget {
                                   Text(
                                     isAlumni
                                         ? (room != null && room!.isNotEmpty
-                                            ? 'Alumni • Room $room'
-                                            : 'Alumni Student')
+                                              ? 'Alumni • Room $room'
+                                              : 'Alumni Student')
                                         : (room != null && room!.isNotEmpty
-                                            ? 'Room $room • ${groupName ?? "Resident"}'
-                                            : (groupName ?? 'Registered Student')),
+                                              ? 'Room $room • ${groupName ?? "Resident"}'
+                                              : (groupName ??
+                                                    'Registered Student')),
                                     style: TextStyle(
                                       fontSize: 11.5,
                                       fontWeight: FontWeight.w600,
@@ -301,7 +306,9 @@ class StudentContactCard extends StatelessWidget {
                                   ),
                                   const SizedBox(width: 5),
                                   Text(
-                                    isAlumni ? 'Alumni' : (groupName ?? 'Active'),
+                                    isAlumni
+                                        ? 'Alumni'
+                                        : (groupName ?? 'Active'),
                                     style: TextStyle(
                                       color: gColor,
                                       fontSize: 10.5,
@@ -378,7 +385,8 @@ class StudentContactCard extends StatelessWidget {
                                 const SizedBox(width: 8),
                                 Expanded(
                                   child: Column(
-                                    crossAxisAlignment: CrossAxisAlignment.start,
+                                    crossAxisAlignment:
+                                        CrossAxisAlignment.start,
                                     mainAxisAlignment: MainAxisAlignment.center,
                                     children: [
                                       Text(

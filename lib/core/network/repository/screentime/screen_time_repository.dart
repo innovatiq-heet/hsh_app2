@@ -112,10 +112,25 @@ class ScreenTimeRepository extends BaseRepository {
 
   /// Approve or reject a request (warden). [action] is `approve` / `reject`.
   Future<void> reviewAppRequest(int requestId, String action, {required int durationMinutes}) =>
-      _guard(() => _dio.post(
+      _guard(() async {
+        try {
+          await _dio.post(
             '/screen-time/apps/request/$requestId/review',
             data: {'action': action, 'duration_minutes': durationMinutes},
-          ));
+          );
+        } on DioException catch (e) {
+          // If the backend router mounted under plural `/requests/:id/review` instead of singular,
+          // try the alternate path before failing.
+          if (e.response?.statusCode == 404) {
+            await _dio.post(
+              '/screen-time/apps/requests/$requestId/review',
+              data: {'action': action, 'duration_minutes': durationMinutes},
+            );
+            return;
+          }
+          rethrow;
+        }
+      });
 
   /// A student asks their warden for an app.
   Future<void> submitAppRequest({

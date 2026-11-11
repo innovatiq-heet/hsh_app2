@@ -1,10 +1,10 @@
-import 'dart:developer';
-
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:get/get.dart';
 import 'package:intl/intl.dart';
 import 'package:super_sliver_list/super_sliver_list.dart';
+import '../../../core/models/tags/student_tag_model.dart';
+import '../../../core/utils/string_formatting.dart';
 import '../../shared/widgets/empty_state.dart';
 import '../../shared/widgets/staggered_slide_fade.dart';
 import '../../shared/widgets/student_contact_card.dart';
@@ -275,6 +275,47 @@ class PhonebookScreen extends GetView<PhonebookController> {
                       ),
                       const SizedBox(height: 20),
 
+                      // 3b. TAGS & ROLES
+                      Obx(() {
+                        final tags = controller.availableTags;
+                        if (tags.isEmpty) return const SizedBox.shrink();
+                        final tagNames = ['All', ...tags.map((t) => t.name)];
+                        return Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            _filterSectionHeader('STUDENT TAGS & ROLES', Icons.label_rounded),
+                            const SizedBox(height: 10),
+                            Wrap(
+                              spacing: 8,
+                              runSpacing: 8,
+                              children: tagNames.map((t) {
+                                final sel = controller.selectedTag.value == t;
+                                return FilterChip(
+                                  label: Text(t),
+                                  selected: sel,
+                                  selectedColor: const Color(0xFF6366F1),
+                                  checkmarkColor: Colors.white,
+                                  labelStyle: TextStyle(
+                                    color: sel ? Colors.white : const Color(0xFF334155),
+                                    fontWeight: sel ? FontWeight.w700 : FontWeight.w600,
+                                    fontSize: 12.5,
+                                  ),
+                                  backgroundColor: const Color(0xFFF1F5F9),
+                                  shape: RoundedRectangleBorder(
+                                    borderRadius: BorderRadius.circular(12),
+                                    side: BorderSide(
+                                      color: sel ? const Color(0xFF6366F1) : const Color(0xFFE2E8F0),
+                                    ),
+                                  ),
+                                  onSelected: (v) => controller.selectTag(t),
+                                );
+                              }).toList(),
+                            ),
+                            const SizedBox(height: 20),
+                          ],
+                        );
+                      }),
+
                       // 4. ATTRIBUTES & PROFILE DATA
                       _filterSectionHeader('PROFILE ATTRIBUTES & RECORDS', Icons.check_circle_outline_rounded),
                       const SizedBox(height: 10),
@@ -515,7 +556,11 @@ class PhonebookScreen extends GetView<PhonebookController> {
         bottomNavigationBar: Obx(() {
           if (!controller.isSelectionMode.value) return const SizedBox.shrink();
           final count = controller.selectedCount;
-          final allSelected = count == controller.students.length && count > 0;
+          final allSelected = controller.areAllVisibleSelected;
+          final currentGroup = controller.selectedGroup.value;
+          final selectLabel = allSelected
+              ? (currentGroup != 'All' ? 'Deselect All ($currentGroup)' : 'Deselect All')
+              : (currentGroup != 'All' ? 'Select All ($currentGroup)' : 'Select All');
 
           return Container(
             padding: const EdgeInsets.fromLTRB(16, 12, 16, 16),
@@ -549,7 +594,7 @@ class PhonebookScreen extends GetView<PhonebookController> {
                             ),
                             const SizedBox(width: 6),
                             Text(
-                              allSelected ? 'Deselect All' : 'Select All',
+                              selectLabel,
                               style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 13, color: Color(0xFF0F172A)),
                             ),
                           ],
@@ -799,6 +844,11 @@ class PhonebookScreen extends GetView<PhonebookController> {
                                   child: InkWell(
                                     borderRadius: BorderRadius.circular(20),
                                     onTap: () => controller.selectGroup(g),
+                                    onLongPress: () {
+                                      HapticFeedback.heavyImpact();
+                                      controller.selectGroup(g);
+                                      controller.selectAllInCurrentGroup();
+                                    },
                                     child: AnimatedContainer(
                                       duration: const Duration(milliseconds: 200),
                                       padding: const EdgeInsets.symmetric(
@@ -852,7 +902,17 @@ class PhonebookScreen extends GetView<PhonebookController> {
                         }),
                       ),
                       const SizedBox(height: 16),
-// Section title with live count
+                      // Favourites: the students this admin dials most
+                      Obx(() {
+                        final favs = controller.favourites.toList();
+                        if (favs.isEmpty ||
+                            controller.searchText.value.isNotEmpty ||
+                            controller.isSelectionMode.value) {
+                          return const SizedBox.shrink();
+                        }
+                        return _buildFavouritesSection(context, favs);
+                      }),
+                      // Section title with live count
                       Obx(() {
                         final count = controller.students.length;
                         return Row(
@@ -951,7 +1011,7 @@ class PhonebookScreen extends GetView<PhonebookController> {
                             controller.toggleSelectStudent(student.id);
                           }
                         },
-                        onCall: (phone) => controller.makeCall(phone),
+                        onCall: (phone) => controller.makeCall(phone, student: student),
                         onWhatsApp: (phone) => controller.openWhatsApp(phone),
                         onShare: () => controller.shareStudent(student),
                       );
@@ -1026,6 +1086,122 @@ class PhonebookScreen extends GetView<PhonebookController> {
           );
         }),
       ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildFavouritesSection(
+    BuildContext context,
+    List<PhonebookFavourite> favs,
+  ) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 18),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              const Icon(Icons.star_rounded, size: 16, color: Color(0xFFF59E0B)),
+              const SizedBox(width: 6),
+              Text(
+                'FAVOURITES (${favs.length})',
+                style: const TextStyle(
+                  fontSize: 11.5,
+                  fontWeight: FontWeight.w800,
+                  color: Color(0xFF475569),
+                  letterSpacing: 0.8,
+                ),
+              ),
+              const SizedBox(width: 8),
+              const Text(
+                'Most dialled',
+                style: TextStyle(
+                  fontSize: 11,
+                  fontWeight: FontWeight.w500,
+                  color: Color(0xFF94A3B8),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 10),
+          SizedBox(
+            height: 112,
+            child: ListView.separated(
+              scrollDirection: Axis.horizontal,
+              physics: const BouncingScrollPhysics(),
+              itemCount: favs.length,
+              separatorBuilder: (_, _) => const SizedBox(width: 10),
+              itemBuilder: (context, index) {
+                final fav = favs[index];
+                return _FavouriteTile(
+                  favourite: fav,
+                  onTap: () => _showStudentContactDetails(context, fav.student),
+                  onCall: () => controller.makeCall(fav.phone, student: fav.student),
+                  onLongPress: () => _showFavouriteActions(context, fav),
+                );
+              },
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _showFavouriteActions(BuildContext context, PhonebookFavourite fav) {
+    HapticFeedback.mediumImpact();
+    showModalBottomSheet<void>(
+      context: context,
+      backgroundColor: Colors.white,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+      ),
+      builder: (sheetContext) => SafeArea(
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(8, 12, 8, 8),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              ListTile(
+                title: Text(
+                  formatPersonName(fav.student.name),
+                  style: const TextStyle(fontWeight: FontWeight.w800, color: Color(0xFF0F172A)),
+                ),
+                subtitle: Text(
+                  'Called ${fav.callCount} times · most dialled: ${fav.phone} (${fav.phoneLabel})',
+                  style: const TextStyle(fontSize: 12.5, color: Color(0xFF64748B)),
+                ),
+              ),
+              const Divider(height: 8),
+              ListTile(
+                leading: const Icon(Icons.call_rounded, color: Color(0xFF10B981)),
+                title: Text('Call ${fav.phoneLabel}'),
+                onTap: () {
+                  Navigator.of(sheetContext).pop();
+                  controller.makeCall(fav.phone, student: fav.student);
+                },
+              ),
+              ListTile(
+                leading: const Icon(Icons.person_rounded, color: Color(0xFF0284C7)),
+                title: const Text('View profile'),
+                onTap: () {
+                  Navigator.of(sheetContext).pop();
+                  _showStudentContactDetails(context, fav.student);
+                },
+              ),
+              ListTile(
+                leading: const Icon(Icons.star_outline_rounded, color: Color(0xFFDC2626)),
+                title: const Text(
+                  'Remove from Favourites',
+                  style: TextStyle(color: Color(0xFFDC2626)),
+                ),
+                onTap: () {
+                  Navigator.of(sheetContext).pop();
+                  controller.removeFavourite(fav);
+                },
+              ),
+            ],
+          ),
         ),
       ),
     );
@@ -1470,7 +1646,138 @@ class _StudentPhonebookCard extends StatelessWidget {
       onCall: onCall,
       onWhatsApp: onWhatsApp,
       onShare: onShare,
+      extraChips: student.tags.isEmpty
+          ? null
+          : dedupeTags(student.tags).map((t) {
+              return CelebrantLightChip(
+                icon: Icons.label_rounded,
+                text: t.name,
+                bgColor: t.backgroundColor,
+                borderColor: t.borderColor,
+                textColor: t.color,
+              );
+            }).toList(),
       margin: EdgeInsets.zero,
+    );
+  }
+}
+
+/// One student in the Favourites strip: avatar with a quick-call button,
+/// first name and how often they were called.
+class _FavouriteTile extends StatelessWidget {
+  final PhonebookFavourite favourite;
+  final VoidCallback onTap;
+  final VoidCallback onCall;
+  final VoidCallback onLongPress;
+
+  const _FavouriteTile({
+    required this.favourite,
+    required this.onTap,
+    required this.onCall,
+    required this.onLongPress,
+  });
+
+  static String _initials(String name) {
+    final parts = name.trim().split(RegExp(r'\s+')).where((p) => p.isNotEmpty).toList();
+    if (parts.isEmpty) return '#';
+    final first = parts.first[0];
+    final last = parts.length > 1 ? parts.last[0] : '';
+    return '$first$last'.toUpperCase();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final student = favourite.student;
+    final displayName = formatPersonName(student.name);
+    final firstName = displayName.split(' ').first;
+    final color = student.isAlumni
+        ? const Color(0xFF9333EA)
+        : PhonebookScreen.groupColor(student.groupName);
+    final bg = student.isAlumni
+        ? const Color(0xFFF3E8FF)
+        : PhonebookScreen.groupBgColor(student.groupName);
+
+    return SizedBox(
+      width: 76,
+      child: Material(
+        color: Colors.transparent,
+        child: InkWell(
+          borderRadius: BorderRadius.circular(16),
+          onTap: onTap,
+          onLongPress: onLongPress,
+          child: Padding(
+            padding: const EdgeInsets.symmetric(vertical: 4),
+            child: Column(
+              children: [
+                Stack(
+                  clipBehavior: Clip.none,
+                  children: [
+                    Container(
+                      width: 58,
+                      height: 58,
+                      alignment: Alignment.center,
+                      decoration: BoxDecoration(
+                        color: bg,
+                        borderRadius: BorderRadius.circular(18),
+                        border: Border.all(color: color.withValues(alpha: 0.3)),
+                      ),
+                      child: Text(
+                        _initials(displayName),
+                        style: TextStyle(
+                          color: color,
+                          fontSize: 18,
+                          fontWeight: FontWeight.w800,
+                        ),
+                      ),
+                    ),
+                    Positioned(
+                      right: -6,
+                      bottom: -6,
+                      child: Material(
+                        color: const Color(0xFF10B981),
+                        shape: const CircleBorder(
+                          side: BorderSide(color: Colors.white, width: 2),
+                        ),
+                        child: InkWell(
+                          customBorder: const CircleBorder(),
+                          onTap: onCall,
+                          child: Tooltip(
+                            message: 'Call ${favourite.phoneLabel}',
+                            child: const Padding(
+                              padding: EdgeInsets.all(5),
+                              child: Icon(Icons.call_rounded, size: 14, color: Colors.white),
+                            ),
+                          ),
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 8),
+                Text(
+                  firstName,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(
+                    fontSize: 12.5,
+                    fontWeight: FontWeight.w700,
+                    color: Color(0xFF0F172A),
+                  ),
+                ),
+                Text(
+                  '${favourite.callCount} calls',
+                  maxLines: 1,
+                  style: const TextStyle(
+                    fontSize: 10.5,
+                    fontWeight: FontWeight.w500,
+                    color: Color(0xFF94A3B8),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
     );
   }
 }

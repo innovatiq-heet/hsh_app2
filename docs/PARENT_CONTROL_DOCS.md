@@ -1,6 +1,6 @@
 # Parental Control & Screen Time
 
-> **Last updated:** 2026-11-01 · **Repos:** `hsh_app2` (Flutter + native Android) and `hsh_api` (Node/Express/MySQL)
+> **Last updated:** 2026-11-11 · **Repos:** `hsh_app2` (Flutter + native Android) and `hsh_api` (Node/Express/MySQL)
 >
 > Paths starting with `lib/` or `android/` are in this repo; paths starting with `hsh_api/` are in the backend repo. Location tracking and curfew breaches are documented separately in [GEOFENCING_DOCS.md](GEOFENCING_DOCS.md).
 
@@ -136,6 +136,8 @@ graph TD
 1. **Warden action.**
    - Blocking/unblocking one app → `POST /screen-time/apps/rule`.
    - Lock/unlock → `PUT /policies/:id` with `{is_locked}` only.
+   - Play Store block/allow → `PUT` with `{restrict_app_installs}` only (blocking during an install pass also sends `install_pass_until: 0`).
+   - 15-min install pass / revoke → `PUT` with `{install_pass_until}` only (epoch ms, `0` = none).
    - Bedtime and limit → `PUT` with just those fields.
 2. **Backend commit.** `policy_version` is bumped in the **same transaction** as the change (the bump comes first and row-locks the policy, so concurrent edits get strictly ordered versions). After the commit `notifyPolicyChanged(studentId)` fires.
 3. **Delivery.** With the screen on, the phone keeps `GET /screen-time/policies/me?wait=25&since=<version>` open:
@@ -168,6 +170,7 @@ graph TD
 
 1. This app itself and protected packages → always allowed.
 2. `isLocked` → `DEVICE_LOCKED`.
+2a. `restrictAppInstalls` and the package is an app store or installer (`PolicyEvaluator.INSTALLER_PACKAGES`: Play Store, Galaxy Store, Mi/Oppo/Vivo/Huawei stores, package installers) → `INSTALLER_BLOCKED`, unless an install pass is running (`installPassUntil` in the future). `restrictAppInstalls` defaults to **true** on the phone when the backend has never sent it, so the Play Store is blocked until a warden allows it.
 3. Package in `blockedPackages` → `APP_BLOCKED`.
 4. Package has `appLimits` set and today's usage ≥ limit → `APP_LIMIT`.
 5. Inside the bedtime window (overnight wrap supported) → `BEDTIME`.
@@ -223,7 +226,7 @@ Operator home → **Screen Time**. Allowed app roles: `canViewScreenTime` (admin
   - live status and usage hero (today vs limit);
   - per-app list with categories (Social Media, Entertainment, Gaming, Study & Tools, Other) and a Restrict button;
   - 30-day history;
-  - parental controls card: lock/unlock (with confirmation), curfew & daily limit sheet, restrict-app sheet.
+  - parental controls card: lock/unlock (with confirmation), curfew & daily limit sheet, restrict-app sheet, **Play Store switch** (Blocked / Allowed, with confirmation; covers every package in `INSTALLER_PACKAGES`), and, while blocked, a 15-min install pass. Blocking ends a running pass. The student sees the "Installation Blocked" screen and can send a request from it.
 - Each action is applied optimistically and rolled back with an error message if the server rejects it.
 
 ---
@@ -240,7 +243,7 @@ Mounted at both `/api/screen-time/...` and `/screen-time/...`; all require a Bea
 | `GET /history/:id?` | Self or supervisor | Last 30 days |
 | `GET /students?search=` | Supervisor | Directory (max 100) |
 | `GET /policies/:id?` | Self or supervisor | `{ policy, apps, blockedPackages, geofence }`. Long-poll with `?wait=<s ≤ 25>&since=<version>` (self only); response has `longPoll`. |
-| `PUT /policies/:id` | Supervisor | **Partial:** any of `is_locked`, `daily_limit_minutes` (0–1440), `bedtime_start`/`bedtime_end` (`HH:mm`, or `''`/`null` to clear both), `blockedPackages` (complete set). camelCase accepted. |
+| `PUT /policies/:id` | Supervisor | **Partial:** any of `is_locked`, `daily_limit_minutes` (0–1440), `bedtime_start`/`bedtime_end` (`HH:mm`, or `''`/`null` to clear both), `blockedPackages` (complete set), `restrict_app_installs` (boolean, Play Store blocked), `install_pass_until` (epoch ms, `0` = none). camelCase accepted. `GET /policies/:id`, `GET /policies/me` and the ping echo must return `restrict_app_installs` and `install_pass_until` inside `policy`. |
 | `POST /apps/rule` | Supervisor | `{ student_id, package_name, app_name?, is_blocked, daily_limit_minutes? }`. One app; version bump + rule in one transaction. |
 
 **Supervisor** = `requireRole('operator')`: the operator console token and platform-admin staff. Students can no longer change their own policy (previously a student could unlock themselves).
@@ -251,7 +254,7 @@ Mounted at both `/api/screen-time/...` and `/screen-time/...`; all require a Bea
 
 | Table | Purpose |
 | :--- | :--- |
-| `parental_policies` | One row per student: `policy_version`, `daily_limit_minutes`, `bedtime_start`, `bedtime_end`, `is_locked`, `updated_at` |
+| `parental_policies` | One row per student: `policy_version`, `daily_limit_minutes`, `bedtime_start`, `bedtime_end`, `is_locked`, `restrict_app_installs` (`TINYINT(1) DEFAULT 1`), `install_pass_until` (`BIGINT DEFAULT 0`), `updated_at` |
 | `parental_app_rules` | Per student and package: `app_name`, `is_blocked`, `daily_limit_minutes` |
 | `parental_usage_logs` | Per student, date and package: `usage_minutes` |
 | `student_screen_time_daily` | Per student and date: totals, `is_screen_on`, `current_app`, `last_ping` |

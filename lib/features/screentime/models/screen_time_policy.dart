@@ -20,6 +20,14 @@ class ScreenTimePolicy {
   /// Per-app daily limit in minutes (0 = no limit).
   final Map<String, int> appLimits;
 
+  /// Expiry timestamp (epoch milliseconds) of a temporary install window (0 = none).
+  final int installPassUntil;
+
+  /// Play Store (and other app stores / APK installers) blocked on the phone.
+  /// Defaults to true, the same default the native blocker uses when the
+  /// backend has never sent the field.
+  final bool restrictAppInstalls;
+
   const ScreenTimePolicy({
     this.isLocked = false,
     this.blockedPackages = const {},
@@ -28,9 +36,13 @@ class ScreenTimePolicy {
     this.bedtimeEnd = '',
     this.version = '',
     this.appLimits = const {},
+    this.installPassUntil = 0,
+    this.restrictAppInstalls = true,
   });
 
   bool get hasBedtime => bedtimeStart.isNotEmpty && bedtimeEnd.isNotEmpty;
+  bool get hasActiveInstallPass =>
+      installPassUntil > DateTime.now().millisecondsSinceEpoch;
 
   /// Parses a response body. Returns null when no policy field is present at
   /// all, so callers can keep their current value instead of resetting it.
@@ -87,7 +99,18 @@ class ScreenTimePolicy {
       }
     }
 
-    if (blocked == null && locked == null && limit == null && !hasBedtime && parsedAppLimits == null) {
+    final passUntil = _pick(pol, ['install_pass_until', 'installPassUntil']) ??
+        _pick(data, ['install_pass_until', 'installPassUntil']);
+    final restrictInstalls = _pick(pol, ['restrict_app_installs', 'restrictAppInstalls']) ??
+        _pick(data, ['restrict_app_installs', 'restrictAppInstalls']);
+
+    if (blocked == null &&
+        locked == null &&
+        limit == null &&
+        !hasBedtime &&
+        parsedAppLimits == null &&
+        passUntil == null &&
+        restrictInstalls == null) {
       return null;
     }
 
@@ -103,6 +126,8 @@ class ScreenTimePolicy {
       bedtimeEnd: bedtimeOff ? '' : (end == null ? base.bedtimeEnd : _hhmm(end)),
       version: version?.toString() ?? base.version,
       appLimits: parsedAppLimits ?? base.appLimits,
+      installPassUntil: _toInt(passUntil) ?? base.installPassUntil,
+      restrictAppInstalls: _toBool(restrictInstalls) ?? base.restrictAppInstalls,
     );
   }
 
@@ -127,6 +152,8 @@ class ScreenTimePolicy {
     String? bedtimeEnd,
     String? version,
     Map<String, int>? appLimits,
+    int? installPassUntil,
+    bool? restrictAppInstalls,
   }) =>
       ScreenTimePolicy(
         isLocked: isLocked ?? this.isLocked,
@@ -136,6 +163,8 @@ class ScreenTimePolicy {
         bedtimeEnd: bedtimeEnd ?? this.bedtimeEnd,
         version: version ?? this.version,
         appLimits: appLimits ?? this.appLimits,
+        installPassUntil: installPassUntil ?? this.installPassUntil,
+        restrictAppInstalls: restrictAppInstalls ?? this.restrictAppInstalls,
       );
 
   /// Body for `PUT /screen-time/policies/:id`.
@@ -146,6 +175,8 @@ class ScreenTimePolicy {
         'bedtime_start': bedtimeStart,
         'bedtime_end': bedtimeEnd,
         'app_limits': appLimits,
+        if (installPassUntil > 0) 'install_pass_until': installPassUntil,
+        'restrict_app_installs': restrictAppInstalls,
       };
 
   static dynamic _pick(Map m, List<String> keys) {

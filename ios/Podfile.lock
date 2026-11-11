@@ -20,8 +20,8 @@ EXTERNAL SOURCES:
 
 SPEC CHECKSUMS:
   Flutter: cabc95a1d2626b1b06e7179b784ebcf0c0cde467
-  flutter_secure_storage: 1ed9476fba7e7a782b22888f956cce43e2c62f13
-  keyboard_height_plugin: ef70a8181b29f27670e9e2450814ca6b6dc05b05
+  flutter_secure_storage: d33dac7ae2ea08509be337e775f6b59f1ff45f12
+  keyboard_height_plugin: 43fa8bba20fd5c4fdeed5076466b8b9d43cc6b86
 
 PODFILE CHECKSUM: 962d3f28d450900e6cb91789976d2790c270fca4
 

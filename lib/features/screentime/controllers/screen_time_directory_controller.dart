@@ -1087,10 +1087,18 @@ class ScreenTimeDirectoryController extends GetxController with WidgetsBindingOb
   /// Approve or reject an app installation request (Warden action)
   @override
   Future<void> reviewAppRequest(int requestId, String action, {int durationMinutes = 15}) async {
+    if (requestId <= 0) {
+      AppSnackbar.error('Action Failed', 'Invalid request ID.');
+      return;
+    }
     try {
       await _repo.reviewAppRequest(requestId, action, durationMinutes: durationMinutes);
       final isApproved = action == 'approve';
-      pendingAppRequests.removeWhere((r) => r['id'] == requestId);
+      pendingAppRequests.removeWhere((r) {
+        final rId = int.tryParse(
+            (r['id'] ?? r['request_id'] ?? r['requestId'])?.toString() ?? '');
+        return rId == requestId;
+      });
       if (isApproved) {
         AppSnackbar.success(
           'App Approved',

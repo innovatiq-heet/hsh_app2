@@ -120,6 +120,18 @@ class ServicesScreen extends StatelessWidget {
       ],
       'Personal': [
         _ServiceItem(
+          'Announcements',
+          Icons.campaign_outlined,
+          const Color(0xFFDB2777),
+          () => Get.toNamed(Routes.broadcastInbox),
+        ),
+        _ServiceItem(
+          'Polls & Forms',
+          Icons.how_to_vote_outlined,
+          const Color(0xFF7C3AED),
+          () => Get.toNamed(Routes.studentForms),
+        ),
+        _ServiceItem(
           'Profile',
           Icons.person_outline_rounded,
           AppColors.primary,

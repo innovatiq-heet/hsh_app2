@@ -1,5 +1,7 @@
+import 'dart:convert';
 import 'package:sqflite/sqflite.dart';
 import 'package:path/path.dart' as p;
+import '../../../core/models/tags/student_tag_model.dart';
 import '../models/phonebook_models.dart';
 import 'phone_number_normalizer.dart';
 
@@ -24,7 +26,7 @@ class PhonebookDatabaseService {
 
     return await openDatabase(
       path,
-      version: 5,
+      version: 6,
       onUpgrade: _onUpgrade,
       onCreate: (db, version) async {
         await db.execute('''
@@ -54,7 +56,8 @@ class PhonebookDatabaseService {
             bank_code TEXT,
             room_num TEXT,
             group_name TEXT,
-            floor_num INTEGER
+            floor_num INTEGER,
+            tags TEXT
           )
         ''');
 
@@ -125,6 +128,12 @@ class PhonebookDatabaseService {
       }
       await batch.commit(noResult: true);
     }
+
+    if (oldVersion < 6) {
+      try {
+        await db.execute('ALTER TABLE student_cache ADD COLUMN tags TEXT');
+      } catch (_) {}
+    }
   }
 
   /// Everything caller ID needs, one row per phone number.
@@ -183,6 +192,7 @@ class PhonebookDatabaseService {
             'room_num': r['room_num'],
             'group_name': r['group_name'],
             'floor_num': r['floor_num'],
+            'tags': r['tags'] is String ? r['tags'] : (r['tags'] != null ? jsonEncode(r['tags']) : null),
           },
           conflictAlgorithm: ConflictAlgorithm.replace,
         );
@@ -200,6 +210,7 @@ class PhonebookDatabaseService {
     String? group,
     int? floor,
     String? status, // 'all', 'active', 'alumni'
+    String? tag,
     bool? hasDob,
     bool? hasParent,
     bool? hasWhatsApp,
@@ -217,7 +228,7 @@ class PhonebookDatabaseService {
       final cleanedNum = cleanQuery.replaceAll(RegExp(r'\D'), '');
       if (cleanedNum.isNotEmpty && cleanedNum.length >= 3) {
         whereClauses.add(
-          '(phone LIKE ? OR phone_normalized LIKE ? OR name LIKE ? OR student_id LIKE ? OR enrollment_number LIKE ? OR department LIKE ? OR aadhar LIKE ? OR bank_code LIKE ? OR father_name LIKE ? OR mother_name LIKE ? OR room_num LIKE ?)',
+          '(phone LIKE ? OR phone_normalized LIKE ? OR name LIKE ? OR student_id LIKE ? OR enrollment_number LIKE ? OR aadhar LIKE ? OR bank_code LIKE ? OR father_name LIKE ? OR mother_name LIKE ? OR room_num LIKE ?)',
         );
         whereArgs.addAll([
           '%$cleanQuery%',
@@ -233,10 +244,9 @@ class PhonebookDatabaseService {
         ]);
       } else {
         whereClauses.add(
-          '(name LIKE ? OR student_id LIKE ? OR enrollment_number LIKE ? OR department LIKE ? OR aadhar LIKE ? OR bank_code LIKE ? OR father_name LIKE ? OR mother_name LIKE ? OR room_num LIKE ?)',
+          '(name LIKE ? OR student_id LIKE ? OR enrollment_number LIKE ? OR aadhar LIKE ? OR bank_code LIKE ? OR father_name LIKE ? OR mother_name LIKE ? OR room_num LIKE ?)',
         );
         whereArgs.addAll([
-          '%$cleanQuery%',
           '%$cleanQuery%',
           '%$cleanQuery%',
           '%$cleanQuery%',
@@ -306,6 +316,12 @@ class PhonebookDatabaseService {
       whereClauses.add('(aadhar IS NOT NULL AND aadhar != "" AND aadhar != "null")');
     }
 
+    // Tag filter
+    if (tag != null && tag.isNotEmpty && tag.toLowerCase() != 'all') {
+      whereClauses.add('(tags LIKE ?)');
+      whereArgs.add('%$tag%');
+    }
+
     final whereString =
         whereClauses.isNotEmpty ? whereClauses.join(' AND ') : null;
 
@@ -315,10 +331,10 @@ class PhonebookDatabaseService {
         orderByClause = 'name COLLATE NOCASE DESC';
         break;
       case 'room_asc':
-        orderByClause = 'CASE WHEN room_num IS NULL OR room_num = "" OR LOWER(room_num) = "alumni" THEN 1 ELSE 0 END, room_num ASC, name COLLATE NOCASE ASC';
+        orderByClause = 'CASE WHEN room_num IS NULL OR room_num = "" OR LOWER(room_num) = "alumni" OR LOWER(room_num) = "n/a" THEN 1 ELSE 0 END ASC, CAST(room_num AS INTEGER) ASC, room_num ASC, name COLLATE NOCASE ASC';
         break;
       case 'room_desc':
-        orderByClause = 'CASE WHEN room_num IS NULL OR room_num = "" OR LOWER(room_num) = "alumni" THEN 1 ELSE 0 END, room_num DESC, name COLLATE NOCASE ASC';
+        orderByClause = 'CASE WHEN room_num IS NULL OR room_num = "" OR LOWER(room_num) = "alumni" OR LOWER(room_num) = "n/a" THEN 1 ELSE 0 END ASC, CAST(room_num AS INTEGER) DESC, room_num DESC, name COLLATE NOCASE ASC';
         break;
       case 'floor_asc':
         orderByClause = 'CASE WHEN floor_num IS NULL THEN 1 ELSE 0 END, floor_num ASC, room_num ASC, name COLLATE NOCASE ASC';
@@ -350,7 +366,7 @@ class PhonebookDatabaseService {
 
       if (!studentMap.containsKey(sId)) {
         studentMap[sId] = {
-          'id': row['id'],
+          'id': sId,
           'student_id': row['student_id'],
           'name': row['name'],
           'enrollment_number': row['enrollment_number'],
@@ -371,6 +387,7 @@ class PhonebookDatabaseService {
           'room_num': row['room_num'],
           'group_name': row['group_name'],
           'floor_num': row['floor_num'],
+          'tags': _parseTagsJson(row['tags']),
           'phones': <Map<String, dynamic>>[],
           'updated_at': row['updated_at'],
         };
@@ -393,6 +410,32 @@ class PhonebookDatabaseService {
     return studentMap.values
         .map((data) => PhonebookStudent.fromJson(data))
         .toList();
+  }
+
+  static List<dynamic>? _parseTagsJson(dynamic raw) {
+    if (raw == null) return null;
+    if (raw is List) return raw;
+    if (raw is String && raw.isNotEmpty && raw != 'null') {
+      try {
+        final decoded = jsonDecode(raw);
+        if (decoded is List) return decoded;
+      } catch (_) {}
+    }
+    return null;
+  }
+
+  /// Updates tags in the local cache for a specific student.
+  Future<void> updateStudentTags(String studentId, List<StudentTag> tags) async {
+    try {
+      final db = await database;
+      final tagsJson = jsonEncode(tags.map((t) => t.toJson()).toList());
+      await db.update(
+        'student_cache',
+        {'tags': tagsJson},
+        where: 'student_id = ? OR id = ? OR bank_code = ?',
+        whereArgs: [studentId, studentId, studentId],
+      );
+    } catch (_) {}
   }
 
   /// Group and status per bank code, for showing them elsewhere (birthday cards).
@@ -464,5 +507,91 @@ class PhonebookDatabaseService {
   Future<void> clearCache() async {
     final db = await database;
     await db.delete('student_cache');
+  }
+
+  /// Inserts or replaces an additional contact phone record in local cache
+  Future<void> insertAdditionalPhone({
+    required String studentId,
+    required String phone,
+    required String label,
+    bool isPrimary = false,
+  }) async {
+    final db = await database;
+    final rows = await db.query(
+      'student_cache',
+      where: 'student_id = ? OR id = ? OR bank_code = ?',
+      whereArgs: [studentId, studentId, studentId],
+      limit: 1,
+    );
+    if (rows.isEmpty) return;
+    final existing = Map<String, dynamic>.from(rows.first);
+    final normPhone = PhoneNumberNormalizer.normalize(phone) ?? phone;
+    final cacheId = '${existing['student_id']}_${phone}_$label';
+
+    await db.insert(
+      'student_cache',
+      {
+        ...existing,
+        'id': cacheId,
+        'phone': phone,
+        'phone_normalized': normPhone,
+        'phone_label': label,
+        'is_primary': isPrimary ? 1 : 0,
+        'updated_at': DateTime.now().toIso8601String(),
+      },
+      conflictAlgorithm: ConflictAlgorithm.replace,
+    );
+  }
+
+  /// Deletes a specific additional phone number record from local cache
+  Future<void> deleteAdditionalPhone({
+    required String studentId,
+    required String phone,
+  }) async {
+    final db = await database;
+    final normPhone = PhoneNumberNormalizer.normalize(phone) ?? phone;
+    await db.delete(
+      'student_cache',
+      where: '(student_id = ? OR bank_code = ?) AND (phone = ? OR phone_normalized = ?)',
+      whereArgs: [studentId, studentId, phone, normPhone],
+    );
+  }
+
+  /// Updates base student contact information across all rows of this student
+  Future<void> updateBaseContacts({
+    required String studentId,
+    String? primaryPhone,
+    String? whatsappNumber,
+    String? fatherPhone,
+    String? motherPhone,
+  }) async {
+    final db = await database;
+    final updates = <String, dynamic>{
+      'updated_at': DateTime.now().toIso8601String(),
+    };
+    if (whatsappNumber != null) updates['whatsapp_number'] = whatsappNumber;
+    if (fatherPhone != null) updates['father_phone'] = fatherPhone;
+    if (motherPhone != null) updates['mother_phone'] = motherPhone;
+
+    if (primaryPhone != null && primaryPhone.isNotEmpty) {
+      final norm = PhoneNumberNormalizer.normalize(primaryPhone) ?? primaryPhone;
+      await db.update(
+        'student_cache',
+        {
+          ...updates,
+          'phone': primaryPhone,
+          'phone_normalized': norm,
+        },
+        where: '(student_id = ? OR bank_code = ?) AND is_primary = 1',
+        whereArgs: [studentId, studentId],
+      );
+    }
+
+    await db.update(
+      'student_cache',
+      updates,
+      where: 'student_id = ? OR bank_code = ?',
+      whereArgs: [studentId, studentId],
+    );
   }
 }

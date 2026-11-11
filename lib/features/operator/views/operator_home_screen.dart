@@ -790,6 +790,27 @@ class _OperatorHomeDashboard extends StatelessWidget {
         route: Routes.operatorManageUsers,
         adminOnly: true,
       ),
+      _OperatorAction(
+        title: 'Broadcast',
+        subtitle: 'Message students by\ntag or by name',
+        icon: Icons.campaign_rounded,
+        iconColor: Color(0xFFDB2777),
+        bgTint: Color(0xFFFCE7F3),
+        arrowBgTint: Color(0xFFFDF2F8),
+        waveColor: Color(0xFFFBCFE8),
+        route: Routes.operatorBroadcasts,
+        adminOnly: true,
+      ),
+      _OperatorAction(
+        title: 'Forms & Polls',
+        subtitle: 'Ask students, see\nanswers & results',
+        icon: Icons.how_to_vote_rounded,
+        iconColor: Color(0xFF7C3AED),
+        bgTint: Color(0xFFEDE9FE),
+        arrowBgTint: Color(0xFFF5F3FF),
+        waveColor: Color(0xFFDDD6FE),
+        route: Routes.operatorForms,
+      ),
     ]),
   ];
 

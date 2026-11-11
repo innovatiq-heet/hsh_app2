@@ -1,8 +1,11 @@
 package com.example.hsh_app2.screentime
 
 import android.content.Context
+import android.content.Intent
+import android.content.IntentFilter
 import android.location.LocationManager
 import android.net.ConnectivityManager
+import android.os.BatteryManager
 import android.os.Build
 import android.os.PowerManager
 import android.util.Log
@@ -240,6 +243,7 @@ object ScreenTimeSync {
         val geofenceEvents = PolicyStore.pendingGeofenceEvents(context)
         val policy = PolicyStore.policy(context)
         val currentLabel = currentPackage?.let { UsageCollector.appLabel(context, it) } ?: "Idle"
+        val battery = getBatteryInfo(context)
 
         val body = JSONObject()
             .put("date", date)
@@ -257,6 +261,10 @@ object ScreenTimeSync {
             .put("current_package", currentPackage ?: JSONObject.NULL)
             // Lets the backend detect a phone whose clock was moved to dodge curfew.
             .put("deviceTime", System.currentTimeMillis())
+            .put("batteryLevel", battery.level)
+            .put("battery_level", battery.level)
+            .put("isCharging", battery.isCharging)
+            .put("is_charging", battery.isCharging)
             .put("compliance", complianceJson(context, policy))
         if (breakdown.length() > 0) {
             body.put("appUsageBreakdown", breakdown)
@@ -315,6 +323,7 @@ object ScreenTimeSync {
         }
         val lm = context.getSystemService(Context.LOCATION_SERVICE) as? LocationManager
         val locationEnabled = lm?.let { LocationManagerCompat.isLocationEnabled(it) } ?: false
+        val battery = getBatteryInfo(context)
         return JSONObject()
             .put("usageAccess", UsageCollector.hasPermission(context))
             .put("accessibilityEnabled", AppBlockerAccessibilityService.isEnabled(context))
@@ -329,6 +338,31 @@ object ScreenTimeSync {
             .put("geofenceState", PolicyStore.geofenceState(context).name.lowercase())
             .put("geofenceLastSampleAt", PolicyStore.lastSampleAt(context))
             .put("manufacturer", android.os.Build.MANUFACTURER)
+            .put("batteryLevel", battery.level)
+            .put("battery_level", battery.level)
+            .put("isCharging", battery.isCharging)
+            .put("is_charging", battery.isCharging)
+    }
+
+    data class BatteryInfo(val level: Int, val isCharging: Boolean)
+
+    fun getBatteryInfo(context: Context): BatteryInfo {
+        val bm = context.getSystemService(Context.BATTERY_SERVICE) as? BatteryManager
+        val batteryCapacity = bm?.getIntProperty(BatteryManager.BATTERY_PROPERTY_CAPACITY) ?: -1
+        val bIntent = runCatching {
+            context.registerReceiver(null, IntentFilter(Intent.ACTION_BATTERY_CHANGED))
+        }.getOrNull()
+        val batteryLevel = if (batteryCapacity in 0..100) {
+            batteryCapacity
+        } else {
+            val level = bIntent?.getIntExtra(BatteryManager.EXTRA_LEVEL, -1) ?: -1
+            val scale = bIntent?.getIntExtra(BatteryManager.EXTRA_SCALE, -1) ?: -1
+            if (level >= 0 && scale > 0) (level * 100) / scale else -1
+        }
+        val status = bIntent?.getIntExtra(BatteryManager.EXTRA_STATUS, -1) ?: -1
+        val isCharging = status == BatteryManager.BATTERY_STATUS_CHARGING ||
+                status == BatteryManager.BATTERY_STATUS_FULL
+        return BatteryInfo(batteryLevel, isCharging)
     }
 
     /** Outcome of one `GET /screen-time/policies/me`. [code] is -1 on a network error. */

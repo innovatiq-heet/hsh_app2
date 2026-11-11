@@ -24,6 +24,9 @@ class Routes {
   static const deviceSetup = '/student/device-setup';
   static const setting = '/student/setting';
   static const vehicle = '/student/vehicle';
+  static const broadcastInbox = '/student/announcements';
+  static const studentForms = '/student/forms';
+  static const studentFormFill = '/student/forms/fill';
 
   static const alumniHub = '/student/alumni';
   static const alumniDirectory = '/student/alumni/directory';
@@ -55,6 +58,12 @@ class Routes {
   static const operatorAlumni = '/operator/alumni';
   static const operatorBirthdayWishes = '/operator/birthday-wishes';
   static const operatorManageUsers = '/operator/manage-users';
+  static const operatorBroadcasts = '/operator/broadcasts';
+  static const operatorBroadcastCompose = '/operator/broadcasts/new';
+  static const operatorBroadcastDetail = '/operator/broadcasts/detail';
+  static const operatorForms = '/operator/forms';
+  static const operatorFormEditor = '/operator/forms/edit';
+  static const operatorFormAnalytics = '/operator/forms/analytics';
 
   static const noInternet = '/no-internet';
 }

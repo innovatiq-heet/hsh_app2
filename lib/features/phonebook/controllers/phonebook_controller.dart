@@ -11,9 +11,14 @@ import '../../../core/enums/user_role.dart';
 import '../../../core/network/api_client.dart';
 import '../../../core/storage/session_store.dart';
 import '../../../core/utils/app_snackbar.dart';
+import '../../../core/models/tags/student_tag_model.dart';
+import '../../../core/network/repository/screentime/screen_time_repository.dart';
+import '../../../core/network/repository/tags/tags_repository.dart';
 import '../services/caller_id_service.dart';
 import '../models/phonebook_models.dart';
+import '../services/phone_number_normalizer.dart';
 import '../services/phonebook_database_service.dart';
+import '../services/phonebook_favourites_service.dart';
 import '../services/phonebook_sync_service.dart';
 import '../widgets/alpha_scroll_rail.dart' show RailEntry;
 
@@ -27,6 +32,10 @@ class PhonebookController extends GetxController {
   final isLoading = true.obs;
   final isSyncing = false.obs;
   final isSearching = false.obs;
+
+  // Tag filter
+  final selectedTag = 'All'.obs;
+  final availableTags = <StudentTag>[].obs;
 
   // Scroll controller exposed so the alphabet rail can jump to a letter
   final listScrollController = ScrollController();
@@ -91,10 +100,16 @@ class PhonebookController extends GetxController {
   final selectedStudentIds = <String>{}.obs;
 
   int get selectedCount => selectedStudentIds.length;
-  bool isStudentSelected(String id) => selectedStudentIds.contains(id); // 'Name (A-Z)', 'Name (Z-A)', 'Room (Low-High)', 'Room (High-Low)'
+  bool isStudentSelected(String id) => selectedStudentIds.contains(id);
+  bool get areAllVisibleSelected =>
+      students.isNotEmpty && students.every((s) => selectedStudentIds.contains(s.id));
 
   final lastSync = Rxn<DateTime>();
   final totalCachedCount = 0.obs;
+
+  /// Students this admin dials most, shown in the Favourites strip.
+  /// Filled automatically from call counts kept on this device.
+  final favourites = <PhonebookFavourite>[].obs;
 
   /// Truecaller-style caller ID for this warden's phone.
   final callerId = const CallerIdStatus().obs;
@@ -151,6 +166,7 @@ class PhonebookController extends GetxController {
     if (selectedGroup.value != 'All') count++;
     if (selectedFloor.value != 'All') count++;
     if (selectedStatus.value != 'All') count++;
+    if (selectedTag.value != 'All') count++;
     if (onlyWithDob.value) count++;
     if (onlyWithParents.value) count++;
     if (onlyWithWhatsApp.value) count++;
@@ -168,6 +184,16 @@ class PhonebookController extends GetxController {
     super.onInit();
     _checkAdminAccess();
     _startPeriodicSync();
+    _loadAvailableTags();
+  }
+
+  Future<void> _loadAvailableTags() async {
+    try {
+      if (Get.isRegistered<TagsRepository>()) {
+        final tags = await Get.find<TagsRepository>().getTags();
+        availableTags.assignAll(dedupeTags(tags));
+      }
+    } catch (_) {}
   }
 
   @override
@@ -224,6 +250,7 @@ class PhonebookController extends GetxController {
     // 2. Concurrently load local SQLite cached data for immediate zero-latency display
     await _loadMetadata();
     await search();
+    await loadFavourites();
     await refreshCallerIdStatus();
 
     // iOS: if Caller ID is already enabled, push a fresh directory every time
@@ -301,17 +328,34 @@ class PhonebookController extends GetxController {
   }
 
   void selectGroup(String group) {
-    selectedGroup.value = group;
+    if (selectedGroup.value == group) {
+      selectedGroup.value = 'All';
+    } else {
+      selectedGroup.value = group;
+    }
+    selectedStudentIds.clear();
+    isSelectionMode.value = false;
     search();
   }
 
   void selectFloor(String floor) {
     selectedFloor.value = floor;
+    selectedStudentIds.clear();
+    isSelectionMode.value = false;
     search();
   }
 
   void selectStatus(String status) {
     selectedStatus.value = status;
+    selectedStudentIds.clear();
+    isSelectionMode.value = false;
+    search();
+  }
+
+  void selectTag(String tag) {
+    selectedTag.value = tag;
+    selectedStudentIds.clear();
+    isSelectionMode.value = false;
     search();
   }
 
@@ -349,6 +393,7 @@ class PhonebookController extends GetxController {
     selectedGroup.value = 'All';
     selectedFloor.value = 'All';
     selectedStatus.value = 'All';
+    selectedTag.value = 'All';
     onlyWithDob.value = false;
     onlyWithParents.value = false;
     onlyWithWhatsApp.value = false;
@@ -367,6 +412,51 @@ class PhonebookController extends GetxController {
     searchController.clear();
     searchText.value = '';
     search();
+  }
+
+  /// Extracts the numeric prefix and any alphanumeric suffix from a room string.
+  /// E.g. "2" -> (number: 2, suffix: ""), "10" -> (number: 10, suffix: ""), "101A" -> (number: 101, suffix: "A")
+  static ({int number, String suffix}) parseRoomNumber(String? room) {
+    if (room == null || room.trim().isEmpty) return (number: 999999, suffix: '');
+    final trimmed = room.trim();
+    if (trimmed.toLowerCase() == 'alumni' || trimmed.toLowerCase() == 'n/a') {
+      return (number: 999999, suffix: trimmed);
+    }
+    final match = RegExp(r'^(\d+)(.*)$').firstMatch(trimmed);
+    if (match != null) {
+      final num = int.tryParse(match.group(1)!) ?? 999999;
+      final suffix = match.group(2)?.trim() ?? '';
+      return (number: num, suffix: suffix);
+    }
+    return (number: 999999, suffix: trimmed);
+  }
+
+  /// Compares two student rooms naturally (numeric room values, e.g. 2 < 10),
+  /// keeping Alumni/NA consistently at the end.
+  static int compareRooms(PhonebookStudent a, PhonebookStudent b, {bool ascending = true}) {
+    final aRoom = a.room;
+    final bRoom = b.room;
+    final aAlumni = a.isAlumni || aRoom == null || aRoom.toLowerCase() == 'alumni' || aRoom.toLowerCase() == 'n/a';
+    final bAlumni = b.isAlumni || bRoom == null || bRoom.toLowerCase() == 'alumni' || bRoom.toLowerCase() == 'n/a';
+
+    if (aAlumni && !bAlumni) return 1;
+    if (!aAlumni && bAlumni) return -1;
+    if (aAlumni && bAlumni) {
+      return a.name.trim().toLowerCase().compareTo(b.name.trim().toLowerCase());
+    }
+
+    final pA = parseRoomNumber(aRoom);
+    final pB = parseRoomNumber(bRoom);
+
+    int cmp = pA.number.compareTo(pB.number);
+    if (cmp == 0) {
+      cmp = pA.suffix.compareTo(pB.suffix);
+    }
+    if (cmp == 0) {
+      cmp = a.name.trim().toLowerCase().compareTo(b.name.trim().toLowerCase());
+    }
+
+    return ascending ? cmp : -cmp;
   }
 
   Future<void> search({bool forceLoading = false}) async {
@@ -412,6 +502,7 @@ class PhonebookController extends GetxController {
         group: selectedGroup.value == 'All' ? null : selectedGroup.value,
         floor: floorNumber,
         status: statusFilter,
+        tag: selectedTag.value == 'All' ? null : selectedTag.value,
         hasDob: onlyWithDob.value ? true : null,
         hasParent: onlyWithParents.value ? true : null,
         hasWhatsApp: onlyWithWhatsApp.value ? true : null,
@@ -421,6 +512,12 @@ class PhonebookController extends GetxController {
       );
       if (selectedSort.value == 'Name (A-Z)') {
         results.sort((a, b) => a.name.trim().toLowerCase().compareTo(b.name.trim().toLowerCase()));
+      } else if (selectedSort.value == 'Name (Z-A)') {
+        results.sort((a, b) => b.name.trim().toLowerCase().compareTo(a.name.trim().toLowerCase()));
+      } else if (selectedSort.value == 'Room (Low-High)') {
+        results.sort((a, b) => compareRooms(a, b, ascending: true));
+      } else if (selectedSort.value == 'Room (High-Low)') {
+        results.sort((a, b) => compareRooms(a, b, ascending: false));
       }
       if (selectedSort.value.startsWith('Name')) {
         // Residents (with a room) first, alumni after, each keeping name order.
@@ -445,6 +542,16 @@ class PhonebookController extends GetxController {
       isLoading.value = false;
       isSearching.value = false;
     }
+  }
+
+  /// Updates student tags in memory and SQLite cache without full reload
+  void updateStudentTagsInList(String studentId, List<StudentTag> newTags) {
+    final idx = students.indexWhere((s) => s.id == studentId || s.studentId == studentId);
+    if (idx != -1) {
+      students[idx] = students[idx].copyWith(tags: newTags);
+      students.refresh();
+    }
+    PhonebookDatabaseService.instance.updateStudentTags(studentId, newTags);
   }
 
   /// Rebuilds the letter → first-index map from the current student list.
@@ -499,6 +606,7 @@ class PhonebookController extends GetxController {
       if (res.success) {
         await _loadMetadata();
         await search();
+        await loadFavourites();
         CallerIdService.syncDirectory();
         debugPrint(
           '[PhonebookController] ✅ syncNow completed: ${res.totalStudents} students, ${res.totalPhones} phones',
@@ -576,15 +684,149 @@ class PhonebookController extends GetxController {
     return null;
   }
 
-  Future<void> makeCall(String phone) async {
+  final Map<String, int> _tagStudentIds = {};
+
+  /// `students.id` for tag calls, without asking anyone: the strict
+  /// [findScreenTimeStudentId] match first, then a lone Screen Time entry with
+  /// the same name (and room, when both have one). Null when unsure. Cached
+  /// per phonebook student.
+  Future<int?> resolveStudentIdForTags(PhonebookStudent student) async {
+    final cached = _tagStudentIds[student.id];
+    if (cached != null) return cached;
+
+    int? id = int.tryParse(await findScreenTimeStudentId(student) ?? '');
+    if (id == null) {
+      try {
+        final page = await ScreenTimeRepository()
+            .students(limit: 20, offset: 0, search: student.name.trim());
+        final name = _norm(student.name);
+        final room = _norm(student.room);
+        final matches = page.students.whereType<Map>().where((e) {
+          if (int.tryParse((e['id'] ?? '').toString().trim()) == null) return false;
+          if (_norm(e['name'] ?? e['fullName']) != name) return false;
+          final r = _norm(e['room'] ?? e['room_number'] ?? e['roomNumber']);
+          return room.isEmpty || r.isEmpty || r == room;
+        }).toList();
+        if (matches.length == 1) {
+          id = int.tryParse(matches.first['id'].toString().trim());
+        }
+      } catch (e) {
+        debugPrint('[Phonebook] resolveStudentIdForTags failed: $e');
+      }
+    }
+    if (id != null) _tagStudentIds[student.id] = id;
+    return id;
+  }
+
+  /// Loads the student's current tags (system + assigned) and stores them in
+  /// the list and cache. Returns null when the student can't be resolved or
+  /// the request fails.
+  Future<List<StudentTag>?> refreshStudentTags(PhonebookStudent student) async {
+    try {
+      final id = await resolveStudentIdForTags(student);
+      if (id == null) return null;
+      final res = await Get.find<TagsRepository>().getStudentTags(id);
+      final tags = dedupeTags(res.allTags);
+      updateStudentTagsInList(student.id, tags);
+      return tags;
+    } catch (e) {
+      debugPrint('[Phonebook] refreshStudentTags failed: $e');
+      return null;
+    }
+  }
+
+  /// Opens the dialer for [phone]. When [student] is given, the call is
+  /// counted so frequently dialled students appear in Favourites.
+  Future<void> makeCall(String phone, {PhonebookStudent? student}) async {
     final cleaned = phone.replaceAll(RegExp(r'[^\d+]'), '');
     if (cleaned.isEmpty) return;
     final uri = Uri.parse('tel:$cleaned');
     if (await canLaunchUrl(uri)) {
       await launchUrl(uri);
+      if (student != null) {
+        await PhonebookFavouritesService.instance.recordCall(
+          studentKey: student.id,
+          name: student.name,
+          phone: phone,
+        );
+        await loadFavourites();
+      }
     } else {
       AppSnackbar.warning('Cannot Place Call', 'Dialer could not be opened for $phone');
     }
+  }
+
+  // --- FAVOURITES (most dialled) ---
+
+  /// Rebuilds [favourites] from the stored call counts, using the latest
+  /// directory data for each student. Students no longer in the directory
+  /// are skipped.
+  Future<void> loadFavourites() async {
+    try {
+      final stats = await PhonebookFavouritesService.instance.topFavourites();
+      final result = <PhonebookFavourite>[];
+      for (final stat in stats) {
+        final student = await _findStudentByKey(stat.studentKey, stat.name);
+        if (student == null) continue;
+        final phone = stat.mostDialledNumber.isNotEmpty
+            ? stat.mostDialledNumber
+            : student.primaryPhone;
+        result.add(PhonebookFavourite(
+          student: student,
+          callCount: stat.totalCalls,
+          phone: phone,
+          phoneLabel: _labelForNumber(student, phone),
+        ));
+      }
+      favourites.assignAll(result);
+    } catch (e) {
+      debugPrint('[PhonebookController] loadFavourites failed: $e');
+    }
+  }
+
+  Future<PhonebookStudent?> _findStudentByKey(String key, String name) async {
+    for (final s in students) {
+      if (s.id == key) return s;
+    }
+    for (final query in {key, name}) {
+      if (query.trim().isEmpty) continue;
+      final results = await PhonebookDatabaseService.instance.searchStudents(
+        query: query,
+        limit: 20,
+      );
+      for (final s in results) {
+        if (s.id == key) return s;
+      }
+    }
+    return null;
+  }
+
+  /// Who a dialled number belongs to: the student's own number label,
+  /// or Father / Mother / WhatsApp.
+  static String _labelForNumber(PhonebookStudent student, String phone) {
+    final n = PhoneNumberNormalizer.normalize(phone);
+    bool same(String? other) =>
+        other != null && n != null && PhoneNumberNormalizer.normalize(other) == n;
+    for (final p in student.phones) {
+      if (same(p.phone) || same(p.phoneNormalized)) {
+        return p.label.isNotEmpty ? p.label : 'Mobile';
+      }
+    }
+    if (same(student.fatherPhone)) return 'Father';
+    if (same(student.motherPhone)) return 'Mother';
+    if (same(student.whatsappNumber)) return 'WhatsApp';
+    return 'Mobile';
+  }
+
+  /// Takes a student out of Favourites (their call count is reset).
+  Future<void> removeFavourite(PhonebookFavourite favourite) async {
+    HapticFeedback.mediumImpact();
+    await PhonebookFavouritesService.instance.remove(favourite.student.id);
+    favourites.removeWhere((f) => f.student.id == favourite.student.id);
+    AppSnackbar.success(
+      'Removed from Favourites',
+      '${favourite.student.name} will return here if you call them often again.',
+    );
   }
 
   /// Opens a new Gmail message to [email]: the Gmail iOS app when installed,
@@ -655,6 +897,7 @@ class PhonebookController extends GetxController {
         isSelectionMode.value = false;
       }
     } else {
+      isSelectionMode.value = true;
       selectedStudentIds.add(id);
     }
   }
@@ -665,9 +908,26 @@ class PhonebookController extends GetxController {
   }
 
   void toggleSelectAll() {
-    if (selectedStudentIds.length == students.length) {
-      selectedStudentIds.clear();
+    if (areAllVisibleSelected) {
+      for (final s in students) {
+        selectedStudentIds.remove(s.id);
+      }
+      if (selectedStudentIds.isEmpty) {
+        isSelectionMode.value = false;
+      }
     } else {
+      isSelectionMode.value = true;
+      selectedStudentIds.addAll(students.map((s) => s.id));
+    }
+  }
+
+  void selectStudentGroup(String group) {
+    selectGroup(group);
+  }
+
+  void selectAllInCurrentGroup() {
+    if (students.isNotEmpty) {
+      isSelectionMode.value = true;
       selectedStudentIds.addAll(students.map((s) => s.id));
     }
   }
@@ -743,4 +1003,20 @@ class PrecalculateExtentsPolicy extends ExtentPrecalculationPolicy {
   @override
   bool shouldPrecalculateExtents(ExtentPrecalculationContext context) =>
       _enabled && context.numberOfItemsWithEstimatedExtent > 0;
+}
+
+/// One entry of the Favourites strip: a frequently dialled student and the
+/// number dialled most often for them.
+class PhonebookFavourite {
+  final PhonebookStudent student;
+  final int callCount;
+  final String phone;
+  final String phoneLabel;
+
+  const PhonebookFavourite({
+    required this.student,
+    required this.callCount,
+    required this.phone,
+    required this.phoneLabel,
+  });
 }

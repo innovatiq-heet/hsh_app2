@@ -148,6 +148,17 @@ void main() {
       expect(q[1], {'status': 'pending', 'student_id': '903'});
       expect(one, hasLength(1));
     });
+
+    test('reviewAppRequest falls back to plural route when singular 404s', () async {
+      api.on('POST /screen-time/apps/request/9/review', {'message': 'Not found'}, status: 404);
+      api.on('POST /screen-time/apps/requests/9/review', {'success': true});
+
+      await repo.reviewAppRequest(9, 'approve', durationMinutes: 15);
+
+      final calls = api.called('POST /screen-time/apps/requests/9/review');
+      expect(calls, hasLength(1));
+      expect(calls.single.data, {'action': 'approve', 'duration_minutes': 15});
+    });
   });
 
   group('errors', () {

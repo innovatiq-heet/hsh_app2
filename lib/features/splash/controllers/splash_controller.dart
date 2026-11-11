@@ -80,8 +80,16 @@ class SplashController extends GetxController {
     });
   }
 
+  /// Launched by tapping a push notification: open its screen on top of home.
+  Future<void> _openPushTargetIfAny() async {
+    if (!Get.isRegistered<PushNotificationService>()) return;
+    await Future.delayed(const Duration(milliseconds: 400));
+    PushNotificationService.to.openPendingNotification();
+  }
+
   void _routeByRole(UserRole role, {bool isAlumni = false}) {
     _openCallerIdTargetIfAny(role);
+    if (role != UserRole.unknown) _openPushTargetIfAny();
     switch (role) {
       case UserRole.student:
       case UserRole.leader:

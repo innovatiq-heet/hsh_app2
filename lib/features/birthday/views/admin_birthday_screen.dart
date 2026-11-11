@@ -303,14 +303,14 @@ class AdminBirthdayScreen extends GetView<AdminBirthdayController> {
               isSelected: current == 2,
               activeColor: const Color(0xFFD97706),
             ),
-            // const SizedBox(width: 8),
-            // _buildTabPill(
-            //   index: 3,
-            //   label: 'Directory',
-            //   icon: Icons.people_alt_rounded,
-            //   isSelected: current == 3,
-            //   activeColor: const Color(0xFF6366F1),
-            // ),
+            const SizedBox(width: 8),
+            _buildTabPill(
+              index: 3,
+              label: 'Directory',
+              icon: Icons.people_alt_rounded,
+              isSelected: current == 3,
+              activeColor: const Color(0xFF6366F1),
+            ),
             const SizedBox(width: 8),
             _buildTabPill(
               index: 4,
@@ -590,10 +590,69 @@ class AdminBirthdayScreen extends GetView<AdminBirthdayController> {
         ),
         const SizedBox(height: 16),
 
-        _buildSectionHeader(title: "Today's Celebrants (${list.length})"),
-        const SizedBox(height: 12),
+        ...() {
+          final hostelList = list.where((s) => !controller.isAlumni(s)).toList();
+          final alumniList = list.where((s) => controller.isAlumni(s)).toList();
 
-        ...list.map((s) => _buildStudentCelebrantCard(s, isToday: true)),
+          if (hostelList.isNotEmpty && alumniList.isNotEmpty) {
+            return [
+              _buildSectionHeader(
+                title: "Hostel Celebrants (${hostelList.length})",
+                trailing: Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFFE0F2FE),
+                    borderRadius: BorderRadius.circular(10),
+                  ),
+                  child: const Text(
+                    'RESIDENTS FIRST',
+                    style: TextStyle(
+                      color: Color(0xFF0284C7),
+                      fontSize: 9.5,
+                      fontWeight: FontWeight.w800,
+                      letterSpacing: 0.3,
+                    ),
+                  ),
+                ),
+              ),
+              const SizedBox(height: 12),
+              ...hostelList.map((s) => _buildStudentCelebrantCard(s, isToday: true)),
+              const SizedBox(height: 20),
+              _buildSectionHeader(
+                title: "Alumni Celebrants (${alumniList.length})",
+                trailing: Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFFF3E8FF),
+                    borderRadius: BorderRadius.circular(10),
+                  ),
+                  child: const Text(
+                    'ALUMNI',
+                    style: TextStyle(
+                      color: Color(0xFF9333EA),
+                      fontSize: 9.5,
+                      fontWeight: FontWeight.w800,
+                      letterSpacing: 0.3,
+                    ),
+                  ),
+                ),
+              ),
+              const SizedBox(height: 12),
+              ...alumniList.map((s) => _buildStudentCelebrantCard(s, isToday: true)),
+            ];
+          }
+
+          final isAlumniOnly = hostelList.isEmpty && alumniList.isNotEmpty;
+          return [
+            _buildSectionHeader(
+              title: isAlumniOnly
+                  ? "Alumni Celebrants (${list.length})"
+                  : "Today's Celebrants (${list.length})",
+            ),
+            const SizedBox(height: 12),
+            ...list.map((s) => _buildStudentCelebrantCard(s, isToday: true)),
+          ];
+        }(),
       ],
     );
   }
@@ -616,9 +675,69 @@ class AdminBirthdayScreen extends GetView<AdminBirthdayController> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        _buildSectionHeader(title: "Tomorrow's Celebrants (${list.length})"),
-        const SizedBox(height: 12),
-        ...list.map((s) => _buildStudentCelebrantCard(s, isToday: false)),
+        ...() {
+          final hostelList = list.where((s) => !controller.isAlumni(s)).toList();
+          final alumniList = list.where((s) => controller.isAlumni(s)).toList();
+
+          if (hostelList.isNotEmpty && alumniList.isNotEmpty) {
+            return [
+              _buildSectionHeader(
+                title: "Hostel Celebrants (${hostelList.length})",
+                trailing: Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFFE0F2FE),
+                    borderRadius: BorderRadius.circular(10),
+                  ),
+                  child: const Text(
+                    'RESIDENTS FIRST',
+                    style: TextStyle(
+                      color: Color(0xFF0284C7),
+                      fontSize: 9.5,
+                      fontWeight: FontWeight.w800,
+                      letterSpacing: 0.3,
+                    ),
+                  ),
+                ),
+              ),
+              const SizedBox(height: 12),
+              ...hostelList.map((s) => _buildStudentCelebrantCard(s, isToday: false)),
+              const SizedBox(height: 20),
+              _buildSectionHeader(
+                title: "Alumni Celebrants (${alumniList.length})",
+                trailing: Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFFF3E8FF),
+                    borderRadius: BorderRadius.circular(10),
+                  ),
+                  child: const Text(
+                    'ALUMNI',
+                    style: TextStyle(
+                      color: Color(0xFF9333EA),
+                      fontSize: 9.5,
+                      fontWeight: FontWeight.w800,
+                      letterSpacing: 0.3,
+                    ),
+                  ),
+                ),
+              ),
+              const SizedBox(height: 12),
+              ...alumniList.map((s) => _buildStudentCelebrantCard(s, isToday: false)),
+            ];
+          }
+
+          final isAlumniOnly = hostelList.isEmpty && alumniList.isNotEmpty;
+          return [
+            _buildSectionHeader(
+              title: isAlumniOnly
+                  ? "Alumni Celebrants (${list.length})"
+                  : "Tomorrow's Celebrants (${list.length})",
+            ),
+            const SizedBox(height: 12),
+            ...list.map((s) => _buildStudentCelebrantCard(s, isToday: false)),
+          ];
+        }(),
       ],
     );
   }
@@ -1570,6 +1689,55 @@ class AdminBirthdayScreen extends GetView<AdminBirthdayController> {
             ),
           ),
         ),
+        const SizedBox(height: 12),
+
+        // Filter chips bar
+        Obx(() {
+          final list = controller.allStudents;
+          final hostelCount = list.where((s) => !controller.isAlumni(s)).length;
+          final alumniCount = list.where((s) => controller.isAlumni(s)).length;
+          final withDobCount = list.where((s) => s.dob.trim().isNotEmpty).length;
+          final currentFilter = controller.directoryFilter.value;
+
+          return SingleChildScrollView(
+            scrollDirection: Axis.horizontal,
+            physics: const BouncingScrollPhysics(),
+            child: Row(
+              children: [
+                _buildDirectoryFilterChip(
+                  label: 'All (${list.length})',
+                  isSelected: currentFilter == 'all',
+                  onTap: () => controller.directoryFilter.value = 'all',
+                  activeColor: const Color(0xFF0284C7),
+                ),
+                const SizedBox(width: 8),
+                _buildDirectoryFilterChip(
+                  label: 'Hostel Residents ($hostelCount)',
+                  icon: Icons.home_rounded,
+                  isSelected: currentFilter == 'hostel',
+                  onTap: () => controller.directoryFilter.value = 'hostel',
+                  activeColor: const Color(0xFF0284C7),
+                ),
+                const SizedBox(width: 8),
+                _buildDirectoryFilterChip(
+                  label: 'With Birthday ($withDobCount)',
+                  icon: Icons.cake_outlined,
+                  isSelected: currentFilter == 'has_dob',
+                  onTap: () => controller.directoryFilter.value = 'has_dob',
+                  activeColor: const Color(0xFFD97706),
+                ),
+                const SizedBox(width: 8),
+                _buildDirectoryFilterChip(
+                  label: 'Alumni ($alumniCount)',
+                  icon: Icons.school_rounded,
+                  isSelected: currentFilter == 'alumni',
+                  onTap: () => controller.directoryFilter.value = 'alumni',
+                  activeColor: const Color(0xFF9333EA),
+                ),
+              ],
+            ),
+          );
+        }),
         const SizedBox(height: 14),
 
         Obx(() {
@@ -1594,124 +1762,359 @@ class AdminBirthdayScreen extends GetView<AdminBirthdayController> {
             );
           }
 
-          return Column(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              Text(
-                'Showing ${list.length} Students (Active & Alumni)',
-                style: const TextStyle(
-                  fontWeight: FontWeight.w700,
-                  fontSize: 12.5,
-                  color: Color(0xFF64748B),
-                ),
-              ),
-              const SizedBox(height: 10),
-              ...list
-                  .take(100)
-                  .map(
-                    (s) => Container(
-                      margin: const EdgeInsets.only(bottom: 8),
-                      padding: const EdgeInsets.all(12),
-                      decoration: BoxDecoration(
-                        color: Colors.white,
-                        borderRadius: BorderRadius.circular(14),
-                        border: Border.all(color: const Color(0xFFE2E8F0)),
-                        boxShadow: [
-                          BoxShadow(
-                            color: const Color(
-                              0xFF0F172A,
-                            ).withValues(alpha: 0.02),
-                            blurRadius: 6,
-                            offset: const Offset(0, 2),
-                          ),
-                        ],
-                      ),
-                      child: Row(
-                        children: [
-                          Container(
-                            width: 38,
-                            height: 38,
-                            decoration: const BoxDecoration(
-                              color: Color(0xFFF1F5F9),
-                              shape: BoxShape.circle,
-                            ),
-                            alignment: Alignment.center,
-                            child: Text(
-                              s.name.isNotEmpty ? s.name[0].toUpperCase() : '?',
-                              style: const TextStyle(
-                                fontSize: 13.5,
-                                fontWeight: FontWeight.w700,
-                                color: Color(0xFF334155),
-                              ),
-                            ),
-                          ),
-                          const SizedBox(width: 12),
-                          Expanded(
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                Text(
-                                  s.name,
-                                  style: const TextStyle(
-                                    fontWeight: FontWeight.w700,
-                                    fontSize: 13.5,
-                                    color: Color(0xFF0F172A),
-                                  ),
-                                  maxLines: 1,
-                                  overflow: TextOverflow.ellipsis,
-                                ),
-                                const SizedBox(height: 3),
-                                Wrap(
-                                  spacing: 6,
-                                  runSpacing: 4,
-                                  children: [
-                                    _buildStudentStatusTag(s),
-                                    if (!controller.isAlumni(s))
-                                      _buildTag(
-                                        icon: Icons.meeting_room_rounded,
-                                        text: s.room == 'N/A'
-                                            ? 'Room N/A'
-                                            : 'Room ${s.room}',
-                                        color: s.room == 'N/A'
-                                            ? const Color(0xFFD97706)
-                                            : null,
-                                      ),
-                                    if (s.dob.isNotEmpty)
-                                      _buildTag(
-                                        icon: Icons.cake_outlined,
-                                        text: s.dob,
-                                      ),
-                                  ],
-                                ),
-                              ],
-                            ),
-                          ),
-                          if (s.phone.isNotEmpty)
-                            IconButton(
-                              icon: const Icon(
-                                Icons.phone_rounded,
-                                size: 18,
-                                color: Color(0xFF0284C7),
-                              ),
-                              onPressed: () => controller.callPhone(s.phone),
-                            ),
-                          if (s.whatsappNumber.isNotEmpty || s.phone.isNotEmpty)
-                            IconButton(
-                              icon: const Icon(
-                                Icons.chat_rounded,
-                                size: 18,
-                                color: Color(0xFF059669),
-                              ),
-                              onPressed: () => controller.sendWishToStudent(s),
-                            ),
-                        ],
+          final currentFilter = controller.directoryFilter.value;
+
+          // Split students: active hostel residents first, alumni afterwards
+          final hostelStudents = list.where((s) => !controller.isAlumni(s)).toList();
+          final alumniStudents = list.where((s) => controller.isAlumni(s)).toList();
+
+          if (currentFilter == 'hostel') {
+            return Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                _buildSectionHeader(
+                  title: 'Hostel Residents (${hostelStudents.length})',
+                  trailing: Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                    decoration: BoxDecoration(
+                      color: const Color(0xFFE0F2FE),
+                      borderRadius: BorderRadius.circular(10),
+                    ),
+                    child: const Text(
+                      'ACTIVE RESIDENTS',
+                      style: TextStyle(
+                        color: Color(0xFF0284C7),
+                        fontSize: 9.5,
+                        fontWeight: FontWeight.w800,
+                        letterSpacing: 0.3,
                       ),
                     ),
                   ),
+                ),
+                const SizedBox(height: 10),
+                ...hostelStudents.map((s) => _buildDirectoryStudentCard(s)),
+              ],
+            );
+          }
+
+          if (currentFilter == 'alumni') {
+            return Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                _buildSectionHeader(
+                  title: 'Alumni Students (${alumniStudents.length})',
+                  trailing: Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                    decoration: BoxDecoration(
+                      color: const Color(0xFFF3E8FF),
+                      borderRadius: BorderRadius.circular(10),
+                    ),
+                    child: const Text(
+                      'ALUMNI',
+                      style: TextStyle(
+                        color: Color(0xFF9333EA),
+                        fontSize: 9.5,
+                        fontWeight: FontWeight.w800,
+                        letterSpacing: 0.3,
+                      ),
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 10),
+                ...alumniStudents.map((s) => _buildDirectoryStudentCard(s)),
+              ],
+            );
+          }
+
+          if (currentFilter == 'has_dob') {
+            final withDobHostel = hostelStudents.where((s) => s.dob.trim().isNotEmpty).toList();
+            final withDobAlumni = alumniStudents.where((s) => s.dob.trim().isNotEmpty).toList();
+
+            return Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                if (withDobHostel.isNotEmpty) ...[
+                  _buildSectionHeader(
+                    title: 'Hostel Residents with Birthday (${withDobHostel.length})',
+                    trailing: Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                      decoration: BoxDecoration(
+                        color: const Color(0xFFFEF3C7),
+                        borderRadius: BorderRadius.circular(10),
+                      ),
+                      child: const Text(
+                        'HOSTEL FIRST',
+                        style: TextStyle(
+                          color: Color(0xFFD97706),
+                          fontSize: 9.5,
+                          fontWeight: FontWeight.w800,
+                          letterSpacing: 0.3,
+                        ),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 10),
+                  ...withDobHostel.map((s) => _buildDirectoryStudentCard(s)),
+                ],
+                if (withDobAlumni.isNotEmpty) ...[
+                  const SizedBox(height: 20),
+                  _buildSectionHeader(
+                    title: 'Alumni with Birthday (${withDobAlumni.length})',
+                    trailing: Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                      decoration: BoxDecoration(
+                        color: const Color(0xFFF3E8FF),
+                        borderRadius: BorderRadius.circular(10),
+                      ),
+                      child: const Text(
+                        'ALUMNI',
+                        style: TextStyle(
+                          color: Color(0xFF9333EA),
+                          fontSize: 9.5,
+                          fontWeight: FontWeight.w800,
+                          letterSpacing: 0.3,
+                        ),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 10),
+                  ...withDobAlumni.map((s) => _buildDirectoryStudentCard(s)),
+                ],
+              ],
+            );
+          }
+
+          // Default: 'all' filter shows Hostel Residents FIRST, followed by Alumni Students AFTERWARDS!
+          return Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              if (hostelStudents.isNotEmpty) ...[
+                _buildSectionHeader(
+                  title: 'Hostel Residents (${hostelStudents.length})',
+                  trailing: Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                    decoration: BoxDecoration(
+                      color: const Color(0xFFE0F2FE),
+                      borderRadius: BorderRadius.circular(10),
+                    ),
+                    child: const Text(
+                      'ACTIVE RESIDENTS FIRST',
+                      style: TextStyle(
+                        color: Color(0xFF0284C7),
+                        fontSize: 9.5,
+                        fontWeight: FontWeight.w800,
+                        letterSpacing: 0.3,
+                      ),
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 10),
+                ...hostelStudents.map((s) => _buildDirectoryStudentCard(s)),
+              ],
+              if (alumniStudents.isNotEmpty) ...[
+                const SizedBox(height: 20),
+                _buildSectionHeader(
+                  title: 'Alumni Students (${alumniStudents.length})',
+                  trailing: Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                    decoration: BoxDecoration(
+                      color: const Color(0xFFF3E8FF),
+                      borderRadius: BorderRadius.circular(10),
+                    ),
+                    child: const Text(
+                      'ALUMNI',
+                      style: TextStyle(
+                        color: Color(0xFF9333EA),
+                        fontSize: 9.5,
+                        fontWeight: FontWeight.w800,
+                        letterSpacing: 0.3,
+                      ),
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 10),
+                ...alumniStudents.map((s) => _buildDirectoryStudentCard(s)),
+              ],
             ],
           );
         }),
       ],
+    );
+  }
+
+  Widget _buildDirectoryFilterChip({
+    required String label,
+    IconData? icon,
+    required bool isSelected,
+    required VoidCallback onTap,
+    required Color activeColor,
+  }) {
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(20),
+        child: AnimatedContainer(
+          duration: const Duration(milliseconds: 180),
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6.5),
+          decoration: BoxDecoration(
+            color: isSelected ? activeColor : Colors.white,
+            borderRadius: BorderRadius.circular(20),
+            border: Border.all(
+              color: isSelected ? activeColor : const Color(0xFFE2E8F0),
+              width: 1.1,
+            ),
+            boxShadow: isSelected
+                ? [
+                    BoxShadow(
+                      color: activeColor.withValues(alpha: 0.25),
+                      blurRadius: 6,
+                      offset: const Offset(0, 2),
+                    ),
+                  ]
+                : [],
+          ),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              if (icon != null) ...[
+                Icon(
+                  icon,
+                  size: 13,
+                  color: isSelected ? Colors.white : const Color(0xFF64748B),
+                ),
+                const SizedBox(width: 4),
+              ],
+              Text(
+                label,
+                style: TextStyle(
+                  fontSize: 11.5,
+                  fontWeight: isSelected ? FontWeight.w700 : FontWeight.w600,
+                  color: isSelected ? Colors.white : const Color(0xFF475569),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildDirectoryStudentCard(BirthdayStudentModel s) {
+    final isAlumni = controller.isAlumni(s);
+    final group = controller.groupFor(s);
+    final Color avatarBgColor = isAlumni
+        ? const Color(0xFFF3E8FF)
+        : (group != null
+            ? StudentContactCard.groupColor(group).withValues(alpha: 0.12)
+            : const Color(0xFFE0F2FE));
+    final Color avatarTextColor = isAlumni
+        ? const Color(0xFF9333EA)
+        : (group != null
+            ? StudentContactCard.groupColor(group)
+            : const Color(0xFF0284C7));
+
+    return Container(
+      margin: const EdgeInsets.only(bottom: 8),
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(
+          color: isAlumni ? const Color(0xFFE9D5FF) : const Color(0xFFE2E8F0),
+        ),
+        boxShadow: [
+          BoxShadow(
+            color: const Color(0xFF0F172A).withValues(alpha: 0.02),
+            blurRadius: 6,
+            offset: const Offset(0, 2),
+          ),
+        ],
+      ),
+      child: Row(
+        children: [
+          Container(
+            width: 38,
+            height: 38,
+            decoration: BoxDecoration(
+              color: avatarBgColor,
+              shape: BoxShape.circle,
+            ),
+            alignment: Alignment.center,
+            child: Text(
+              s.name.isNotEmpty ? s.name[0].toUpperCase() : '?',
+              style: TextStyle(
+                fontSize: 13.5,
+                fontWeight: FontWeight.w700,
+                color: avatarTextColor,
+              ),
+            ),
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  s.name,
+                  style: const TextStyle(
+                    fontWeight: FontWeight.w700,
+                    fontSize: 13.5,
+                    color: Color(0xFF0F172A),
+                  ),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                ),
+                const SizedBox(height: 3),
+                Wrap(
+                  spacing: 6,
+                  runSpacing: 4,
+                  children: [
+                    _buildStudentStatusTag(s),
+                    if (!isAlumni)
+                      _buildTag(
+                        icon: Icons.meeting_room_rounded,
+                        text: s.room == 'N/A' ? 'Room N/A' : 'Room ${s.room}',
+                        color: s.room == 'N/A' ? const Color(0xFFD97706) : null,
+                      ),
+                    if (s.studentCode.isNotEmpty)
+                      _buildTag(
+                        icon: Icons.badge_outlined,
+                        text: s.studentCode,
+                      ),
+                    if (s.dob.isNotEmpty)
+                      _buildTag(
+                        icon: Icons.cake_outlined,
+                        text: s.dob,
+                        color: const Color(0xFFD97706),
+                      ),
+                  ],
+                ),
+              ],
+            ),
+          ),
+          if (s.phone.isNotEmpty)
+            IconButton(
+              icon: const Icon(
+                Icons.phone_rounded,
+                size: 18,
+                color: Color(0xFF0284C7),
+              ),
+              tooltip: 'Call ${s.phone}',
+              onPressed: () => controller.callPhone(s.phone),
+            ),
+          if (s.whatsappNumber.isNotEmpty || s.phone.isNotEmpty)
+            IconButton(
+              icon: const Icon(
+                Icons.chat_rounded,
+                size: 18,
+                color: Color(0xFF059669),
+              ),
+              tooltip: 'Send Birthday Wish',
+              onPressed: () => controller.sendWishToStudent(s),
+            ),
+        ],
+      ),
     );
   }
 

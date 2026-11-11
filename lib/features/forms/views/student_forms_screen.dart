@@ -10,6 +10,7 @@ import '../../shared/widgets/app_card.dart';
 import '../../shared/widgets/app_refresh_indicator.dart';
 import '../../shared/widgets/empty_state.dart';
 import '../../shared/widgets/gradient_header.dart';
+import '../../shared/widgets/meta_text.dart';
 import '../../shared/widgets/status_badge.dart';
 import '../controllers/student_forms_controller.dart';
 import '../widgets/forms_widgets.dart';
@@ -97,33 +98,38 @@ class _StudentFormCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final f = form;
+    final needsAnswer = !f.hasSubmitted && f.isMandatory;
     return AppCard(
       onTap: onTap,
-      color: !f.hasSubmitted && f.isMandatory ? const Color(0xFFFFF7ED) : null,
+      color: needsAnswer ? AppColors.secondarySoft : null,
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Row(children: [
-            FormKindChip(kind: f.kind),
-            const SizedBox(width: AppDimens.gapSm),
-            if (f.hasSubmitted)
-              const StatusBadge(label: 'Answered', color: AppColors.successGreen, icon: Icons.check_circle_rounded)
-            else if (f.isMandatory)
-              const StatusBadge(label: 'Required', color: AppColors.errorRed, icon: Icons.priority_high_rounded),
-            const Spacer(),
+            Expanded(
+              child: Wrap(
+                spacing: AppDimens.gapSm,
+                runSpacing: AppDimens.gapSm,
+                children: [
+                  FormKindChip(kind: f.kind),
+                  if (f.hasSubmitted)
+                    const StatusBadge(label: 'Answered', color: AppColors.successGreen, icon: Icons.check_circle_rounded)
+                  else if (f.isMandatory)
+                    const StatusBadge(label: 'Required', color: AppColors.errorRed, icon: Icons.priority_high_rounded),
+                ],
+              ),
+            ),
             const Icon(Icons.chevron_right_rounded, color: AppColors.textLight),
           ]),
-          const SizedBox(height: AppDimens.gapSm),
-          Text(f.title, style: AppTextStyles.title),
+          const SizedBox(height: AppDimens.gapMd),
+          Text(f.title, style: AppTextStyles.title, maxLines: 2, overflow: TextOverflow.ellipsis),
           if (f.description != null) ...[
-            const SizedBox(height: 4),
-            Text(f.description!, maxLines: 2, overflow: TextOverflow.ellipsis,
-                style: AppTextStyles.bodySm.copyWith(color: AppColors.textSecondary)),
+            const SizedBox(height: AppDimens.gapXs),
+            Text(f.description!, maxLines: 2, overflow: TextOverflow.ellipsis, style: AppTextStyles.bodySm),
           ],
           if (f.endTime != null) ...[
-            const SizedBox(height: AppDimens.gapSm),
-            Text('Closes ${DateFormatting.dateTime(f.endTime!)}',
-                style: AppTextStyles.caption.copyWith(color: AppColors.textMuted)),
+            const SizedBox(height: AppDimens.gapMd),
+            MetaText(icon: Icons.event_outlined, text: 'Closes ${DateFormatting.dateTime(f.endTime!)}'),
           ],
         ],
       ),

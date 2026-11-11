@@ -10,7 +10,11 @@ import '../../shared/widgets/app_card.dart';
 import '../../shared/widgets/app_refresh_indicator.dart';
 import '../../shared/widgets/empty_state.dart';
 import '../../shared/widgets/gradient_header.dart';
+import '../../shared/widgets/icon_badge.dart';
+import '../../shared/widgets/meta_text.dart';
+import '../../shared/widgets/notice_banner.dart';
 import '../../shared/widgets/section_header.dart';
+import '../../shared/widgets/stat_strip.dart';
 import '../controllers/form_analytics_controller.dart';
 import '../widgets/forms_widgets.dart';
 
@@ -63,7 +67,7 @@ class FormAnalyticsScreen extends GetView<FormAnalyticsController> {
                       const SizedBox(height: AppDimens.gapXl),
                       const SectionHeader(title: 'Answers'),
                       if (a.fields.isEmpty)
-                        Text('No answers yet.', style: AppTextStyles.bodySm.copyWith(color: AppColors.textSecondary)),
+                        const NoticeBanner(icon: Icons.hourglass_empty_rounded, message: 'No answers yet.'),
                       for (final f in a.fields)
                         Padding(
                           padding: const EdgeInsets.only(bottom: AppDimens.gapMd),
@@ -90,20 +94,12 @@ class _Summary extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    Widget stat(String label, int value, Color color) => Expanded(
-          child: Column(children: [
-            Text('$value', style: AppTextStyles.headline.copyWith(color: color)),
-            Text(label, textAlign: TextAlign.center, style: AppTextStyles.caption.copyWith(color: AppColors.textSecondary)),
-          ]),
-        );
-    return AppCard(
-      child: Row(children: [
-        stat('Targeted', a.totalTargeted, AppColors.textPrimary),
-        stat('Answered', a.totalResponded, AppColors.successGreen),
-        stat('Seen, not\nanswered', a.seenNotAnswered, AppColors.warningOrange),
-        stat('Never\nseen', a.neverSeen, AppColors.textMuted),
-      ]),
-    );
+    return StatStrip(items: [
+      StatStripItem(value: '${a.totalTargeted}', label: 'Targeted'),
+      StatStripItem(value: '${a.totalResponded}', label: 'Answered', color: AppColors.successGreen),
+      StatStripItem(value: '${a.seenNotAnswered}', label: 'Seen only', color: AppColors.warningOrange),
+      StatStripItem(value: '${a.neverSeen}', label: 'Not seen', color: AppColors.textMuted),
+    ]);
   }
 }
 
@@ -123,10 +119,10 @@ class _FieldResult extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text(field.label.isEmpty ? field.fieldId : field.label, style: AppTextStyles.title),
-          Text('${field.totalAnswered} answered · ${field.type.label}',
-              style: AppTextStyles.caption.copyWith(color: AppColors.textMuted)),
-          const SizedBox(height: AppDimens.gapMd),
+          Text(field.label.isEmpty ? field.fieldId : field.label, style: AppTextStyles.subtitle),
+          const SizedBox(height: AppDimens.gapXs),
+          MetaText(icon: Icons.check_circle_outline_rounded, text: '${field.totalAnswered} answered · ${field.type.label}'),
+          const SizedBox(height: AppDimens.gapLg),
           if (field.breakdown.isNotEmpty)
             for (final b in field.breakdown) BreakdownBar(item: b, isTop: b.count == top && top > 0)
           else
@@ -144,19 +140,29 @@ class _FieldResult extends StatelessWidget {
           (p, p.answers[field.fieldId]),
     ];
     if (answers.isEmpty) {
-      return [Text('No answers yet.', style: AppTextStyles.bodySm.copyWith(color: AppColors.textSecondary))];
+      return [Text('No answers yet.', style: AppTextStyles.bodySm)];
     }
     return [
       for (final (p, v) in answers.take(30))
-        Padding(
-          padding: const EdgeInsets.only(bottom: 6),
-          child: Text.rich(TextSpan(children: [
-            TextSpan(text: '${formatPersonName(p.name)}: ', style: const TextStyle(fontWeight: FontWeight.w700)),
-            TextSpan(text: def == null ? v.toString() : describeAnswer(def, v)),
-          ]), style: AppTextStyles.bodySm),
+        Container(
+          width: double.infinity,
+          margin: const EdgeInsets.only(bottom: AppDimens.gapSm),
+          padding: const EdgeInsets.symmetric(horizontal: AppDimens.gapMd, vertical: 10),
+          decoration: BoxDecoration(
+            color: AppColors.surfaceMuted,
+            borderRadius: BorderRadius.circular(AppDimens.radiusSm),
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(formatPersonName(p.name), style: AppTextStyles.caption.copyWith(color: AppColors.textSecondary)),
+              const SizedBox(height: 2),
+              Text(def == null ? v.toString() : describeAnswer(def, v), style: AppTextStyles.bodyMd),
+            ],
+          ),
         ),
       if (answers.length > 30)
-        Text('+${answers.length - 30} more', style: AppTextStyles.caption.copyWith(color: AppColors.textMuted)),
+        Text('+${answers.length - 30} more', style: AppTextStyles.caption),
     ];
   }
 }
@@ -177,33 +183,79 @@ class _PeopleTabsState extends State<_PeopleTabs> {
   Widget build(BuildContext context) {
     final a = widget.a;
     final lists = [a.responses, a.seenNotAnsweredList, a.notResponded];
-    final labels = ['Answered (${a.responses.length})', 'Seen (${a.seenNotAnsweredList.length})', 'Not answered (${a.notResponded.length})'];
+    final labels = [
+      'Answered (${a.responses.length})',
+      'Seen (${a.seenNotAnsweredList.length})',
+      'Not answered (${a.notResponded.length})',
+    ];
     final people = lists[_tab];
     return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
+      crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        Wrap(spacing: AppDimens.gapSm, children: [
-          for (var i = 0; i < labels.length; i++)
-            ChoiceChip(label: Text(labels[i]), selected: _tab == i, onSelected: (_) => setState(() => _tab = i)),
-        ]),
-        const SizedBox(height: AppDimens.gapSm),
+        SingleChildScrollView(
+          scrollDirection: Axis.horizontal,
+          child: Row(children: [
+            for (var i = 0; i < labels.length; i++)
+              Padding(
+                padding: const EdgeInsets.only(right: AppDimens.gapSm),
+                child: ChoiceChip(label: Text(labels[i]), selected: _tab == i, onSelected: (_) => setState(() => _tab = i)),
+              ),
+          ]),
+        ),
+        const SizedBox(height: AppDimens.gapMd),
         if (people.isEmpty)
-          Padding(
-            padding: const EdgeInsets.all(AppDimens.gapLg),
-            child: Text('Nobody here.', style: AppTextStyles.bodySm.copyWith(color: AppColors.textSecondary)),
+          const AppCard(
+            child: Center(child: Text('Nobody here.')),
           )
         else
-          for (final p in people)
-            ListTile(
-              contentPadding: EdgeInsets.zero,
-              dense: true,
-              title: Text(formatPersonName(p.name), style: AppTextStyles.subtitle),
-              subtitle: Text(p.room.isEmpty ? '—' : 'Room ${p.room}', style: AppTextStyles.caption),
-              trailing: p.at == null
-                  ? null
-                  : Text(DateFormatting.relativeTime(p.at!), style: AppTextStyles.caption.copyWith(color: AppColors.textMuted)),
+          AppCard(
+            padding: const EdgeInsets.symmetric(horizontal: AppDimens.cardPadding, vertical: AppDimens.gapXs),
+            child: Column(
+              children: [
+                for (var i = 0; i < people.length; i++) ...[
+                  if (i > 0) const Divider(color: AppColors.borderLight),
+                  _PersonRow(person: people[i]),
+                ],
+              ],
             ),
+          ),
       ],
+    );
+  }
+}
+
+class _PersonRow extends StatelessWidget {
+  final AnalyticsPerson person;
+
+  const _PersonRow({required this.person});
+
+  @override
+  Widget build(BuildContext context) {
+    final p = person;
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: AppDimens.gapMd),
+      child: Row(
+        children: [
+          const IconBadge(icon: Icons.person_rounded, size: 36),
+          const SizedBox(width: AppDimens.gapMd),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  formatPersonName(p.name),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: AppTextStyles.bodyLg.copyWith(fontWeight: FontWeight.w600),
+                ),
+                const SizedBox(height: 2),
+                Text(p.room.isEmpty ? 'No room' : 'Room ${p.room}', style: AppTextStyles.bodySm),
+              ],
+            ),
+          ),
+          if (p.at != null) MetaText(icon: Icons.schedule_rounded, text: DateFormatting.relativeTime(p.at!)),
+        ],
+      ),
     );
   }
 }

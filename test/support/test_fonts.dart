@@ -1,7 +1,49 @@
+import 'dart:convert';
 import 'dart:io';
 
 import 'package:flutter/services.dart';
+import 'package:flutter_test/flutter_test.dart';
 import 'package:google_fonts/google_fonts.dart';
+
+/// For tests that let real async time run while a screen is shown (e.g. to
+/// capture a screenshot): google_fonts then tries to load Plus Jakarta Sans,
+/// finds no bundled file and throws. This serves Roboto under every Plus
+/// Jakarta Sans file name through the asset channel, so the load succeeds.
+/// Call after [loadDeviceLikeFonts]; other assets are served from the test
+/// asset bundle as usual.
+Future<void> serveGoogleFontsAsAssets() async {
+  final artifacts = File(Platform.resolvedExecutable).parent.parent.parent;
+  final roboto = File('${artifacts.path}/material_fonts/Roboto-Regular.ttf');
+  final bundle = Directory('build/unit_test_assets');
+  if (!roboto.existsSync() || !bundle.existsSync()) return;
+  final robotoBytes = ByteData.sublistView(roboto.readAsBytesSync());
+
+  const codec = StandardMessageCodec();
+  final manifestFile = File('${bundle.path}/AssetManifest.bin');
+  final manifest = <Object?, Object?>{
+    if (manifestFile.existsSync())
+      ...codec.decodeMessage(ByteData.sublistView(manifestFile.readAsBytesSync())) as Map<Object?, Object?>,
+  };
+  const weights = ['Thin', 'ExtraLight', 'Light', 'Regular', 'Medium', 'SemiBold', 'Bold', 'ExtraBold', 'Black'];
+  final fontAssets = <String>{
+    for (final w in weights) ...[
+      'google_fonts/PlusJakartaSans-$w.ttf',
+      'google_fonts/PlusJakartaSans-${w == 'Regular' ? '' : w}Italic.ttf',
+    ],
+  };
+  for (final a in fontAssets) {
+    manifest[a] = <Object?>[<Object?, Object?>{'asset': a}];
+  }
+  final manifestBytes = codec.encodeMessage(manifest)!;
+
+  TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger.setMockMessageHandler('flutter/assets', (message) async {
+    final key = Uri.decodeFull(utf8.decode(message!.buffer.asUint8List(message.offsetInBytes, message.lengthInBytes)));
+    if (key == 'AssetManifest.bin') return manifestBytes;
+    if (fontAssets.contains(key)) return robotoBytes;
+    final file = File('${bundle.path}/$key');
+    return file.existsSync() ? ByteData.sublistView(file.readAsBytesSync()) : null;
+  });
+}
 
 /// Makes widget tests measure text like a phone.
 ///

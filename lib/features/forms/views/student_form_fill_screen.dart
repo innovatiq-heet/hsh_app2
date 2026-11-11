@@ -10,6 +10,7 @@ import '../../shared/widgets/app_button.dart';
 import '../../shared/widgets/app_card.dart';
 import '../../shared/widgets/empty_state.dart';
 import '../../shared/widgets/gradient_header.dart';
+import '../../shared/widgets/notice_banner.dart';
 import '../controllers/student_forms_controller.dart';
 import '../widgets/forms_widgets.dart';
 
@@ -29,7 +30,12 @@ class _StudentFormFillScreenState extends State<StudentFormFillScreen> {
   final _text = <String, TextEditingController>{};
   FormResponse? _response;
 
-  StudentForm? get _form => _id == null ? null : controller.byId(_id);
+  /// Reads the observable list even when the id is missing, so the screen's
+  /// Obx always has something to watch (GetX throws otherwise).
+  StudentForm? get _form {
+    final forms = controller.forms.toList();
+    return _id == null ? null : forms.firstWhereOrNull((f) => f.id == _id);
+  }
 
   @override
   void initState() {
@@ -117,23 +123,28 @@ class _StudentFormFillScreenState extends State<StudentFormFillScreen> {
                 padding: const EdgeInsets.fromLTRB(AppDimens.screenPadding, AppDimens.gapXl, AppDimens.screenPadding, 40),
                 sliver: SliverList.list(children: [
                   if (form.description != null) ...[
-                    Text(form.description!, style: AppTextStyles.bodyMd.copyWith(color: AppColors.textSecondary)),
+                    Text(form.description!, style: AppTextStyles.bodyMd.copyWith(color: AppColors.textSecondary, height: 1.4)),
                     const SizedBox(height: AppDimens.gapLg),
                   ],
                   if (submitted)
                     Padding(
                       padding: const EdgeInsets.only(bottom: AppDimens.gapLg),
-                      child: Text(
-                        (_response ?? form.myResponse)?.submittedAt == null
+                      child: NoticeBanner(
+                        icon: Icons.check_circle_rounded,
+                        color: AppColors.successGreen,
+                        message: (_response ?? form.myResponse)?.submittedAt == null
                             ? 'You have answered this.'
                             : 'You answered on ${DateFormatting.dateTime((_response ?? form.myResponse)!.submittedAt!)}.',
-                        style: AppTextStyles.label.copyWith(color: AppColors.successGreen),
                       ),
                     )
                   else if (closed)
-                    Padding(
-                      padding: const EdgeInsets.only(bottom: AppDimens.gapLg),
-                      child: Text('This has closed.', style: AppTextStyles.label.copyWith(color: AppColors.textMuted)),
+                    const Padding(
+                      padding: EdgeInsets.only(bottom: AppDimens.gapLg),
+                      child: NoticeBanner(
+                        icon: Icons.event_busy_rounded,
+                        color: AppColors.textSecondary,
+                        message: 'This has closed. Answers are no longer accepted.',
+                      ),
                     ),
                   for (var i = 0; i < form.fields.length; i++)
                     Padding(
@@ -142,16 +153,18 @@ class _StudentFormFillScreenState extends State<StudentFormFillScreen> {
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
-                            Text.rich(TextSpan(children: [
-                              TextSpan(text: form.fields.length > 1 ? '${i + 1}. ${form.fields[i].label}' : form.fields[i].label),
-                              if (form.fields[i].required && !submitted)
-                                const TextSpan(text: ' *', style: TextStyle(color: AppColors.errorRed)),
-                            ]), style: AppTextStyles.title),
+                            _QuestionTitle(
+                              number: form.fields.length > 1 ? i + 1 : null,
+                              label: form.fields[i].label,
+                              required: form.fields[i].required && !submitted,
+                            ),
                             const SizedBox(height: AppDimens.gapMd),
                             if (submitted)
-                              Text(
-                                describeAnswer(form.fields[i], (_response ?? form.myResponse)?.answers[form.fields[i].answerKey]),
-                                style: AppTextStyles.bodyLg,
+                              _SubmittedAnswer(
+                                text: describeAnswer(
+                                  form.fields[i],
+                                  (_response ?? form.myResponse)?.answers[form.fields[i].answerKey],
+                                ),
                               )
                             else
                               AnswerInput(
@@ -173,5 +186,73 @@ class _StudentFormFillScreenState extends State<StudentFormFillScreen> {
         ),
       );
     });
+  }
+}
+
+/// "2  Rate the mess *": a small number badge, the question, a required mark.
+class _QuestionTitle extends StatelessWidget {
+  final int? number;
+  final String label;
+  final bool required;
+
+  const _QuestionTitle({required this.number, required this.label, required this.required});
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        if (number != null) ...[
+          Container(
+            width: 26,
+            height: 26,
+            alignment: Alignment.center,
+            decoration: BoxDecoration(
+              color: AppColors.primarySoft,
+              borderRadius: BorderRadius.circular(AppDimens.radiusSm),
+            ),
+            child: Text('$number', style: AppTextStyles.label.copyWith(color: AppColors.primaryLight)),
+          ),
+          const SizedBox(width: AppDimens.gapMd),
+        ],
+        Expanded(
+          child: Padding(
+            padding: const EdgeInsets.only(top: 2),
+            child: Text.rich(
+              TextSpan(children: [
+                TextSpan(text: label),
+                if (required) const TextSpan(text: ' *', style: TextStyle(color: AppColors.errorRed)),
+              ]),
+              style: AppTextStyles.subtitle.copyWith(height: 1.35),
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+class _SubmittedAnswer extends StatelessWidget {
+  final String text;
+
+  const _SubmittedAnswer({required this.text});
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.symmetric(horizontal: AppDimens.gapLg, vertical: 14),
+      decoration: BoxDecoration(
+        color: AppColors.surfaceMuted,
+        borderRadius: BorderRadius.circular(AppDimens.radiusMd),
+      ),
+      child: Row(
+        children: [
+          const Icon(Icons.check_rounded, size: 20, color: AppColors.successGreen),
+          const SizedBox(width: AppDimens.gapMd),
+          Expanded(child: Text(text, style: AppTextStyles.bodyLg.copyWith(fontWeight: FontWeight.w600))),
+        ],
+      ),
+    );
   }
 }

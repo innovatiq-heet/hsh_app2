@@ -6,11 +6,14 @@ import '../../../core/constants/app_routes.dart';
 import '../../../core/constants/app_text_styles.dart';
 import '../../../core/models/forms/form_models.dart';
 import '../../../core/utils/date_formatting.dart';
+import '../../shared/widgets/app_button.dart';
 import '../../shared/widgets/app_card.dart';
 import '../../shared/widgets/app_refresh_indicator.dart';
 import '../../shared/widgets/empty_state.dart';
 import '../../shared/widgets/gradient_header.dart';
+import '../../shared/widgets/meta_text.dart';
 import '../../shared/widgets/staggered_slide_fade.dart';
+import '../../shared/widgets/status_badge.dart';
 import '../controllers/forms_list_controller.dart';
 import '../widgets/forms_widgets.dart';
 
@@ -29,15 +32,18 @@ class FormsListScreen extends GetView<FormsListController> {
       builder: (d) => AlertDialog(
         title: const Text('Delete?'),
         content: Text(
+          style: AppTextStyles.bodyMd.copyWith(color: AppColors.textSecondary),
           'Delete "${form.title}" with its ${form.totalResponded} '
           '${form.totalResponded == 1 ? 'response' : 'responses'}? This cannot be undone.',
         ),
         actions: [
           TextButton(onPressed: () => Navigator.of(d).pop(false), child: const Text('Cancel')),
-          FilledButton(
-            style: FilledButton.styleFrom(backgroundColor: AppColors.errorRed),
+          AppButton(
+            label: 'Delete',
+            icon: Icons.delete_outline_rounded,
+            variant: AppButtonVariant.danger,
+            expand: false,
             onPressed: () => Navigator.of(d).pop(true),
-            child: const Text('Delete'),
           ),
         ],
       ),
@@ -51,8 +57,6 @@ class FormsListScreen extends GetView<FormsListController> {
       backgroundColor: AppColors.mainBackground,
       floatingActionButton: FloatingActionButton.extended(
         onPressed: _edit,
-        backgroundColor: AppColors.primaryLight,
-        foregroundColor: Colors.white,
         icon: const Icon(Icons.add_rounded),
         label: const Text('New poll or form'),
       ),
@@ -187,44 +191,70 @@ class _FormCard extends StatelessWidget {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              FormKindChip(kind: f.kind),
-              const SizedBox(width: AppDimens.gapSm),
-              FormStatusBadge(status: f.status),
-              if (f.isMandatory) ...[
-                const SizedBox(width: AppDimens.gapSm),
-                const Icon(Icons.priority_high_rounded, size: 16, color: AppColors.errorRed),
-                Text('Required', style: AppTextStyles.caption.copyWith(color: AppColors.errorRed)),
-              ],
-              const Spacer(),
-              if (busy)
-                const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2))
-              else
-                PopupMenuButton<String>(
-                  tooltip: 'More',
-                  onSelected: (v) => switch (v) {
-                    'results' => onOpen(),
-                    'edit' => onEdit(),
-                    'toggle' => onToggle(),
-                    _ => onDelete(),
-                  },
-                  itemBuilder: (_) => [
-                    const PopupMenuItem(value: 'results', child: Text('Results')),
-                    const PopupMenuItem(value: 'edit', child: Text('Edit')),
-                    PopupMenuItem(value: 'toggle', child: Text(f.isActive ? 'Pause' : 'Activate')),
-                    const PopupMenuItem(value: 'delete', child: Text('Delete', style: TextStyle(color: AppColors.errorRed))),
+              Expanded(
+                child: Wrap(
+                  spacing: AppDimens.gapSm,
+                  runSpacing: AppDimens.gapSm,
+                  children: [
+                    FormKindChip(kind: f.kind),
+                    FormStatusBadge(status: f.status),
+                    if (f.isMandatory)
+                      const StatusBadge(label: 'Required', color: AppColors.errorRed, icon: Icons.priority_high_rounded),
                   ],
                 ),
+              ),
+              SizedBox(
+                width: 32,
+                height: 28,
+                child: busy
+                    ? const Center(child: SizedBox(width: 18, height: 18, child: CircularProgressIndicator(strokeWidth: 2)))
+                    : PopupMenuButton<String>(
+                        tooltip: 'More',
+                        padding: EdgeInsets.zero,
+                        icon: const Icon(Icons.more_vert_rounded, size: 20, color: AppColors.textSecondary),
+                        onSelected: (v) => switch (v) {
+                          'results' => onOpen(),
+                          'edit' => onEdit(),
+                          'toggle' => onToggle(),
+                          _ => onDelete(),
+                        },
+                        itemBuilder: (_) => [
+                          _menuItem('results', Icons.insights_rounded, 'Results'),
+                          _menuItem('edit', Icons.edit_rounded, 'Edit'),
+                          _menuItem(
+                            'toggle',
+                            f.isActive ? Icons.pause_circle_outline_rounded : Icons.play_circle_outline_rounded,
+                            f.isActive ? 'Pause' : 'Activate',
+                          ),
+                          _menuItem('delete', Icons.delete_outline_rounded, 'Delete', color: AppColors.errorRed),
+                        ],
+                      ),
+              ),
             ],
           ),
-          const SizedBox(height: AppDimens.gapSm),
+          const SizedBox(height: AppDimens.gapMd),
           Text(f.title, style: AppTextStyles.title, maxLines: 2, overflow: TextOverflow.ellipsis),
           if (f.description != null) ...[
-            const SizedBox(height: 4),
-            Text(f.description!, maxLines: 2, overflow: TextOverflow.ellipsis,
-                style: AppTextStyles.bodySm.copyWith(color: AppColors.textSecondary)),
+            const SizedBox(height: AppDimens.gapXs),
+            Text(f.description!, maxLines: 2, overflow: TextOverflow.ellipsis, style: AppTextStyles.bodySm),
           ],
-          const SizedBox(height: AppDimens.gapMd),
+          const SizedBox(height: AppDimens.gapLg),
+          Row(
+            children: [
+              Text.rich(
+                TextSpan(children: [
+                  TextSpan(text: '${f.totalResponded}', style: const TextStyle(color: AppColors.textPrimary)),
+                  TextSpan(text: ' / ${f.totalTargeted} answered'),
+                ]),
+                style: AppTextStyles.label,
+              ),
+              const Spacer(),
+              Text('$rate%', style: AppTextStyles.label.copyWith(color: AppColors.successGreen)),
+            ],
+          ),
+          const SizedBox(height: 6),
           ClipRRect(
             borderRadius: BorderRadius.circular(AppDimens.radiusPill),
             child: LinearProgressIndicator(
@@ -234,20 +264,37 @@ class _FormCard extends StatelessWidget {
               valueColor: const AlwaysStoppedAnimation(AppColors.successGreen),
             ),
           ),
-          const SizedBox(height: 6),
-          Text(
-            '${f.totalResponded} of ${f.totalTargeted} answered · ${f.totalViewed} viewed · ${f.seenNotAnswered} seen, not answered',
-            style: AppTextStyles.caption.copyWith(color: AppColors.textSecondary),
+          const SizedBox(height: AppDimens.gapMd),
+          Wrap(
+            spacing: AppDimens.gapLg,
+            runSpacing: 6,
+            children: [
+              MetaText(icon: Icons.visibility_outlined, text: '${f.totalViewed} viewed'),
+              MetaText(icon: Icons.hourglass_empty_rounded, text: '${f.seenNotAnswered} seen, not answered'),
+              MetaText(icon: Icons.groups_outlined, text: f.audience.label),
+            ],
           ),
           if (f.startTime != null && f.endTime != null) ...[
-            const SizedBox(height: 4),
-            Text(
-              '${DateFormatting.dateTime(f.startTime!)} → ${DateFormatting.dateTime(f.endTime!)} · ${f.audience.label}',
-              style: AppTextStyles.caption.copyWith(color: AppColors.textMuted),
+            const SizedBox(height: 6),
+            MetaText(
+              icon: Icons.event_outlined,
+              maxLines: 2,
+              text: '${DateFormatting.dateTime(f.startTime!)} – ${DateFormatting.dateTime(f.endTime!)}',
             ),
           ],
         ],
       ),
     );
   }
+
+  PopupMenuItem<String> _menuItem(String value, IconData icon, String label, {Color? color}) => PopupMenuItem(
+        value: value,
+        child: Row(
+          children: [
+            Icon(icon, size: 20, color: color ?? AppColors.textSecondary),
+            const SizedBox(width: AppDimens.gapMd),
+            Text(label, style: color == null ? null : TextStyle(color: color)),
+          ],
+        ),
+      );
 }

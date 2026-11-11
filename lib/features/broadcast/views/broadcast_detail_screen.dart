@@ -10,6 +10,10 @@ import '../../shared/widgets/app_card.dart';
 import '../../shared/widgets/app_refresh_indicator.dart';
 import '../../shared/widgets/empty_state.dart';
 import '../../shared/widgets/gradient_header.dart';
+import '../../shared/widgets/icon_badge.dart';
+import '../../shared/widgets/notice_banner.dart';
+import '../../shared/widgets/stat_strip.dart';
+import '../../shared/widgets/status_badge.dart';
 import '../../shared/widgets/section_header.dart';
 import '../controllers/broadcast_detail_controller.dart';
 import '../widgets/broadcast_widgets.dart';
@@ -71,7 +75,7 @@ class BroadcastDetailScreen extends GetView<BroadcastDetailController> {
                               Expanded(
                                 child: Text(
                                   b.senderName.isEmpty ? 'Sent' : 'Sent by ${b.senderName}',
-                                  style: AppTextStyles.caption.copyWith(color: AppColors.textMuted),
+                                  style: AppTextStyles.label,
                                 ),
                               ),
                               BroadcastStatusBadge(status: b.status),
@@ -85,39 +89,21 @@ class BroadcastDetailScreen extends GetView<BroadcastDetailController> {
                       ),
                     ),
                     const SizedBox(height: AppDimens.gapMd),
-                    AppCard(
-                      child: Wrap(
-                        spacing: AppDimens.gapLg,
-                        runSpacing: AppDimens.gapSm,
-                        children: [
-                          BroadcastCount(icon: Icons.groups_rounded, value: b.recipientCount, label: 'recipients'),
-                          BroadcastCount(
-                            icon: Icons.notifications_active_rounded,
-                            value: b.pushSent,
-                            label: 'pushed',
-                            color: AppColors.pendingBlue,
-                          ),
-                          BroadcastCount(
-                            icon: Icons.done_all_rounded,
-                            value: b.readCount,
-                            label: 'read',
-                            color: AppColors.successGreen,
-                          ),
-                          BroadcastCount(
-                            icon: Icons.phonelink_erase_rounded,
-                            value: b.noDevice,
-                            label: 'no device',
-                          ),
-                          if (b.pushFailed > 0)
-                            BroadcastCount(
-                              icon: Icons.error_outline_rounded,
-                              value: b.pushFailed,
-                              label: 'failed',
-                              color: AppColors.errorRed,
-                            ),
-                        ],
+                    StatStrip(items: [
+                      StatStripItem(value: '${b.recipientCount}', label: 'Recipients'),
+                      StatStripItem(value: '${b.pushSent}', label: 'Pushed', color: AppColors.pendingBlue),
+                      StatStripItem(value: '${b.readCount}', label: 'Read', color: AppColors.successGreen),
+                      StatStripItem(value: '${b.noDevice}', label: 'No device', color: AppColors.textMuted),
+                    ]),
+                    if (b.pushFailed > 0) ...[
+                      const SizedBox(height: AppDimens.gapMd),
+                      NoticeBanner(
+                        icon: Icons.error_outline_rounded,
+                        color: AppColors.errorRed,
+                        message: '${b.pushFailed} ${b.pushFailed == 1 ? 'push' : 'pushes'} failed. '
+                            'They can still read it in their inbox.',
                       ),
-                    ),
+                    ],
                     const SizedBox(height: AppDimens.gapXl),
                     const SectionHeader(title: 'Recipients'),
                     _FilterChips(controller: controller),
@@ -191,10 +177,18 @@ class _RecipientList extends StatelessWidget {
       }
       return SliverPadding(
         padding: const EdgeInsets.fromLTRB(AppDimens.screenPadding, 0, AppDimens.screenPadding, 40),
-        sliver: SliverList.separated(
-          itemCount: list.length,
-          separatorBuilder: (_, _) => const Divider(height: 1),
-          itemBuilder: (_, i) => _RecipientRow(recipient: list[i]),
+        sliver: SliverToBoxAdapter(
+          child: AppCard(
+            padding: const EdgeInsets.symmetric(horizontal: AppDimens.cardPadding, vertical: AppDimens.gapXs),
+            child: Column(
+              children: [
+                for (var i = 0; i < list.length; i++) ...[
+                  if (i > 0) const Divider(color: AppColors.borderLight),
+                  _RecipientRow(recipient: list[i]),
+                ],
+              ],
+            ),
+          ),
         ),
       );
     });
@@ -215,17 +209,41 @@ class _RecipientRow extends StatelessWidget {
       PushStatus.noDevice => (Icons.phonelink_erase_rounded, AppColors.textMuted, 'No device'),
       _ => (Icons.schedule_rounded, AppColors.textMuted, 'Pending'),
     };
-    return ListTile(
-      contentPadding: EdgeInsets.zero,
-      leading: Tooltip(message: tip, child: Icon(icon, color: color)),
-      title: Text(formatPersonName(r.name), style: AppTextStyles.subtitle),
-      subtitle: Text(r.room.isEmpty ? '—' : 'Room ${r.room}', style: AppTextStyles.caption),
-      trailing: r.isRead
-          ? Text(
-              'Read ${DateFormatting.relativeTime(r.readAt!)}',
-              style: AppTextStyles.caption.copyWith(color: AppColors.successGreen),
-            )
-          : Text('Unread', style: AppTextStyles.caption.copyWith(color: AppColors.textMuted)),
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: AppDimens.gapMd),
+      child: Row(
+        children: [
+          Tooltip(message: tip, child: IconBadge(icon: icon, color: color, size: 38)),
+          const SizedBox(width: AppDimens.gapMd),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  formatPersonName(r.name),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: AppTextStyles.bodyLg.copyWith(fontWeight: FontWeight.w600),
+                ),
+                const SizedBox(height: 2),
+                Text(
+                  [
+                    r.room.isEmpty ? 'No room' : 'Room ${r.room}',
+                    if (r.isRead) 'read ${DateFormatting.relativeTime(r.readAt!)}',
+                  ].join(' · '),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: AppTextStyles.bodySm,
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(width: AppDimens.gapSm),
+          r.isRead
+              ? const StatusBadge(label: 'Read', color: AppColors.successGreen, icon: Icons.done_all_rounded)
+              : const StatusBadge(label: 'Unread', color: AppColors.textMuted),
+        ],
+      ),
     );
   }
 }

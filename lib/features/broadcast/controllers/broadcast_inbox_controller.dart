@@ -3,7 +3,7 @@ import '../../../core/abstracts/mixins/load_state_mixin.dart';
 import '../../../core/models/broadcasts/broadcast_models.dart';
 import '../../../core/network/repository/broadcasts/broadcasts_repository.dart';
 
-/// Student → More → Announcements: broadcasts addressed to this student.
+/// Student → Dashboard → Announcements: broadcasts addressed to this student.
 ///
 /// Opened from a push with `{broadcast_id}` as the route argument, it opens
 /// that message once the list has loaded ([pendingOpenId]).

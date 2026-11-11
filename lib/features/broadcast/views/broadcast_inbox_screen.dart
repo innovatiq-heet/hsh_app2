@@ -14,7 +14,7 @@ import '../../shared/widgets/meta_text.dart';
 import '../../shared/widgets/sheet_scaffold.dart';
 import '../controllers/broadcast_inbox_controller.dart';
 
-/// Student → More → Announcements.
+/// Student → Dashboard → Announcements.
 class BroadcastInboxScreen extends StatefulWidget {
   const BroadcastInboxScreen({super.key});
 

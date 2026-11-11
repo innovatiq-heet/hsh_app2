@@ -1,8 +1,9 @@
 import 'dart:convert';
 import 'dart:developer' as developer;
 import 'dart:io';
-import 'package:firebase_core/firebase_core.dart';
-import 'package:firebase_messaging/firebase_messaging.dart';
+// FIREBASE DISABLED: see pubspec.yaml.
+// import 'package:firebase_core/firebase_core.dart';
+// import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:flutter/foundation.dart' show visibleForTesting;
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import 'package:get/get.dart';
@@ -12,22 +13,23 @@ import '../network/api_client.dart';
 import '../network/repository/authentication/auth_repository.dart';
 import '../storage/session_store.dart';
 
-/// Top-level background message handler for FCM.
-///
-/// Must be annotated with `@pragma('vm:entry-point')` so the Flutter engine
-/// can invoke it when a message arrives while the app is in the background or killed.
-@pragma('vm:entry-point')
-Future<void> firebaseMessagingBackgroundHandler(RemoteMessage message) async {
-  try {
-    await Firebase.initializeApp();
-  } catch (_) {
-    // Firebase already initialized or config not present
-  }
-  developer.log(
-    'Handling background push message: ${message.messageId}',
-    name: 'PushNotification',
-  );
-}
+// FIREBASE DISABLED: background FCM handler.
+// /// Top-level background message handler for FCM.
+// ///
+// /// Must be annotated with `@pragma('vm:entry-point')` so the Flutter engine
+// /// can invoke it when a message arrives while the app is in the background or killed.
+// @pragma('vm:entry-point')
+// Future<void> firebaseMessagingBackgroundHandler(RemoteMessage message) async {
+  // try {
+    // await Firebase.initializeApp();
+  // } catch (_) {
+    // // Firebase already initialized or config not present
+  // }
+  // developer.log(
+    // 'Handling background push message: ${message.messageId}',
+    // name: 'PushNotification',
+  // );
+// }
 
 /// App-wide Push Notification Service using Firebase Cloud Messaging (FCM)
 /// and [FlutterLocalNotificationsPlugin] for foreground notification display.
@@ -104,16 +106,18 @@ class PushNotificationService extends GetxService {
   /// options are not yet placed by the developer, the app will continue to run
   /// normally and gracefully activate once credentials are provided.
   Future<void> init() async {
-    try {
-      await Firebase.initializeApp();
-    } catch (e) {
-      developer.log(
-        'PushNotificationService: Firebase.initializeApp() skipped or failed: $e. '
-        'Add android/app/google-services.json to activate live push notifications.',
-        name: 'PushNotification',
-      );
-      return;
-    }
+    // FIREBASE DISABLED: no Firebase, so no push from the server. Local
+    // notifications and notification-tap navigation still work.
+    // try {
+    //   await Firebase.initializeApp();
+    // } catch (e) {
+    //   developer.log(
+    //     'PushNotificationService: Firebase.initializeApp() skipped or failed: $e. '
+    //     'Add android/app/google-services.json to activate live push notifications.',
+    //     name: 'PushNotification',
+    //   );
+    //   return;
+    // }
 
     try {
       await _initLocalNotifications();
@@ -166,21 +170,22 @@ class PushNotificationService extends GetxService {
   /// Requests user permission to display alerts, badges, and play sounds.
   Future<void> _requestPermissions() async {
     try {
-      final messaging = FirebaseMessaging.instance;
-      final settings = await messaging.requestPermission(
-        alert: true,
-        announcement: false,
-        badge: true,
-        carPlay: false,
-        criticalAlert: false,
-        provisional: false,
-        sound: true,
-      );
-
-      developer.log(
-        'Notification authorization status: ${settings.authorizationStatus}',
-        name: 'PushNotification',
-      );
+      // FIREBASE DISABLED: iOS permission prompt via FCM.
+      // final messaging = FirebaseMessaging.instance;
+      // final settings = await messaging.requestPermission(
+        // alert: true,
+        // announcement: false,
+        // badge: true,
+        // carPlay: false,
+        // criticalAlert: false,
+        // provisional: false,
+        // sound: true,
+      // );
+      //
+      // developer.log(
+        // 'Notification authorization status: ${settings.authorizationStatus}',
+        // name: 'PushNotification',
+      // );
 
       if (Platform.isAndroid) {
         final status = await Permission.notification.request();
@@ -196,95 +201,98 @@ class PushNotificationService extends GetxService {
 
   /// Sets foreground notification presentation options for iOS.
   Future<void> _setupForegroundPresentation() async {
-    await FirebaseMessaging.instance.setForegroundNotificationPresentationOptions(
-      alert: true,
-      badge: true,
-      sound: true,
-    );
+    // FIREBASE DISABLED:
+    // await FirebaseMessaging.instance.setForegroundNotificationPresentationOptions(
+    //   alert: true,
+    //   badge: true,
+    //   sound: true,
+    // );
   }
 
   /// Sets up message listeners for foreground, background, and cold start clicks.
   void _setupMessageListeners() {
-    // 1. App killed/background: top-level handler
-    FirebaseMessaging.onBackgroundMessage(firebaseMessagingBackgroundHandler);
-
-    // 2. Foreground: display heads-up banner via flutter_local_notifications
-    FirebaseMessaging.onMessage.listen(_handleForegroundMessage);
-
-    // 3. User taps notification while app is running in background
-    FirebaseMessaging.onMessageOpenedApp.listen(_handleNotificationOpenedApp);
-
-    // 4. App launched from terminated state by tapping notification
-    FirebaseMessaging.instance.getInitialMessage().then((initialMessage) {
-      if (initialMessage != null) {
-        _handleNotificationOpenedApp(initialMessage);
-      }
-    });
-
-    // 5. Token refresh listener
-    FirebaseMessaging.instance.onTokenRefresh.listen((newToken) {
-      fcmToken.value = newToken;
-      developer.log('FCM Token refreshed: $newToken', name: 'PushNotification');
-      syncTokenWithBackend(newToken);
-    });
-
-    // 6. Reactive listener: whenever fcmToken gets a value, ensure it is synced
-    fcmToken.listen((token) {
-      if (token != null && token.isNotEmpty) {
-        syncTokenWithBackend(token);
-      }
-    });
+    // FIREBASE DISABLED: FCM listeners.
+    // // 1. App killed/background: top-level handler
+    // FirebaseMessaging.onBackgroundMessage(firebaseMessagingBackgroundHandler);
+    //
+    // // 2. Foreground: display heads-up banner via flutter_local_notifications
+    // FirebaseMessaging.onMessage.listen(_handleForegroundMessage);
+    //
+    // // 3. User taps notification while app is running in background
+    // FirebaseMessaging.onMessageOpenedApp.listen(_handleNotificationOpenedApp);
+    //
+    // // 4. App launched from terminated state by tapping notification
+    // FirebaseMessaging.instance.getInitialMessage().then((initialMessage) {
+      // if (initialMessage != null) {
+        // _handleNotificationOpenedApp(initialMessage);
+      // }
+    // });
+    //
+    // // 5. Token refresh listener
+    // FirebaseMessaging.instance.onTokenRefresh.listen((newToken) {
+      // fcmToken.value = newToken;
+      // developer.log('FCM Token refreshed: $newToken', name: 'PushNotification');
+      // syncTokenWithBackend(newToken);
+    // });
+    //
+    // // 6. Reactive listener: whenever fcmToken gets a value, ensure it is synced
+    // fcmToken.listen((token) {
+      // if (token != null && token.isNotEmpty) {
+        // syncTokenWithBackend(token);
+      // }
+    // });
   }
 
-  /// Displays an in-app heads-up notification when a message arrives in foreground.
-  Future<void> _handleForegroundMessage(RemoteMessage message) async {
-    final notification = message.notification;
-    final title = notification?.title ?? message.data['title'] ?? 'Hostel Alert';
-    final body = notification?.body ?? message.data['body'] ?? message.data['message'] ?? '';
-
-    developer.log(
-      'Foreground push received: $title ($body)',
-      name: 'PushNotification',
-    );
-
-    // If both title and body are empty, nothing to display
-    if (title.isEmpty && body.isEmpty) return;
-
-    final android = message.notification?.android;
-
-    await _localNotifications.show(
-      id: message.messageId?.hashCode ?? DateTime.now().millisecondsSinceEpoch ~/ 1000,
-      title: title,
-      body: body,
-      notificationDetails: NotificationDetails(
-        android: AndroidNotificationDetails(
-          _channel.id,
-          _channel.name,
-          channelDescription: _channel.description,
-          importance: Importance.max,
-          priority: Priority.high,
-          icon: android?.smallIcon ?? '@mipmap/ic_launcher',
-          playSound: true,
-          enableVibration: true,
-        ),
-        iOS: const DarwinNotificationDetails(
-          presentAlert: true,
-          presentBadge: true,
-          presentSound: true,
-        ),
-      ),
-      payload: jsonEncode(message.data),
-    );
-  }
-
-  /// Handles notification tap when opened from system tray.
-  void _handleNotificationOpenedApp(RemoteMessage message) {
-    developer.log(
-      'Notification opened with payload: ${message.data}',
-      name: 'PushNotification',
-    );
-    _navigateFromPayload(message.data);
-  }
+  // FIREBASE DISABLED: handlers for FCM messages.
+  // /// Displays an in-app heads-up notification when a message arrives in foreground.
+  // Future<void> _handleForegroundMessage(RemoteMessage message) async {
+    // final notification = message.notification;
+    // final title = notification?.title ?? message.data['title'] ?? 'Hostel Alert';
+    // final body = notification?.body ?? message.data['body'] ?? message.data['message'] ?? '';
+    //
+    // developer.log(
+      // 'Foreground push received: $title ($body)',
+      // name: 'PushNotification',
+    // );
+    //
+    // // If both title and body are empty, nothing to display
+    // if (title.isEmpty && body.isEmpty) return;
+    //
+    // final android = message.notification?.android;
+    //
+    // await _localNotifications.show(
+      // id: message.messageId?.hashCode ?? DateTime.now().millisecondsSinceEpoch ~/ 1000,
+      // title: title,
+      // body: body,
+      // notificationDetails: NotificationDetails(
+        // android: AndroidNotificationDetails(
+          // _channel.id,
+          // _channel.name,
+          // channelDescription: _channel.description,
+          // importance: Importance.max,
+          // priority: Priority.high,
+          // icon: android?.smallIcon ?? '@mipmap/ic_launcher',
+          // playSound: true,
+          // enableVibration: true,
+        // ),
+        // iOS: const DarwinNotificationDetails(
+          // presentAlert: true,
+          // presentBadge: true,
+          // presentSound: true,
+        // ),
+      // ),
+      // payload: jsonEncode(message.data),
+    // );
+  // }
+  //
+  // /// Handles notification tap when opened from system tray.
+  // void _handleNotificationOpenedApp(RemoteMessage message) {
+    // developer.log(
+      // 'Notification opened with payload: ${message.data}',
+      // name: 'PushNotification',
+    // );
+    // _navigateFromPayload(message.data);
+  // }
 
   /// Callback when a local notification heads-up banner is tapped.
   void _onNotificationResponse(NotificationResponse response) {
@@ -369,33 +377,35 @@ class PushNotificationService extends GetxService {
 
   /// Retrieves current device token and synchronizes it with the backend.
   Future<void> _retrieveAndSyncToken() async {
-    try {
-      final token = await FirebaseMessaging.instance.getToken();
-      if (token != null && token.isNotEmpty) {
-        fcmToken.value = token;
-        developer.log('Current FCM Token: $token', name: 'PushNotification');
-        await syncTokenWithBackend(token);
-      }
-    } catch (e) {
-      developer.log('Failed to retrieve FCM token: $e',
-          name: 'PushNotification');
-    }
+    // FIREBASE DISABLED: no FCM token without Firebase.
+    // try {
+    //   final token = await FirebaseMessaging.instance.getToken();
+    //   if (token != null && token.isNotEmpty) {
+    //     fcmToken.value = token;
+    //     developer.log('Current FCM Token: $token', name: 'PushNotification');
+    //     await syncTokenWithBackend(token);
+    //   }
+    // } catch (e) {
+    //   developer.log('Failed to retrieve FCM token: $e',
+    //       name: 'PushNotification');
+    // }
   }
 
   /// Sends the FCM token to the backend `/auth/fcm-token` endpoint if the user
   /// is currently logged in.
   Future<void> syncTokenWithBackend([String? tokenToSync]) async {
-    var token = tokenToSync ?? fcmToken.value;
-    if (token == null || token.isEmpty) {
-      try {
-        token = await FirebaseMessaging.instance.getToken();
-        if (token != null && token.isNotEmpty) {
-          fcmToken.value = token;
-        }
-      } catch (e) {
-        developer.log('Could not fetch FCM token during sync: $e', name: 'PushNotification');
-      }
-    }
+    final token = tokenToSync ?? fcmToken.value;
+    // FIREBASE DISABLED: fetching a token needs Firebase.
+    // if (token == null || token.isEmpty) {
+    //   try {
+    //     token = await FirebaseMessaging.instance.getToken();
+    //     if (token != null && token.isNotEmpty) {
+    //       fcmToken.value = token;
+    //     }
+    //   } catch (e) {
+    //     developer.log('Could not fetch FCM token during sync: $e', name: 'PushNotification');
+    //   }
+    // }
     if (token == null || token.isEmpty) return;
 
     if (!Get.isRegistered<SessionStore>()) return;
@@ -431,20 +441,22 @@ class PushNotificationService extends GetxService {
 
   /// Subscribes the device to operator/admin broadcast topics for curfew breaches and alerts.
   Future<void> subscribeToOperatorTopics() async {
-    try {
-      await FirebaseMessaging.instance.subscribeToTopic('operator_alerts');
-      await FirebaseMessaging.instance.subscribeToTopic('geofence_breaches');
-      developer.log('Subscribed to operator broadcast topics.', name: 'PushNotification');
-    } catch (e) {
-      developer.log('Could not subscribe to operator topics: $e', name: 'PushNotification');
-    }
+    // FIREBASE DISABLED:
+    // try {
+    //   await FirebaseMessaging.instance.subscribeToTopic('operator_alerts');
+    //   await FirebaseMessaging.instance.subscribeToTopic('geofence_breaches');
+    //   developer.log('Subscribed to operator broadcast topics.', name: 'PushNotification');
+    // } catch (e) {
+    //   developer.log('Could not subscribe to operator topics: $e', name: 'PushNotification');
+    // }
   }
 
   /// Unsubscribes from operator broadcast topics (e.g. on logout or student session).
   Future<void> unsubscribeFromOperatorTopics() async {
-    try {
-      await FirebaseMessaging.instance.unsubscribeFromTopic('operator_alerts');
-      await FirebaseMessaging.instance.unsubscribeFromTopic('geofence_breaches');
-    } catch (_) {}
+    // FIREBASE DISABLED:
+    // try {
+    //   await FirebaseMessaging.instance.unsubscribeFromTopic('operator_alerts');
+    //   await FirebaseMessaging.instance.unsubscribeFromTopic('geofence_breaches');
+    // } catch (_) {}
   }
 }

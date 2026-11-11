@@ -15,7 +15,7 @@ import '../../shared/widgets/status_badge.dart';
 import '../controllers/student_forms_controller.dart';
 import '../widgets/forms_widgets.dart';
 
-/// Student → More → Polls & Forms.
+/// Student → Dashboard → Polls & Forms.
 class StudentFormsScreen extends GetView<StudentFormsController> {
   const StudentFormsScreen({super.key});
 

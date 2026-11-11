@@ -1,4 +1,5 @@
-import 'package:firebase_core/firebase_core.dart';
+// FIREBASE DISABLED: see pubspec.yaml.
+// import 'package:firebase_core/firebase_core.dart';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'core/constants/app_pages.dart';
@@ -10,11 +11,12 @@ import 'features/shared/widgets/network_wrapper.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
-  try {
-    await Firebase.initializeApp();
-  } catch (e) {
-    debugPrint('Firebase initialization warning in main: $e');
-  }
+  // FIREBASE DISABLED: see pubspec.yaml.
+  // try {
+  //   await Firebase.initializeApp();
+  // } catch (e) {
+  //   debugPrint('Firebase initialization warning in main: $e');
+  // }
   runApp(const HshApp());
 }
 

@@ -52,8 +52,11 @@ dependencies:
   latlong2: ^0.10.1
   shorebird_code_push: ^2.0.7
   shared_preferences: ^2.5.5
-  firebase_core: ^4.15.0
-  firebase_messaging: ^16.7.0
+  # FIREBASE DISABLED: push notifications are switched off for now. To turn
+  # them back on, uncomment these two lines and every "FIREBASE DISABLED"
+  # block in lib/main.dart and lib/core/services/push_notification_service.dart.
+  # firebase_core: ^4.15.0
+  # firebase_messaging: ^16.7.0
   flutter_local_notifications: ^22.3.1
   share_plus: ^12.0.2
   super_sliver_list: ^0.4.1

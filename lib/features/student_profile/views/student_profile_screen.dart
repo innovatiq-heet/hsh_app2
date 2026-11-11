@@ -53,6 +53,9 @@ class StudentProfileScreen extends GetView<StudentProfileController> {
                           // const SectionHeader(title: 'Quick actions'),
                           // const _QuickActions(),
                           // const SizedBox(height: AppDimens.gapXl),
+                          const SectionHeader(title: 'Hostel updates'),
+                          const _HostelUpdates(),
+                          const SizedBox(height: AppDimens.gapXl),
                           const SectionHeader(title: 'Personal details'),
                           _DetailsCard(
                             rows: [
@@ -288,6 +291,60 @@ class _QuickActions extends StatelessWidget {
                     _actions[i].label,
                     style: AppTextStyles.label.copyWith(
                       color: AppColors.textPrimary,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ],
+      ],
+    );
+  }
+}
+
+/// Dashboard entry points for Announcements and Polls & Forms. They live here
+/// because the All services screen is not reachable from the student side.
+class _HostelUpdates extends StatelessWidget {
+  const _HostelUpdates();
+
+  static const _items = [
+    _QuickAction(
+      'Announcements',
+      Icons.campaign_outlined,
+      Color(0xFFDB2777),
+      Routes.broadcastInbox,
+    ),
+    _QuickAction(
+      'Polls & Forms',
+      Icons.how_to_vote_outlined,
+      Color(0xFF7C3AED),
+      Routes.studentForms,
+    ),
+  ];
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      children: [
+        for (int i = 0; i < _items.length; i++) ...[
+          if (i > 0) const SizedBox(width: AppDimens.gapMd),
+          Expanded(
+            child: AppCard(
+              padding: const EdgeInsets.all(AppDimens.gapLg),
+              onTap: () => Get.toNamed(_items[i].route),
+              child: Row(
+                children: [
+                  IconBadge(icon: _items[i].icon, color: _items[i].color, size: 40),
+                  const SizedBox(width: AppDimens.gapMd),
+                  Expanded(
+                    child: Text(
+                      _items[i].label,
+                      maxLines: 2,
+                      style: AppTextStyles.label.copyWith(
+                        color: AppColors.textPrimary,
+                        fontWeight: FontWeight.w600,
+                      ),
                     ),
                   ),
                 ],

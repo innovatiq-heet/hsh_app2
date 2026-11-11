@@ -1,6 +1,6 @@
 # Forms & Polls
 
-> **Last updated:** 2026-11-11 · **Repos:** `hsh_app2` (Flutter) and `hsh_api` (`src/modules/forms/`, e2e `tests/e2e/forms.e2e.test.ts`). The app is built against the backend handoff of 2026-11-11.
+> **Last updated:** 2026-11-12 · **Repos:** `hsh_app2` (Flutter) and `hsh_api` (`src/modules/forms/`, e2e `tests/e2e/forms.e2e.test.ts`). The app is built against the backend handoff of 2026-11-11.
 
 ---
 
@@ -15,7 +15,7 @@
 
 Entry points:
 - Admin and warden: **Operator console → Hostel Services & Staff → Forms & Polls**. Every screen also checks the role on open (`FormsManagerGate`, `canOperate`).
-- Students: **More → Personal → Polls & Forms**.
+- Students: **Dashboard → Hostel updates → Polls & Forms**. (It is also on the All services screen, but students cannot reach that screen.)
 
 ## 2. Rules
 

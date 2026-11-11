@@ -5,6 +5,7 @@ import '../../../core/constants/app_text_styles.dart';
 import '../../../core/models/broadcasts/broadcast_models.dart';
 import '../../../core/utils/date_formatting.dart';
 import '../../shared/widgets/app_card.dart';
+import '../../shared/widgets/meta_text.dart';
 import '../../shared/widgets/status_badge.dart';
 
 /// Sending… / Sent / Failed.
@@ -36,7 +37,7 @@ class BroadcastStatusBadge extends StatelessWidget {
   }
 }
 
-/// Tag chips plus "N individual", describing who a broadcast went to.
+/// Tag pills plus "N individual", describing who a broadcast went to.
 class BroadcastAudience extends StatelessWidget {
   final Broadcast broadcast;
 
@@ -46,50 +47,17 @@ class BroadcastAudience extends StatelessWidget {
   Widget build(BuildContext context) {
     final individual = broadcast.studentIds.length;
     return Wrap(
-      spacing: 6,
-      runSpacing: 6,
+      spacing: AppDimens.gapSm,
+      runSpacing: AppDimens.gapSm,
       children: [
-        for (final t in broadcast.tags)
-          _MiniChip(
-            icon: Icons.label_rounded,
-            label: t.name,
-            color: t.color,
-          ),
+        for (final t in broadcast.tags) StatusBadge(label: t.name, color: t.color, icon: Icons.sell_rounded),
         if (individual > 0)
-          _MiniChip(
-            icon: Icons.person_rounded,
+          StatusBadge(
             label: '$individual individual',
             color: AppColors.primaryLight,
+            icon: Icons.person_rounded,
           ),
       ],
-    );
-  }
-}
-
-class _MiniChip extends StatelessWidget {
-  final IconData icon;
-  final String label;
-  final Color color;
-
-  const _MiniChip({required this.icon, required this.label, required this.color});
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-      decoration: BoxDecoration(
-        color: color.withValues(alpha: 0.1),
-        borderRadius: BorderRadius.circular(AppDimens.radiusPill),
-        border: Border.all(color: color.withValues(alpha: 0.3)),
-      ),
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Icon(icon, size: 12, color: color),
-          const SizedBox(width: 4),
-          Text(label, style: AppTextStyles.caption.copyWith(color: color, fontWeight: FontWeight.w700)),
-        ],
-      ),
     );
   }
 }
@@ -154,7 +122,7 @@ class BroadcastCard extends StatelessWidget {
               BroadcastStatusBadge(status: b.status),
             ],
           ),
-          const SizedBox(height: 6),
+          const SizedBox(height: AppDimens.gapXs),
           Text(
             b.message,
             maxLines: 2,
@@ -188,10 +156,7 @@ class BroadcastCard extends StatelessWidget {
                 ),
               ),
               if (b.createdAt != null)
-                Text(
-                  DateFormatting.relativeTime(b.createdAt!),
-                  style: AppTextStyles.caption.copyWith(color: AppColors.textMuted),
-                ),
+                MetaText(icon: Icons.schedule_rounded, text: DateFormatting.relativeTime(b.createdAt!)),
             ],
           ),
         ],

@@ -9,6 +9,8 @@ import '../../shared/widgets/app_card.dart';
 import '../../shared/widgets/app_refresh_indicator.dart';
 import '../../shared/widgets/empty_state.dart';
 import '../../shared/widgets/gradient_header.dart';
+import '../../shared/widgets/icon_badge.dart';
+import '../../shared/widgets/meta_text.dart';
 import '../../shared/widgets/sheet_scaffold.dart';
 import '../controllers/broadcast_inbox_controller.dart';
 
@@ -56,7 +58,7 @@ class _BroadcastInboxScreenState extends State<BroadcastInboxScreen> {
           if (item.createdAt != null) DateFormatting.dateTime(item.createdAt!),
         ].join(' · '),
         children: [
-          SelectableText(item.message, style: AppTextStyles.bodyLg),
+          SelectableText(item.message, style: AppTextStyles.bodyLg.copyWith(height: 1.45)),
         ],
       ),
     );
@@ -162,18 +164,15 @@ class _InboxCard extends StatelessWidget {
     final unread = !item.isRead;
     return AppCard(
       onTap: onTap,
-      color: unread ? AppColors.primarySoft : null,
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Padding(
-            padding: const EdgeInsets.only(top: 6, right: AppDimens.gapMd),
-            child: Icon(
-              Icons.circle,
-              size: 10,
-              color: unread ? AppColors.primaryLight : Colors.transparent,
-            ),
+          IconBadge(
+            icon: unread ? Icons.campaign_rounded : Icons.campaign_outlined,
+            color: unread ? AppColors.primaryLight : AppColors.textMuted,
+            size: 40,
           ),
+          const SizedBox(width: AppDimens.gapMd),
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
@@ -185,32 +184,43 @@ class _InboxCard extends StatelessWidget {
                         item.title,
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
-                        style: AppTextStyles.title.copyWith(
+                        style: AppTextStyles.subtitle.copyWith(
                           fontWeight: unread ? FontWeight.w800 : FontWeight.w600,
                         ),
                       ),
                     ),
-                    if (item.createdAt != null)
-                      Text(
-                        DateFormatting.relativeTime(item.createdAt!),
-                        style: AppTextStyles.caption.copyWith(color: AppColors.textMuted),
+                    if (unread) ...[
+                      const SizedBox(width: AppDimens.gapSm),
+                      Container(
+                        width: 8,
+                        height: 8,
+                        decoration: const BoxDecoration(color: AppColors.primaryLight, shape: BoxShape.circle),
                       ),
+                    ],
                   ],
                 ),
-                const SizedBox(height: 4),
+                const SizedBox(height: AppDimens.gapXs),
                 Text(
                   item.message,
                   maxLines: 2,
                   overflow: TextOverflow.ellipsis,
-                  style: AppTextStyles.bodyMd.copyWith(color: AppColors.textSecondary),
+                  style: AppTextStyles.bodyMd.copyWith(color: AppColors.textSecondary, height: 1.35),
                 ),
-                if (item.senderName.isNotEmpty) ...[
-                  const SizedBox(height: 6),
-                  Text(
-                    item.senderName,
-                    style: AppTextStyles.caption.copyWith(color: AppColors.textMuted),
-                  ),
-                ],
+                const SizedBox(height: AppDimens.gapSm),
+                Row(
+                  children: [
+                    Expanded(
+                      child: item.senderName.isEmpty
+                          ? const SizedBox.shrink()
+                          : Align(
+                              alignment: Alignment.centerLeft,
+                              child: MetaText(icon: Icons.person_outline_rounded, text: item.senderName),
+                            ),
+                    ),
+                    if (item.createdAt != null)
+                      MetaText(icon: Icons.schedule_rounded, text: DateFormatting.relativeTime(item.createdAt!)),
+                  ],
+                ),
               ],
             ),
           ),

@@ -21,7 +21,8 @@ class FormStatusBadge extends StatelessWidget {
       };
 }
 
-/// "Poll" or "Form" label.
+/// "Poll" or "Form" label: a neutral pill, the same size as the status
+/// pills next to it, so status keeps the colour.
 class FormKindChip extends StatelessWidget {
   final FormKind kind;
 
@@ -30,21 +31,10 @@ class FormKindChip extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final poll = kind == FormKind.poll;
-    final color = poll ? const Color(0xFF7C3AED) : AppColors.primaryLight;
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-      decoration: BoxDecoration(
-        color: color.withValues(alpha: 0.1),
-        borderRadius: BorderRadius.circular(AppDimens.radiusPill),
-      ),
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Icon(poll ? Icons.how_to_vote_rounded : Icons.assignment_rounded, size: 12, color: color),
-          const SizedBox(width: 4),
-          Text(poll ? 'Poll' : 'Form', style: AppTextStyles.caption.copyWith(color: color, fontWeight: FontWeight.w700)),
-        ],
-      ),
+    return StatusBadge(
+      label: poll ? 'Poll' : 'Form',
+      color: AppColors.textSecondary,
+      icon: poll ? Icons.how_to_vote_rounded : Icons.assignment_rounded,
     );
   }
 }
@@ -60,18 +50,30 @@ class BreakdownBar extends StatelessWidget {
   Widget build(BuildContext context) {
     final color = isTop ? AppColors.successGreen : AppColors.primaryLight;
     return Padding(
-      padding: const EdgeInsets.only(bottom: AppDimens.gapSm),
+      padding: const EdgeInsets.only(bottom: AppDimens.gapMd),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Row(
             children: [
-              Expanded(child: Text(item.option, style: AppTextStyles.bodyMd)),
-              Text('${item.count} · ${item.percentage}%',
-                  style: AppTextStyles.label.copyWith(color: AppColors.textSecondary)),
+              Expanded(
+                child: Text(
+                  item.option,
+                  style: AppTextStyles.bodyMd.copyWith(fontWeight: isTop ? FontWeight.w700 : FontWeight.w500),
+                ),
+              ),
+              Text('${item.count}', style: AppTextStyles.label.copyWith(color: AppColors.textPrimary)),
+              SizedBox(
+                width: 44,
+                child: Text(
+                  '${item.percentage}%',
+                  textAlign: TextAlign.right,
+                  style: AppTextStyles.label.copyWith(color: color),
+                ),
+              ),
             ],
           ),
-          const SizedBox(height: 4),
+          const SizedBox(height: 6),
           ClipRRect(
             borderRadius: BorderRadius.circular(AppDimens.radiusPill),
             child: LinearProgressIndicator(
@@ -135,9 +137,16 @@ class AnswerInput extends StatelessWidget {
         ),
       FormFieldType.select => DropdownButtonFormField<String>(
           initialValue: field.options.contains(value) ? value as String : null,
-          items: [for (final o in field.options) DropdownMenuItem(value: o, child: Text(o))],
+          isExpanded: true,
+          style: AppTextStyles.bodyLg,
+          icon: const Icon(Icons.keyboard_arrow_down_rounded, color: AppColors.textMuted),
+          borderRadius: BorderRadius.circular(AppDimens.radiusMd),
+          items: [
+            for (final o in field.options)
+              DropdownMenuItem(value: o, child: Text(o, overflow: TextOverflow.ellipsis)),
+          ],
           onChanged: onChanged,
-          decoration: const InputDecoration(hintText: 'Choose'),
+          decoration: const InputDecoration(hintText: 'Choose an option'),
         ),
       FormFieldType.boolean => Row(
           children: [
@@ -149,15 +158,25 @@ class AnswerInput extends StatelessWidget {
       FormFieldType.rating => Row(
           children: [
             for (var i = 1; i <= 5; i++)
-              IconButton(
-                tooltip: '$i',
-                onPressed: () => onChanged(i),
-                icon: Icon(
-                  (value is int && value >= i) ? Icons.star_rounded : Icons.star_outline_rounded,
-                  color: const Color(0xFFF59E0B),
-                  size: 34,
+              InkResponse(
+                onTap: () => onChanged(i),
+                radius: 24,
+                child: Semantics(
+                  label: '$i of 5',
+                  button: true,
+                  child: Padding(
+                    padding: const EdgeInsets.only(right: AppDimens.gapXs),
+                    child: Icon(
+                      (value is int && value >= i) ? Icons.star_rounded : Icons.star_outline_rounded,
+                      color: (value is int && value >= i) ? AppColors.secondary : AppColors.textLight,
+                      size: 36,
+                    ),
+                  ),
                 ),
               ),
+            const Spacer(),
+            if (value is int)
+              Text('$value / 5', style: AppTextStyles.label.copyWith(color: AppColors.textPrimary)),
           ],
         ),
       FormFieldType.number => TextField(
@@ -197,10 +216,13 @@ class _ChoiceTile extends StatelessWidget {
           borderRadius: BorderRadius.circular(AppDimens.radiusMd),
           onTap: onTap,
           child: Container(
-            padding: const EdgeInsets.symmetric(horizontal: AppDimens.gapMd, vertical: AppDimens.gapMd),
+            padding: const EdgeInsets.symmetric(horizontal: AppDimens.gapLg, vertical: 14),
             decoration: BoxDecoration(
               borderRadius: BorderRadius.circular(AppDimens.radiusMd),
-              border: Border.all(color: selected ? AppColors.primaryLight : AppColors.border),
+              border: Border.all(
+                color: selected ? AppColors.primaryLight : AppColors.border,
+                width: selected ? 1.4 : 1,
+              ),
             ),
             child: Row(
               children: [
@@ -208,10 +230,16 @@ class _ChoiceTile extends StatelessWidget {
                   multi
                       ? (selected ? Icons.check_box_rounded : Icons.check_box_outline_blank_rounded)
                       : (selected ? Icons.radio_button_checked_rounded : Icons.radio_button_off_rounded),
+                  size: 22,
                   color: selected ? AppColors.primaryLight : AppColors.textLight,
                 ),
                 const SizedBox(width: AppDimens.gapMd),
-                Expanded(child: Text(label, style: AppTextStyles.bodyMd)),
+                Expanded(
+                  child: Text(
+                    label,
+                    style: AppTextStyles.bodyLg.copyWith(fontWeight: selected ? FontWeight.w700 : FontWeight.w500),
+                  ),
+                ),
               ],
             ),
           ),

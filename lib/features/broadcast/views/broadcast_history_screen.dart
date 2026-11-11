@@ -26,8 +26,6 @@ class BroadcastHistoryScreen extends GetView<BroadcastHistoryController> {
       backgroundColor: AppColors.mainBackground,
       floatingActionButton: FloatingActionButton.extended(
         onPressed: _compose,
-        backgroundColor: AppColors.primaryLight,
-        foregroundColor: Colors.white,
         icon: const Icon(Icons.campaign_rounded),
         label: const Text('New broadcast'),
       ),

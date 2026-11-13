@@ -16,8 +16,10 @@ class StudentContactCard extends StatelessWidget {
   final bool isAlumni;
   final bool isSelected;
   final bool isSelectionMode;
+  final bool isFavourite;
   final VoidCallback onTap;
   final VoidCallback? onLongPress;
+  final VoidCallback? onToggleFavourite;
   final ValueChanged<String>? onCall;
   final ValueChanged<String>? onWhatsApp;
   final VoidCallback? onShare;
@@ -39,8 +41,10 @@ class StudentContactCard extends StatelessWidget {
     this.isAlumni = false,
     this.isSelected = false,
     this.isSelectionMode = false,
+    this.isFavourite = false,
     required this.onTap,
     this.onLongPress,
+    this.onToggleFavourite,
     this.onCall,
     this.onWhatsApp,
     this.onShare,
@@ -278,47 +282,73 @@ class StudentContactCard extends StatelessWidget {
 
                         const SizedBox(width: 8),
 
-                        // Top-right status pill
-                        statusPill ??
-                            Container(
-                              padding: const EdgeInsets.symmetric(
-                                horizontal: 9,
-                                vertical: 4.5,
-                              ),
-                              decoration: BoxDecoration(
-                                color: gBg,
-                                borderRadius: BorderRadius.circular(20),
-                                border: Border.all(
-                                  color: gColor.withValues(alpha: 0.3),
-                                  width: 1.1,
+                        // Top-right controls: optional favorite star toggle + status pill
+                        Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            if (onToggleFavourite != null) ...[
+                              Material(
+                                color: Colors.transparent,
+                                child: InkWell(
+                                  onTap: isSelectionMode ? onTap : onToggleFavourite,
+                                  borderRadius: BorderRadius.circular(20),
+                                  child: Tooltip(
+                                    message: isFavourite ? 'Remove from Favourites' : 'Add to Favourites',
+                                    child: Padding(
+                                      padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 2),
+                                      child: Icon(
+                                        isFavourite ? Icons.star_rounded : Icons.star_outline_rounded,
+                                        size: 20,
+                                        color: isFavourite ? const Color(0xFFF59E0B) : const Color(0xFF94A3B8),
+                                      ),
+                                    ),
+                                  ),
                                 ),
                               ),
-                              child: Row(
-                                mainAxisSize: MainAxisSize.min,
-                                children: [
-                                  Container(
-                                    width: 6,
-                                    height: 6,
-                                    decoration: BoxDecoration(
-                                      color: gColor,
-                                      shape: BoxShape.circle,
+                              const SizedBox(width: 4),
+                            ],
+                            statusPill ??
+                                Container(
+                                  padding: const EdgeInsets.symmetric(
+                                    horizontal: 9,
+                                    vertical: 4.5,
+                                  ),
+                                  decoration: BoxDecoration(
+                                    color: gBg,
+                                    borderRadius: BorderRadius.circular(20),
+                                    border: Border.all(
+                                      color: gColor.withValues(alpha: 0.3),
+                                      width: 1.1,
                                     ),
                                   ),
-                                  const SizedBox(width: 5),
-                                  Text(
-                                    isAlumni
-                                        ? 'Alumni'
-                                        : (groupName ?? 'Active'),
-                                    style: TextStyle(
-                                      color: gColor,
-                                      fontSize: 10.5,
-                                      fontWeight: FontWeight.w800,
-                                      letterSpacing: 0.1,
-                                    ),
+                                  child: Row(
+                                    mainAxisSize: MainAxisSize.min,
+                                    children: [
+                                      Container(
+                                        width: 6,
+                                        height: 6,
+                                        decoration: BoxDecoration(
+                                          color: gColor,
+                                          shape: BoxShape.circle,
+                                        ),
+                                      ),
+                                      const SizedBox(width: 5),
+                                      Text(
+                                        isAlumni
+                                            ? 'Alumni'
+                                            : (groupName ?? 'Active'),
+                                        style: TextStyle(
+                                          color: gColor,
+                                          fontSize: 10.5,
+                                          fontWeight: FontWeight.w800,
+                                          letterSpacing: 0.1,
+                                        ),
+                                      ),
+                                    ],
                                   ),
-                                ],
-                              ),
-                            ),
+                                ),
+                          ],
+                        ),
                       ],
                     ),
 
@@ -428,12 +458,14 @@ class StudentContactCard extends StatelessWidget {
                                 border: Border.all(
                                   color: const Color(0xFFA7F3D0),
                                 ),
-                                tooltip: 'Chat on WhatsApp',
-                                onTap: () => onWhatsApp!(
-                                  whatsappNumber?.isNotEmpty == true
-                                      ? whatsappNumber!
-                                      : primaryPhone,
-                                ),
+                                tooltip: isSelectionMode ? 'Select' : 'Chat on WhatsApp',
+                                onTap: isSelectionMode
+                                    ? onTap
+                                    : () => onWhatsApp!(
+                                        whatsappNumber?.isNotEmpty == true
+                                            ? whatsappNumber!
+                                            : primaryPhone,
+                                      ),
                               ),
                             if (onCall != null) ...[
                               const SizedBox(width: 6),
@@ -444,8 +476,10 @@ class StudentContactCard extends StatelessWidget {
                                 border: Border.all(
                                   color: const Color(0xFFBAE6FD),
                                 ),
-                                tooltip: 'Call Student ($primaryPhone)',
-                                onTap: () => onCall!(primaryPhone),
+                                tooltip: isSelectionMode ? 'Select' : 'Call Student ($primaryPhone)',
+                                onTap: isSelectionMode
+                                    ? onTap
+                                    : () => onCall!(primaryPhone),
                               ),
                             ],
                           ] else ...[

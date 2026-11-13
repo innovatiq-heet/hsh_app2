@@ -200,4 +200,44 @@ void main() {
     await service.topFavourites();
     expect(api.called('POST /phonebook/calls'), isEmpty);
   });
+
+  test('togglePin stars a student locally and syncs to server POST /phonebook/favourites', () async {
+    final pinned = <String, String>{};
+    api.routes['POST /phonebook/favourites'] = (o) {
+      final body = o.data as Map;
+      pinned[body['student_key'] as String] = body['student_name'] as String? ?? '';
+      return const FakeReply(200, {'success': true, 'data': {}});
+    };
+
+    final isPinned = await service.togglePin(studentKey: 'HSH-STAR', name: 'Star Student');
+    expect(isPinned, isTrue);
+    expect(service.isPinned('HSH-STAR'), isTrue);
+
+    // Should sync to server
+    await service.topFavourites();
+    expect(api.called('POST /phonebook/favourites'), isNotEmpty);
+    expect(pinned.containsKey('HSH-STAR'), isTrue);
+
+    // Shows up in topFavourites even with 0 calls
+    final favs = await service.topFavourites();
+    expect(favs.any((f) => f.studentKey == 'HSH-STAR'), isTrue);
+    expect(favs.firstWhere((f) => f.studentKey == 'HSH-STAR').isPinned, isTrue);
+  });
+
+  test('togglePin on already pinned student unstars and syncs DELETE with pin_only=true', () async {
+    api.routes['POST /phonebook/favourites'] = (o) => const FakeReply(200, {'success': true, 'data': {}});
+    api.routes['DELETE /phonebook/favourites/HSH-UNSTAR'] = (o) => const FakeReply(200, {'success': true, 'data': {}});
+
+    await service.togglePin(studentKey: 'HSH-UNSTAR', name: 'Unstar Student');
+    expect(service.isPinned('HSH-UNSTAR'), isTrue);
+
+    final isPinned = await service.togglePin(studentKey: 'HSH-UNSTAR');
+    expect(isPinned, isFalse);
+    expect(service.isPinned('HSH-UNSTAR'), isFalse);
+
+    await service.topFavourites();
+    final delCalls = api.called('DELETE /phonebook/favourites/HSH-UNSTAR');
+    expect(delCalls, isNotEmpty);
+    expect(delCalls.last.queryParameters['pin_only'], isTrue);
+  });
 }

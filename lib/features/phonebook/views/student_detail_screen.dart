@@ -1020,7 +1020,7 @@ class _StudentDetailHeaderDelegate extends SliverPersistentHeaderDelegate {
   @override
   double get maxExtent => topPadding + 52 + 6 + _nameHeight + 12 + 26 + 18;
 
-  Widget _roundButton(IconData icon, String tooltip, VoidCallback onTap) {
+  Widget _roundButton(IconData icon, String tooltip, VoidCallback onTap, {Color iconColor = Colors.white}) {
     return Tooltip(
       message: tooltip,
       child: Material(
@@ -1036,7 +1036,7 @@ class _StudentDetailHeaderDelegate extends SliverPersistentHeaderDelegate {
               shape: BoxShape.circle,
               border: Border.all(color: Colors.white.withValues(alpha: 0.25), width: 1),
             ),
-            child: Icon(icon, color: Colors.white, size: 20),
+            child: Icon(icon, color: iconColor, size: 20),
           ),
         ),
       ),
@@ -1153,6 +1153,22 @@ class _StudentDetailHeaderDelegate extends SliverPersistentHeaderDelegate {
                         ),
                       ],
                     ),
+                  ),
+                  const SizedBox(width: 8),
+                  Builder(
+                    builder: (context) {
+                      if (!Get.isRegistered<PhonebookController>()) return const SizedBox.shrink();
+                      final c = Get.find<PhonebookController>();
+                      return Obx(() {
+                        final isFav = c.isFavourite(student.id);
+                        return _roundButton(
+                          isFav ? Icons.star_rounded : Icons.star_outline_rounded,
+                          isFav ? 'Remove from Favourites' : 'Add to Favourites',
+                          () => c.toggleFavourite(student),
+                          iconColor: isFav ? const Color(0xFFF59E0B) : Colors.white,
+                        );
+                      });
+                    },
                   ),
                 ],
               ),

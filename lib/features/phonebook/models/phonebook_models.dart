@@ -1,6 +1,7 @@
 import 'package:intl/intl.dart';
 import '../../../core/models/tags/student_tag_model.dart';
 import '../../../core/utils/string_formatting.dart';
+import '../services/phone_number_normalizer.dart';
 
 class PhonebookContact {
   final String? id;
@@ -522,11 +523,21 @@ class PhonebookStudent {
         '📶 *Floor:* ${floor == 0 ? 'Ground Floor' : 'Floor $floor'}',
       );
     }
-    if (primaryPhone != 'No Phone') {
-      buffer.writeln('📞 *Mobile:* $primaryPhone');
-    }
-    if (whatsappNumber != null && whatsappNumber!.isNotEmpty) {
-      buffer.writeln('💬 *WhatsApp:* $whatsappNumber');
+    final hasWa = whatsappNumber != null && whatsappNumber!.isNotEmpty;
+    final hasPrim = primaryPhone != 'No Phone' && primaryPhone.isNotEmpty;
+    final isSameWaAndMobile = hasWa &&
+        hasPrim &&
+        PhoneNumberNormalizer.isSame(primaryPhone, whatsappNumber);
+
+    if (isSameWaAndMobile) {
+      buffer.writeln('📱 *Mobile & WhatsApp:* $primaryPhone');
+    } else {
+      if (hasPrim) {
+        buffer.writeln('📞 *Mobile:* $primaryPhone');
+      }
+      if (hasWa) {
+        buffer.writeln('💬 *WhatsApp:* $whatsappNumber');
+      }
     }
     if (fatherName != null ||
         (fatherPhone != null && fatherPhone!.isNotEmpty)) {

@@ -36,4 +36,28 @@ class PhoneNumberNormalizer {
     if (n == null) return raw ?? '';
     return '+91 ${n.substring(0, 5)} ${n.substring(5)}';
   }
+
+  /// True if two phone numbers represent the same phone number (handles country codes,
+  /// national normalization, leading zeros, or formatting differences).
+  static bool isSame(String? a, String? b) {
+    if (a == null || b == null) return false;
+    final cleanA = a.trim();
+    final cleanB = b.trim();
+    if (cleanA.isEmpty || cleanB.isEmpty) return false;
+    if (cleanA == cleanB) return true;
+    final normA = normalize(cleanA);
+    final normB = normalize(cleanB);
+    if (normA != null && normB != null) {
+      return normA == normB;
+    }
+    final digitsA = cleanA.replaceAll(_nonDigits, '');
+    final digitsB = cleanB.replaceAll(_nonDigits, '');
+    if (digitsA.isEmpty || digitsB.isEmpty) return false;
+    if (digitsA == digitsB) return true;
+    if (digitsA.length >= 10 && digitsB.length >= 10) {
+      return digitsA.substring(digitsA.length - 10) ==
+          digitsB.substring(digitsB.length - 10);
+    }
+    return false;
+  }
 }

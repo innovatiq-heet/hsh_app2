@@ -255,31 +255,31 @@ void main() {
       expect(c.isDeviceLocked.value, isFalse);
     });
 
-    test('Play Store is blocked by default when the policy has no restrict_app_installs', () async {
+    test('Play Store is available by default when the policy has no restrict_app_installs', () async {
       final c = await openStudent();
-      expect(c.playStoreBlocked.value, isTrue);
+      expect(c.playStoreBlocked.value, isFalse);
     });
 
     test('the Play Store state is read from restrict_app_installs (MySQL 0/1)', () async {
       replies['GET /screen-time/policies/$studentId'] = (_) => {
             'success': true,
             'data': {
-              'policy': {'policy_version': 2, 'is_locked': 0, 'restrict_app_installs': 0},
+              'policy': {'policy_version': 2, 'is_locked': 0, 'restrict_app_installs': 1},
               'apps': [],
               'blockedPackages': [],
             },
           };
       final c = await openStudent();
-      await until(() => c.playStoreBlocked.value == false, reason: 'Play Store allowed from the policy');
+      await until(() => c.playStoreBlocked.value == true, reason: 'Play Store blocked from the policy');
     });
 
-    test('allowing the Play Store sends only restrict_app_installs: false', () async {
+    test('blocking the Play Store sends only restrict_app_installs: true', () async {
       final c = await openStudent();
-      await c.setPlayStoreBlocked(false);
+      await c.setPlayStoreBlocked(true);
 
       final put = called('PUT /screen-time/policies/$studentId').single;
-      expect(put.data, {'restrict_app_installs': false});
-      expect(c.playStoreBlocked.value, isFalse);
+      expect(put.data, {'restrict_app_installs': true});
+      expect(c.playStoreBlocked.value, isTrue);
     });
 
     test('blocking the Play Store during an install pass also ends the pass', () async {
@@ -296,10 +296,10 @@ void main() {
     test('a failed Play Store change is rolled back', () async {
       replies['PUT /screen-time/policies/$studentId'] = (_) => fail;
       final c = await openStudent();
-      await c.setPlayStoreBlocked(false);
+      await c.setPlayStoreBlocked(true);
 
       expect(called('PUT /screen-time/policies/$studentId'), hasLength(1));
-      expect(c.playStoreBlocked.value, isTrue);
+      expect(c.playStoreBlocked.value, isFalse);
     });
 
     test('curfew and daily limit send exactly those three fields', () async {

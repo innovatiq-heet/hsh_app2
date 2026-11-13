@@ -2,7 +2,9 @@ import 'package:get/get.dart';
 import '../../../core/abstracts/mixins/aadhar_resolving_mixin.dart';
 import '../../../core/abstracts/mixins/load_state_mixin.dart';
 import '../../../core/models/student_profile/student_profile_model.dart';
+import '../../../core/network/repository/broadcasts/broadcasts_repository.dart';
 import '../../../core/network/repository/fees/fees_repository.dart';
+import '../../../core/network/repository/forms/forms_repository.dart';
 import '../../../core/network/repository/laundry/laundry_repository.dart';
 import '../../../core/network/repository/student_profile/student_profile_repository.dart';
 import '../../../core/constants/app_routes.dart';
@@ -15,6 +17,8 @@ class StudentProfileController extends GetxController
   final LaundryRepository _laundryRepository = Get.find();
 
   final Rxn<StudentProfileModel> profile = Rxn<StudentProfileModel>();
+  final unreadAnnouncementsCount = 0.obs;
+  final pendingFormsCount = 0.obs;
 
   @override
   void onInit() {
@@ -24,9 +28,32 @@ class StudentProfileController extends GetxController
       profile.value = cached;
     }
     loadProfile(showLoading: cached == null);
+    loadHubBadges();
   }
 
-  Future<void> loadProfile({bool forceRefresh = false, bool showLoading = true}) => guard(() async {
+  Future<void> loadHubBadges() async {
+    try {
+      if (Get.isRegistered<BroadcastsRepository>()) {
+        final inbox = await Get.find<BroadcastsRepository>().inbox(
+          limit: 1,
+          offset: 0,
+        );
+        unreadAnnouncementsCount.value = inbox.unreadCount;
+      }
+    } catch (_) {}
+
+    try {
+      if (Get.isRegistered<FormsRepository>()) {
+        final active = await Get.find<FormsRepository>().active();
+        pendingFormsCount.value = active.where((f) => !f.hasSubmitted).length;
+      }
+    } catch (_) {}
+  }
+
+  Future<void> loadProfile({
+    bool forceRefresh = false,
+    bool showLoading = true,
+  }) => guard(() async {
     final sessionStore = Get.find<SessionStore>();
     if (profile.value == null) {
       final cached = await sessionStore.studentProfile;
@@ -73,7 +100,10 @@ class StudentProfileController extends GetxController
   /// load, kept as a distinct name so call sites read intent rather than
   /// implementation. (Not named `refresh()`: GetX's `ListNotifierMixin`
   /// already defines that, for forcing a `GetBuilder` rebuild.)
-  Future<void> refreshProfile() => loadProfile(forceRefresh: true, showLoading: true);
+  Future<void> refreshProfile() {
+    loadHubBadges();
+    return loadProfile(forceRefresh: true, showLoading: true);
+  }
 
   Future<void> logout() async {
     await Get.find<SessionStore>().logout();

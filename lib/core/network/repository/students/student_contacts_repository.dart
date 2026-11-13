@@ -56,6 +56,7 @@ class StudentContactsRepository extends BaseRepository {
     required String label,
     bool isWhatsApp = false,
     bool isPrimary = false,
+    bool isPrimaryWhatsApp = false,
   }) =>
       _guard(() async {
         final response = await _dio.post(
@@ -65,6 +66,7 @@ class StudentContactsRepository extends BaseRepository {
             'label': label.trim(),
             'is_whatsapp': isWhatsApp,
             'is_primary': isPrimary,
+            'is_primary_whatsapp': isPrimaryWhatsApp,
           },
         );
         final body = response.data;
@@ -84,6 +86,7 @@ class StudentContactsRepository extends BaseRepository {
     required String label,
     bool isWhatsApp = false,
     bool isPrimary = false,
+    bool isPrimaryWhatsApp = false,
   }) =>
       _guard(() async {
         final response = await _dio.put(
@@ -93,6 +96,7 @@ class StudentContactsRepository extends BaseRepository {
             'label': label.trim(),
             'is_whatsapp': isWhatsApp,
             'is_primary': isPrimary,
+            'is_primary_whatsapp': isPrimaryWhatsApp,
           },
         );
         final body = response.data;
@@ -113,7 +117,7 @@ class StudentContactsRepository extends BaseRepository {
         await _dio.delete('/students/$studentIdentifier/contacts/$contactId');
       });
 
-  /// Updates the base student contact details:
+  /// Updates or clears base student contact details:
   /// Primary mobile number, WhatsApp number, Father phone, or Mother phone.
   Future<Map<String, dynamic>> updateBaseContactDetails({
     required String studentIdentifier,
@@ -121,15 +125,38 @@ class StudentContactsRepository extends BaseRepository {
     String? whatsappNumber,
     String? fatherPhone,
     String? motherPhone,
+    bool clearPrimary = false,
+    bool clearWhatsApp = false,
+    bool clearFather = false,
+    bool clearMother = false,
   }) =>
       _guard(() async {
         final body = <String, dynamic>{};
-        if (primaryPhone != null) body['phone_number'] = primaryPhone.trim();
-        if (whatsappNumber != null) {
+        if (clearPrimary) {
+          body['primary_phone'] = null;
+          body['phone_number'] = null;
+        } else if (primaryPhone != null) {
+          body['primary_phone'] = primaryPhone.trim();
+          body['phone_number'] = primaryPhone.trim();
+        }
+
+        if (clearWhatsApp) {
+          body['whatsapp_number'] = null;
+        } else if (whatsappNumber != null) {
           body['whatsapp_number'] = whatsappNumber.trim();
         }
-        if (fatherPhone != null) body['father_phone'] = fatherPhone.trim();
-        if (motherPhone != null) body['mother_phone'] = motherPhone.trim();
+
+        if (clearFather) {
+          body['father_phone'] = null;
+        } else if (fatherPhone != null) {
+          body['father_phone'] = fatherPhone.trim();
+        }
+
+        if (clearMother) {
+          body['mother_phone'] = null;
+        } else if (motherPhone != null) {
+          body['mother_phone'] = motherPhone.trim();
+        }
 
         final response = await _dio.put(
           '/students/$studentIdentifier/contact-details',
@@ -139,5 +166,14 @@ class StudentContactsRepository extends BaseRepository {
         return (resData is Map && resData['data'] is Map)
             ? Map<String, dynamic>.from(resData['data'])
             : <String, dynamic>{};
+      });
+
+  /// Explicitly deletes a base student contact number (e.g. primary, whatsapp, father, mother).
+  Future<void> deleteBaseContact({
+    required String studentIdentifier,
+    required String fieldKey,
+  }) =>
+      _guard(() async {
+        await _dio.delete('/students/$studentIdentifier/contact-details/$fieldKey');
       });
 }

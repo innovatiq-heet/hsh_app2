@@ -20,7 +20,7 @@ data class DevicePolicy(
     /** Opaque backend marker so the warden UI can see what the device applied. */
     val version: String = "",
     /** When true, prevents installing APKs and opening app stores without warden approval. */
-    val restrictAppInstalls: Boolean = true,
+    val restrictAppInstalls: Boolean = false,
     /** Epoch ms timestamp until which app stores / installers are temporarily unlocked. */
     val installPassUntil: Long = 0L,
 ) {
@@ -166,7 +166,7 @@ object PolicyStore {
             bedtimeStart = p.getString(KEY_BEDTIME_START, "") ?: "",
             bedtimeEnd = p.getString(KEY_BEDTIME_END, "") ?: "",
             version = p.getString(KEY_POLICY_VERSION, "") ?: "",
-            restrictAppInstalls = p.getBoolean(KEY_RESTRICT_APP_INSTALLS, true),
+            restrictAppInstalls = p.getBoolean(KEY_RESTRICT_APP_INSTALLS, false),
             installPassUntil = p.getLong(KEY_INSTALL_PASS_UNTIL, 0L),
         ).also { policyCache = it }
     }

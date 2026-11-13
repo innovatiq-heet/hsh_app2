@@ -14,6 +14,8 @@ import '../../../core/utils/app_snackbar.dart';
 import '../../phonebook/models/phonebook_models.dart';
 import '../../phonebook/services/phonebook_database_service.dart';
 import '../../phonebook/widgets/alpha_scroll_rail.dart';
+import '../../phonebook/widgets/student_tag_sheet.dart';
+import '../../../core/network/repository/students/student_picker_source.dart';
 import '../../shared/widgets/empty_state.dart';
 import '../../shared/widgets/staggered_slide_fade.dart';
 import '../../shared/widgets/student_contact_card.dart';
@@ -102,6 +104,8 @@ class _AssignTagScreenState extends State<AssignTagScreen> {
 
   List<TagAssignableStudent> _allStudents = [];
   List<TagAssignableStudent> _displayedStudents = [];
+  List<StudentTag> _availableTags = [];
+  final Set<int> _selectedTagIds = {};
 
   final Set<int> _busyIds = {};
   bool _isLoading = true;
@@ -138,6 +142,8 @@ class _AssignTagScreenState extends State<AssignTagScreen> {
   @override
   void initState() {
     super.initState();
+    _selectedTagIds.add(widget.tag.id);
+    _availableTags = [widget.tag];
     _loadStudents();
   }
 
@@ -161,15 +167,34 @@ class _AssignTagScreenState extends State<AssignTagScreen> {
     });
 
     try {
+      // Load all available tags so the user can select multiple tags to assign
+      try {
+        final allTags = await _tagsRepo.getTags();
+        if (allTags.isNotEmpty && mounted) {
+          setState(() {
+            _availableTags = allTags;
+            if (!_availableTags.any((t) => t.id == widget.tag.id)) {
+              _availableTags.insert(0, widget.tag);
+            }
+          });
+        }
+      } catch (_) {}
+
       final List<TagAssignableStudent> parsedList = [];
 
       // 1. Fetch from local phonebook database first to get full student details and group names
       final cached = await PhonebookDatabaseService.instance.searchStudents();
-      final cacheMap = <int, PhonebookStudent>{};
+      final cacheByCode = <String, PhonebookStudent>{};
       for (final c in cached) {
-        final numId = int.tryParse(c.studentId) ?? int.tryParse(c.id);
-        if (numId != null && numId > 0) {
-          cacheMap[numId] = c;
+        if (c.bankCode != null && c.bankCode!.isNotEmpty) {
+          cacheByCode[c.bankCode!] = c;
+          final clean = c.bankCode!.replaceFirst(RegExp(r'^0+'), '');
+          if (clean.isNotEmpty) cacheByCode[clean] = c;
+        }
+        if (c.studentId.isNotEmpty) {
+          cacheByCode[c.studentId] = c;
+          final clean = c.studentId.replaceFirst(RegExp(r'^0+'), '');
+          if (clean.isNotEmpty) cacheByCode[clean] = c;
         }
       }
 
@@ -196,7 +221,10 @@ class _AssignTagScreenState extends State<AssignTagScreen> {
           final numId = int.tryParse(rawId?.toString() ?? '');
           if (numId == null || numId == 0) continue;
 
-          final cachedStudent = cacheMap[numId];
+          final studentCode = (m['student_code'] ?? m['bank_code'] ?? '').toString().trim();
+          final cleanCode = studentCode.replaceFirst(RegExp(r'^0+'), '');
+          final cachedStudent = cacheByCode[studentCode] ?? cacheByCode[cleanCode];
+
           final name = (m['name'] ?? m['fullName'] ?? cachedStudent?.name ?? 'Student').toString().trim();
           final rawRoom = (m['room_number'] ?? m['room'] ?? cachedStudent?.room ?? '').toString().trim();
           final isAlumni = rawRoom.isEmpty ||
@@ -206,17 +234,19 @@ class _AssignTagScreenState extends State<AssignTagScreen> {
           final room = isAlumni ? 'Alumni' : rawRoom;
 
           int? floor;
-          if (m['floor_id'] != null) {
-            floor = int.tryParse(m['floor_id'].toString());
-          } else if (m['floorId'] != null) {
-            floor = int.tryParse(m['floorId'].toString());
-          } else if (cachedStudent?.floor != null) {
-            floor = cachedStudent?.floor;
-          } else if (!isAlumni) {
+          if (!isAlumni) {
             floor = PhonebookStudent.floorOfRoom(room);
           }
+          if (floor == null) {
+            if (m['floor_id'] != null) {
+              floor = int.tryParse(m['floor_id'].toString());
+            } else if (m['floorId'] != null) {
+              floor = int.tryParse(m['floorId'].toString());
+            } else if (cachedStudent?.floor != null) {
+              floor = cachedStudent?.floor;
+            }
+          }
 
-          final studentCode = (m['student_code'] ?? m['bank_code'] ?? cachedStudent?.bankCode ?? cachedStudent?.studentId ?? '').toString().trim();
           final phone = m['phone_number']?.toString() ?? m['phone']?.toString() ?? cachedStudent?.primaryPhone;
           final rawGroup = (m['group_name'] ?? m['group'] ?? m['wing'] ?? m['department'] ?? cachedStudent?.groupName)?.toString().trim();
           final groupName = (rawGroup != null && rawGroup.isNotEmpty) ? rawGroup : cachedStudent?.groupName;
@@ -237,7 +267,7 @@ class _AssignTagScreenState extends State<AssignTagScreen> {
             name: name,
             room: room,
             floor: floor,
-            studentCode: studentCode,
+            studentCode: studentCode.isNotEmpty ? studentCode : (cachedStudent?.bankCode ?? cachedStudent?.studentId ?? ''),
             phone: phone,
             groupName: groupName,
             isAlumni: isAlumni,
@@ -246,24 +276,31 @@ class _AssignTagScreenState extends State<AssignTagScreen> {
         }
       }
 
-      // Fallback 2: Local SQLite cache if backend couldn't be reached
+      // Fallback 2: PickableStudent directory or cache if rawBackend couldn't be loaded
       if (parsedList.isEmpty) {
-        for (final c in cached) {
-          final numId = int.tryParse(c.studentId) ?? int.tryParse(c.id);
-          if (numId == null || numId == 0) continue;
-
-          parsedList.add(TagAssignableStudent(
-            id: numId,
-            name: c.name,
-            room: c.room ?? (c.isAlumni ? 'Alumni' : 'N/A'),
-            floor: c.floor,
-            studentCode: c.bankCode ?? c.studentId,
-            phone: c.primaryPhone,
-            groupName: c.groupName,
-            isAlumni: c.isAlumni,
-            tags: c.tags,
-          ));
-        }
+        try {
+          final pickables = await StudentPickerSource(tags: _tagsRepo, screenTime: _screenTimeRepo).load(includeAlumni: true);
+          for (final p in pickables) {
+            final cachedStudent = cacheByCode[p.id.toString()];
+            final isAlumni = p.isAlumni;
+            final room = p.room;
+            int? floor;
+            if (!isAlumni) {
+              floor = PhonebookStudent.floorOfRoom(room);
+            }
+            parsedList.add(TagAssignableStudent(
+              id: p.id,
+              name: p.name,
+              room: room,
+              floor: floor,
+              studentCode: cachedStudent?.bankCode ?? cachedStudent?.studentId ?? '',
+              phone: cachedStudent?.primaryPhone,
+              groupName: cachedStudent?.groupName,
+              isAlumni: isAlumni,
+              tags: cachedStudent?.tags ?? [],
+            ));
+          }
+        } catch (_) {}
       }
 
       _allStudents = parsedList;
@@ -441,6 +478,20 @@ class _AssignTagScreenState extends State<AssignTagScreen> {
     );
   }
 
+  void _toggleTagSelection(int tagId) {
+    setState(() {
+      if (_selectedTagIds.contains(tagId)) {
+        if (_selectedTagIds.length > 1) {
+          _selectedTagIds.remove(tagId);
+        } else {
+          AppSnackbar.info('Tag Selection', 'At least one tag must remain selected to assign.');
+        }
+      } else {
+        _selectedTagIds.add(tagId);
+      }
+    });
+  }
+
   // ===========================================================================
   // ASSIGN & UNASSIGN ACTIONS
   // ===========================================================================
@@ -448,24 +499,38 @@ class _AssignTagScreenState extends State<AssignTagScreen> {
   Future<void> _assignTag(TagAssignableStudent student) async {
     if (_busyIds.contains(student.id)) return;
 
-    if (student.manualTagCount >= 3) {
-      AppSnackbar.warning(
-        'Limit Reached',
-        '${student.name} already has the maximum of 3 manual tags. Please remove one before adding another.',
-      );
+    // Identify tags in current selection that student does not have yet
+    final tagsToAssign = _availableTags
+        .where((t) => _selectedTagIds.contains(t.id) && !student.hasTag(t.id))
+        .toList();
+
+    // If _availableTags hasn't loaded yet, fall back to widget.tag
+    if (tagsToAssign.isEmpty && _availableTags.isEmpty && !student.hasTag(widget.tag.id)) {
+      tagsToAssign.add(widget.tag);
+    }
+
+    if (tagsToAssign.isEmpty) {
+      AppSnackbar.info('Already Assigned', '${student.name} already has all selected tags.');
       return;
     }
 
     setState(() => _busyIds.add(student.id));
 
     try {
-      await _tagsRepo.assignTag(studentId: student.id, tagId: widget.tag.id);
+      final tagIds = tagsToAssign.map((t) => t.id).toList();
+      if (tagIds.length == 1) {
+        await _tagsRepo.assignTag(studentId: student.id, tagId: tagIds.first);
+      } else {
+        await _tagsRepo.assignTags(studentId: student.id, tagIds: tagIds);
+      }
       HapticFeedback.mediumImpact();
 
       // Update in memory
       final updatedTags = List<StudentTag>.from(student.tags);
-      if (!updatedTags.any((t) => t.id == widget.tag.id)) {
-        updatedTags.add(widget.tag);
+      for (final t in tagsToAssign) {
+        if (!updatedTags.any((existing) => existing.id == t.id)) {
+          updatedTags.add(t);
+        }
       }
 
       final idxAll = _allStudents.indexWhere((s) => s.id == student.id);
@@ -485,14 +550,15 @@ class _AssignTagScreenState extends State<AssignTagScreen> {
       );
 
       widget.onAssigned?.call();
+      final tagNames = tagsToAssign.map((t) => '"${t.name}"').join(', ');
       AppSnackbar.success(
-        'Tag Assigned',
-        '"${widget.tag.name}" assigned to ${student.name}.',
+        'Tag${tagsToAssign.length > 1 ? 's' : ''} Assigned',
+        '$tagNames assigned to ${student.name}.',
       );
     } on ApiException catch (e) {
       AppSnackbar.error('Assign Failed', e.message);
     } catch (_) {
-      AppSnackbar.error('Assign Failed', 'Could not assign tag. Please try again.');
+      AppSnackbar.error('Assign Failed', 'Could not assign tags. Please try again.');
     } finally {
       if (mounted) setState(() => _busyIds.remove(student.id));
     }
@@ -501,13 +567,51 @@ class _AssignTagScreenState extends State<AssignTagScreen> {
   Future<void> _unassignTag(TagAssignableStudent student) async {
     if (_busyIds.contains(student.id)) return;
 
+    // Find removable tags that are in current selection and assigned to student
+    final removable = _availableTags
+        .where((t) => _selectedTagIds.contains(t.id) && student.hasTag(t.id) && !t.isSystem)
+        .toList();
+
+    StudentTag? tagToRemove;
+    if (removable.isEmpty) {
+      if (student.hasTag(widget.tag.id) && !widget.tag.isSystem) {
+        tagToRemove = widget.tag;
+      } else {
+        return;
+      }
+    } else if (removable.length == 1) {
+      tagToRemove = removable.first;
+    } else {
+      final picked = await showDialog<StudentTag>(
+        context: context,
+        builder: (ctx) => SimpleDialog(
+          title: const Text('Select Tag to Remove', style: TextStyle(fontWeight: FontWeight.w700)),
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+          children: removable.map((t) => SimpleDialogOption(
+            onPressed: () => Navigator.pop(ctx, t),
+            child: Row(
+              children: [
+                Icon(Icons.label_rounded, color: t.color, size: 16),
+                const SizedBox(width: 8),
+                Text(t.name, style: TextStyle(color: t.color, fontWeight: FontWeight.w700)),
+              ],
+            ),
+          )).toList(),
+        ),
+      );
+      if (picked == null || !mounted) return;
+      tagToRemove = picked;
+    }
+
+    if (!mounted) return;
+
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (ctx) => AlertDialog(
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
         title: const Text('Remove Tag?'),
         content: Text(
-          'Remove "${widget.tag.name}" from ${student.name}?',
+          'Remove "${tagToRemove!.name}" from ${student.name}?',
           style: const TextStyle(fontSize: 13.5),
         ),
         actions: [
@@ -532,11 +636,11 @@ class _AssignTagScreenState extends State<AssignTagScreen> {
     setState(() => _busyIds.add(student.id));
 
     try {
-      await _tagsRepo.removeTag(studentId: student.id, tagId: widget.tag.id);
+      await _tagsRepo.removeTag(studentId: student.id, tagId: tagToRemove.id);
       HapticFeedback.mediumImpact();
 
       final updatedTags = List<StudentTag>.from(student.tags)
-        ..removeWhere((t) => t.id == widget.tag.id);
+        ..removeWhere((t) => t.id == tagToRemove!.id);
 
       final idxAll = _allStudents.indexWhere((s) => s.id == student.id);
       if (idxAll != -1) {
@@ -556,7 +660,7 @@ class _AssignTagScreenState extends State<AssignTagScreen> {
       widget.onAssigned?.call();
       AppSnackbar.success(
         'Tag Removed',
-        '"${widget.tag.name}" removed from ${student.name}.',
+        '"${tagToRemove.name}" removed from ${student.name}.',
       );
     } on ApiException catch (e) {
       AppSnackbar.error('Remove Failed', e.message);
@@ -849,6 +953,61 @@ class _AssignTagScreenState extends State<AssignTagScreen> {
             ),
           ),
           const SizedBox(height: 10),
+
+          // Multi-Tag Selection Bar (Allows selecting multiple tags to assign simultaneously)
+          if (_availableTags.isNotEmpty) ...[
+            Row(
+              children: [
+                const Icon(Icons.sell_outlined, size: 14, color: Color(0xFF64748B)),
+                const SizedBox(width: 6),
+                Text(
+                  'Assigning Tag${_selectedTagIds.length > 1 ? 's' : ''} (${_selectedTagIds.length} selected):',
+                  style: const TextStyle(
+                    fontSize: 12,
+                    fontWeight: FontWeight.w700,
+                    color: Color(0xFF334155),
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 6),
+            SingleChildScrollView(
+              scrollDirection: Axis.horizontal,
+              child: Row(
+                children: _availableTags.map((t) {
+                  final isSelected = _selectedTagIds.contains(t.id);
+                  return Padding(
+                    padding: const EdgeInsets.only(right: 6),
+                    child: FilterChip(
+                      selected: isSelected,
+                      showCheckmark: true,
+                      checkmarkColor: Colors.white,
+                      avatar: isSelected ? null : Icon(Icons.label_outline_rounded, size: 14, color: t.color),
+                      label: Text(
+                        t.name,
+                        style: TextStyle(
+                          fontSize: 11.5,
+                          fontWeight: FontWeight.w700,
+                          color: isSelected ? Colors.white : t.color,
+                        ),
+                      ),
+                      backgroundColor: t.backgroundColor,
+                      selectedColor: t.color,
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(10),
+                        side: BorderSide(
+                          color: isSelected ? t.color : t.borderColor,
+                          width: isSelected ? 1.5 : 1,
+                        ),
+                      ),
+                      onSelected: (_) => _toggleTagSelection(t.id),
+                    ),
+                  );
+                }).toList(),
+              ),
+            ),
+            const SizedBox(height: 10),
+          ],
 
           // Sorting Segmented Control
           Row(
@@ -1153,8 +1312,42 @@ class _AssignTagScreenState extends State<AssignTagScreen> {
     );
   }
 
+  Future<void> _openStudentTagSheet(TagAssignableStudent student) async {
+    final updated = await StudentTagSheet.show(
+      context,
+      PhonebookStudent(
+        id: student.id.toString(),
+        studentId: student.studentCode,
+        name: student.name,
+        enrollmentNumber: '',
+        department: '',
+        batch: '',
+        room: student.room,
+        floor: student.floor,
+        bankCode: student.studentCode,
+        tags: student.tags,
+        phones: [],
+      ),
+      onTagsUpdated: (newTags) {
+        final idxAll = _allStudents.indexWhere((s) => s.id == student.id);
+        if (idxAll != -1) {
+          _allStudents[idxAll] = _allStudents[idxAll].copyWith(tags: newTags);
+        }
+        final idxDisp = _displayedStudents.indexWhere((s) => s.id == student.id);
+        if (idxDisp != -1) {
+          _displayedStudents[idxDisp] = _displayedStudents[idxDisp].copyWith(tags: newTags);
+        }
+        if (mounted) setState(() {});
+      },
+    );
+    if (updated != null && mounted) {
+      _loadStudents();
+    }
+  }
+
   Widget _buildStudentCard(TagAssignableStudent student) {
-    final hasCurrentTag = student.hasTag(widget.tag.id);
+    final hasAllSelected = _selectedTagIds.isNotEmpty && _selectedTagIds.every((id) => student.hasTag(id));
+    final missingSelectedCount = _selectedTagIds.where((id) => !student.hasTag(id)).length;
     final isBusy = _busyIds.contains(student.id);
     final isAlumni = student.isAlumni;
 
@@ -1164,15 +1357,15 @@ class _AssignTagScreenState extends State<AssignTagScreen> {
 
     return Container(
       decoration: BoxDecoration(
-        color: hasCurrentTag ? const Color(0xFFF0FDF4) : Colors.white,
+        color: hasAllSelected ? const Color(0xFFF0FDF4) : Colors.white,
         borderRadius: BorderRadius.circular(20),
         border: Border.all(
-          color: hasCurrentTag ? const Color(0xFF16A34A).withValues(alpha: 0.4) : const Color(0xFFF1F5F9),
-          width: hasCurrentTag ? 1.6 : 1.2,
+          color: hasAllSelected ? const Color(0xFF16A34A).withValues(alpha: 0.4) : const Color(0xFFF1F5F9),
+          width: hasAllSelected ? 1.6 : 1.2,
         ),
         boxShadow: [
           BoxShadow(
-            color: hasCurrentTag
+            color: hasAllSelected
                 ? const Color(0xFF16A34A).withValues(alpha: 0.08)
                 : const Color(0xFF0F172A).withValues(alpha: 0.04),
             blurRadius: 14,
@@ -1358,15 +1551,30 @@ class _AssignTagScreenState extends State<AssignTagScreen> {
                         textColor: const Color(0xFF64748B),
                       ),
                     ...student.tags.map((t) {
-                      final isThisTag = t.id == widget.tag.id;
-                      return CelebrantLightChip(
-                        icon: Icons.label_rounded,
-                        text: t.name,
-                        bgColor: isThisTag ? widget.tag.displayColor.withValues(alpha: 0.15) : t.backgroundColor,
-                        borderColor: isThisTag ? widget.tag.displayColor : t.borderColor,
-                        textColor: isThisTag ? widget.tag.displayColor : t.color,
+                      final isSelectedTag = _selectedTagIds.contains(t.id);
+                      return InkWell(
+                        onTap: () => _openStudentTagSheet(student),
+                        borderRadius: BorderRadius.circular(8),
+                        child: CelebrantLightChip(
+                          icon: Icons.label_rounded,
+                          text: t.name,
+                          bgColor: isSelectedTag ? t.displayColor.withValues(alpha: 0.15) : t.backgroundColor,
+                          borderColor: isSelectedTag ? t.displayColor : t.borderColor,
+                          textColor: isSelectedTag ? t.displayColor : t.color,
+                        ),
                       );
                     }),
+                    InkWell(
+                      onTap: () => _openStudentTagSheet(student),
+                      borderRadius: BorderRadius.circular(8),
+                      child: const CelebrantLightChip(
+                        icon: Icons.edit_note_rounded,
+                        text: 'Manage',
+                        bgColor: Color(0xFFF1F5F9),
+                        borderColor: Color(0xFFCBD5E1),
+                        textColor: Color(0xFF475569),
+                      ),
+                    ),
                   ],
                 ),
 
@@ -1397,14 +1605,14 @@ class _AssignTagScreenState extends State<AssignTagScreen> {
                     else
                       const SizedBox.shrink(),
 
-                    // Action Button (Assigned / Max 3 Tags / Assign)
+                    // Action Button (Assigned / Assign)
                     if (isBusy)
                       const SizedBox(
                         width: 22,
                         height: 22,
                         child: CircularProgressIndicator(strokeWidth: 2),
                       )
-                    else if (hasCurrentTag)
+                    else if (hasAllSelected)
                       InkWell(
                         onTap: () => _unassignTag(student),
                         borderRadius: BorderRadius.circular(10),
@@ -1432,28 +1640,15 @@ class _AssignTagScreenState extends State<AssignTagScreen> {
                           ),
                         ),
                       )
-                    else if (student.manualTagCount >= 3)
-                      Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 5.5),
-                        decoration: BoxDecoration(
-                          color: const Color(0xFFFEF3C7),
-                          borderRadius: BorderRadius.circular(10),
-                          border: Border.all(color: const Color(0xFFFDE68A)),
-                        ),
-                        child: const Text(
-                          'Max 3 Tags',
-                          style: TextStyle(
-                            fontSize: 11,
-                            fontWeight: FontWeight.w700,
-                            color: Color(0xFFD97706),
-                          ),
-                        ),
-                      )
                     else
                       ElevatedButton.icon(
                         onPressed: () => _assignTag(student),
                         icon: const Icon(Icons.add_rounded, size: 14),
-                        label: const Text('Assign'),
+                        label: Text(
+                          _selectedTagIds.length > 1 && missingSelectedCount > 0
+                              ? 'Assign ($missingSelectedCount)'
+                              : 'Assign',
+                        ),
                         style: ElevatedButton.styleFrom(
                           backgroundColor: const Color(0xFF0284C7),
                           foregroundColor: Colors.white,

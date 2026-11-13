@@ -24,8 +24,7 @@ class ScreenTimePolicy {
   final int installPassUntil;
 
   /// Play Store (and other app stores / APK installers) blocked on the phone.
-  /// Defaults to true, the same default the native blocker uses when the
-  /// backend has never sent the field.
+  /// Defaults to false so Play Store is available by default for the user.
   final bool restrictAppInstalls;
 
   const ScreenTimePolicy({
@@ -37,7 +36,7 @@ class ScreenTimePolicy {
     this.version = '',
     this.appLimits = const {},
     this.installPassUntil = 0,
-    this.restrictAppInstalls = true,
+    this.restrictAppInstalls = false,
   });
 
   bool get hasBedtime => bedtimeStart.isNotEmpty && bedtimeEnd.isNotEmpty;

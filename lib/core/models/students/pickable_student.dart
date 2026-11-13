@@ -27,7 +27,7 @@ class PickableStudent {
 /// zero. Bank codes and `student_code` (`0768`, `HSH-0768`) must never become
 /// an id: they collide with other students' ids (AGENTS.md §4).
 int? studentIdOf(Map row) {
-  final raw = row['id'];
+  final raw = row['id'] ?? row['student_id'];
   if (raw is int) return raw > 0 ? raw : null;
   final s = raw?.toString().trim() ?? '';
   return RegExp(r'^[1-9]\d*$').hasMatch(s) ? int.parse(s) : null;

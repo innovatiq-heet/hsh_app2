@@ -107,12 +107,16 @@ class _StudentDetailScreenState extends State<StudentDetailScreen> {
   /// True when the dedicated WhatsApp number equals one of the student's own
   /// mobile numbers (parents' numbers don't count), so it is not listed twice.
   bool get _whatsappSameAsMobile {
-    final wa = _digitsOf(student.whatsappNumber);
-    if (wa.isEmpty) return false;
+    if (!_has(student.whatsappNumber)) return false;
+    final wa = student.whatsappNumber!;
+    if (student.primaryPhone != 'No Phone' &&
+        PhoneNumberNormalizer.isSame(student.primaryPhone, wa)) {
+      return true;
+    }
     return student.phones.any((p) {
       final label = p.label.toLowerCase();
       if (label.contains('father') || label.contains('mother')) return false;
-      return _digitsOf(p.phone) == wa;
+      return PhoneNumberNormalizer.isSame(p.phone, wa);
     });
   }
 
@@ -204,13 +208,28 @@ class _StudentDetailScreenState extends State<StudentDetailScreen> {
   /// differs from the mobile) as (number, label) pairs.
   List<({String phone, String label})> get _studentNumbers {
     final out = <({String phone, String label})>[];
+    final seen = <String>[];
+
     for (final p in student.phones) {
       final label = p.label.toLowerCase();
       if (label.contains('father') || label.contains('mother')) continue;
-      out.add((phone: p.phone, label: p.label));
+
+      if (seen.any((s) => PhoneNumberNormalizer.isSame(s, p.phone))) continue;
+      seen.add(p.phone);
+
+      String effectiveLabel = p.label;
+      if (_has(student.whatsappNumber) &&
+          PhoneNumberNormalizer.isSame(p.phone, student.whatsappNumber)) {
+        effectiveLabel = 'Mobile & WhatsApp';
+      }
+      out.add((phone: p.phone, label: effectiveLabel));
     }
+
     if (_has(student.whatsappNumber) && !_whatsappSameAsMobile) {
-      out.add((phone: student.whatsappNumber!, label: 'WhatsApp'));
+      if (!seen.any((s) => PhoneNumberNormalizer.isSame(s, student.whatsappNumber))) {
+        seen.add(student.whatsappNumber!);
+        out.add((phone: student.whatsappNumber!, label: 'WhatsApp'));
+      }
     }
     return out;
   }

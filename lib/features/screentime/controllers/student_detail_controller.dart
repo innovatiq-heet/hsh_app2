@@ -222,8 +222,8 @@ class StudentDetailController extends GetxController
   final RxInt installPassUntil = 0.obs;
 
   /// Play Store (and other app stores / APK installers) blocked on the
-  /// student's phone. Backend field `restrict_app_installs`, default true.
-  final RxBool playStoreBlocked = true.obs;
+  /// student's phone. Backend field `restrict_app_installs`, default false.
+  final RxBool playStoreBlocked = false.obs;
 
   /// Whether a temporary Play Store install window is currently active.
   bool get hasActiveInstallPass =>

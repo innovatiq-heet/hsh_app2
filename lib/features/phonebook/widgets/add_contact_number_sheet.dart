@@ -12,7 +12,7 @@ import '../models/phonebook_models.dart';
 import '../services/phonebook_database_service.dart';
 
 /// Modal bottom sheet providing a dedicated UI to add or edit a student's contact number
-/// with support for international numbers (USA, UK, Canada, etc.), labels, and WhatsApp status.
+/// with support for international numbers (USA, UK, Canada, etc.), labels, primary WhatsApp, and SIM status.
 class AddContactNumberSheet extends StatefulWidget {
   final PhonebookStudent student;
   final StudentAdditionalPhone? existingContact;
@@ -58,6 +58,7 @@ class _AddContactNumberSheetState extends State<AddContactNumberSheet> {
   bool _isEditing = false;
   bool _isSaving = false;
   bool _isWhatsApp = false;
+  bool _isPrimaryWhatsApp = false;
   bool _isPrimary = false;
   bool _isCustomLabel = false;
   String _selectedLabel = 'USA Mobile';
@@ -84,6 +85,10 @@ class _AddContactNumberSheetState extends State<AddContactNumberSheet> {
       _phoneController.text = c.phone;
       _isWhatsApp = c.isWhatsApp;
       _isPrimary = c.isPrimary;
+      _isPrimaryWhatsApp = c.isPrimaryWhatsApp ||
+          (widget.student.whatsappNumber != null &&
+              widget.student.whatsappNumber!.isNotEmpty &&
+              widget.student.whatsappNumber == c.phone);
 
       final isKnown = _presetLabels.any((p) => p.label == c.label);
       if (isKnown) {
@@ -135,16 +140,18 @@ class _AddContactNumberSheetState extends State<AddContactNumberSheet> {
           contactId: widget.existingContact!.id,
           phone: phone,
           label: effectiveLabel,
-          isWhatsApp: _isWhatsApp,
+          isWhatsApp: _isWhatsApp || _isPrimaryWhatsApp,
           isPrimary: _isPrimary,
+          isPrimaryWhatsApp: _isPrimaryWhatsApp,
         );
       } else {
         await _repo.addAdditionalPhone(
           studentIdentifier: identifier,
           phone: phone,
           label: effectiveLabel,
-          isWhatsApp: _isWhatsApp,
+          isWhatsApp: _isWhatsApp || _isPrimaryWhatsApp,
           isPrimary: _isPrimary,
+          isPrimaryWhatsApp: _isPrimaryWhatsApp,
         );
       }
 
@@ -153,7 +160,24 @@ class _AddContactNumberSheetState extends State<AddContactNumberSheet> {
         studentId: widget.student.studentId,
         phone: phone,
         label: effectiveLabel,
+        isPrimary: _isPrimary,
       );
+
+      // If set as primary WhatsApp, update base contacts in local SQLite cache
+      if (_isPrimaryWhatsApp) {
+        await PhonebookDatabaseService.instance.updateBaseContacts(
+          studentId: widget.student.studentId,
+          whatsappNumber: phone,
+        );
+      }
+
+      // If set as primary mobile, update base contacts in local SQLite cache
+      if (_isPrimary) {
+        await PhonebookDatabaseService.instance.updateBaseContacts(
+          studentId: widget.student.studentId,
+          primaryPhone: phone,
+        );
+      }
 
       // Trigger controller search refresh
       if (Get.isRegistered<PhonebookController>()) {
@@ -174,6 +198,69 @@ class _AddContactNumberSheetState extends State<AddContactNumberSheet> {
         setState(() => _isSaving = false);
         AppSnackbar.error(
           'Save Failed',
+          e is ApiException ? e.message : e.toString(),
+        );
+      }
+    }
+  }
+
+  Future<void> _deleteContact() async {
+    final confirm = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        title: const Text('Delete Contact Number?'),
+        content: Text(
+          'Are you sure you want to delete ${widget.existingContact!.phone} (${widget.existingContact!.label}) for ${widget.student.name}?',
+          style: const TextStyle(fontSize: 13.5),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: const Text('Cancel'),
+          ),
+          ElevatedButton(
+            onPressed: () => Navigator.pop(ctx, true),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: AppColors.cancelledRed,
+              foregroundColor: Colors.white,
+            ),
+            child: const Text('Delete'),
+          ),
+        ],
+      ),
+    );
+
+    if (confirm != true) return;
+
+    setState(() => _isSaving = true);
+    try {
+      final identifier = _resolveTargetIdentifier();
+      await _repo.deleteAdditionalPhone(
+        studentIdentifier: identifier,
+        contactId: widget.existingContact!.id,
+      );
+
+      await PhonebookDatabaseService.instance.deleteAdditionalPhone(
+        studentId: widget.student.studentId,
+        phone: widget.existingContact!.phone,
+      );
+
+      if (Get.isRegistered<PhonebookController>()) {
+        Get.find<PhonebookController>().search();
+      }
+
+      widget.onSaved?.call();
+
+      if (mounted) {
+        Navigator.of(context).pop(true);
+        AppSnackbar.success('Contact Deleted', 'The contact number has been deleted.');
+      }
+    } catch (e) {
+      if (mounted) {
+        setState(() => _isSaving = false);
+        AppSnackbar.error(
+          'Delete Failed',
           e is ApiException ? e.message : e.toString(),
         );
       }
@@ -515,7 +602,126 @@ class _AddContactNumberSheetState extends State<AddContactNumberSheet> {
               ],
               const SizedBox(height: 18),
 
-              // WhatsApp Toggle Card
+              // WhatsApp Options Card
+              Container(
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+                decoration: BoxDecoration(
+                  color: const Color(0xFFF8FAFC),
+                  borderRadius: BorderRadius.circular(14),
+                  border: Border.all(color: const Color(0xFFE2E8F0)),
+                ),
+                child: Column(
+                  children: [
+                    // Active on WhatsApp toggle
+                    Row(
+                      children: [
+                        Container(
+                          padding: const EdgeInsets.all(7),
+                          decoration: BoxDecoration(
+                            color: AppColors.successGreen.withValues(alpha: 0.12),
+                            borderRadius: BorderRadius.circular(9),
+                          ),
+                          child: const FaIcon(
+                            FontAwesomeIcons.whatsapp,
+                            size: 18,
+                            color: AppColors.successGreen,
+                          ),
+                        ),
+                        const SizedBox(width: 12),
+                        const Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                'Active on WhatsApp',
+                                style: TextStyle(
+                                  fontSize: 13,
+                                  fontWeight: FontWeight.w700,
+                                  color: AppColors.textPrimary,
+                                ),
+                              ),
+                              SizedBox(height: 1.5),
+                              Text(
+                                'Allows 1-tap WhatsApp chat from directory',
+                                style: TextStyle(
+                                  fontSize: 11.5,
+                                  color: Color(0xFF64748B),
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                        Switch(
+                          value: _isWhatsApp || _isPrimaryWhatsApp,
+                          activeThumbColor: AppColors.successGreen,
+                          onChanged: (val) {
+                            setState(() {
+                              _isWhatsApp = val;
+                              if (!val) _isPrimaryWhatsApp = false;
+                            });
+                          },
+                        ),
+                      ],
+                    ),
+                    const Divider(height: 18, thickness: 1, color: Color(0xFFE2E8F0)),
+                    // Primary WhatsApp for Calls toggle
+                    Row(
+                      children: [
+                        Container(
+                          padding: const EdgeInsets.all(7),
+                          decoration: BoxDecoration(
+                            color: const Color(0xFF16A34A).withValues(alpha: 0.12),
+                            borderRadius: BorderRadius.circular(9),
+                          ),
+                          child: const Icon(
+                            Icons.phone_in_talk_rounded,
+                            size: 18,
+                            color: Color(0xFF16A34A),
+                          ),
+                        ),
+                        const SizedBox(width: 12),
+                        const Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                'Primary for WhatsApp Calls',
+                                style: TextStyle(
+                                  fontSize: 13,
+                                  fontWeight: FontWeight.w700,
+                                  color: AppColors.textPrimary,
+                                ),
+                              ),
+                              SizedBox(height: 1.5),
+                              Text(
+                                'Main WhatsApp number for direct WhatsApp calls',
+                                style: TextStyle(
+                                  fontSize: 11.5,
+                                  color: Color(0xFF64748B),
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                        Switch(
+                          value: _isPrimaryWhatsApp,
+                          activeThumbColor: const Color(0xFF16A34A),
+                          onChanged: (val) {
+                            setState(() {
+                              _isPrimaryWhatsApp = val;
+                              if (val) _isWhatsApp = true;
+                            });
+                          },
+                        ),
+                      ],
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(height: 12),
+
+              // Set as Primary Student Mobile SIM Card
               Container(
                 padding:
                     const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
@@ -529,13 +735,13 @@ class _AddContactNumberSheetState extends State<AddContactNumberSheet> {
                     Container(
                       padding: const EdgeInsets.all(7),
                       decoration: BoxDecoration(
-                        color: AppColors.successGreen.withValues(alpha: 0.12),
+                        color: AppColors.primary.withValues(alpha: 0.12),
                         borderRadius: BorderRadius.circular(9),
                       ),
-                      child: const FaIcon(
-                        FontAwesomeIcons.whatsapp,
+                      child: const Icon(
+                        Icons.sim_card_outlined,
                         size: 18,
-                        color: AppColors.successGreen,
+                        color: AppColors.primary,
                       ),
                     ),
                     const SizedBox(width: 12),
@@ -544,7 +750,7 @@ class _AddContactNumberSheetState extends State<AddContactNumberSheet> {
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
                           Text(
-                            'Active on WhatsApp',
+                            'Set as Primary Student Mobile',
                             style: TextStyle(
                               fontSize: 13,
                               fontWeight: FontWeight.w700,
@@ -553,7 +759,7 @@ class _AddContactNumberSheetState extends State<AddContactNumberSheet> {
                           ),
                           SizedBox(height: 1.5),
                           Text(
-                            'Allows 1-tap WhatsApp chat from directory',
+                            'Main SIM phone number for normal calling',
                             style: TextStyle(
                               fontSize: 11.5,
                               color: Color(0xFF64748B),
@@ -563,14 +769,14 @@ class _AddContactNumberSheetState extends State<AddContactNumberSheet> {
                       ),
                     ),
                     Switch(
-                      value: _isWhatsApp,
-                      activeThumbColor: AppColors.successGreen,
-                      onChanged: (val) => setState(() => _isWhatsApp = val),
+                      value: _isPrimary,
+                      activeThumbColor: AppColors.primary,
+                      onChanged: (val) => setState(() => _isPrimary = val),
                     ),
                   ],
                 ),
               ),
-              const SizedBox(height: 22),
+              const SizedBox(height: 20),
 
               // Action Buttons
               Row(
@@ -629,6 +835,32 @@ class _AddContactNumberSheetState extends State<AddContactNumberSheet> {
                   ),
                 ],
               ),
+
+              // Delete button if editing
+              if (_isEditing) ...[
+                const SizedBox(height: 12),
+                OutlinedButton.icon(
+                  onPressed: _isSaving ? null : _deleteContact,
+                  icon: const Icon(Icons.delete_outline_rounded,
+                      size: 18, color: AppColors.cancelledRed),
+                  label: const Text(
+                    'Delete This Number',
+                    style: TextStyle(
+                      color: AppColors.cancelledRed,
+                      fontWeight: FontWeight.w700,
+                    ),
+                  ),
+                  style: OutlinedButton.styleFrom(
+                    side: BorderSide(
+                      color: AppColors.cancelledRed.withValues(alpha: 0.4),
+                    ),
+                    padding: const EdgeInsets.symmetric(vertical: 12),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                  ),
+                ),
+              ],
             ],
           ),
         ),

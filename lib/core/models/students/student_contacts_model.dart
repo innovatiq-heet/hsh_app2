@@ -6,6 +6,7 @@ class StudentAdditionalPhone {
   final String label;
   final bool isPrimary;
   final bool isWhatsApp;
+  final bool isPrimaryWhatsApp;
   final String? createdAt;
   final String? updatedAt;
 
@@ -17,6 +18,7 @@ class StudentAdditionalPhone {
     required this.label,
     this.isPrimary = false,
     this.isWhatsApp = false,
+    this.isPrimaryWhatsApp = false,
     this.createdAt,
     this.updatedAt,
   });
@@ -32,6 +34,8 @@ class StudentAdditionalPhone {
       label: json['label']?.toString() ?? 'Mobile',
       isPrimary: json['is_primary'] == 1 || json['is_primary'] == true,
       isWhatsApp: json['is_whatsapp'] == 1 || json['is_whatsapp'] == true,
+      isPrimaryWhatsApp: json['is_primary_whatsapp'] == 1 ||
+          json['is_primary_whatsapp'] == true,
       createdAt: json['created_at']?.toString(),
       updatedAt: json['updated_at']?.toString(),
     );
@@ -45,6 +49,7 @@ class StudentAdditionalPhone {
         'label': label,
         'is_primary': isPrimary,
         'is_whatsapp': isWhatsApp,
+        'is_primary_whatsapp': isPrimaryWhatsApp,
         'created_at': createdAt,
         'updated_at': updatedAt,
       };
@@ -75,8 +80,9 @@ class StudentContactsData {
         : <String, dynamic>{};
 
     final addList = <StudentAdditionalPhone>[];
-    if (json['additional_contacts'] is List) {
-      for (final item in json['additional_contacts']) {
+    final rawAdditional = json['additional_contacts'] ?? json['additional_phones'];
+    if (rawAdditional is List) {
+      for (final item in rawAdditional) {
         if (item is Map) {
           addList.add(
             StudentAdditionalPhone.fromJson(Map<String, dynamic>.from(item)),
@@ -88,10 +94,11 @@ class StudentContactsData {
     return StudentContactsData(
       studentId: int.tryParse(json['student_id']?.toString() ?? '0') ?? 0,
       name: json['name']?.toString() ?? '',
-      primaryPhone: base['primary_phone']?.toString(),
-      whatsappNumber: base['whatsapp_number']?.toString(),
-      fatherPhone: base['father_phone']?.toString(),
-      motherPhone: base['mother_phone']?.toString(),
+      primaryPhone: (base['primary_phone'] ?? json['primary_phone'])?.toString(),
+      whatsappNumber:
+          (base['whatsapp_number'] ?? json['whatsapp_number'])?.toString(),
+      fatherPhone: (base['father_phone'] ?? json['father_phone'])?.toString(),
+      motherPhone: (base['mother_phone'] ?? json['mother_phone'])?.toString(),
       additionalContacts: addList,
     );
   }

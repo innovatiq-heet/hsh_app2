@@ -15,7 +15,7 @@ class StudentTagsResult {
     required this.studentId,
     this.systemTag,
     required this.assignedTags,
-    this.maxAllowed = 3,
+    this.maxAllowed = 99,
   });
 
   List<StudentTag> get allTags => [
@@ -98,11 +98,11 @@ class TagsRepository extends BaseRepository {
           studentId: studentId,
           systemTag: sysTag,
           assignedTags: assigned,
-          maxAllowed: int.tryParse(data['max_allowed']?.toString() ?? '3') ?? 3,
+          maxAllowed: int.tryParse(data['max_allowed']?.toString() ?? '99') ?? 99,
         );
       });
 
-  /// Assigns a tag to a student (limit: 3 manual tags per student).
+  /// Assigns a tag to a student.
   Future<void> assignTag({
     required int studentId,
     required int tagId,
@@ -110,6 +110,17 @@ class TagsRepository extends BaseRepository {
       _guard(() async {
         await _dio.post('/tags/student/$studentId', data: {
           'tag_id': tagId,
+        });
+      });
+
+  /// Assigns multiple tags to a student in one batch request.
+  Future<void> assignTags({
+    required int studentId,
+    required List<int> tagIds,
+  }) =>
+      _guard(() async {
+        await _dio.post('/tags/student/$studentId', data: {
+          'tag_ids': tagIds,
         });
       });
 

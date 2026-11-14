@@ -833,9 +833,12 @@ class PhonebookScreen extends GetView<PhonebookController> {
                             children: PhonebookController.hshGroups.map((g) {
                               final isSelected = controller.selectedGroup.value == g;
                               final isAlumniChip = g.toLowerCase() == 'alumni';
-                              final color = isAlumniChip
-                                  ? const Color(0xFF9333EA)
-                                  : const Color(0xFF0284C7);
+                              final isFavouritesChip = g.toLowerCase() == 'favourites';
+                              final color = isFavouritesChip
+                                  ? const Color(0xFFD97706)
+                                  : isAlumniChip
+                                      ? const Color(0xFF9333EA)
+                                      : const Color(0xFF0284C7);
 
                               return Padding(
                                 padding: const EdgeInsets.only(right: 8),
@@ -875,7 +878,14 @@ class PhonebookScreen extends GetView<PhonebookController> {
                                       child: Row(
                                         mainAxisSize: MainAxisSize.min,
                                         children: [
-                                          if (isAlumniChip) ...[
+                                          if (isFavouritesChip) ...[
+                                            Icon(
+                                              Icons.star_rounded,
+                                              size: 15,
+                                              color: isSelected ? Colors.white : const Color(0xFFF59E0B),
+                                            ),
+                                            const SizedBox(width: 5),
+                                          ] else if (isAlumniChip) ...[
                                             Icon(
                                               Icons.school_rounded,
                                               size: 14,
@@ -884,7 +894,9 @@ class PhonebookScreen extends GetView<PhonebookController> {
                                             const SizedBox(width: 5),
                                           ],
                                           Text(
-                                            g,
+                                            isFavouritesChip && controller.pinnedStudentKeys.isNotEmpty
+                                                ? '$g (${controller.pinnedStudentKeys.length})'
+                                                : g,
                                             style: TextStyle(
                                               color: isSelected ? Colors.white : const Color(0xFF475569),
                                               fontSize: 13,
@@ -912,9 +924,10 @@ class PhonebookScreen extends GetView<PhonebookController> {
                         }
                         return _buildFavouritesSection(context, favs);
                       }),
-                      // Section title with live count
+                      // Section title with live count & selection toggle
                       Obx(() {
                         final count = controller.students.length;
+                        final inSelection = controller.isSelectionMode.value;
                         return Row(
                           children: [
                             Container(
@@ -935,6 +948,48 @@ class PhonebookScreen extends GetView<PhonebookController> {
                                 letterSpacing: 0.8,
                               ),
                             ),
+                            const Spacer(),
+                            if (count > 0)
+                              Material(
+                                color: Colors.transparent,
+                                child: InkWell(
+                                  onTap: () {
+                                    if (inSelection) {
+                                      controller.exitSelectionMode();
+                                    } else {
+                                      controller.isSelectionMode.value = true;
+                                    }
+                                  },
+                                  borderRadius: BorderRadius.circular(8),
+                                  child: Padding(
+                                    padding: const EdgeInsets.symmetric(
+                                      horizontal: 8,
+                                      vertical: 4,
+                                    ),
+                                    child: Row(
+                                      mainAxisSize: MainAxisSize.min,
+                                      children: [
+                                        Icon(
+                                          inSelection
+                                              ? Icons.close_rounded
+                                              : Icons.checklist_rounded,
+                                          size: 16,
+                                          color: const Color(0xFF0284C7),
+                                        ),
+                                        const SizedBox(width: 4),
+                                        Text(
+                                          inSelection ? 'Cancel' : 'Select',
+                                          style: const TextStyle(
+                                            fontSize: 12,
+                                            fontWeight: FontWeight.w700,
+                                            color: Color(0xFF0284C7),
+                                          ),
+                                        ),
+                                      ],
+                                    ),
+                                  ),
+                                ),
+                              ),
                           ],
                         );
                       }),
@@ -990,31 +1045,38 @@ class PhonebookScreen extends GetView<PhonebookController> {
                     itemCount: list.length,
                     itemBuilder: (context, index) {
                       final student = list[index];
-                      final isSelected = controller.isStudentSelected(student.id);
-                      final isSelectionMode = controller.isSelectionMode.value;
 
-                      final card = _StudentPhonebookCard(
-                        student: student,
-                        isSelected: isSelected,
-                        isSelectionMode: isSelectionMode,
-                        onTap: () {
-                          if (isSelectionMode) {
-                            controller.toggleSelectStudent(student.id);
-                          } else {
-                            _showStudentContactDetails(context, student);
-                          }
-                        },
-                        onLongPress: () {
-                          if (!isSelectionMode) {
-                            controller.startSelectionMode(student.id);
-                          } else {
-                            controller.toggleSelectStudent(student.id);
-                          }
-                        },
-                        onCall: (phone) => controller.makeCall(phone, student: student),
-                        onWhatsApp: (phone) => controller.openWhatsApp(phone),
-                        onShare: () => controller.shareStudent(student),
-                      );
+                      final Widget card = Obx(() {
+                        final isSelected = controller.selectedStudentIds.contains(student.id);
+                        final isSelectionMode = controller.isSelectionMode.value;
+                        final isFav = controller.isFavourite(student.id);
+
+                        return _StudentPhonebookCard(
+                          key: ValueKey('student_card_${student.id}'),
+                          student: student,
+                          isSelected: isSelected,
+                          isSelectionMode: isSelectionMode,
+                          isFavourite: isFav,
+                          onToggleFavourite: () => controller.toggleFavourite(student),
+                          onTap: () {
+                            if (controller.isSelectionMode.value) {
+                              controller.toggleSelectStudent(student.id);
+                            } else {
+                              _showStudentContactDetails(context, student);
+                            }
+                          },
+                          onLongPress: () {
+                            if (!controller.isSelectionMode.value) {
+                              controller.startSelectionMode(student.id);
+                            } else {
+                              controller.toggleSelectStudent(student.id);
+                            }
+                          },
+                          onCall: (phone) => controller.makeCall(phone, student: student),
+                          onWhatsApp: (phone) => controller.openWhatsApp(phone),
+                          onShare: () => controller.shareStudent(student),
+                        );
+                      });
 
                       final isNameSort = controller.selectedSort.value == 'Name (A-Z)' &&
                           controller.searchText.value.isEmpty;
@@ -1062,6 +1124,7 @@ class PhonebookScreen extends GetView<PhonebookController> {
         // Alphabet scroll rail — positioned exclusively in the card list space
         Obx(() {
           final showRail =
+              !controller.isSelectionMode.value &&
               controller.searchText.value.isEmpty &&
               controller.railEntries.length > 1 &&
               controller.selectedSort.value == 'Name (A-Z)' &&
@@ -1168,19 +1231,22 @@ class PhonebookScreen extends GetView<PhonebookController> {
                   style: const TextStyle(fontWeight: FontWeight.w800, color: Color(0xFF0F172A)),
                 ),
                 subtitle: Text(
-                  'Called ${fav.callCount} times · most dialled: ${fav.phone} (${fav.phoneLabel})',
+                  fav.isPinned
+                      ? 'Starred favourite · Called ${fav.callCount} times${fav.phone.isNotEmpty ? ' · most dialled: ${fav.phone} (${fav.phoneLabel})' : ''}'
+                      : 'Called ${fav.callCount} times · most dialled: ${fav.phone} (${fav.phoneLabel})',
                   style: const TextStyle(fontSize: 12.5, color: Color(0xFF64748B)),
                 ),
               ),
               const Divider(height: 8),
-              ListTile(
-                leading: const Icon(Icons.call_rounded, color: Color(0xFF10B981)),
-                title: Text('Call ${fav.phoneLabel}'),
-                onTap: () {
-                  Navigator.of(sheetContext).pop();
-                  controller.makeCall(fav.phone, student: fav.student);
-                },
-              ),
+              if (fav.phone.isNotEmpty)
+                ListTile(
+                  leading: const Icon(Icons.call_rounded, color: Color(0xFF10B981)),
+                  title: Text('Call ${fav.phoneLabel}'),
+                  onTap: () {
+                    Navigator.of(sheetContext).pop();
+                    controller.makeCall(fav.phone, student: fav.student);
+                  },
+                ),
               ListTile(
                 leading: const Icon(Icons.person_rounded, color: Color(0xFF0284C7)),
                 title: const Text('View profile'),
@@ -1190,7 +1256,18 @@ class PhonebookScreen extends GetView<PhonebookController> {
                 },
               ),
               ListTile(
-                leading: const Icon(Icons.star_outline_rounded, color: Color(0xFFDC2626)),
+                leading: Icon(
+                  fav.isPinned ? Icons.star_rounded : Icons.star_outline_rounded,
+                  color: const Color(0xFFF59E0B),
+                ),
+                title: Text(fav.isPinned ? 'Unstar from Favourites' : 'Star as Favourite'),
+                onTap: () {
+                  Navigator.of(sheetContext).pop();
+                  controller.toggleFavourite(fav.student);
+                },
+              ),
+              ListTile(
+                leading: const Icon(Icons.delete_outline_rounded, color: Color(0xFFDC2626)),
                 title: const Text(
                   'Remove from Favourites',
                   style: TextStyle(color: Color(0xFFDC2626)),
@@ -1607,18 +1684,23 @@ class _StudentPhonebookCard extends StatelessWidget {
   final PhonebookStudent student;
   final bool isSelected;
   final bool isSelectionMode;
+  final bool isFavourite;
   final VoidCallback onTap;
   final VoidCallback? onLongPress;
+  final VoidCallback? onToggleFavourite;
   final ValueChanged<String> onCall;
   final ValueChanged<String> onWhatsApp;
   final VoidCallback? onShare;
 
   const _StudentPhonebookCard({
+    super.key,
     required this.student,
     this.isSelected = false,
     this.isSelectionMode = false,
+    this.isFavourite = false,
     required this.onTap,
     this.onLongPress,
+    this.onToggleFavourite,
     required this.onCall,
     required this.onWhatsApp,
     this.onShare,
@@ -1641,8 +1723,10 @@ class _StudentPhonebookCard extends StatelessWidget {
       isAlumni: student.isAlumni,
       isSelected: isSelected,
       isSelectionMode: isSelectionMode,
+      isFavourite: isFavourite,
       onTap: onTap,
       onLongPress: onLongPress,
+      onToggleFavourite: onToggleFavourite,
       onCall: onCall,
       onWhatsApp: onWhatsApp,
       onShare: onShare,
@@ -1730,6 +1814,26 @@ class _FavouriteTile extends StatelessWidget {
                         ),
                       ),
                     ),
+                    if (favourite.isPinned)
+                      Positioned(
+                        left: -4,
+                        top: -4,
+                        child: Container(
+                          padding: const EdgeInsets.all(3),
+                          decoration: const BoxDecoration(
+                            color: Color(0xFFF59E0B),
+                            shape: BoxShape.circle,
+                            boxShadow: [
+                              BoxShadow(
+                                color: Color(0x33F59E0B),
+                                blurRadius: 4,
+                                offset: Offset(0, 1),
+                              ),
+                            ],
+                          ),
+                          child: const Icon(Icons.star_rounded, size: 11, color: Colors.white),
+                        ),
+                      ),
                     Positioned(
                       right: -6,
                       bottom: -6,
@@ -1765,7 +1869,9 @@ class _FavouriteTile extends StatelessWidget {
                   ),
                 ),
                 Text(
-                  '${favourite.callCount} calls',
+                  favourite.isPinned && favourite.callCount == 0
+                      ? 'Starred'
+                      : '${favourite.callCount} calls',
                   maxLines: 1,
                   style: const TextStyle(
                     fontSize: 10.5,

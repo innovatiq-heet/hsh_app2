@@ -564,16 +564,45 @@ class PhonebookDatabaseService {
     String? whatsappNumber,
     String? fatherPhone,
     String? motherPhone,
+    bool clearPrimary = false,
+    bool clearWhatsApp = false,
+    bool clearFather = false,
+    bool clearMother = false,
   }) async {
     final db = await database;
     final updates = <String, dynamic>{
       'updated_at': DateTime.now().toIso8601String(),
     };
-    if (whatsappNumber != null) updates['whatsapp_number'] = whatsappNumber;
-    if (fatherPhone != null) updates['father_phone'] = fatherPhone;
-    if (motherPhone != null) updates['mother_phone'] = motherPhone;
+    if (clearWhatsApp || (whatsappNumber != null && whatsappNumber.isEmpty)) {
+      updates['whatsapp_number'] = null;
+    } else if (whatsappNumber != null) {
+      updates['whatsapp_number'] = whatsappNumber;
+    }
 
-    if (primaryPhone != null && primaryPhone.isNotEmpty) {
+    if (clearFather || (fatherPhone != null && fatherPhone.isEmpty)) {
+      updates['father_phone'] = null;
+    } else if (fatherPhone != null) {
+      updates['father_phone'] = fatherPhone;
+    }
+
+    if (clearMother || (motherPhone != null && motherPhone.isEmpty)) {
+      updates['mother_phone'] = null;
+    } else if (motherPhone != null) {
+      updates['mother_phone'] = motherPhone;
+    }
+
+    if (clearPrimary || (primaryPhone != null && primaryPhone.isEmpty)) {
+      await db.update(
+        'student_cache',
+        {
+          ...updates,
+          'phone': 'No Phone',
+          'phone_normalized': '',
+        },
+        where: '(student_id = ? OR bank_code = ?) AND is_primary = 1',
+        whereArgs: [studentId, studentId],
+      );
+    } else if (primaryPhone != null && primaryPhone.isNotEmpty) {
       final norm = PhoneNumberNormalizer.normalize(primaryPhone) ?? primaryPhone;
       await db.update(
         'student_cache',

@@ -183,22 +183,26 @@ Operator home → **Student Phonebook** (`Routes.operatorDirectory`).
 - **Student details screen** (tap a card): a full screen with the navy header, a collapsible *Student contact* card (numbers + email, Call / WhatsApp / Message / Gmail), Hostel, Personal and Family cards, and family numbers (one card when father and mother share a number). **View screen time** (residents only; alumni don't have it) resolves the student's Screen Time `students.id` through Screen Time's own directory (bank code equal AND name or room equal, exactly one match) and opens that student directly; otherwise it opens Screen Time searched by name. A bank code is never sent as an id.
 - Call uses `tel:`; WhatsApp opens `https://wa.me/91XXXXXXXXXX` in the external app.
 
-### 5.1 Favourites (most dialled)
+### 5.1 Favourites (manual star + most dialled)
 
-A horizontal strip above **Student contacts**, filled automatically: every call placed from the phonebook (list card, profile Call button, any number on the profile) is counted for the logged-in admin, and students called at least **2** times appear here, up to **10**, most-called first (latest call breaks ties). Hidden while searching, in selection mode, or when empty.
+Favourites support both **explicit manual starring/pinning** (via star button on any contact card or profile header, and the `Favourites` filter chip in the directory) and **automatic dial frequency tracking** (students called $\ge 2$ times):
 
-- Tile: initials in the group colour, first name, "N calls". Tap opens the profile; the green button calls the **most-dialled number** for that student (e.g. the father's if that is what is usually called). Long press: Call / View profile / Remove from Favourites (resets that student's count).
-- Code: `PhonebookFavouritesService` (counts, sync), `PhonebookController.favourites` / `loadFavourites()` / `removeFavourite()`, `_FavouriteTile` in `phonebook_screen.dart`.
-- **Sync across phones:** the server is the source of truth, per user (`req.user.id`). The app updates its local copy instantly, then uploads; failed uploads/removals are queued in SharedPreferences and retried before every refresh, in order. Each call has a `client_call_id`, so retries never double count. Local data is cleared on logout. Until the endpoints below exist, the app silently works from local counts and uploads the queue once they go live.
-- Student key: `PhonebookStudent.id` (`HSH-<bankCode>`, or the name when the record has no id). It is not a `students.id`.
+- **Favourites Section Strip:** A horizontal strip above **Student contacts**, showing starred/pinned students first, followed by frequently called students, up to **10**, most-called first. Pinned students carry a gold star badge. Hidden while searching, in selection mode, or when empty.
+- **Dedicated Favourites Filter Chip:** An amber-gold chip with star icon in the group filter row (`[All] [⭐ Favourites] [Param] ...`) that immediately filters the entire student directory to only show the user's favourite students.
+- **Card & Header Star Actions:** Quick star/unstar toggle button on every student card in the list and in the student profile header.
+- **Tile:** initials in the group colour, first name, "N calls" (or "Starred"). Tap opens profile; green button calls most-dialled number. Long press: Call / View profile / Star or Unstar / Remove from Favourites.
+- **Sync across phones:** The server is the source of truth, strictly per user (`req.user.id`). Local storage (SharedPreferences + cache) updates instantly and queues offline calls and star operations with retry upon reconnect.
+- **Student key:** `PhonebookStudent.id` (`HSH-<bankCode>`, or name). Opaque string; never resolved to a `students.id`.
 
 Backend handoff (table, SQL, validation, e2e tests): [PHONEBOOK_FAVOURITES_BACKEND_HANDOFF.md](PHONEBOOK_FAVOURITES_BACKEND_HANDOFF.md).
 
 | Endpoint (`hsh_api`, admin + warden only) | Body / query | Response |
 | :--- | :--- | :--- |
-| `POST /phonebook/calls` | `{ calls: [{ client_call_id, student_key, student_name, phone, phone_normalized, called_at }] }` (1-100, `called_at` ISO UTC) | `200 { success: true, data: { inserted, duplicates } }`. Duplicate `(user, client_call_id)` is ignored, not an error. |
-| `GET /phonebook/favourites` | `?limit=10&min_calls=2` | `{ success: true, data: [{ student_key, student_name, total_calls, last_called_at, numbers: [{ phone, phone_normalized, calls }] }] }`, sorted `total_calls DESC, last_called_at DESC`. |
-| `DELETE /phonebook/favourites/:studentKey` | key URL-encoded | `200 { success: true }`. Deletes that user's calls for the student; 404 is treated as done. |
+| `POST /phonebook/calls` | `{ calls: [{ client_call_id, student_key, student_name, phone, phone_normalized, called_at }] }` (1-100, `called_at` ISO UTC) | `200 { success: true, data: { inserted, duplicates } }`. Duplicate `(user, client_call_id)` is ignored. |
+| `GET /phonebook/favourites` | `?limit=10&min_calls=2` | `{ success: true, data: [{ student_key, student_name, total_calls, last_called_at, is_pinned, numbers: [{ phone, phone_normalized, calls }] }] }`, sorted `is_pinned DESC, total_calls DESC, last_called_at DESC`. |
+| `POST /phonebook/favourites` | `{ student_key, student_name? }` | `200 { success: true, data: { student_key, is_pinned: true } }`. Stars a student in manual favourites. |
+| `POST /phonebook/favourites/toggle` | `{ student_key, student_name? }` | `200 { success: true, data: { student_key, is_pinned: boolean } }`. Toggles pinned favourite state. |
+| `DELETE /phonebook/favourites/:studentKey` | key URL-encoded (`?pin_only=true` optional) | `200 { success: true }`. Deletes favourite status; if `pin_only=true`, only unpins without clearing call logs. |
 
 ---
 

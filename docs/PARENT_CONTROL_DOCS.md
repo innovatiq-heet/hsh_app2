@@ -1,6 +1,6 @@
 # Parental Control & Screen Time
 
-> **Last updated:** 2026-11-11 · **Repos:** `hsh_app2` (Flutter + native Android) and `hsh_api` (Node/Express/MySQL)
+> **Last updated:** 2026-11-13 · **Repos:** `hsh_app2` (Flutter + native Android) and `hsh_api` (Node/Express/MySQL)
 >
 > Paths starting with `lib/` or `android/` are in this repo; paths starting with `hsh_api/` are in the backend repo. Location tracking and curfew breaches are documented separately in [GEOFENCING_DOCS.md](GEOFENCING_DOCS.md).
 
@@ -170,7 +170,7 @@ graph TD
 
 1. This app itself and protected packages → always allowed.
 2. `isLocked` → `DEVICE_LOCKED`.
-2a. `restrictAppInstalls` and the package is an app store or installer (`PolicyEvaluator.INSTALLER_PACKAGES`: Play Store, Galaxy Store, Mi/Oppo/Vivo/Huawei stores, package installers) → `INSTALLER_BLOCKED`, unless an install pass is running (`installPassUntil` in the future). `restrictAppInstalls` defaults to **true** on the phone when the backend has never sent it, so the Play Store is blocked until a warden allows it.
+2a. `restrictAppInstalls` and the package is an app store or installer (`PolicyEvaluator.INSTALLER_PACKAGES`: Play Store, Galaxy Store, Mi/Oppo/Vivo/Huawei stores, package installers) → `INSTALLER_BLOCKED`, unless an install pass is running (`installPassUntil` in the future). `restrictAppInstalls` defaults to **false** on the phone when the backend has never sent it, so the Play Store is available by default until a warden blocks it.
 3. Package in `blockedPackages` → `APP_BLOCKED`.
 4. Package has `appLimits` set and today's usage ≥ limit → `APP_LIMIT`.
 5. Inside the bedtime window (overnight wrap supported) → `BEDTIME`.

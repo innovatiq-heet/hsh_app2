@@ -13,12 +13,28 @@ class FormStatusBadge extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) => switch (status) {
-        FormStatus.active => const StatusBadge(label: 'Active', color: AppColors.successGreen, icon: Icons.play_circle_rounded),
-        FormStatus.upcoming => const StatusBadge(label: 'Upcoming', color: AppColors.pendingBlue, icon: Icons.schedule_rounded),
-        FormStatus.expired => const StatusBadge(label: 'Ended', color: AppColors.textMuted, icon: Icons.event_busy_rounded),
-        FormStatus.disabled => const StatusBadge(label: 'Paused', color: AppColors.warningOrange, icon: Icons.pause_circle_rounded),
-        FormStatus.unknown => const SizedBox.shrink(),
-      };
+    FormStatus.active => const StatusBadge(
+      label: 'Active',
+      color: AppColors.successGreen,
+      icon: Icons.play_circle_rounded,
+    ),
+    FormStatus.upcoming => const StatusBadge(
+      label: 'Upcoming',
+      color: AppColors.pendingBlue,
+      icon: Icons.schedule_rounded,
+    ),
+    FormStatus.expired => const StatusBadge(
+      label: 'Ended',
+      color: AppColors.textMuted,
+      icon: Icons.event_busy_rounded,
+    ),
+    FormStatus.disabled => const StatusBadge(
+      label: 'Paused',
+      color: AppColors.warningOrange,
+      icon: Icons.pause_circle_rounded,
+    ),
+    FormStatus.unknown => const SizedBox.shrink(),
+  };
 }
 
 /// "Poll" or "Form" label: a neutral pill, the same size as the status
@@ -59,10 +75,17 @@ class BreakdownBar extends StatelessWidget {
               Expanded(
                 child: Text(
                   item.option,
-                  style: AppTextStyles.bodyMd.copyWith(fontWeight: isTop ? FontWeight.w700 : FontWeight.w500),
+                  style: AppTextStyles.bodyMd.copyWith(
+                    fontWeight: isTop ? FontWeight.w700 : FontWeight.w500,
+                  ),
                 ),
               ),
-              Text('${item.count}', style: AppTextStyles.label.copyWith(color: AppColors.textPrimary)),
+              Text(
+                '${item.count}',
+                style: AppTextStyles.label.copyWith(
+                  color: AppColors.textPrimary,
+                ),
+              ),
               SizedBox(
                 width: 44,
                 child: Text(
@@ -110,89 +133,131 @@ class AnswerInput extends StatelessWidget {
   Widget build(BuildContext context) {
     return switch (field.type) {
       FormFieldType.poll || FormFieldType.radio => Column(
-          children: [
-            for (final o in field.options)
-              _ChoiceTile(
-                label: o,
-                selected: value == o,
-                multi: false,
-                onTap: () => onChanged(o),
-              ),
-          ],
-        ),
+        children: [
+          for (final o in field.options)
+            _ChoiceTile(
+              label: o,
+              selected: value == o,
+              multi: false,
+              onTap: () => onChanged(o),
+            ),
+        ],
+      ),
       FormFieldType.checkbox => Column(
-          children: [
-            for (final o in field.options)
-              _ChoiceTile(
-                label: o,
-                selected: (value as Set<String>? ?? const {}).contains(o),
-                multi: true,
-                onTap: () {
-                  final next = {...(value as Set<String>? ?? const <String>{})};
-                  if (!next.remove(o)) next.add(o);
-                  onChanged(next);
-                },
-              ),
-          ],
-        ),
+        children: [
+          for (final o in field.options)
+            _ChoiceTile(
+              label: o,
+              selected: (value as Set<String>? ?? const {}).contains(o),
+              multi: true,
+              onTap: () {
+                final next = {...(value as Set<String>? ?? const <String>{})};
+                if (!next.remove(o)) next.add(o);
+                onChanged(next);
+              },
+            ),
+        ],
+      ),
       FormFieldType.select => DropdownButtonFormField<String>(
-          initialValue: field.options.contains(value) ? value as String : null,
-          isExpanded: true,
-          style: AppTextStyles.bodyLg,
-          icon: const Icon(Icons.keyboard_arrow_down_rounded, color: AppColors.textMuted),
-          borderRadius: BorderRadius.circular(AppDimens.radiusMd),
-          items: [
-            for (final o in field.options)
-              DropdownMenuItem(value: o, child: Text(o, overflow: TextOverflow.ellipsis)),
-          ],
-          onChanged: onChanged,
-          decoration: const InputDecoration(hintText: 'Choose an option'),
+        initialValue: field.options.contains(value) ? value as String : null,
+        isExpanded: true,
+        style: AppTextStyles.bodyLg,
+        icon: const Icon(
+          Icons.keyboard_arrow_down_rounded,
+          color: AppColors.textMuted,
         ),
+        borderRadius: BorderRadius.circular(AppDimens.radiusMd),
+        items: [
+          for (final o in field.options)
+            DropdownMenuItem(
+              value: o,
+              child: Text(o, overflow: TextOverflow.ellipsis),
+            ),
+        ],
+        onChanged: onChanged,
+        decoration: const InputDecoration(hintText: 'Choose an option'),
+      ),
       FormFieldType.boolean => Row(
-          children: [
-            Expanded(child: _ChoiceTile(label: 'Yes', selected: value == true, multi: false, onTap: () => onChanged(true))),
-            const SizedBox(width: AppDimens.gapSm),
-            Expanded(child: _ChoiceTile(label: 'No', selected: value == false, multi: false, onTap: () => onChanged(false))),
-          ],
-        ),
+        children: [
+          Expanded(
+            child: _ChoiceTile(
+              label: 'Yes',
+              selected: value == true,
+              multi: false,
+              onTap: () => onChanged(true),
+            ),
+          ),
+          const SizedBox(width: AppDimens.gapSm),
+          Expanded(
+            child: _ChoiceTile(
+              label: 'No',
+              selected: value == false,
+              multi: false,
+              onTap: () => onChanged(false),
+            ),
+          ),
+        ],
+      ),
       FormFieldType.rating => Row(
-          children: [
-            for (var i = 1; i <= 5; i++)
-              InkResponse(
-                onTap: () => onChanged(i),
-                radius: 24,
-                child: Semantics(
-                  label: '$i of 5',
-                  button: true,
-                  child: Padding(
-                    padding: const EdgeInsets.only(right: AppDimens.gapXs),
-                    child: Icon(
-                      (value is int && value >= i) ? Icons.star_rounded : Icons.star_outline_rounded,
-                      color: (value is int && value >= i) ? AppColors.secondary : AppColors.textLight,
-                      size: 36,
-                    ),
+        children: [
+          for (var i = 1; i <= 5; i++)
+            InkResponse(
+              onTap: () => onChanged(i),
+              radius: 24,
+              child: Semantics(
+                label: '$i of 5',
+                button: true,
+                child: Padding(
+                  padding: const EdgeInsets.only(right: AppDimens.gapXs),
+                  child: Icon(
+                    (value is int && value >= i)
+                        ? Icons.star_rounded
+                        : Icons.star_outline_rounded,
+                    color: (value is int && value >= i)
+                        ? const Color(0xFFF59E0B)
+                        : const Color(0xFFCBD5E1),
+                    size: 36,
                   ),
                 ),
               ),
-            const Spacer(),
-            if (value is int)
-              Text('$value / 5', style: AppTextStyles.label.copyWith(color: AppColors.textPrimary)),
-          ],
-        ),
+            ),
+          const Spacer(),
+          if (value is int)
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+            decoration: BoxDecoration(
+              color: const Color(0xFFFEF3C7),
+              borderRadius: BorderRadius.circular(10),
+              border: Border.all(color: const Color(0xFFFDE68A)),
+            ),
+            child: Text(
+              '$value / 5',
+              style: const TextStyle(
+                fontSize: 13,
+                fontWeight: FontWeight.w700,
+                color: Color(0xFFB45309),
+              ),
+            ),
+          ),
+        ],
+      ),
       FormFieldType.number => TextField(
-          controller: textController,
-          keyboardType: const TextInputType.numberWithOptions(decimal: true, signed: true),
-          onChanged: onChanged,
-          decoration: const InputDecoration(hintText: 'Enter a number'),
+        controller: textController,
+        keyboardType: const TextInputType.numberWithOptions(
+          decimal: true,
+          signed: true,
         ),
+        onChanged: onChanged,
+        decoration: const InputDecoration(hintText: 'Enter a number'),
+      ),
       FormFieldType.text || FormFieldType.textarea => TextField(
-          controller: textController,
-          minLines: field.type == FormFieldType.textarea ? 3 : 1,
-          maxLines: field.type == FormFieldType.textarea ? 8 : 1,
-          textCapitalization: TextCapitalization.sentences,
-          onChanged: onChanged,
-          decoration: const InputDecoration(hintText: 'Your answer'),
-        ),
+        controller: textController,
+        minLines: field.type == FormFieldType.textarea ? 3 : 1,
+        maxLines: field.type == FormFieldType.textarea ? 8 : 1,
+        textCapitalization: TextCapitalization.sentences,
+        onChanged: onChanged,
+        decoration: const InputDecoration(hintText: 'Your answer'),
+      ),
     };
   }
 }
@@ -203,41 +268,60 @@ class _ChoiceTile extends StatelessWidget {
   final bool multi;
   final VoidCallback onTap;
 
-  const _ChoiceTile({required this.label, required this.selected, required this.multi, required this.onTap});
+  const _ChoiceTile({
+    required this.label,
+    required this.selected,
+    required this.multi,
+    required this.onTap,
+  });
 
   @override
   Widget build(BuildContext context) {
     return Padding(
       padding: const EdgeInsets.only(bottom: AppDimens.gapSm),
       child: Material(
-        color: selected ? AppColors.primarySoft : AppColors.surface,
-        borderRadius: BorderRadius.circular(AppDimens.radiusMd),
+        color: selected ? const Color(0xFFF0F9FF) : Colors.white,
+        borderRadius: BorderRadius.circular(14),
         child: InkWell(
-          borderRadius: BorderRadius.circular(AppDimens.radiusMd),
+          borderRadius: BorderRadius.circular(14),
           onTap: onTap,
           child: Container(
-            padding: const EdgeInsets.symmetric(horizontal: AppDimens.gapLg, vertical: 14),
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
             decoration: BoxDecoration(
-              borderRadius: BorderRadius.circular(AppDimens.radiusMd),
+              borderRadius: BorderRadius.circular(14),
               border: Border.all(
-                color: selected ? AppColors.primaryLight : AppColors.border,
-                width: selected ? 1.4 : 1,
+                color: selected
+                    ? const Color(0xFF0284C7)
+                    : const Color(0xFFE2E8F0),
+                width: selected ? 1.6 : 1,
               ),
             ),
             child: Row(
               children: [
                 Icon(
                   multi
-                      ? (selected ? Icons.check_box_rounded : Icons.check_box_outline_blank_rounded)
-                      : (selected ? Icons.radio_button_checked_rounded : Icons.radio_button_off_rounded),
+                      ? (selected
+                            ? Icons.check_box_rounded
+                            : Icons.check_box_outline_blank_rounded)
+                      : (selected
+                            ? Icons.radio_button_checked_rounded
+                            : Icons.radio_button_off_rounded),
                   size: 22,
-                  color: selected ? AppColors.primaryLight : AppColors.textLight,
+                  color: selected
+                      ? const Color(0xFF0284C7)
+                      : const Color(0xFF94A3B8),
                 ),
                 const SizedBox(width: AppDimens.gapMd),
                 Expanded(
                   child: Text(
                     label,
-                    style: AppTextStyles.bodyLg.copyWith(fontWeight: selected ? FontWeight.w700 : FontWeight.w500),
+                    style: TextStyle(
+                      fontSize: 15,
+                      color: selected
+                          ? const Color(0xFF0F172A)
+                          : const Color(0xFF334155),
+                      fontWeight: selected ? FontWeight.w700 : FontWeight.w500,
+                    ),
                   ),
                 ),
               ],
@@ -251,13 +335,20 @@ class _ChoiceTile extends StatelessWidget {
 
 /// A submitted answer shown read-only.
 String describeAnswer(FormFieldDef field, dynamic value) {
-  if (value == null || (value is String && value.trim().isEmpty) || (value is List && value.isEmpty)) {
+  if (value == null ||
+      (value is String && value.trim().isEmpty) ||
+      (value is List && value.isEmpty)) {
     return '—';
   }
   return switch (field.type) {
-    FormFieldType.checkbox => value is List ? value.join(', ') : value.toString(),
+    FormFieldType.checkbox =>
+      value is List ? value.join(', ') : value.toString(),
     FormFieldType.boolean =>
-      (value == true || value.toString().toLowerCase() == 'yes' || value.toString() == 'true') ? 'Yes' : 'No',
+      (value == true ||
+              value.toString().toLowerCase() == 'yes' ||
+              value.toString() == 'true')
+          ? 'Yes'
+          : 'No',
     FormFieldType.rating => '$value / 5',
     _ => value.toString(),
   };

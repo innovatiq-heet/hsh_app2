@@ -4,7 +4,7 @@ import '../../../core/models/forms/form_models.dart';
 import '../../../core/network/api_exception.dart';
 import '../../../core/network/repository/forms/forms_repository.dart';
 
-/// Student → More → Polls & Forms: open forms and polls for this student.
+/// Student → Dashboard → Polls & Forms: open forms and polls for this student.
 class StudentFormsController extends GetxController with LoadStateMixin {
   StudentFormsController({FormsRepository? repository})
       : _repo = repository ?? Get.find<FormsRepository>();

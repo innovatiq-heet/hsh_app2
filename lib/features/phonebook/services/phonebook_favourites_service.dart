@@ -27,6 +27,9 @@ class FavouriteCallStat {
   /// favourite tile dials it exactly the same way.
   final Map<String, String> rawByNumber;
 
+  /// Whether this student was explicitly starred/pinned as a favourite by the admin.
+  final bool isPinned;
+
   const FavouriteCallStat({
     required this.studentKey,
     required this.name,
@@ -34,7 +37,28 @@ class FavouriteCallStat {
     required this.lastCalledAt,
     required this.callsByNumber,
     required this.rawByNumber,
+    this.isPinned = false,
   });
+
+  FavouriteCallStat copyWith({
+    String? studentKey,
+    String? name,
+    int? totalCalls,
+    DateTime? lastCalledAt,
+    Map<String, int>? callsByNumber,
+    Map<String, String>? rawByNumber,
+    bool? isPinned,
+  }) {
+    return FavouriteCallStat(
+      studentKey: studentKey ?? this.studentKey,
+      name: name ?? this.name,
+      totalCalls: totalCalls ?? this.totalCalls,
+      lastCalledAt: lastCalledAt ?? this.lastCalledAt,
+      callsByNumber: callsByNumber ?? this.callsByNumber,
+      rawByNumber: rawByNumber ?? this.rawByNumber,
+      isPinned: isPinned ?? this.isPinned,
+    );
+  }
 
   /// The number dialled most often for this student. On a tie, the number
   /// that was dialled first is kept.
@@ -59,6 +83,7 @@ class FavouriteCallStat {
             (k, v) => MapEntry(k.toString(), v.toString()),
           ) ??
           {},
+      isPinned: json['pinned'] == true || json['is_pinned'] == true || json['is_pinned'] == 1,
     );
   }
 
@@ -85,6 +110,7 @@ class FavouriteCallStat {
           DateTime.fromMillisecondsSinceEpoch(0),
       callsByNumber: numbers,
       rawByNumber: raws,
+      isPinned: json['is_pinned'] == true || json['is_pinned'] == 1,
     );
   }
 
@@ -95,6 +121,7 @@ class FavouriteCallStat {
         'last': lastCalledAt.toIso8601String(),
         'numbers': callsByNumber,
         'raw': rawByNumber,
+        'pinned': isPinned,
       };
 }
 
@@ -116,6 +143,7 @@ class PhonebookFavouritesService {
 
   static const _prefsKey = 'phonebook_call_stats_v1';
   static const _pendingKey = 'phonebook_call_stats_pending_v1';
+  static const _pinnedPrefKey = 'phonebook_pinned_keys_v1';
 
   /// A student shows up in Favourites once dialled at least this many times.
   static const int minCallsForFavourite = 2;
@@ -127,6 +155,7 @@ class PhonebookFavouritesService {
   static const int _maxPending = 500;
 
   Map<String, FavouriteCallStat>? _cache;
+  Set<String>? _pinnedKeys;
   List<Map<String, dynamic>>? _pending;
   Future<bool>? _flushing;
   final _random = Random();
@@ -160,6 +189,38 @@ class PhonebookFavouritesService {
     }
     return _cache = result;
   }
+
+  Future<Set<String>> _loadPinned() async {
+    if (_pinnedKeys != null) return _pinnedKeys!;
+    final result = <String>{};
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final list = prefs.getStringList(_pinnedPrefKey);
+      if (list != null) {
+        result.addAll(list.where((k) => k.isNotEmpty));
+      }
+    } catch (e) {
+      debugPrint('[PhonebookFavourites] load pinned failed: $e');
+    }
+    return _pinnedKeys = result;
+  }
+
+  Future<void> _savePinned() async {
+    final data = _pinnedKeys;
+    if (data == null) return;
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setStringList(_pinnedPrefKey, data.toList());
+    } catch (e) {
+      debugPrint('[PhonebookFavourites] save pinned failed: $e');
+    }
+  }
+
+  bool isPinned(String studentKey) {
+    return _pinnedKeys?.contains(studentKey) ?? false;
+  }
+
+  Set<String> get pinnedKeys => _pinnedKeys != null ? Set.unmodifiable(_pinnedKeys!) : const {};
 
   Future<void> _save() async {
     final data = _cache;
@@ -242,6 +303,29 @@ class PhonebookFavouritesService {
             if (e.response?.statusCode != 404) rethrow;
           }
           ops.removeWhere((o) => identical(o, op));
+        } else if (op['type'] == 'pin_add') {
+          final key = op['student_key'].toString();
+          final name = op['student_name']?.toString();
+          try {
+            await dio.post('/phonebook/favourites', data: {
+              'student_key': key,
+              if (name != null && name.isNotEmpty) 'student_name': name,
+            });
+          } on DioException catch (e) {
+            if (e.response?.statusCode != 400 && e.response?.statusCode != 404) rethrow;
+          }
+          ops.removeWhere((o) => identical(o, op));
+        } else if (op['type'] == 'pin_remove') {
+          final key = op['student_key'].toString();
+          try {
+            await dio.delete(
+              '/phonebook/favourites/${Uri.encodeComponent(key)}',
+              queryParameters: {'pin_only': true},
+            );
+          } on DioException catch (e) {
+            if (e.response?.statusCode != 404) rethrow;
+          }
+          ops.removeWhere((o) => identical(o, op));
         } else {
           final sent = ops.takeWhile((o) => o['type'] == 'call').take(100).toList();
           await dio.post('/phonebook/calls', data: {
@@ -261,6 +345,53 @@ class PhonebookFavouritesService {
 
   // --- public API ---
 
+  /// Explicitly stars or unstars a student as a favourite.
+  Future<bool> togglePin({
+    required String studentKey,
+    String? name,
+  }) async {
+    if (studentKey.isEmpty) return false;
+    await _load();
+    final pinned = await _loadPinned();
+    final isNowPinned = !pinned.contains(studentKey);
+    if (isNowPinned) {
+      pinned.add(studentKey);
+    } else {
+      pinned.remove(studentKey);
+    }
+    await _savePinned();
+
+    final data = _cache ?? {};
+    final existing = data[studentKey];
+    if (existing != null) {
+      data[studentKey] = existing.copyWith(isPinned: isNowPinned);
+    } else if (isNowPinned) {
+      data[studentKey] = FavouriteCallStat(
+        studentKey: studentKey,
+        name: name ?? '',
+        totalCalls: 0,
+        lastCalledAt: DateTime.now(),
+        callsByNumber: const {},
+        rawByNumber: const {},
+        isPinned: true,
+      );
+    }
+    await _save();
+
+    final ops = await _loadPending();
+    ops.removeWhere((o) =>
+        (o['type'] == 'pin_add' || o['type'] == 'pin_remove') &&
+        o['student_key'] == studentKey);
+    ops.add({
+      'type': isNowPinned ? 'pin_add' : 'pin_remove',
+      'student_key': studentKey,
+      if (name != null && name.isNotEmpty) 'student_name': name,
+    });
+    await _savePending();
+    unawaited(_flushPending());
+    return isNowPinned;
+  }
+
   /// Counts one call to [phone] for the student identified by [studentKey].
   Future<void> recordCall({
     required String studentKey,
@@ -278,6 +409,7 @@ class PhonebookFavouritesService {
     final raws = Map<String, String>.from(old?.rawByNumber ?? const {});
     numbers[numberKey] = (numbers[numberKey] ?? 0) + 1;
     raws[numberKey] = phone.trim();
+    final pinned = await _loadPinned();
     data[studentKey] = FavouriteCallStat(
       studentKey: studentKey,
       name: name,
@@ -285,6 +417,7 @@ class PhonebookFavouritesService {
       lastCalledAt: calledAt,
       callsByNumber: numbers,
       rawByNumber: raws,
+      isPinned: old?.isPinned ?? pinned.contains(studentKey),
     );
     await _save();
 
@@ -302,7 +435,7 @@ class PhonebookFavouritesService {
     unawaited(_flushPending());
   }
 
-  /// The most-dialled students, highest count first (latest call breaks ties).
+  /// The most-dialled and pinned students, pinned and highest count first.
   /// Comes from the server when it can be reached, otherwise from this device.
   Future<List<FavouriteCallStat>> topFavourites() async {
     final dio = _dio;
@@ -325,34 +458,52 @@ class PhonebookFavouritesService {
               .toList();
           _cache = {for (final s in server) s.studentKey: s};
           await _save();
+
+          final pinned = await _loadPinned();
+          pinned.clear();
+          for (final s in server) {
+            if (s.isPinned) pinned.add(s.studentKey);
+          }
+          await _savePinned();
+
           return server;
         }
       } catch (e) {
         debugPrint('[PhonebookFavourites] fetch favourites failed: $e');
       }
     }
-    return _localTop(await _load());
+    final pinned = await _loadPinned();
+    return _localTop(await _load(), pinned);
   }
 
-  static List<FavouriteCallStat> _localTop(Map<String, FavouriteCallStat> data) {
+  static List<FavouriteCallStat> _localTop(Map<String, FavouriteCallStat> data, [Set<String>? pinned]) {
+    final effectivePinned = pinned ?? const {};
     final list = data.values
-        .where((s) => s.totalCalls >= minCallsForFavourite)
+        .where((s) => effectivePinned.contains(s.studentKey) || s.isPinned || s.totalCalls >= minCallsForFavourite)
+        .map((s) => effectivePinned.contains(s.studentKey) && !s.isPinned ? s.copyWith(isPinned: true) : s)
         .toList()
       ..sort((a, b) {
+        if (a.isPinned != b.isPinned) {
+          return a.isPinned ? -1 : 1;
+        }
         final byCount = b.totalCalls.compareTo(a.totalCalls);
         return byCount != 0 ? byCount : b.lastCalledAt.compareTo(a.lastCalledAt);
       });
     return list.take(maxFavourites).toList();
   }
 
-  /// Removes a student from Favourites by clearing their call count, on this
-  /// device and on the server. Dialling them again starts counting from zero.
+  /// Removes a student from Favourites by clearing their call count and pin status,
+  /// on this device and on the server. Dialling them again starts counting from zero.
   Future<void> remove(String studentKey) async {
     final data = await _load();
     if (data.remove(studentKey) != null) await _save();
+    final pinned = await _loadPinned();
+    if (pinned.remove(studentKey)) await _savePinned();
     final ops = await _loadPending();
-    // Calls still waiting to upload for this student are cleared too.
-    ops.removeWhere((op) => op['type'] == 'call' && op['student_key'] == studentKey);
+    // Calls & pin ops still waiting to upload for this student are cleared too.
+    ops.removeWhere((op) =>
+        (op['type'] == 'call' || op['type'] == 'pin_add' || op['type'] == 'pin_remove') &&
+        op['student_key'] == studentKey);
     ops.add({'type': 'remove', 'student_key': studentKey});
     await _savePending();
     unawaited(_flushPending());
@@ -364,6 +515,7 @@ class PhonebookFavouritesService {
     _cache = null;
     _pending = null;
     _flushing = null;
+    _pinnedKeys = null;
   }
 
   /// Forgets everything stored on this device (call on logout so the next
@@ -371,10 +523,12 @@ class PhonebookFavouritesService {
   Future<void> clearLocal() async {
     _cache = {};
     _pending = [];
+    _pinnedKeys = {};
     try {
       final prefs = await SharedPreferences.getInstance();
       await prefs.remove(_prefsKey);
       await prefs.remove(_pendingKey);
+      await prefs.remove(_pinnedPrefKey);
     } catch (_) {}
   }
 }

@@ -143,5 +143,30 @@ void main() {
       expect(controller.isSelectionMode.value, isFalse);
       expect(controller.isStudentSelected('s1'), isFalse);
     });
+
+    test('startSelectionMode clears previous selections and activates single target', () {
+      final controller = PhonebookController();
+      controller.selectedStudentIds.addAll(['old1', 'old2']);
+      controller.isSelectionMode.value = false;
+
+      controller.startSelectionMode('s1');
+
+      expect(controller.isSelectionMode.value, isTrue);
+      expect(controller.selectedStudentIds, {'s1'});
+      expect(controller.isStudentSelected('s1'), isTrue);
+      expect(controller.isStudentSelected('old1'), isFalse);
+    });
+
+    test('exitSelectionMode resets selection mode and clears all selected ids', () {
+      final controller = PhonebookController();
+      controller.isSelectionMode.value = true;
+      controller.selectedStudentIds.addAll(['s1', 's2']);
+
+      controller.exitSelectionMode();
+
+      expect(controller.isSelectionMode.value, isFalse);
+      expect(controller.selectedStudentIds, isEmpty);
+      expect(controller.selectedCount, 0);
+    });
   });
 }

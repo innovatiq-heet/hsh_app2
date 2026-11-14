@@ -1,6 +1,6 @@
 # Broadcast Messages
 
-> **Last updated:** 2026-11-11 · **Repos:** `hsh_app2` (Flutter) and `hsh_api` (Node/Express/MySQL). **Status:** the app side is built and tested offline against the contract below. The backend is being built from [BROADCAST_BACKEND_PROMPT.md](BROADCAST_BACKEND_PROMPT.md), and until it ships, the screens show their load errors.
+> **Last updated:** 2026-11-12 · **Repos:** `hsh_app2` (Flutter) and `hsh_api` (Node/Express/MySQL). **Status:** the app side is built and tested offline against the contract below. The backend is being built from [BROADCAST_BACKEND_PROMPT.md](BROADCAST_BACKEND_PROMPT.md), and until it ships, the screens show their load errors.
 
 ---
 
@@ -15,7 +15,7 @@
 
 Entry points:
 - Admin: **Operator console → Hostel Services & Staff → Broadcast**. The tile is `adminOnly`, and every admin screen also checks the role on open.
-- Students: **More → Personal → Announcements**.
+- Students: **Dashboard → Hostel updates → Announcements**. (It is also on the All services screen, but students cannot reach that screen.)
 
 ## 2. Rules
 

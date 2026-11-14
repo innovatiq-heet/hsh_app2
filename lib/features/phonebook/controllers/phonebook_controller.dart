@@ -111,6 +111,9 @@ class PhonebookController extends GetxController {
   /// Filled automatically from call counts kept on this device.
   final favourites = <PhonebookFavourite>[].obs;
 
+  /// Explicitly pinned student keys for fast reactive lookups.
+  final pinnedStudentKeys = <String>{}.obs;
+
   /// Truecaller-style caller ID for this warden's phone.
   final callerId = const CallerIdStatus().obs;
   final isEnablingCallerId = false.obs;
@@ -119,6 +122,7 @@ class PhonebookController extends GetxController {
 
   static const List<String> hshGroups = [
     'All',
+    'Favourites',
     'Param',
     'Pavitra',
     'Pulkit',
@@ -497,9 +501,10 @@ class PhonebookController extends GetxController {
           break;
       }
 
+      final isFavGroup = selectedGroup.value == 'Favourites';
       final results = await PhonebookDatabaseService.instance.searchStudents(
         query: searchController.text.trim(),
-        group: selectedGroup.value == 'All' ? null : selectedGroup.value,
+        group: (selectedGroup.value == 'All' || isFavGroup) ? null : selectedGroup.value,
         floor: floorNumber,
         status: statusFilter,
         tag: selectedTag.value == 'All' ? null : selectedTag.value,
@@ -510,6 +515,9 @@ class PhonebookController extends GetxController {
         hasAadhar: onlyWithAadhar.value ? true : null,
         sortBy: sortBy,
       );
+      if (isFavGroup) {
+        results.retainWhere((s) => isFavourite(s.id));
+      }
       if (selectedSort.value == 'Name (A-Z)') {
         results.sort((a, b) => a.name.trim().toLowerCase().compareTo(b.name.trim().toLowerCase()));
       } else if (selectedSort.value == 'Name (Z-A)') {
@@ -756,14 +764,17 @@ class PhonebookController extends GetxController {
     }
   }
 
-  // --- FAVOURITES (most dialled) ---
+  // --- FAVOURITES (pinned & most dialled) ---
 
-  /// Rebuilds [favourites] from the stored call counts, using the latest
-  /// directory data for each student. Students no longer in the directory
-  /// are skipped.
+  /// Rebuilds [favourites] from the stored call counts and pinned favourites,
+  /// using the latest directory data for each student. Students no longer
+  /// in the directory are skipped.
   Future<void> loadFavourites() async {
     try {
       final stats = await PhonebookFavouritesService.instance.topFavourites();
+      final pinned = PhonebookFavouritesService.instance.pinnedKeys;
+      pinnedStudentKeys.assignAll(pinned);
+
       final result = <PhonebookFavourite>[];
       for (final stat in stats) {
         final student = await _findStudentByKey(stat.studentKey, stat.name);
@@ -776,12 +787,48 @@ class PhonebookController extends GetxController {
           callCount: stat.totalCalls,
           phone: phone,
           phoneLabel: _labelForNumber(student, phone),
+          isPinned: stat.isPinned || pinned.contains(stat.studentKey),
         ));
       }
       favourites.assignAll(result);
     } catch (e) {
       debugPrint('[PhonebookController] loadFavourites failed: $e');
     }
+  }
+
+  /// Whether a student is explicitly starred/pinned.
+  bool isPinned(String studentKey) {
+    return pinnedStudentKeys.contains(studentKey) ||
+        PhonebookFavouritesService.instance.isPinned(studentKey);
+  }
+
+  /// Whether a student is either explicitly pinned or in the most-dialled favourites.
+  bool isFavourite(String studentKey) {
+    return isPinned(studentKey) || favourites.any((f) => f.student.id == studentKey);
+  }
+
+  /// Explicitly stars or unstars a student as a favourite.
+  Future<void> toggleFavourite(PhonebookStudent student) async {
+    HapticFeedback.mediumImpact();
+    final isNowPinned = await PhonebookFavouritesService.instance.togglePin(
+      studentKey: student.id,
+      name: student.name,
+    );
+    if (isNowPinned) {
+      pinnedStudentKeys.add(student.id);
+    } else {
+      pinnedStudentKeys.remove(student.id);
+    }
+    await loadFavourites();
+    if (selectedGroup.value == 'Favourites') {
+      await search();
+    }
+    AppSnackbar.success(
+      isNowPinned ? 'Added to Favourites' : 'Removed from Favourites',
+      isNowPinned
+          ? '${student.name} was starred in your favourites.'
+          : '${student.name} was removed from your favourites.',
+    );
   }
 
   Future<PhonebookStudent?> _findStudentByKey(String key, String name) async {
@@ -818,11 +865,15 @@ class PhonebookController extends GetxController {
     return 'Mobile';
   }
 
-  /// Takes a student out of Favourites (their call count is reset).
+  /// Takes a student out of Favourites (their call count and pin status are reset).
   Future<void> removeFavourite(PhonebookFavourite favourite) async {
     HapticFeedback.mediumImpact();
     await PhonebookFavouritesService.instance.remove(favourite.student.id);
+    pinnedStudentKeys.remove(favourite.student.id);
     favourites.removeWhere((f) => f.student.id == favourite.student.id);
+    if (selectedGroup.value == 'Favourites') {
+      await search();
+    }
     AppSnackbar.success(
       'Removed from Favourites',
       '${favourite.student.name} will return here if you call them often again.',
@@ -885,8 +936,9 @@ class PhonebookController extends GetxController {
 
   void startSelectionMode(String initialId) {
     HapticFeedback.mediumImpact();
-    isSelectionMode.value = true;
+    selectedStudentIds.clear();
     selectedStudentIds.add(initialId);
+    isSelectionMode.value = true;
   }
 
   void toggleSelectStudent(String id) {
@@ -1005,18 +1057,20 @@ class PrecalculateExtentsPolicy extends ExtentPrecalculationPolicy {
       _enabled && context.numberOfItemsWithEstimatedExtent > 0;
 }
 
-/// One entry of the Favourites strip: a frequently dialled student and the
+/// One entry of the Favourites strip: a frequently dialled or pinned student and the
 /// number dialled most often for them.
 class PhonebookFavourite {
   final PhonebookStudent student;
   final int callCount;
   final String phone;
   final String phoneLabel;
+  final bool isPinned;
 
   const PhonebookFavourite({
     required this.student,
     required this.callCount,
     required this.phone,
     required this.phoneLabel,
+    this.isPinned = false,
   });
 }

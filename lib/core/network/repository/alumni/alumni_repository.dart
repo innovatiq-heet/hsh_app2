@@ -436,4 +436,116 @@ class AlumniRepository extends BaseRepository {
       throw errorMessage(e);
     }
   }
+
+  // ==========================================================================
+  // DAILY ALUMNI OUTREACH METHODS
+  // ==========================================================================
+
+  /// Fetches today's 5 assigned alumni for the leader's group (or admin requested group).
+  Future<AlumniDailyOutreachDataModel> getDailyOutreach({String? group}) async {
+    try {
+      final queryParams = <String, dynamic>{};
+      if (group != null && group.trim().isNotEmpty) {
+        queryParams['group'] = group.trim();
+      }
+      final response = await _dio.get('/alumni/daily-outreach', queryParameters: queryParams);
+      if (response.data != null && response.data['data'] != null) {
+        return AlumniDailyOutreachDataModel.fromJson(response.data['data']);
+      }
+      throw 'Empty response from server';
+    } on DioException catch (e) {
+      developer.log('AlumniRepository.getDailyOutreach error: ${errorMessage(e)}', name: 'AlumniRepo');
+      throw errorMessage(e);
+    }
+  }
+
+  /// Marks an assigned alumnus as contacted today.
+  Future<void> markOutreachContacted(int studentId, {String? message, String channel = 'whatsapp'}) async {
+    try {
+      await _dio.post('/alumni/daily-outreach/$studentId/contacted', data: {
+        'message': message,
+        'channel': channel,
+      });
+    } on DioException catch (e) {
+      developer.log('AlumniRepository.markOutreachContacted error: ${errorMessage(e)}', name: 'AlumniRepo');
+      throw errorMessage(e);
+    }
+  }
+
+  /// Sends message to alumnus via WhatsApp gateway (if connected) and records contact.
+  Future<Map<String, dynamic>> sendOutreachViaGateway(int studentId, {required String message}) async {
+    try {
+      final response = await _dio.post('/alumni/daily-outreach/$studentId/send', data: {
+        'message': message,
+      });
+      return {
+        'gatewaySent': response.data?['gatewaySent'] ?? false,
+        'message': response.data?['message'] ?? 'Message processed',
+      };
+    } on DioException catch (e) {
+      developer.log('AlumniRepository.sendOutreachViaGateway error: ${errorMessage(e)}', name: 'AlumniRepo');
+      throw errorMessage(e);
+    }
+  }
+
+  /// Skips an alumnus from today's batch and draws the next candidate from the group.
+  Future<AlumniDailyOutreachDataModel> skipAndReplaceAlumnus(int studentId) async {
+    try {
+      final response = await _dio.post('/alumni/daily-outreach/$studentId/skip');
+      if (response.data != null && response.data['data'] != null) {
+        return AlumniDailyOutreachDataModel.fromJson(response.data['data']);
+      }
+      throw 'Failed to replace alumnus';
+    } on DioException catch (e) {
+      developer.log('AlumniRepository.skipAndReplaceAlumnus error: ${errorMessage(e)}', name: 'AlumniRepo');
+      throw errorMessage(e);
+    }
+  }
+
+  /// Retrieves outreach history for the group.
+  Future<List<AlumniOutreachHistoryModel>> getOutreachHistory({String? group, int limit = 100}) async {
+    try {
+      final queryParams = <String, dynamic>{'limit': limit};
+      if (group != null && group.trim().isNotEmpty) {
+        queryParams['group'] = group.trim();
+      }
+      final response = await _dio.get('/alumni/daily-outreach/history', queryParameters: queryParams);
+      if (response.data != null && response.data['data'] is List) {
+        return (response.data['data'] as List)
+            .map((item) => AlumniOutreachHistoryModel.fromJson(item))
+            .toList();
+      }
+      return [];
+    } on DioException catch (e) {
+      developer.log('AlumniRepository.getOutreachHistory error: ${errorMessage(e)}', name: 'AlumniRepo');
+      throw errorMessage(e);
+    }
+  }
+
+  /// Retrieves outreach configuration.
+  Future<AlumniOutreachConfigModel> getOutreachConfig() async {
+    try {
+      final response = await _dio.get('/alumni/daily-outreach/config');
+      if (response.data != null && response.data['data'] != null) {
+        return AlumniOutreachConfigModel.fromJson(response.data['data']);
+      }
+      throw 'Empty config response';
+    } on DioException catch (e) {
+      developer.log('AlumniRepository.getOutreachConfig error: ${errorMessage(e)}', name: 'AlumniRepo');
+      throw errorMessage(e);
+    }
+  }
+
+  /// Updates global outreach template (Admin only).
+  Future<void> saveOutreachConfig(String messageTemplate, int dailyCount) async {
+    try {
+      await _dio.post('/alumni/daily-outreach/config', data: {
+        'message_template': messageTemplate,
+        'daily_count': dailyCount,
+      });
+    } on DioException catch (e) {
+      developer.log('AlumniRepository.saveOutreachConfig error: ${errorMessage(e)}', name: 'AlumniRepo');
+      throw errorMessage(e);
+    }
+  }
 }

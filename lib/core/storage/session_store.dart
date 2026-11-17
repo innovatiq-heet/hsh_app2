@@ -285,6 +285,9 @@ class SessionStore extends GetxService {
   /// Synchronously checks if the current cached user has operator/warden privileges.
   bool get canOperate => _cachedSession?.role.canOperate == true;
 
+  /// Synchronously checks if the current cached user is a leader.
+  bool get isLeader => _cachedSession?.role == UserRole.leader;
+
   Future<String?> get email async {
     if (_cachedSession != null) return _cachedSession!.email;
     await _ensureSessionLoaded();

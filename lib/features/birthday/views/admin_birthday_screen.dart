@@ -98,7 +98,9 @@ class AdminBirthdayScreen extends GetView<AdminBirthdayController> {
           return RefreshIndicator(
             onRefresh: () async {
               await controller.loadDashboard();
-              await controller.fetchWhatsAppStatus();
+              if (!controller.isLeader.value) {
+                await controller.fetchWhatsAppStatus();
+              }
             },
             color: const Color(0xFF0284C7),
             backgroundColor: Colors.white,
@@ -112,7 +114,9 @@ class AdminBirthdayScreen extends GetView<AdminBirthdayController> {
                   delegate: _AdminBirthdayHeaderDelegate(
                     controller: controller,
                     topPadding: topPadding,
-                    onOpenLinkSheet: () => _showLinkDeviceSheet(context),
+                    onOpenLinkSheet: controller.isLeader.value
+                        ? null
+                        : () => _showLinkDeviceSheet(context),
                   ),
                 ),
                 SliverToBoxAdapter(
@@ -121,8 +125,8 @@ class AdminBirthdayScreen extends GetView<AdminBirthdayController> {
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.stretch,
                       children: [
-                        // 1. WhatsApp Connection Alert Banner (if disconnected)
-                        if (!isOnline) ...[
+                        // 1. WhatsApp Connection Alert Banner (if disconnected) - Admins only
+                        if (!controller.isLeader.value && !isOnline) ...[
                           _buildNotConnectedBanner(context),
                           const SizedBox(height: 16),
                         ],
@@ -298,7 +302,7 @@ class AdminBirthdayScreen extends GetView<AdminBirthdayController> {
             const SizedBox(width: 8),
             _buildTabPill(
               index: 2,
-              label: 'Template Studio',
+              label: controller.isLeader.value ? 'Wish Template' : 'Template Studio',
               icon: Icons.tune_rounded,
               isSelected: current == 2,
               activeColor: const Color(0xFFD97706),
@@ -306,19 +310,21 @@ class AdminBirthdayScreen extends GetView<AdminBirthdayController> {
             const SizedBox(width: 8),
             _buildTabPill(
               index: 3,
-              label: 'Directory',
+              label: controller.isLeader.value ? 'Group Directory' : 'Directory',
               icon: Icons.people_alt_rounded,
               isSelected: current == 3,
               activeColor: const Color(0xFF6366F1),
             ),
-            const SizedBox(width: 8),
-            _buildTabPill(
-              index: 4,
-              label: 'Logs & Test',
-              icon: Icons.history_rounded,
-              isSelected: current == 4,
-              activeColor: const Color(0xFF0284C7),
-            ),
+            if (!controller.isLeader.value) ...[
+              const SizedBox(width: 8),
+              _buildTabPill(
+                index: 4,
+                label: 'Logs & Test',
+                icon: Icons.history_rounded,
+                isSelected: current == 4,
+                activeColor: const Color(0xFF0284C7),
+              ),
+            ],
           ],
         ),
       );
@@ -337,6 +343,9 @@ class AdminBirthdayScreen extends GetView<AdminBirthdayController> {
       color: Colors.transparent,
       child: InkWell(
         onTap: () {
+          if (controller.selectedTab.value == 2 && index != 2 && controller.hasUnsavedChanges) {
+            controller.discardUnsavedChanges();
+          }
           controller.selectedTab.value = index;
           if (index == 3 && controller.allStudents.isEmpty) {
             controller.fetchStudents();
@@ -426,15 +435,20 @@ class AdminBirthdayScreen extends GetView<AdminBirthdayController> {
     BirthdayDashboardData? data,
   ) {
     return Obx(() {
+      if (controller.isLeader.value && controller.selectedTab.value == 4) {
+        return _buildTodayTab(context, data);
+      }
       switch (controller.selectedTab.value) {
         case 0:
           return _buildTodayTab(context, data);
         case 1:
           return _buildTomorrowTab(context, data);
         case 2:
-          return _buildTemplateStudioTab(data);
+          return controller.isLeader.value
+              ? _buildLeaderTemplateTab(context)
+              : _buildTemplateStudioTab(data);
         case 3:
-          return _buildDirectoryTab();
+          return _buildDirectoryTab(context);
         case 4:
           return _buildLogsAndTestTab(context, data);
         default:
@@ -454,8 +468,9 @@ class AdminBirthdayScreen extends GetView<AdminBirthdayController> {
         iconColor: const Color(0xFFD97706),
         iconBgColor: const Color(0xFFFEF3C7),
         title: 'No Birthdays Today',
-        subtitle:
-            "No registered students celebrate their birthday today. Check tomorrow's tab for upcoming hostel celebrants.",
+        subtitle: controller.isLeader.value
+            ? 'No students in ${controller.leaderGroup.value ?? "your"} group celebrate their birthday today.'
+            : "No registered students celebrate their birthday today. Check tomorrow's tab for upcoming hostel celebrants.",
       );
     }
 
@@ -510,79 +525,92 @@ class AdminBirthdayScreen extends GetView<AdminBirthdayController> {
                       ),
                     ),
                     const SizedBox(height: 2),
-                    const Text(
-                      'Automated WhatsApp wishes scheduled via linked device.',
-                      style: TextStyle(
-                        fontSize: 11.5,
-                        color: Color(0xFF64748B),
-                        height: 1.3,
-                      ),
-                    ),
+                    Obx(() {
+                      final isLeader = controller.isLeader.value;
+                      return Text(
+                        isLeader
+                            ? 'Tap below to wish group celebrants directly on WhatsApp.'
+                            : 'Automated WhatsApp wishes scheduled via linked device.',
+                        style: const TextStyle(
+                          fontSize: 11.5,
+                          color: Color(0xFF64748B),
+                          height: 1.3,
+                        ),
+                      );
+                    }),
                   ],
                 ),
               ),
-              const SizedBox(width: 10),
               Obx(() {
+                if (controller.isLeader.value) {
+                  return const SizedBox.shrink();
+                }
                 final isBusy = controller.isTriggering.value;
                 final alreadySent = controller.hasSentToday.value;
                 final isLinked = controller.isWhatsAppLinked;
 
-                return ElevatedButton(
-                  onPressed: isBusy
-                      ? null
-                      : () {
-                          if (!isLinked) {
-                            AppSnackbar.warning(
-                              'WhatsApp Not Connected',
-                              'Please link your WhatsApp device first before sending birthday wishes.',
-                            );
-                            _showLinkDeviceSheet(context);
-                            return;
-                          }
-                          if (alreadySent) return;
-                          controller.triggerAllToday(
-                            onNeedLinkDevice: () =>
-                                _showLinkDeviceSheet(context),
-                          );
-                        },
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: alreadySent
-                        ? const Color(0xFFF1F5F9)
-                        : (isLinked
-                              ? const Color(0xFF0284C7)
-                              : const Color(0xFFD97706)),
-                    foregroundColor: alreadySent
-                        ? const Color(0xFF64748B)
-                        : Colors.white,
-                    disabledBackgroundColor: const Color(0xFFF1F5F9),
-                    disabledForegroundColor: const Color(0xFF64748B),
-                    elevation: 0,
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 14,
-                      vertical: 10,
-                    ),
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(12),
-                    ),
-                  ),
-                  child: isBusy
-                      ? const SizedBox(
-                          width: 16,
-                          height: 16,
-                          child: CircularProgressIndicator(
-                            strokeWidth: 2,
-                            color: Colors.white,
-                          ),
-                        )
-                      : Text(
-                          alreadySent
-                              ? 'Sent Today ✓'
-                              : (isLinked ? 'Send All' : 'Connect WA'),
-                          style: const TextStyle(
-                            fontWeight: FontWeight.w700,
-                            fontSize: 12.5,
-                          ),
+                return Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    const SizedBox(width: 10),
+                    ElevatedButton(
+                      onPressed: isBusy
+                          ? null
+                          : () {
+                              if (!isLinked) {
+                                AppSnackbar.warning(
+                                  'WhatsApp Not Connected',
+                                  'Please link your WhatsApp device first before sending birthday wishes.',
+                                );
+                                _showLinkDeviceSheet(context);
+                                return;
+                              }
+                              if (alreadySent) return;
+                              controller.triggerAllToday(
+                                onNeedLinkDevice: () =>
+                                    _showLinkDeviceSheet(context),
+                              );
+                            },
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: alreadySent
+                            ? const Color(0xFFF1F5F9)
+                            : (isLinked
+                                  ? const Color(0xFF0284C7)
+                                  : const Color(0xFFD97706)),
+                        foregroundColor: alreadySent
+                            ? const Color(0xFF64748B)
+                            : Colors.white,
+                        disabledBackgroundColor: const Color(0xFFF1F5F9),
+                        disabledForegroundColor: const Color(0xFF64748B),
+                        elevation: 0,
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 14,
+                          vertical: 10,
                         ),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                      ),
+                      child: isBusy
+                          ? const SizedBox(
+                              width: 16,
+                              height: 16,
+                              child: CircularProgressIndicator(
+                                strokeWidth: 2,
+                                color: Colors.white,
+                              ),
+                            )
+                          : Text(
+                              alreadySent
+                                  ? 'Sent Today ✓'
+                                  : (isLinked ? 'Send All' : 'Connect WA'),
+                              style: const TextStyle(
+                                fontWeight: FontWeight.w700,
+                                fontSize: 12.5,
+                              ),
+                            ),
+                    ),
+                  ],
                 );
               }),
             ],
@@ -668,7 +696,9 @@ class AdminBirthdayScreen extends GetView<AdminBirthdayController> {
         iconColor: const Color(0xFF059669),
         iconBgColor: const Color(0xFFECFDF5),
         title: 'No Birthdays Tomorrow',
-        subtitle: 'There are no student birthdays scheduled for tomorrow.',
+        subtitle: controller.isLeader.value
+            ? 'There are no birthdays in ${controller.leaderGroup.value ?? "your"} group scheduled for tomorrow.'
+            : 'There are no student birthdays scheduled for tomorrow.',
       );
     }
 
@@ -1341,6 +1371,28 @@ class AdminBirthdayScreen extends GetView<AdminBirthdayController> {
                   ],
                 ),
               ),
+              const SizedBox(height: 6),
+              Obx(() {
+                final aud = controller.targetAudience.value;
+                String desc;
+                if (aud == 'parent_only') {
+                  desc = '⚠️ Wishes will be sent to Parents only (Students will not receive wishes).';
+                } else if (aud == 'student_and_parent') {
+                  desc = '✨ Wishes will be sent to both the Student and their Parents.';
+                } else {
+                  desc = '👤 Wishes will be sent to Students only.';
+                }
+                return Text(
+                  desc,
+                  style: TextStyle(
+                    fontSize: 11.5,
+                    fontWeight: FontWeight.w600,
+                    color: aud == 'parent_only'
+                        ? const Color(0xFFD97706)
+                        : const Color(0xFF64748B),
+                  ),
+                );
+              }),
               const Divider(height: 28, color: Color(0xFFF1F5F9)),
 
               // Admin Notification Phone
@@ -1519,23 +1571,49 @@ class AdminBirthdayScreen extends GetView<AdminBirthdayController> {
               const SizedBox(height: 20),
 
               Obx(
-                () => controller.hasUnsavedTemplateChanges
-                    ? const Padding(
-                        padding: EdgeInsets.only(bottom: 10),
+                () => controller.hasUnsavedChanges
+                    ? Container(
+                        margin: const EdgeInsets.only(bottom: 12),
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 14,
+                          vertical: 10,
+                        ),
+                        decoration: BoxDecoration(
+                          color: const Color(0xFFFFFBEB),
+                          borderRadius: BorderRadius.circular(12),
+                          border: Border.all(color: const Color(0xFFFDE68A)),
+                        ),
                         child: Row(
                           children: [
-                            Icon(
-                              Icons.circle,
-                              size: 8,
-                              color: Color(0xFFF59E0B),
+                            const Icon(
+                              Icons.info_outline_rounded,
+                              size: 18,
+                              color: Color(0xFFD97706),
                             ),
-                            SizedBox(width: 6),
-                            Text(
-                              'Unsaved template changes',
-                              style: TextStyle(
-                                fontSize: 12,
-                                fontWeight: FontWeight.w600,
-                                color: Color(0xFFB45309),
+                            const SizedBox(width: 8),
+                            const Expanded(
+                              child: Text(
+                                'You have unsaved changes. Tap "Save Configuration" to apply them.',
+                                style: TextStyle(
+                                  fontSize: 12,
+                                  fontWeight: FontWeight.w600,
+                                  color: Color(0xFF92400E),
+                                ),
+                              ),
+                            ),
+                            TextButton(
+                              onPressed: controller.discardUnsavedChanges,
+                              style: TextButton.styleFrom(
+                                visualDensity: VisualDensity.compact,
+                                padding: const EdgeInsets.symmetric(horizontal: 8),
+                              ),
+                              child: const Text(
+                                'Discard',
+                                style: TextStyle(
+                                  fontSize: 12,
+                                  color: Color(0xFFD97706),
+                                  fontWeight: FontWeight.w700,
+                                ),
                               ),
                             ),
                           ],
@@ -1632,62 +1710,386 @@ class AdminBirthdayScreen extends GetView<AdminBirthdayController> {
     );
   }
 
-  // --- Tab 3: Directory ---
+  Widget _leaderVarChip(String tag, String label) {
+    return ActionChip(
+      backgroundColor: const Color(0xFFFEF3C7),
+      side: const BorderSide(color: Color(0xFFFDE68A)),
+      label: Text(
+        '+ $tag',
+        style: const TextStyle(
+          color: Color(0xFFD97706),
+          fontSize: 11.5,
+          fontWeight: FontWeight.w700,
+        ),
+      ),
+      onPressed: () => controller.insertLeaderPlaceholder(tag),
+    );
+  }
 
-  Widget _buildDirectoryTab() {
+  // --- Leader Tab 2: Personal Wish Template ---
+
+  Widget _buildLeaderTemplateTab(BuildContext context) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        _buildSectionHeader(title: 'Hostel Birthday Directory'),
-        const SizedBox(height: 12),
+        Obx(
+          () => _buildSectionHeader(
+            title: controller.leaderGroup.value != null &&
+                    controller.leaderGroup.value!.isNotEmpty
+                ? '${controller.leaderGroup.value} Group · Birthday Wish Template'
+                : 'Group Birthday Wish Template',
+          ),
+        ),
+        const SizedBox(height: 10),
 
-        // Search Bar styled like StudentLocationsScreen
+        // Info Banner
         Container(
+          padding: const EdgeInsets.all(14),
           decoration: BoxDecoration(
-            color: Colors.white,
+            gradient: const LinearGradient(
+              colors: [Color(0xFFF0FDF4), Color(0xFFDCFCE7)],
+              begin: Alignment.topLeft,
+              end: Alignment.bottomRight,
+            ),
             borderRadius: BorderRadius.circular(16),
-            border: Border.all(color: const Color(0xFFCBD5E1)),
-            boxShadow: [
-              BoxShadow(
-                color: const Color(0xFF0F172A).withValues(alpha: 0.03),
-                blurRadius: 8,
-                offset: const Offset(0, 2),
+            border: Border.all(color: const Color(0xFFBBF7D0)),
+          ),
+          child: Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Container(
+                padding: const EdgeInsets.all(8),
+                decoration: BoxDecoration(
+                  color: const Color(0xFF16A34A).withValues(alpha: 0.15),
+                  shape: BoxShape.circle,
+                ),
+                child: const Icon(
+                  Icons.auto_awesome_rounded,
+                  color: Color(0xFF15803D),
+                  size: 20,
+                ),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const Text(
+                      'Personalized Leader Greeting',
+                      style: TextStyle(
+                        fontSize: 13.5,
+                        fontWeight: FontWeight.w700,
+                        color: Color(0xFF14532D),
+                      ),
+                    ),
+                    const SizedBox(height: 3),
+                    Text(
+                      'When you tap "Send WhatsApp Wish 🎉" on any group student\'s birthday card, this customized message will be pre-filled in your WhatsApp.',
+                      style: TextStyle(
+                        fontSize: 12,
+                        height: 1.35,
+                        color: const Color(0xFF166534).withValues(alpha: 0.9),
+                      ),
+                    ),
+                  ],
+                ),
               ),
             ],
           ),
-          child: TextField(
-            controller: controller.searchController,
-            textInputAction: TextInputAction.search,
-            onSubmitted: (query) => controller.fetchStudents(query: query),
-            decoration: InputDecoration(
-              hintText: 'Search by student name, code, or room...',
-              hintStyle: const TextStyle(
-                color: Color(0xFF94A3B8),
-                fontSize: 13.5,
+        ),
+
+        const SizedBox(height: 16),
+
+        // Editor Card
+        Container(
+          padding: const EdgeInsets.all(18),
+          decoration: BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.circular(18),
+            border: Border.all(color: const Color(0xFFE2E8F0)),
+            boxShadow: [
+              BoxShadow(
+                color: const Color(0xFF0F172A).withValues(alpha: 0.035),
+                blurRadius: 10,
+                offset: const Offset(0, 3),
               ),
-              prefixIcon: const Icon(
-                Icons.search_rounded,
-                color: Color(0xFF0284C7),
-                size: 20,
+            ],
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  const Text(
+                    'Greeting Message',
+                    style: TextStyle(
+                      fontWeight: FontWeight.w800,
+                      fontSize: 14.5,
+                      color: Color(0xFF0F172A),
+                    ),
+                  ),
+                  TextButton.icon(
+                    onPressed: () {
+                      controller.resetLeaderTemplateToDefault();
+                      AppSnackbar.info(
+                        'Reset to Default',
+                        'Restored the recommended birthday greeting template.',
+                      );
+                    },
+                    icon: const Icon(
+                      Icons.restart_alt_rounded,
+                      size: 15,
+                      color: Color(0xFF64748B),
+                    ),
+                    label: const Text(
+                      'Reset to Default',
+                      style: TextStyle(
+                        fontSize: 11.5,
+                        fontWeight: FontWeight.w600,
+                        color: Color(0xFF64748B),
+                      ),
+                    ),
+                    style: TextButton.styleFrom(
+                      visualDensity: VisualDensity.compact,
+                      padding: const EdgeInsets.symmetric(horizontal: 8),
+                    ),
+                  ),
+                ],
               ),
-              suffixIcon: IconButton(
-                icon: const Icon(
-                  Icons.clear_rounded,
-                  size: 18,
-                  color: Color(0xFF94A3B8),
+              const SizedBox(height: 10),
+              const Text(
+                'Personalization Placeholders',
+                style: TextStyle(
+                  fontWeight: FontWeight.w700,
+                  fontSize: 12.5,
+                  color: Color(0xFF475569),
                 ),
-                onPressed: () {
-                  controller.searchController.clear();
-                  controller.fetchStudents();
-                },
               ),
-              border: InputBorder.none,
-              contentPadding: const EdgeInsets.symmetric(
-                horizontal: 14,
-                vertical: 13,
+              const SizedBox(height: 4),
+              const Text(
+                'Tap any tag below to insert dynamic student details:',
+                style: TextStyle(fontSize: 11.5, color: Color(0xFF64748B)),
+              ),
+              const SizedBox(height: 8),
+
+              // Placeholder chips
+              Wrap(
+                spacing: 6,
+                runSpacing: 6,
+                children: [
+                  _leaderVarChip('{first_name}', 'First Name'),
+                  _leaderVarChip('{student_name}', 'Full Name'),
+                  _leaderVarChip('{room_number}', 'Room No'),
+                  _leaderVarChip('{student_code}', 'Student Code'),
+                ],
+              ),
+              const SizedBox(height: 14),
+
+              // Template Editor TextField
+              TextField(
+                controller: controller.leaderTemplateController,
+                maxLines: 6,
+                style: const TextStyle(
+                  fontSize: 13.5,
+                  height: 1.45,
+                  color: Color(0xFF0F172A),
+                ),
+                decoration: InputDecoration(
+                  hintText: 'Enter your personalized birthday greeting...',
+                  filled: true,
+                  fillColor: const Color(0xFFF8FAFC),
+                  contentPadding: const EdgeInsets.all(14),
+                  enabledBorder: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(14),
+                    borderSide: const BorderSide(color: Color(0xFFE2E8F0)),
+                  ),
+                  focusedBorder: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(14),
+                    borderSide: const BorderSide(
+                      color: Color(0xFF0284C7),
+                      width: 1.5,
+                    ),
+                  ),
+                ),
+              ),
+              const SizedBox(height: 18),
+
+              // Live WhatsApp Message Preview
+              BirthdayTemplatePreview(
+                templateController: controller.leaderTemplateController,
+                title: 'WhatsApp Preview · Leader Greeting',
+              ),
+              const SizedBox(height: 20),
+
+              // Save Button
+              Obx(
+                () => SizedBox(
+                  width: double.infinity,
+                  height: 48,
+                  child: ElevatedButton.icon(
+                    onPressed: controller.isSaving.value
+                        ? null
+                        : () => controller.saveLeaderTemplate(),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: const Color(0xFF0284C7),
+                      foregroundColor: Colors.white,
+                      elevation: 0,
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(14),
+                      ),
+                    ),
+                    icon: controller.isSaving.value
+                        ? const SizedBox(
+                            width: 18,
+                            height: 18,
+                            child: CircularProgressIndicator(
+                              strokeWidth: 2,
+                              color: Colors.white,
+                            ),
+                          )
+                        : const Icon(Icons.save_rounded, size: 18),
+                    label: Text(
+                      controller.isSaving.value
+                          ? 'Saving Template...'
+                          : 'Save Wish Template',
+                      style: const TextStyle(
+                        fontWeight: FontWeight.w700,
+                        fontSize: 14,
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+        const SizedBox(height: 24),
+      ],
+    );
+  }
+
+  // --- Tab 3: Directory ---
+
+  Widget _buildDirectoryTab(BuildContext context) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        Obx(
+          () => _buildSectionHeader(
+            title: controller.isLeader.value
+                ? '${controller.leaderGroup.value ?? "Group"} Birthday Directory'
+                : 'Hostel Birthday Directory',
+          ),
+        ),
+        const SizedBox(height: 12),
+
+        // Search Bar & Filter Button styled like PhonebookScreen
+        Row(
+          children: [
+            Expanded(
+              child: Container(
+                decoration: BoxDecoration(
+                  color: Colors.white,
+                  borderRadius: BorderRadius.circular(16),
+                  border: Border.all(color: const Color(0xFFCBD5E1)),
+                  boxShadow: [
+                    BoxShadow(
+                      color: const Color(0xFF0F172A).withValues(alpha: 0.03),
+                      blurRadius: 8,
+                      offset: const Offset(0, 2),
+                    ),
+                  ],
+                ),
+                child: TextField(
+                  controller: controller.searchController,
+                  textInputAction: TextInputAction.search,
+                  onSubmitted: (query) => controller.fetchStudents(query: query),
+                  decoration: InputDecoration(
+                    hintText: 'Search by student name, code, or room...',
+                    hintStyle: const TextStyle(
+                      color: Color(0xFF94A3B8),
+                      fontSize: 13.5,
+                    ),
+                    prefixIcon: const Icon(
+                      Icons.search_rounded,
+                      color: Color(0xFF0284C7),
+                      size: 20,
+                    ),
+                    suffixIcon: IconButton(
+                      icon: const Icon(
+                        Icons.clear_rounded,
+                        size: 18,
+                        color: Color(0xFF94A3B8),
+                      ),
+                      onPressed: () {
+                        controller.searchController.clear();
+                        controller.fetchStudents();
+                      },
+                    ),
+                    border: InputBorder.none,
+                    contentPadding: const EdgeInsets.symmetric(
+                      horizontal: 14,
+                      vertical: 13,
+                    ),
+                  ),
+                ),
               ),
             ),
-          ),
+            const SizedBox(width: 8),
+            Obx(() {
+              final count = controller.activeFilterCount;
+              return Material(
+                color: count > 0 ? const Color(0xFF0284C7) : Colors.white,
+                borderRadius: BorderRadius.circular(16),
+                elevation: count > 0 ? 3 : 1,
+                shadowColor: count > 0 ? const Color(0xFF0284C7).withValues(alpha: 0.3) : Colors.black12,
+                child: InkWell(
+                  key: const ValueKey('birthday_directory_filter_button'),
+                  borderRadius: BorderRadius.circular(16),
+                  onTap: () => _showFilterBottomSheet(context),
+                  child: Container(
+                    height: 48,
+                    padding: const EdgeInsets.symmetric(horizontal: 14),
+                    decoration: BoxDecoration(
+                      borderRadius: BorderRadius.circular(16),
+                      border: Border.all(
+                        color: count > 0 ? const Color(0xFF0284C7) : const Color(0xFFCBD5E1),
+                      ),
+                    ),
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Icon(
+                          Icons.tune_rounded,
+                          size: 20,
+                          color: count > 0 ? Colors.white : const Color(0xFF0284C7),
+                        ),
+                        if (count > 0) ...[
+                          const SizedBox(width: 6),
+                          Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                            decoration: BoxDecoration(
+                              color: Colors.white,
+                              borderRadius: BorderRadius.circular(10),
+                            ),
+                            child: Text(
+                              '$count',
+                              style: const TextStyle(
+                                color: Color(0xFF0284C7),
+                                fontSize: 11,
+                                fontWeight: FontWeight.w800,
+                              ),
+                            ),
+                          ),
+                        ],
+                      ],
+                    ),
+                  ),
+                ),
+              );
+            }),
+          ],
         ),
         const SizedBox(height: 12),
 
@@ -1697,6 +2099,7 @@ class AdminBirthdayScreen extends GetView<AdminBirthdayController> {
           final hostelCount = list.where((s) => !controller.isAlumni(s)).length;
           final alumniCount = list.where((s) => controller.isAlumni(s)).length;
           final withDobCount = list.where((s) => s.dob.trim().isNotEmpty).length;
+          final withoutDobCount = list.length - withDobCount;
           final currentFilter = controller.directoryFilter.value;
 
           return SingleChildScrollView(
@@ -1728,6 +2131,14 @@ class AdminBirthdayScreen extends GetView<AdminBirthdayController> {
                 ),
                 const SizedBox(width: 8),
                 _buildDirectoryFilterChip(
+                  label: 'Without Birthday ($withoutDobCount)',
+                  icon: Icons.event_busy_rounded,
+                  isSelected: currentFilter == 'no_dob',
+                  onTap: () => controller.directoryFilter.value = 'no_dob',
+                  activeColor: const Color(0xFF64748B),
+                ),
+                const SizedBox(width: 8),
+                _buildDirectoryFilterChip(
                   label: 'Alumni ($alumniCount)',
                   icon: Icons.school_rounded,
                   isSelected: currentFilter == 'alumni',
@@ -1750,15 +2161,16 @@ class AdminBirthdayScreen extends GetView<AdminBirthdayController> {
             );
           }
 
-          final list = controller.allStudents;
+          final list = controller.filteredStudents;
           if (list.isEmpty) {
             return _buildEmptyStateCard(
               icon: Icons.person_search_rounded,
               iconColor: const Color(0xFF0284C7),
               iconBgColor: const Color(0xFFE0F2FE),
               title: 'No Students Found',
-              subtitle:
-                  'Tap Search to query and load student directory records.',
+              subtitle: controller.activeFilterCount > 0
+                  ? 'No students match your active filters. Try clearing or relaxing the filters.'
+                  : 'Tap Search to query and load student directory records.',
             );
           }
 
@@ -1884,6 +2296,64 @@ class AdminBirthdayScreen extends GetView<AdminBirthdayController> {
             );
           }
 
+          if (currentFilter == 'no_dob') {
+            final noDobHostel = hostelStudents.where((s) => s.dob.trim().isEmpty).toList();
+            final noDobAlumni = alumniStudents.where((s) => s.dob.trim().isEmpty).toList();
+
+            return Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                if (noDobHostel.isNotEmpty) ...[
+                  _buildSectionHeader(
+                    title: 'Hostel Residents without Birthday (${noDobHostel.length})',
+                    trailing: Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                      decoration: BoxDecoration(
+                        color: const Color(0xFFF1F5F9),
+                        borderRadius: BorderRadius.circular(10),
+                      ),
+                      child: const Text(
+                        'NO DOB',
+                        style: TextStyle(
+                          color: Color(0xFF64748B),
+                          fontSize: 9.5,
+                          fontWeight: FontWeight.w800,
+                          letterSpacing: 0.3,
+                        ),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 10),
+                  ...noDobHostel.map((s) => _buildDirectoryStudentCard(s)),
+                ],
+                if (noDobAlumni.isNotEmpty) ...[
+                  const SizedBox(height: 20),
+                  _buildSectionHeader(
+                    title: 'Alumni without Birthday (${noDobAlumni.length})',
+                    trailing: Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                      decoration: BoxDecoration(
+                        color: const Color(0xFFF3E8FF),
+                        borderRadius: BorderRadius.circular(10),
+                      ),
+                      child: const Text(
+                        'ALUMNI',
+                        style: TextStyle(
+                          color: Color(0xFF9333EA),
+                          fontSize: 9.5,
+                          fontWeight: FontWeight.w800,
+                          letterSpacing: 0.3,
+                        ),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 10),
+                  ...noDobAlumni.map((s) => _buildDirectoryStudentCard(s)),
+                ],
+              ],
+            );
+          }
+
           // Default: 'all' filter shows Hostel Residents FIRST, followed by Alumni Students AFTERWARDS!
           return Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -1939,6 +2409,467 @@ class AdminBirthdayScreen extends GetView<AdminBirthdayController> {
           );
         }),
       ],
+    );
+  }
+
+  void _showFilterBottomSheet(BuildContext context) {
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: Colors.transparent,
+      isScrollControlled: true,
+      enableDrag: false,
+      builder: (ctx) => DraggableScrollableSheet(
+        expand: false,
+        initialChildSize: 0.85,
+        minChildSize: 0,
+        maxChildSize: 0.85,
+        snap: true,
+        snapSizes: const [0.85],
+        builder: (ctx, scrollController) => Container(
+          decoration: const BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.vertical(top: Radius.circular(28)),
+          ),
+          child: Column(
+            children: [
+              Expanded(
+                child: CustomScrollView(
+                  controller: scrollController,
+                  slivers: [
+                    SliverToBoxAdapter(
+                      child: Column(
+                        children: [
+                          // Drag Handle & Top Header
+                          Padding(
+                            padding: const EdgeInsets.fromLTRB(20, 14, 20, 10),
+                            child: Column(
+                              children: [
+                                Center(
+                                  child: Container(
+                                    width: 44,
+                                    height: 4.5,
+                                    decoration: BoxDecoration(
+                                      color: const Color(0xFFCBD5E1),
+                                      borderRadius: BorderRadius.circular(2.5),
+                                    ),
+                                  ),
+                                ),
+                                const SizedBox(height: 14),
+                                Row(
+                                  children: [
+                                    Container(
+                                      padding: const EdgeInsets.all(8),
+                                      decoration: BoxDecoration(
+                                        color: const Color(0xFFE0F2FE),
+                                        borderRadius: BorderRadius.circular(10),
+                                      ),
+                                      child: const Icon(Icons.tune_rounded, color: Color(0xFF0284C7), size: 20),
+                                    ),
+                                    const SizedBox(width: 10),
+                                    const Expanded(
+                                      child: Column(
+                                        crossAxisAlignment: CrossAxisAlignment.start,
+                                        children: [
+                                          Text(
+                                            'Filter & Sort Celebrants',
+                                            style: TextStyle(
+                                              fontSize: 18,
+                                              fontWeight: FontWeight.w800,
+                                              color: Color(0xFF0F172A),
+                                            ),
+                                          ),
+                                          Text(
+                                            'Refine by wings, floors, residence, and birthday info',
+                                            style: TextStyle(
+                                              fontSize: 11.5,
+                                              color: Color(0xFF64748B),
+                                            ),
+                                          ),
+                                        ],
+                                      ),
+                                    ),
+                                    Obx(() {
+                                      if (controller.activeFilterCount == 0) return const SizedBox.shrink();
+                                      return TextButton(
+                                        onPressed: () {
+                                          controller.resetAllFilters();
+                                        },
+                                        style: TextButton.styleFrom(
+                                          foregroundColor: Colors.redAccent,
+                                          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                                        ),
+                                        child: const Text(
+                                          'Reset All',
+                                          style: TextStyle(fontWeight: FontWeight.w700, fontSize: 13),
+                                        ),
+                                      );
+                                    }),
+                                    IconButton(
+                                      icon: const Icon(Icons.close_rounded, color: Color(0xFF64748B), size: 22),
+                                      tooltip: 'Close',
+                                      visualDensity: VisualDensity.compact,
+                                      onPressed: () => Navigator.pop(ctx),
+                                    ),
+                                  ],
+                                ),
+                              ],
+                            ),
+                          ),
+                          const Divider(height: 1, color: Color(0xFFE2E8F0)),
+                        ],
+                      ),
+                    ),
+
+                    // Scrollable Content
+                    SliverPadding(
+                      padding: const EdgeInsets.fromLTRB(20, 16, 20, 24),
+                      sliver: SliverToBoxAdapter(
+                        child: Obx(() {
+                          return Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              // 1. HOSTEL WING / GROUP
+                              if (!controller.isLeader.value) ...[
+                                _filterSectionHeader('HOSTEL WING / GROUP', Icons.apartment_rounded),
+                                const SizedBox(height: 10),
+                                Wrap(
+                                  spacing: 8,
+                                  runSpacing: 8,
+                                  children: AdminBirthdayController.hshGroups.map((g) {
+                                    final sel = controller.selectedGroup.value == g;
+                                    final isAlumni = g.toLowerCase() == 'alumni';
+                                    final color = isAlumni ? const Color(0xFF9333EA) : const Color(0xFF0284C7);
+                                    return FilterChip(
+                                      label: Text(g),
+                                      selected: sel,
+                                      selectedColor: color,
+                                      checkmarkColor: Colors.white,
+                                      labelStyle: TextStyle(
+                                        color: sel ? Colors.white : const Color(0xFF334155),
+                                        fontWeight: sel ? FontWeight.w700 : FontWeight.w600,
+                                        fontSize: 13,
+                                      ),
+                                      backgroundColor: const Color(0xFFF1F5F9),
+                                      shape: RoundedRectangleBorder(
+                                        borderRadius: BorderRadius.circular(12),
+                                        side: BorderSide(
+                                          color: sel ? color : const Color(0xFFE2E8F0),
+                                        ),
+                                      ),
+                                      onSelected: (v) => controller.selectGroup(g),
+                                    );
+                                  }).toList(),
+                                ),
+                                const SizedBox(height: 20),
+                              ] else ...[
+                                _filterSectionHeader('ASSIGNED LEADER GROUP', Icons.shield_rounded),
+                                const SizedBox(height: 10),
+                                Container(
+                                  padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+                                  decoration: BoxDecoration(
+                                    color: const Color(0xFFE0F2FE),
+                                    borderRadius: BorderRadius.circular(12),
+                                    border: Border.all(color: const Color(0xFFBAE6FD)),
+                                  ),
+                                  child: Row(
+                                    mainAxisSize: MainAxisSize.min,
+                                    children: [
+                                      const Icon(Icons.check_circle_rounded, color: Color(0xFF0284C7), size: 16),
+                                      const SizedBox(width: 8),
+                                      Text(
+                                        '${controller.leaderGroup.value ?? "Your"} Group (Exclusive)',
+                                        style: const TextStyle(
+                                          color: Color(0xFF0284C7),
+                                          fontWeight: FontWeight.w700,
+                                          fontSize: 13,
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                                const SizedBox(height: 20),
+                              ],
+
+                              // 2. FLOOR SELECTOR
+                              _filterSectionHeader('HOSTEL FLOOR', Icons.layers_rounded),
+                              const SizedBox(height: 10),
+                              Wrap(
+                                spacing: 8,
+                                runSpacing: 8,
+                                children: AdminBirthdayController.floorOptions.map((f) {
+                                  final sel = controller.selectedFloor.value == f;
+                                  return FilterChip(
+                                    label: Text(f),
+                                    selected: sel,
+                                    selectedColor: const Color(0xFF0284C7),
+                                    checkmarkColor: Colors.white,
+                                    labelStyle: TextStyle(
+                                      color: sel ? Colors.white : const Color(0xFF334155),
+                                      fontWeight: sel ? FontWeight.w700 : FontWeight.w600,
+                                      fontSize: 12.5,
+                                    ),
+                                    backgroundColor: const Color(0xFFF1F5F9),
+                                    shape: RoundedRectangleBorder(
+                                      borderRadius: BorderRadius.circular(12),
+                                      side: BorderSide(
+                                        color: sel ? const Color(0xFF0284C7) : const Color(0xFFE2E8F0),
+                                      ),
+                                    ),
+                                    onSelected: (v) => controller.selectFloor(f),
+                                  );
+                                }).toList(),
+                              ),
+                              const SizedBox(height: 20),
+
+                              // 3. RESIDENCE STATUS
+                              _filterSectionHeader('RESIDENCE STATUS', Icons.badge_rounded),
+                              const SizedBox(height: 10),
+                              Wrap(
+                                spacing: 8,
+                                runSpacing: 8,
+                                children: AdminBirthdayController.statusOptions.map((s) {
+                                  final sel = controller.selectedStatus.value == s;
+                                  return FilterChip(
+                                    label: Text(s),
+                                    selected: sel,
+                                    selectedColor: const Color(0xFF059669),
+                                    checkmarkColor: Colors.white,
+                                    labelStyle: TextStyle(
+                                      color: sel ? Colors.white : const Color(0xFF334155),
+                                      fontWeight: sel ? FontWeight.w700 : FontWeight.w600,
+                                      fontSize: 12.5,
+                                    ),
+                                    backgroundColor: const Color(0xFFF1F5F9),
+                                    shape: RoundedRectangleBorder(
+                                      borderRadius: BorderRadius.circular(12),
+                                      side: BorderSide(
+                                        color: sel ? const Color(0xFF059669) : const Color(0xFFE2E8F0),
+                                      ),
+                                    ),
+                                    onSelected: (v) => controller.selectStatus(s),
+                                  );
+                                }).toList(),
+                              ),
+                              const SizedBox(height: 20),
+
+                              // 4. BIRTHDAY & CONTACT ATTRIBUTES
+                              _filterSectionHeader('BIRTHDAY & CONTACT ATTRIBUTES', Icons.cake_outlined),
+                              const SizedBox(height: 10),
+                              Container(
+                                decoration: BoxDecoration(
+                                  color: const Color(0xFFF8FAFC),
+                                  borderRadius: BorderRadius.circular(16),
+                                  border: Border.all(color: const Color(0xFFE2E8F0)),
+                                ),
+                                child: Column(
+                                  children: [
+                                    _toggleRow(
+                                      icon: Icons.cake_rounded,
+                                      iconColor: const Color(0xFFD97706),
+                                      title: 'Has Date of Birth (DOB)',
+                                      subtitle: 'Show students with registered birthday info',
+                                      value: controller.onlyWithDob.value,
+                                      onChanged: controller.toggleOnlyWithDob,
+                                    ),
+                                    const Divider(height: 1, indent: 52, color: Color(0xFFE2E8F0)),
+                                    _toggleRow(
+                                      icon: Icons.event_busy_rounded,
+                                      iconColor: const Color(0xFF64748B),
+                                      title: 'Missing Date of Birth (No DOB)',
+                                      subtitle: 'Show students needing birthday registration',
+                                      value: controller.onlyWithoutDob.value,
+                                      onChanged: controller.toggleOnlyWithoutDob,
+                                    ),
+                                    const Divider(height: 1, indent: 52, color: Color(0xFFE2E8F0)),
+                                    _toggleRow(
+                                      icon: Icons.chat_rounded,
+                                      iconColor: const Color(0xFF10B981),
+                                      title: 'Has Dedicated WhatsApp Number',
+                                      subtitle: 'Show students with verified WhatsApp details',
+                                      value: controller.onlyWithWhatsApp.value,
+                                      onChanged: controller.toggleOnlyWithWhatsApp,
+                                    ),
+                                    const Divider(height: 1, indent: 52, color: Color(0xFFE2E8F0)),
+                                    _toggleRow(
+                                      icon: Icons.family_restroom_rounded,
+                                      iconColor: const Color(0xFF0284C7),
+                                      title: 'Has Parent Contact Phone',
+                                      subtitle: 'Show students with Parent contact details',
+                                      value: controller.onlyWithParents.value,
+                                      onChanged: controller.toggleOnlyWithParents,
+                                    ),
+                                    const Divider(height: 1, indent: 52, color: Color(0xFFE2E8F0)),
+                                    _toggleRow(
+                                      icon: Icons.phone_rounded,
+                                      iconColor: const Color(0xFF6366F1),
+                                      title: 'Has Personal Phone',
+                                      subtitle: 'Show students with registered personal phone',
+                                      value: controller.onlyWithPhone.value,
+                                      onChanged: controller.toggleOnlyWithPhone,
+                                    ),
+                                  ],
+                                ),
+                              ),
+                              const SizedBox(height: 20),
+
+                              // 5. SORT ORDER
+                              _filterSectionHeader('SORT CELEBRANTS BY', Icons.sort_by_alpha_rounded),
+                              const SizedBox(height: 10),
+                              Wrap(
+                                spacing: 8,
+                                runSpacing: 8,
+                                children: AdminBirthdayController.sortOptions.map((s) {
+                                  final sel = controller.selectedSort.value == s;
+                                  return ChoiceChip(
+                                    label: Text(s),
+                                    selected: sel,
+                                    selectedColor: const Color(0xFF0F172A),
+                                    labelStyle: TextStyle(
+                                      color: sel ? Colors.white : const Color(0xFF334155),
+                                      fontWeight: sel ? FontWeight.w700 : FontWeight.w600,
+                                      fontSize: 12.5,
+                                    ),
+                                    backgroundColor: const Color(0xFFF1F5F9),
+                                    shape: RoundedRectangleBorder(
+                                      borderRadius: BorderRadius.circular(12),
+                                      side: BorderSide(
+                                        color: sel ? const Color(0xFF0F172A) : const Color(0xFFE2E8F0),
+                                      ),
+                                    ),
+                                    onSelected: (v) => controller.selectSort(s),
+                                  );
+                                }).toList(),
+                              ),
+                              const SizedBox(height: 16),
+                            ],
+                          );
+                        }),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+
+              // Bottom Sticky Action Button
+              Container(
+                padding: const EdgeInsets.fromLTRB(20, 12, 20, 16),
+                decoration: const BoxDecoration(
+                  color: Colors.white,
+                  border: Border(top: BorderSide(color: Color(0xFFE2E8F0))),
+                ),
+                child: SafeArea(
+                  top: false,
+                  child: SizedBox(
+                    width: double.infinity,
+                    height: 50,
+                    child: ElevatedButton(
+                      onPressed: () => Navigator.pop(ctx),
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: const Color(0xFF0284C7),
+                        foregroundColor: Colors.white,
+                        elevation: 2,
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(14),
+                        ),
+                      ),
+                      child: Obx(() {
+                        final count = controller.filteredStudents.length;
+                        return Row(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            const Icon(Icons.check_rounded, size: 20),
+                            const SizedBox(width: 8),
+                            Text(
+                              'Apply Filters & Show ($count Students)',
+                              style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 15),
+                            ),
+                          ],
+                        );
+                      }),
+                    ),
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _filterSectionHeader(String title, IconData icon) {
+    return Row(
+      children: [
+        Icon(icon, size: 15, color: const Color(0xFF0284C7)),
+        const SizedBox(width: 6),
+        Text(
+          title,
+          style: const TextStyle(
+            fontSize: 11.5,
+            fontWeight: FontWeight.w800,
+            color: Color(0xFF475569),
+            letterSpacing: 0.6,
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _toggleRow({
+    required IconData icon,
+    required Color iconColor,
+    required String title,
+    required String subtitle,
+    required bool value,
+    required ValueChanged<bool> onChanged,
+  }) {
+    return InkWell(
+      onTap: () => onChanged(!value),
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 11),
+        child: Row(
+          children: [
+            Container(
+              width: 34,
+              height: 34,
+              decoration: BoxDecoration(
+                color: iconColor.withValues(alpha: 0.12),
+                borderRadius: BorderRadius.circular(9),
+              ),
+              child: Icon(icon, color: iconColor, size: 18),
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    title,
+                    style: const TextStyle(
+                      fontSize: 13.5,
+                      fontWeight: FontWeight.w700,
+                      color: Color(0xFF0F172A),
+                    ),
+                  ),
+                  const SizedBox(height: 2),
+                  Text(
+                    subtitle,
+                    style: const TextStyle(
+                      fontSize: 11,
+                      color: Color(0xFF64748B),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            Switch(
+              value: value,
+              onChanged: onChanged,
+              activeThumbColor: const Color(0xFF0284C7),
+            ),
+          ],
+        ),
+      ),
     );
   }
 
@@ -2559,6 +3490,7 @@ class AdminBirthdayScreen extends GetView<AdminBirthdayController> {
   // --- Device Linking Modal Bottom Sheet ---
 
   void _showLinkDeviceSheet(BuildContext context) {
+    if (controller.isLeader.value) return;
     controller.startLinkingPolling();
     // Do NOT auto-trigger loadQrCode() here.
     // Calling /whatsapp/connect puts the backend into QR-waiting mode,
@@ -3400,12 +4332,12 @@ class AdminBirthdayScreen extends GetView<AdminBirthdayController> {
 class _AdminBirthdayHeaderDelegate extends SliverPersistentHeaderDelegate {
   final AdminBirthdayController controller;
   final double topPadding;
-  final VoidCallback onOpenLinkSheet;
+  final VoidCallback? onOpenLinkSheet;
 
   _AdminBirthdayHeaderDelegate({
     required this.controller,
     required this.topPadding,
-    required this.onOpenLinkSheet,
+    this.onOpenLinkSheet,
   });
 
   @override
@@ -3500,22 +4432,67 @@ class _AdminBirthdayHeaderDelegate extends SliverPersistentHeaderDelegate {
                   Expanded(
                     child: Opacity(
                       opacity: collapsedTitleOpacity,
-                      child: const Text(
-                        'Birthday Wishes',
-                        style: TextStyle(
-                          color: Colors.white,
-                          fontSize: 18,
-                          fontWeight: FontWeight.w800,
-                          letterSpacing: -0.3,
-                        ),
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                      ),
+                      child: Obx(() {
+                        final title = controller.isLeader.value
+                            ? (controller.leaderGroup.value != null ? '${controller.leaderGroup.value} Birthdays' : 'Group Birthdays')
+                            : 'Birthday Wishes';
+                        return Text(
+                          title,
+                          style: const TextStyle(
+                            color: Colors.white,
+                            fontSize: 18,
+                            fontWeight: FontWeight.w800,
+                            letterSpacing: -0.3,
+                          ),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                        );
+                      }),
                     ),
                   ),
 
-                  // WhatsApp quick link button
+                  // WhatsApp quick link button (Admin) or Leader Group Chip (Leader)
                   Obx(() {
+                    final isLeader = controller.isLeader.value;
+                    if (isLeader) {
+                      final group = controller.leaderGroup.value;
+                      return Container(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 10,
+                          vertical: 6,
+                        ),
+                        decoration: BoxDecoration(
+                          color: Colors.white.withValues(alpha: 0.18),
+                          borderRadius: BorderRadius.circular(20),
+                          border: Border.all(
+                            color: Colors.white.withValues(alpha: 0.28),
+                            width: 1,
+                          ),
+                        ),
+                        child: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            const Icon(
+                              Icons.shield_rounded,
+                              color: Colors.white,
+                              size: 13,
+                            ),
+                            const SizedBox(width: 4),
+                            Text(
+                              group != null && group.isNotEmpty
+                                  ? '$group Leader'
+                                  : 'Leader',
+                              style: const TextStyle(
+                                color: Colors.white,
+                                fontSize: 11,
+                                fontWeight: FontWeight.w700,
+                              ),
+                            ),
+                          ],
+                        ),
+                      );
+                    }
+
                     final isOnline =
                         (controller.dashboard.value?.isWhatsAppConnected ??
                             false) ||
@@ -3582,7 +4559,9 @@ class _AdminBirthdayHeaderDelegate extends SliverPersistentHeaderDelegate {
                             ? null
                             : () {
                                 controller.loadDashboard();
-                                controller.fetchWhatsAppStatus();
+                                if (!controller.isLeader.value) {
+                                  controller.fetchWhatsAppStatus();
+                                }
                               },
                         borderRadius: BorderRadius.circular(24),
                         child: Container(
@@ -3640,34 +4619,52 @@ class _AdminBirthdayHeaderDelegate extends SliverPersistentHeaderDelegate {
                           ),
                         ),
                         const SizedBox(height: 6),
-                        Text(
-                          'AUTOMATED GREETINGS & CELEBRANTS',
-                          style: TextStyle(
-                            color: Colors.white.withValues(alpha: 0.72),
-                            fontSize: 10.5,
-                            fontWeight: FontWeight.w700,
-                            letterSpacing: 1.2,
-                          ),
-                        ),
-                        const SizedBox(height: 3),
-                        const Text(
-                          'Birthday Wishes',
-                          style: TextStyle(
-                            color: Colors.white,
-                            fontSize: 24,
-                            fontWeight: FontWeight.w800,
-                            letterSpacing: -0.6,
-                          ),
-                        ),
-                        const SizedBox(height: 2),
-                        Text(
-                          'Automated WhatsApp greetings & hostel celebrants',
-                          style: TextStyle(
-                            color: Colors.white.withValues(alpha: 0.85),
-                            fontSize: 12.5,
-                            fontWeight: FontWeight.w400,
-                          ),
-                        ),
+                        Obx(() {
+                          final isLeader = controller.isLeader.value;
+                          final group = controller.leaderGroup.value;
+                          final overline = isLeader
+                              ? (group != null ? '$group GROUP LEADER' : 'LEADER PORTAL')
+                              : 'AUTOMATED GREETINGS & CELEBRANTS';
+                          final title = isLeader
+                              ? (group != null ? '$group Celebrants' : 'Group Birthdays')
+                              : 'Birthday Wishes';
+                          final subtitle = isLeader
+                              ? (group != null ? 'Wish $group group members on their special day' : 'Wish your group members on their special day')
+                              : 'Automated WhatsApp greetings & hostel celebrants';
+                          return Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                overline.toUpperCase(),
+                                style: TextStyle(
+                                  color: Colors.white.withValues(alpha: 0.72),
+                                  fontSize: 10.5,
+                                  fontWeight: FontWeight.w700,
+                                  letterSpacing: 1.2,
+                                ),
+                              ),
+                              const SizedBox(height: 3),
+                              Text(
+                                title,
+                                style: const TextStyle(
+                                  color: Colors.white,
+                                  fontSize: 24,
+                                  fontWeight: FontWeight.w800,
+                                  letterSpacing: -0.6,
+                                ),
+                              ),
+                              const SizedBox(height: 2),
+                              Text(
+                                subtitle,
+                                style: TextStyle(
+                                  color: Colors.white.withValues(alpha: 0.85),
+                                  fontSize: 12.5,
+                                  fontWeight: FontWeight.w400,
+                                ),
+                              ),
+                            ],
+                          );
+                        }),
                         const SizedBox(height: 10),
 
                         // Frosted Summary Metric Cards
@@ -3683,11 +4680,77 @@ class _AdminBirthdayHeaderDelegate extends SliverPersistentHeaderDelegate {
     );
   }
 
-  /// 4 Frosted summary metric cards in the hero header.
+  /// Frosted summary metric cards in the hero header.
   Widget _buildHeaderMetricCards() {
+    final isLeader = controller.isLeader.value;
     final data = controller.dashboard.value;
     final todayCount = data?.todaysBirthdays.length ?? 0;
     final tomorrowCount = data?.tomorrowsBirthdays.length ?? 0;
+
+    if (isLeader) {
+      final totalGroupStudents = controller.allStudents.length;
+      return Row(
+        children: [
+          // Today
+          Expanded(
+            child: _HeaderMetricCard(
+              title: 'Today',
+              countText: '$todayCount',
+              icon: Icons.cake_rounded,
+              accentColor: const Color(0xFF38BDF8),
+              highlightAlert: todayCount > 0,
+              isSelected: controller.selectedTab.value == 0,
+              onTap: () => controller.selectedTab.value = 0,
+            ),
+          ),
+          const SizedBox(width: 8),
+
+          // Tomorrow
+          Expanded(
+            child: _HeaderMetricCard(
+              title: 'Tomorrow',
+              countText: '$tomorrowCount',
+              icon: Icons.event_rounded,
+              accentColor: const Color(0xFF86EFAC),
+              isSelected: controller.selectedTab.value == 1,
+              onTap: () => controller.selectedTab.value = 1,
+            ),
+          ),
+          const SizedBox(width: 8),
+
+          // Template
+          Expanded(
+            child: _HeaderMetricCard(
+              title: 'Template',
+              countText: 'Custom',
+              icon: Icons.tune_rounded,
+              accentColor: const Color(0xFFFBBF24),
+              isSelected: controller.selectedTab.value == 2,
+              onTap: () => controller.selectedTab.value = 2,
+            ),
+          ),
+          const SizedBox(width: 8),
+
+          // Directory
+          Expanded(
+            child: _HeaderMetricCard(
+              title: 'Directory',
+              countText: totalGroupStudents > 0 ? '$totalGroupStudents' : 'View',
+              icon: Icons.people_alt_rounded,
+              accentColor: const Color(0xFFA78BFA),
+              isSelected: controller.selectedTab.value == 3,
+              onTap: () {
+                controller.selectedTab.value = 3;
+                if (controller.allStudents.isEmpty) {
+                  controller.fetchStudents();
+                }
+              },
+            ),
+          ),
+        ],
+      );
+    }
+
     final isOnline =
         (data?.isWhatsAppConnected ?? false) ||
         controller.connectedPhone.isNotEmpty;
@@ -3733,7 +4796,7 @@ class _AdminBirthdayHeaderDelegate extends SliverPersistentHeaderDelegate {
                 : const Color(0xFFFF8A8A),
             highlightAlert: !isOnline,
             isSelected: false,
-            onTap: onOpenLinkSheet,
+            onTap: onOpenLinkSheet ?? () {},
           ),
         ),
         const SizedBox(width: 8),
@@ -3758,7 +4821,8 @@ class _AdminBirthdayHeaderDelegate extends SliverPersistentHeaderDelegate {
   @override
   bool shouldRebuild(covariant _AdminBirthdayHeaderDelegate oldDelegate) {
     return oldDelegate.controller != controller ||
-        oldDelegate.topPadding != topPadding;
+        oldDelegate.topPadding != topPadding ||
+        oldDelegate.onOpenLinkSheet != onOpenLinkSheet;
   }
 }
 

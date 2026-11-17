@@ -8,8 +8,13 @@ class BirthdayRepository extends BaseRepository {
   ApiClient get _apiClient => Get.find<ApiClient>();
 
   /// Fetch full dashboard state: config, today's & tomorrow's celebrants, logs, connection state
-  Future<BirthdayDashboardData> fetchDashboard() async {
-    final response = await _apiClient.dio.get('/whatsapp/birthday');
+  Future<BirthdayDashboardData> fetchDashboard({String? group}) async {
+    final response = await _apiClient.dio.get(
+      '/whatsapp/birthday',
+      queryParameters: {
+        if (group != null && group.trim().isNotEmpty) 'group': group.trim(),
+      },
+    );
     final data = response.data;
     if (data is Map && data['data'] is Map) {
       return BirthdayDashboardData.fromJson(Map<String, dynamic>.from(data['data']));
@@ -74,11 +79,12 @@ class BirthdayRepository extends BaseRepository {
   }
 
   /// Fetch all students directory (including room N/A)
-  Future<List<BirthdayStudentModel>> fetchAllStudents({String? search}) async {
+  Future<List<BirthdayStudentModel>> fetchAllStudents({String? search, String? group}) async {
     final response = await _apiClient.dio.get(
       '/whatsapp/birthday/all-students',
       queryParameters: {
         if (search != null && search.trim().isNotEmpty) 'search': search.trim(),
+        if (group != null && group.trim().isNotEmpty) 'group': group.trim(),
       },
     );
     final data = response.data;
@@ -117,6 +123,18 @@ class BirthdayRepository extends BaseRepository {
       return data['code'].toString();
     }
     throw Exception(data['message'] ?? 'Failed to get pairing code');
+  }
+
+  /// Save leader's customized wish template on server
+  Future<void> saveLeaderTemplate(String template) async {
+    try {
+      await _apiClient.dio.post(
+        '/whatsapp/birthday/leader-template',
+        data: {'template': template.trim()},
+      );
+    } on DioException catch (e) {
+      throw Exception(errorMessage(e, fallback: 'Could not save the leader template. Please try again.'));
+    }
   }
 
   /// Disconnect current WhatsApp session

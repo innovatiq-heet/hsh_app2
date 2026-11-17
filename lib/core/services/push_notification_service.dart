@@ -355,7 +355,11 @@ class PushNotificationService extends GetxService {
       case 'screentime':
       case 'screen_time':
       case 'app_request':
-        if (Get.isRegistered<SessionStore>() && Get.find<SessionStore>().canOperate) {
+        final session =
+            Get.isRegistered<SessionStore>() ? Get.find<SessionStore>() : null;
+        final isAllowed = session != null &&
+            (session.canOperate || session.isLeader);
+        if (isAllowed) {
           Get.toNamed(Routes.studentScreenTime, arguments: data);
         } else {
           Get.toNamed(Routes.studentHome, arguments: data);

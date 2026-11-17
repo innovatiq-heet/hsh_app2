@@ -47,7 +47,10 @@ class BroadcastComposeController extends GetxController
   final ScreenTimeRepository? _screenTimeRepo;
   final Duration previewDebounce;
 
-  /// Individual picks: residents only (alumni don't get broadcasts).
+  /// Individual picks: residents and alumni can both be selected.
+  @override
+  bool get includeAlumniInPicker => true;
+
   @override
   late final StudentPickerSource studentSource =
       StudentPickerSource(tags: _tagsRepo, screenTime: _screenTimeRepo);
@@ -69,6 +72,13 @@ class BroadcastComposeController extends GetxController
   final previewError = RxnString();
 
   final isSending = false.obs;
+
+  /// Delivery channel: 'both' (app + whatsapp), 'app' (in-app only), or 'whatsapp' (whatsapp only).
+  final selectedChannel = BroadcastChannel.both.obs;
+
+  void setChannel(BroadcastChannel channel) {
+    selectedChannel.value = channel;
+  }
 
   /// Fixed for this screen, so every retry of the same send is deduplicated
   /// by the server.
@@ -102,7 +112,8 @@ class BroadcastComposeController extends GetxController
   String get trimmedTitle => title.value.trim();
   String get trimmedMessage => message.value.trim();
 
-  bool get titleValid => trimmedTitle.isNotEmpty && trimmedTitle.length <= maxTitle;
+  /// Title is optional: valid if empty or within limit.
+  bool get titleValid => trimmedTitle.length <= maxTitle;
   bool get messageValid => trimmedMessage.isNotEmpty && trimmedMessage.length <= maxMessage;
   bool get hasAudience => selectedTagIds.isNotEmpty || selectedStudents.isNotEmpty;
 
@@ -187,8 +198,9 @@ class BroadcastComposeController extends GetxController
     try {
       return await _repo.send(
         clientRequestId: clientRequestId,
-        title: trimmedTitle,
+        title: trimmedTitle.isNotEmpty ? trimmedTitle : null,
         message: trimmedMessage,
+        channels: selectedChannel.value.name,
         tagIds: _tagIds,
         studentIds: _studentIds,
       );

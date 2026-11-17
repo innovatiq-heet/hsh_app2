@@ -4,6 +4,8 @@ import '../../../core/constants/app_colors.dart';
 import '../../../core/constants/app_dimens.dart';
 import '../../../core/constants/app_routes.dart';
 import '../../../core/constants/app_text_styles.dart';
+import '../../../core/enums/user_role.dart';
+import '../../../core/storage/session_store.dart';
 import '../../home/controllers/home_controller.dart';
 import '../../shared/widgets/app_card.dart';
 import '../../shared/widgets/gradient_header.dart';
@@ -30,7 +32,31 @@ class ServicesScreen extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final isLeader = Get.isRegistered<SessionStore>() &&
+        (Get.find<SessionStore>().currentSession?.role == UserRole.leader);
+
     final sections = <String, List<_ServiceItem>>{
+      if (isLeader)
+        'Leader Tools': [
+          _ServiceItem(
+            'Birthday Wishes',
+            Icons.cake_rounded,
+            const Color(0xFFD97706),
+            () => Get.toNamed(Routes.operatorBirthdayWishes),
+          ),
+          _ServiceItem(
+            'Daily Alumni Connect',
+            Icons.connect_without_contact_rounded,
+            const Color(0xFF0D9488),
+            () => Get.toNamed(Routes.dailyAlumniOutreach),
+          ),
+          _ServiceItem(
+            'Parental Lock & Controls',
+            Icons.lock_clock_rounded,
+            const Color(0xFF6366F1),
+            () => Get.toNamed(Routes.studentScreenTime),
+          ),
+        ],
       'Daily': [
         _ServiceItem(
           'Attendance',
@@ -122,13 +148,13 @@ class ServicesScreen extends StatelessWidget {
         _ServiceItem(
           'Announcements',
           Icons.campaign_outlined,
-          const Color(0xFFDB2777),
+          const Color(0xFF0284C7),
           () => Get.toNamed(Routes.broadcastInbox),
         ),
         _ServiceItem(
           'Polls & Forms',
           Icons.how_to_vote_outlined,
-          const Color(0xFF7C3AED),
+          const Color(0xFF0284C7),
           () => Get.toNamed(Routes.studentForms),
         ),
         _ServiceItem(

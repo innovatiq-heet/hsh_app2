@@ -45,6 +45,53 @@ PushStatus _pushStatus(dynamic v) {
   }
 }
 
+enum BroadcastChannel { both, app, whatsapp }
+
+BroadcastChannel _channel(dynamic v) {
+  switch (v?.toString().toLowerCase()) {
+    case 'app':
+      return BroadcastChannel.app;
+    case 'whatsapp':
+      return BroadcastChannel.whatsapp;
+    default:
+      return BroadcastChannel.both;
+  }
+}
+
+extension BroadcastChannelExt on BroadcastChannel {
+  String get displayLabel {
+    switch (this) {
+      case BroadcastChannel.both:
+        return 'Both (App & WhatsApp)';
+      case BroadcastChannel.app:
+        return 'In-App Only';
+      case BroadcastChannel.whatsapp:
+        return 'WhatsApp Only';
+    }
+  }
+}
+
+enum WhatsAppStatus { pending, queued, sent, failed, skipped, noPhone, unknown }
+
+WhatsAppStatus _whatsAppStatus(dynamic v) {
+  switch (v?.toString().toLowerCase()) {
+    case 'pending':
+      return WhatsAppStatus.pending;
+    case 'queued':
+      return WhatsAppStatus.queued;
+    case 'sent':
+      return WhatsAppStatus.sent;
+    case 'failed':
+      return WhatsAppStatus.failed;
+    case 'skipped':
+      return WhatsAppStatus.skipped;
+    case 'no_phone':
+      return WhatsAppStatus.noPhone;
+    default:
+      return WhatsAppStatus.unknown;
+  }
+}
+
 /// A student picked individually for a broadcast.
 typedef BroadcastStudent = PickableStudent;
 
@@ -52,11 +99,15 @@ typedef BroadcastStudent = PickableStudent;
 class BroadcastPreview {
   final int recipientCount;
   final int noDeviceCount;
+  final int noWhatsappCount;
+  final bool isWhatsAppConnected;
   final List<BroadcastStudent> sample;
 
   const BroadcastPreview({
     required this.recipientCount,
     this.noDeviceCount = 0,
+    this.noWhatsappCount = 0,
+    this.isWhatsAppConnected = false,
     this.sample = const [],
   });
 
@@ -76,6 +127,8 @@ class BroadcastPreview {
     return BroadcastPreview(
       recipientCount: _int(json['recipient_count']),
       noDeviceCount: _int(json['no_device_count']),
+      noWhatsappCount: _int(json['no_whatsapp_count']),
+      isWhatsAppConnected: json['whatsapp_connected'] == true,
       sample: sample,
     );
   }
@@ -88,6 +141,9 @@ class BroadcastRecipient {
   final String room;
   final String matchedBy;
   final PushStatus pushStatus;
+  final WhatsAppStatus whatsAppStatus;
+  final String whatsappPhone;
+  final DateTime? whatsappSentAt;
   final DateTime? readAt;
 
   const BroadcastRecipient({
@@ -96,6 +152,9 @@ class BroadcastRecipient {
     required this.room,
     required this.matchedBy,
     required this.pushStatus,
+    this.whatsAppStatus = WhatsAppStatus.unknown,
+    this.whatsappPhone = '',
+    this.whatsappSentAt,
     this.readAt,
   });
 
@@ -107,6 +166,9 @@ class BroadcastRecipient {
         room: _str(json['room']),
         matchedBy: _str(json['matched_by']),
         pushStatus: _pushStatus(json['push_status']),
+        whatsAppStatus: _whatsAppStatus(json['whatsapp_status']),
+        whatsappPhone: _str(json['whatsapp_phone']),
+        whatsappSentAt: _date(json['whatsapp_sent_at']),
         readAt: _date(json['read_at']),
       );
 }
@@ -114,8 +176,9 @@ class BroadcastRecipient {
 /// A sent broadcast, as the admin sees it.
 class Broadcast {
   final int id;
-  final String title;
+  final String? title;
   final String message;
+  final BroadcastChannel channels;
   final List<StudentTag> tags;
   final List<int> studentIds;
   final BroadcastStatus status;
@@ -123,6 +186,9 @@ class Broadcast {
   final int pushSent;
   final int pushFailed;
   final int noDevice;
+  final int whatsappSent;
+  final int whatsappFailed;
+  final int noWhatsapp;
   final int readCount;
   final String senderName;
   final DateTime? createdAt;
@@ -133,8 +199,9 @@ class Broadcast {
 
   const Broadcast({
     required this.id,
-    required this.title,
+    this.title,
     required this.message,
+    this.channels = BroadcastChannel.both,
     this.tags = const [],
     this.studentIds = const [],
     this.status = BroadcastStatus.unknown,
@@ -142,6 +209,9 @@ class Broadcast {
     this.pushSent = 0,
     this.pushFailed = 0,
     this.noDevice = 0,
+    this.whatsappSent = 0,
+    this.whatsappFailed = 0,
+    this.noWhatsapp = 0,
     this.readCount = 0,
     this.senderName = '',
     this.createdAt,
@@ -150,6 +220,8 @@ class Broadcast {
   });
 
   bool get isSending => status == BroadcastStatus.sending;
+  String get displayTitle =>
+      (title != null && title!.trim().isNotEmpty) ? title!.trim() : 'Announcement';
 
   factory Broadcast.fromJson(Map<String, dynamic> json) {
     final tags = <StudentTag>[];
@@ -172,10 +244,12 @@ class Broadcast {
       }
     }
     final sender = json['sender'];
+    final rawTitle = json['title']?.toString();
     return Broadcast(
       id: _int(json['id']),
-      title: _str(json['title']),
+      title: (rawTitle != null && rawTitle.trim().isNotEmpty) ? rawTitle.trim() : null,
       message: _str(json['message']),
+      channels: _channel(json['channels']),
       tags: tags,
       studentIds: ids,
       status: _status(json['status']),
@@ -183,6 +257,9 @@ class Broadcast {
       pushSent: _int(json['push_sent']),
       pushFailed: _int(json['push_failed']),
       noDevice: _int(json['no_device']),
+      whatsappSent: _int(json['whatsapp_sent']),
+      whatsappFailed: _int(json['whatsapp_failed']),
+      noWhatsapp: _int(json['no_whatsapp']),
       readCount: _int(json['read_count']),
       senderName: sender is Map ? _str(sender['name']) : '',
       createdAt: _date(json['created_at']),
@@ -203,7 +280,7 @@ class BroadcastPage {
 /// One message in a student's inbox.
 class InboxBroadcast {
   final int id;
-  final String title;
+  final String? title;
   final String message;
   final String senderName;
   final DateTime? createdAt;
@@ -211,7 +288,7 @@ class InboxBroadcast {
 
   const InboxBroadcast({
     required this.id,
-    required this.title,
+    this.title,
     required this.message,
     this.senderName = '',
     this.createdAt,
@@ -219,6 +296,10 @@ class InboxBroadcast {
   });
 
   bool get isRead => readAt != null;
+  String get displayTitle =>
+      (title != null && title!.trim().isNotEmpty)
+          ? title!.trim()
+          : (senderName.isNotEmpty ? 'Notice from $senderName' : 'Notice');
 
   InboxBroadcast copyWith({DateTime? readAt, bool clearRead = false}) => InboxBroadcast(
         id: id,
@@ -229,14 +310,17 @@ class InboxBroadcast {
         readAt: clearRead ? null : (readAt ?? this.readAt),
       );
 
-  factory InboxBroadcast.fromJson(Map<String, dynamic> json) => InboxBroadcast(
-        id: _int(json['id']),
-        title: _str(json['title']),
-        message: _str(json['message']),
-        senderName: _str(json['sender_name']),
-        createdAt: _date(json['created_at']),
-        readAt: _date(json['read_at']),
-      );
+  factory InboxBroadcast.fromJson(Map<String, dynamic> json) {
+    final rawTitle = json['title']?.toString();
+    return InboxBroadcast(
+      id: _int(json['id']),
+      title: (rawTitle != null && rawTitle.trim().isNotEmpty) ? rawTitle.trim() : null,
+      message: _str(json['message']),
+      senderName: _str(json['sender_name']),
+      createdAt: _date(json['created_at']),
+      readAt: _date(json['read_at']),
+    );
+  }
 }
 
 /// A page of the inbox with the server's totals.

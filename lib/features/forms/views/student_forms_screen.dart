@@ -7,7 +7,7 @@ import '../../../core/utils/date_formatting.dart';
 import '../../shared/widgets/empty_state.dart';
 import '../controllers/student_forms_controller.dart';
 
-/// Student → Dashboard → Polls & Forms.
+/// Student → More / Hub → Polls & Forms.
 /// Executive Hostel Design featuring deep navy orb header, search & filters,
 /// amber section header, and squircle form cards.
 class StudentFormsScreen extends StatefulWidget {
@@ -21,7 +21,8 @@ class _StudentFormsScreenState extends State<StudentFormsScreen> {
   final controller = Get.find<StudentFormsController>();
   final searchController = TextEditingController();
   final searchText = ''.obs;
-  final selectedFilter = 'All'.obs; // 'All', 'To Answer', 'Polls', 'Forms', 'Answered'
+  final selectedFilter =
+      'All'.obs; // 'All', 'To Answer', 'Polls', 'Forms', 'Answered'
 
   @override
   void dispose() {
@@ -71,7 +72,9 @@ class _StudentFormsScreenState extends State<StudentFormsScreen> {
           color: const Color(0xFF0284C7),
           backgroundColor: Colors.white,
           child: CustomScrollView(
-            physics: const AlwaysScrollableScrollPhysics(parent: BouncingScrollPhysics()),
+            physics: const AlwaysScrollableScrollPhysics(
+              parent: BouncingScrollPhysics(),
+            ),
             slivers: [
               // Signature Deep Navy Executive Header
               SliverToBoxAdapter(
@@ -89,7 +92,9 @@ class _StudentFormsScreenState extends State<StudentFormsScreen> {
                       ],
                       stops: [0.0, 0.38, 0.75, 1.0],
                     ),
-                    borderRadius: BorderRadius.vertical(bottom: Radius.circular(28)),
+                    borderRadius: BorderRadius.vertical(
+                      bottom: Radius.circular(28),
+                    ),
                     boxShadow: [
                       BoxShadow(
                         color: Color(0xFF03192E),
@@ -100,7 +105,9 @@ class _StudentFormsScreenState extends State<StudentFormsScreen> {
                   ),
                   child: Stack(
                     children: [
-                      Positioned.fill(child: CustomPaint(painter: _HeaderOrbPainter())),
+                      Positioned.fill(
+                        child: CustomPaint(painter: _HeaderOrbPainter()),
+                      ),
                       Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
@@ -116,10 +123,14 @@ class _StudentFormsScreenState extends State<StudentFormsScreen> {
                                     width: 42,
                                     height: 42,
                                     decoration: BoxDecoration(
-                                      color: Colors.white.withValues(alpha: 0.16),
+                                      color: Colors.white.withValues(
+                                        alpha: 0.16,
+                                      ),
                                       shape: BoxShape.circle,
                                       border: Border.all(
-                                        color: Colors.white.withValues(alpha: 0.25),
+                                        color: Colors.white.withValues(
+                                          alpha: 0.25,
+                                        ),
                                         width: 1,
                                       ),
                                     ),
@@ -141,13 +152,17 @@ class _StudentFormsScreenState extends State<StudentFormsScreen> {
                                   ),
                                   decoration: BoxDecoration(
                                     color: pending > 0
-                                        ? const Color(0xFFD97706).withValues(alpha: 0.3)
+                                        ? const Color(
+                                            0xFFD97706,
+                                          ).withValues(alpha: 0.3)
                                         : Colors.white.withValues(alpha: 0.16),
                                     borderRadius: BorderRadius.circular(20),
                                     border: Border.all(
                                       color: pending > 0
                                           ? const Color(0xFFFBBF24)
-                                          : Colors.white.withValues(alpha: 0.28),
+                                          : Colors.white.withValues(
+                                              alpha: 0.28,
+                                            ),
                                       width: 1,
                                     ),
                                   ),
@@ -163,7 +178,9 @@ class _StudentFormsScreenState extends State<StudentFormsScreen> {
                                       ),
                                       const SizedBox(width: 6),
                                       Text(
-                                        pending > 0 ? '$pending to answer' : 'All done',
+                                        pending > 0
+                                            ? '$pending to answer'
+                                            : 'All done',
                                         style: const TextStyle(
                                           color: Colors.white,
                                           fontSize: 12,
@@ -180,16 +197,24 @@ class _StudentFormsScreenState extends State<StudentFormsScreen> {
                                 return Material(
                                   color: Colors.transparent,
                                   child: InkWell(
-                                    onTap: loading ? null : () => controller.load(showLoading: false),
+                                    onTap: loading
+                                        ? null
+                                        : () => controller.load(
+                                            showLoading: false,
+                                          ),
                                     borderRadius: BorderRadius.circular(24),
                                     child: Container(
                                       width: 42,
                                       height: 42,
                                       decoration: BoxDecoration(
-                                        color: Colors.white.withValues(alpha: 0.16),
+                                        color: Colors.white.withValues(
+                                          alpha: 0.16,
+                                        ),
                                         shape: BoxShape.circle,
                                         border: Border.all(
-                                          color: Colors.white.withValues(alpha: 0.25),
+                                          color: Colors.white.withValues(
+                                            alpha: 0.25,
+                                          ),
                                           width: 1,
                                         ),
                                       ),
@@ -253,7 +278,9 @@ class _StudentFormsScreenState extends State<StudentFormsScreen> {
                           border: Border.all(color: const Color(0xFFE2E8F0)),
                           boxShadow: [
                             BoxShadow(
-                              color: const Color(0xFF0F172A).withValues(alpha: 0.04),
+                              color: const Color(
+                                0xFF0F172A,
+                              ).withValues(alpha: 0.04),
                               blurRadius: 14,
                               offset: const Offset(0, 3),
                             ),
@@ -276,13 +303,19 @@ class _StudentFormsScreenState extends State<StudentFormsScreen> {
                             ),
                             prefixIcon: const Icon(
                               Icons.search_rounded,
-                              color: Color(0xFF7C3AED),
+                              color: Color(0xFF0284C7),
                               size: 21,
                             ),
                             suffixIcon: Obx(() {
-                              if (searchText.value.isEmpty) return const SizedBox.shrink();
+                              if (searchText.value.isEmpty) {
+                                return const SizedBox.shrink();
+                              }
                               return IconButton(
-                                icon: const Icon(Icons.close_rounded, size: 18, color: Color(0xFF64748B)),
+                                icon: const Icon(
+                                  Icons.close_rounded,
+                                  size: 18,
+                                  color: Color(0xFF64748B),
+                                ),
                                 onPressed: () {
                                   searchController.clear();
                                   searchText.value = '';
@@ -308,12 +341,19 @@ class _StudentFormsScreenState extends State<StudentFormsScreen> {
                           final allItems = controller.forms;
                           final now = DateTime.now().toUtc();
                           final toAnswerCount = allItems.where((i) {
-                            final closed = i.endTime != null && i.endTime!.isBefore(now);
+                            final closed =
+                                i.endTime != null && i.endTime!.isBefore(now);
                             return !i.hasSubmitted && !closed;
                           }).length;
-                          final pollsCount = allItems.where((i) => i.kind == FormKind.poll).length;
-                          final formsCount = allItems.where((i) => i.kind == FormKind.form).length;
-                          final answeredCount = allItems.where((i) => i.hasSubmitted).length;
+                          final pollsCount = allItems
+                              .where((i) => i.kind == FormKind.poll)
+                              .length;
+                          final formsCount = allItems
+                              .where((i) => i.kind == FormKind.form)
+                              .length;
+                          final answeredCount = allItems
+                              .where((i) => i.hasSubmitted)
+                              .length;
 
                           return Row(
                             children: [
@@ -396,17 +436,19 @@ class _StudentFormsScreenState extends State<StudentFormsScreen> {
                   return SliverFillRemaining(
                     hasScrollBody: false,
                     child: EmptyState(
-                      icon: isSearching ? Icons.search_off_rounded : Icons.how_to_vote_outlined,
+                      icon: isSearching
+                          ? Icons.search_off_rounded
+                          : Icons.how_to_vote_outlined,
                       title: isSearching
                           ? 'No matching polls or forms'
                           : (filterName == 'To Answer'
-                              ? 'All caught up!'
-                              : 'No polls open right now'),
+                                ? 'All caught up!'
+                                : 'No polls open right now'),
                       message: isSearching
                           ? 'Try searching for different keywords or check spelling.'
                           : (filterName == 'To Answer'
-                              ? 'You have answered all open polls and forms. Check back later!'
-                              : 'Hostel surveys and opinion polls will appear here.'),
+                                ? 'You have answered all open polls and forms. Check back later!'
+                                : 'Hostel surveys and opinion polls will appear here.'),
                       actionLabel: isSearching ? 'Clear Search' : null,
                       onAction: isSearching
                           ? () {
@@ -421,48 +463,48 @@ class _StudentFormsScreenState extends State<StudentFormsScreen> {
                 return SliverPadding(
                   padding: const EdgeInsets.fromLTRB(20, 16, 20, 40),
                   sliver: SliverList(
-                    delegate: SliverChildBuilderDelegate(
-                      (context, index) {
-                        if (index == 0) {
-                          // Section header with amber dash
-                          return Padding(
-                            padding: const EdgeInsets.only(bottom: 12),
-                            child: Row(
-                              children: [
-                                Container(
-                                  width: 20,
-                                  height: 3.5,
-                                  decoration: BoxDecoration(
-                                    color: const Color(0xFFD97706),
-                                    borderRadius: BorderRadius.circular(2),
-                                  ),
-                                ),
-                                const SizedBox(width: 8),
-                                Text(
-                                  'ACTIVE POLLS & FORMS (${items.length})',
-                                  style: const TextStyle(
-                                    fontSize: 11.5,
-                                    fontWeight: FontWeight.w800,
-                                    color: Color(0xFF64748B),
-                                    letterSpacing: 0.8,
-                                  ),
-                                ),
-                              ],
-                            ),
-                          );
-                        }
-
-                        final item = items[index - 1];
+                    delegate: SliverChildBuilderDelegate((context, index) {
+                      if (index == 0) {
+                        // Section header with amber dash
                         return Padding(
                           padding: const EdgeInsets.only(bottom: 12),
-                          child: _ExecutiveFormCard(
-                            form: item,
-                            onTap: () => Get.toNamed(Routes.studentFormFill, arguments: item.id),
+                          child: Row(
+                            children: [
+                              Container(
+                                width: 20,
+                                height: 3.5,
+                                decoration: BoxDecoration(
+                                  color: const Color(0xFFD97706),
+                                  borderRadius: BorderRadius.circular(2),
+                                ),
+                              ),
+                              const SizedBox(width: 8),
+                              Text(
+                                'ACTIVE POLLS & FORMS (${items.length})',
+                                style: const TextStyle(
+                                  fontSize: 11.5,
+                                  fontWeight: FontWeight.w800,
+                                  color: Color(0xFF64748B),
+                                  letterSpacing: 0.8,
+                                ),
+                              ),
+                            ],
                           ),
                         );
-                      },
-                      childCount: items.length + 1,
-                    ),
+                      }
+
+                      final item = items[index - 1];
+                      return Padding(
+                        padding: const EdgeInsets.only(bottom: 12),
+                        child: _ExecutiveFormCard(
+                          form: item,
+                          onTap: () => Get.toNamed(
+                            Routes.studentFormFill,
+                            arguments: item.id,
+                          ),
+                        ),
+                      );
+                    }, childCount: items.length + 1),
                   ),
                 );
               }),
@@ -479,10 +521,7 @@ class _ExecutiveFormCard extends StatelessWidget {
   final StudentForm form;
   final VoidCallback onTap;
 
-  const _ExecutiveFormCard({
-    required this.form,
-    required this.onTap,
-  });
+  const _ExecutiveFormCard({required this.form, required this.onTap});
 
   @override
   Widget build(BuildContext context) {
@@ -492,10 +531,16 @@ class _ExecutiveFormCard extends StatelessWidget {
     final isClosed = f.endTime != null && f.endTime!.isBefore(now);
     final needsAnswer = !f.hasSubmitted && !isClosed;
 
-    final kindColor = isPoll ? const Color(0xFF7C3AED) : const Color(0xFF0D9488);
-    final kindBg = isPoll ? const Color(0xFFF5F3FF) : const Color(0xFFF0FDFA);
-    final kindBorder = isPoll ? const Color(0xFFDDD6FE) : const Color(0xFF99F6E4);
-    final waveColor = isPoll ? const Color(0xFFEDE9FE) : const Color(0xFFCCFBF1);
+    final kindColor = isPoll
+        ? const Color(0xFF0284C7)
+        : const Color(0xFF0369A1);
+    final kindBg = isPoll ? const Color(0xFFF0F9FF) : const Color(0xFFF8FAFC);
+    final kindBorder = isPoll
+        ? const Color(0xFFBAE6FD)
+        : const Color(0xFFCBD5E1);
+    final waveColor = needsAnswer
+        ? const Color(0xFFFEF3C7)
+        : const Color(0xFFE0F2FE);
 
     return Container(
       decoration: BoxDecoration(
@@ -552,7 +597,9 @@ class _ExecutiveFormCard extends StatelessWidget {
                             ),
                             alignment: Alignment.center,
                             child: Icon(
-                              isPoll ? Icons.how_to_vote_rounded : Icons.assignment_rounded,
+                              isPoll
+                                  ? Icons.how_to_vote_rounded
+                                  : Icons.assignment_rounded,
                               color: kindColor,
                               size: 22,
                             ),
@@ -568,7 +615,9 @@ class _ExecutiveFormCard extends StatelessWidget {
                                   crossAxisAlignment: WrapCrossAlignment.center,
                                   children: [
                                     _CelebrantLightChip(
-                                      icon: isPoll ? Icons.how_to_vote_rounded : Icons.assignment_rounded,
+                                      icon: isPoll
+                                          ? Icons.how_to_vote_rounded
+                                          : Icons.assignment_rounded,
                                       text: isPoll ? 'Poll' : 'Form',
                                       bgColor: kindBg,
                                       borderColor: kindBorder,
@@ -617,7 +666,9 @@ class _ExecutiveFormCard extends StatelessWidget {
                             decoration: BoxDecoration(
                               color: const Color(0xFFF8FAFC),
                               shape: BoxShape.circle,
-                              border: Border.all(color: const Color(0xFFE2E8F0)),
+                              border: Border.all(
+                                color: const Color(0xFFE2E8F0),
+                              ),
                             ),
                             child: const Icon(
                               Icons.chevron_right_rounded,
@@ -642,7 +693,8 @@ class _ExecutiveFormCard extends StatelessWidget {
                       ),
 
                       // Description
-                      if (f.description != null && f.description!.trim().isNotEmpty) ...[
+                      if (f.description != null &&
+                          f.description!.trim().isNotEmpty) ...[
                         const SizedBox(height: 5),
                         Text(
                           f.description!,
@@ -665,7 +717,8 @@ class _ExecutiveFormCard extends StatelessWidget {
                         children: [
                           _CelebrantLightChip(
                             icon: Icons.quiz_outlined,
-                            text: '${f.fields.length} ${f.fields.length == 1 ? 'question' : 'questions'}',
+                            text:
+                                '${f.fields.length} ${f.fields.length == 1 ? 'question' : 'questions'}',
                             bgColor: const Color(0xFFF8FAFC),
                             borderColor: const Color(0xFFE2E8F0),
                             textColor: const Color(0xFF64748B),
@@ -675,10 +728,13 @@ class _ExecutiveFormCard extends StatelessWidget {
                             Expanded(
                               child: _CelebrantLightChip(
                                 icon: Icons.event_outlined,
-                                text: 'Closes ${DateFormatting.dateTime(f.endTime!)}',
+                                text:
+                                    'Closes ${DateFormatting.dateTime(f.endTime!)}',
                                 bgColor: const Color(0xFFF8FAFC),
                                 borderColor: const Color(0xFFE2E8F0),
-                                textColor: isClosed ? const Color(0xFFEF4444) : const Color(0xFF64748B),
+                                textColor: isClosed
+                                    ? const Color(0xFFEF4444)
+                                    : const Color(0xFF64748B),
                               ),
                             ),
                           ] else
@@ -686,16 +742,25 @@ class _ExecutiveFormCard extends StatelessWidget {
                           if (needsAnswer && f.isMandatory) ...[
                             const SizedBox(width: 6),
                             Container(
-                              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 8,
+                                vertical: 3,
+                              ),
                               decoration: BoxDecoration(
                                 color: const Color(0xFFFEF3C7),
                                 borderRadius: BorderRadius.circular(10),
-                                border: Border.all(color: const Color(0xFFFCD34D)),
+                                border: Border.all(
+                                  color: const Color(0xFFFCD34D),
+                                ),
                               ),
                               child: const Row(
                                 mainAxisSize: MainAxisSize.min,
                                 children: [
-                                  Icon(Icons.warning_amber_rounded, size: 12, color: Color(0xFFB45309)),
+                                  Icon(
+                                    Icons.warning_amber_rounded,
+                                    size: 12,
+                                    color: Color(0xFFB45309),
+                                  ),
                                   SizedBox(width: 4),
                                   Text(
                                     'Mandatory',
@@ -741,35 +806,31 @@ class _FilterChip extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final activeColor = activeBadgeColor ?? const Color(0xFF0284C7);
     return Material(
       color: Colors.transparent,
       child: InkWell(
         onTap: onTap,
-        borderRadius: BorderRadius.circular(14),
+        borderRadius: BorderRadius.circular(20),
         child: AnimatedContainer(
           duration: const Duration(milliseconds: 180),
-          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 7.5),
           decoration: BoxDecoration(
-            color: isSelected ? const Color(0xFF032B4F) : Colors.white,
-            borderRadius: BorderRadius.circular(14),
+            color: isSelected ? activeColor : Colors.white,
+            borderRadius: BorderRadius.circular(20),
             border: Border.all(
-              color: isSelected ? const Color(0xFF032B4F) : const Color(0xFFE2E8F0),
+              color: isSelected ? activeColor : const Color(0xFFE2E8F0),
               width: 1,
             ),
-            boxShadow: [
-              if (isSelected)
-                BoxShadow(
-                  color: const Color(0xFF032B4F).withValues(alpha: 0.25),
-                  blurRadius: 8,
-                  offset: const Offset(0, 3),
-                )
-              else
-                BoxShadow(
-                  color: const Color(0xFF0F172A).withValues(alpha: 0.02),
-                  blurRadius: 4,
-                  offset: const Offset(0, 1),
-                ),
-            ],
+            boxShadow: isSelected
+                ? [
+                    BoxShadow(
+                      color: activeColor.withValues(alpha: 0.25),
+                      blurRadius: 8,
+                      offset: const Offset(0, 2),
+                    ),
+                  ]
+                : null,
           ),
           child: Row(
             mainAxisSize: MainAxisSize.min,
@@ -782,19 +843,22 @@ class _FilterChip extends StatelessWidget {
                   color: isSelected ? Colors.white : const Color(0xFF475569),
                 ),
               ),
-              const SizedBox(width: 6),
+              const SizedBox(width: 5),
               Container(
-                padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 5,
+                  vertical: 1.5,
+                ),
                 decoration: BoxDecoration(
                   color: isSelected
-                      ? (activeBadgeColor ?? Colors.white.withValues(alpha: 0.22))
+                      ? Colors.white.withValues(alpha: 0.24)
                       : const Color(0xFFF1F5F9),
-                  borderRadius: BorderRadius.circular(10),
+                  borderRadius: BorderRadius.circular(8),
                 ),
                 child: Text(
                   '$count',
                   style: TextStyle(
-                    fontSize: 11,
+                    fontSize: 10.5,
                     fontWeight: FontWeight.w700,
                     color: isSelected ? Colors.white : const Color(0xFF64748B),
                   ),
@@ -861,12 +925,12 @@ class _HeaderOrbPainter extends CustomPainter {
   @override
   void paint(Canvas canvas, Size size) {
     final orb1 = Paint()
-      ..color = const Color(0xFF0284C7).withValues(alpha: 0.25)
+      ..color = const Color(0xFF0284C7).withValues(alpha: 0.22)
       ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 45);
     canvas.drawCircle(Offset(size.width * 0.9, size.height * 0.2), 65, orb1);
 
     final orb2 = Paint()
-      ..color = const Color(0xFF7C3AED).withValues(alpha: 0.2)
+      ..color = const Color(0xFF0369A1).withValues(alpha: 0.18)
       ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 55);
     canvas.drawCircle(Offset(size.width * 0.1, size.height * 0.8), 75, orb2);
   }
@@ -888,7 +952,12 @@ class _CornerWavePainter extends CustomPainter {
 
     final path = Path();
     path.moveTo(0, size.height);
-    path.quadraticBezierTo(size.width * 0.45, size.height * 0.85, size.width * 0.6, size.height * 0.4);
+    path.quadraticBezierTo(
+      size.width * 0.45,
+      size.height * 0.85,
+      size.width * 0.6,
+      size.height * 0.4,
+    );
     path.quadraticBezierTo(size.width * 0.75, 0, size.width, 0);
     path.lineTo(size.width, size.height);
     path.close();

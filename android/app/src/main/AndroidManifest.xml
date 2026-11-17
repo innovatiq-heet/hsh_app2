@@ -7,7 +7,10 @@
     <uses-permission android:name="android.permission.VIBRATE" />
     <uses-permission android:name="android.permission.CAMERA" />
     <uses-permission android:name="android.permission.READ_EXTERNAL_STORAGE" android:maxSdkVersion="32" />
-    <uses-permission android:name="android.permission.READ_MEDIA_IMAGES" />
+    <!-- Comply with Google Play photo and video permissions policy by using system photo picker -->
+    <uses-permission android:name="android.permission.READ_MEDIA_IMAGES" tools:node="remove" />
+    <uses-permission android:name="android.permission.READ_MEDIA_VIDEO" tools:node="remove" />
+    <uses-permission android:name="android.permission.READ_MEDIA_VISUAL_USER_SELECTED" tools:node="remove" />
 
     <!-- Real device screen time (granted by the user in Settings > Usage access) -->
     <uses-permission
@@ -154,6 +157,8 @@
             <action android:name="android.intent.action.PROCESS_TEXT"/>
             <data android:mimeType="text/plain"/>
         </intent>
+        <!-- Self-protection reads SystemUI's localized "Stop" label (Active apps panel) -->
+        <package android:name="com.android.systemui" />
         <!-- Package visibility for screen time: app names + home launcher detection -->
         <intent>
             <action android:name="android.intent.action.MAIN"/>

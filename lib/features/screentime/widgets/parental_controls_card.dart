@@ -84,7 +84,7 @@ class ParentalControlsCard extends StudentDetailWidget {
                         label: 'Bedtime & daily limit',
                         value: _bedtimeAndLimit(start, end, limit),
                         color: AppColors.secondary,
-                        onTap: () => CurfewLimitScreen.open(context, controller),
+                        onTap: controller.isSelfDevice ? null : () => CurfewLimitScreen.open(context, controller),
                       ),
                       const SizedBox(width: AppDimens.gapSm),
                       _RuleTile(
@@ -92,11 +92,35 @@ class ParentalControlsCard extends StudentDetailWidget {
                         label: 'Blocked apps',
                         value: blocked == 0 ? 'None' : '$blocked app${blocked == 1 ? '' : 's'}',
                         color: AppColors.cancelledRed,
-                        onTap: () => RestrictAppsScreen.open(context, controller),
+                        onTap: controller.isSelfDevice ? null : () => RestrictAppsScreen.open(context, controller),
                       ),
                     ],
                   ),
                   const SizedBox(height: AppDimens.gapLg),
+
+                  if (controller.isSelfDevice) ...[
+                    Container(
+                      padding: const EdgeInsets.all(10),
+                      decoration: BoxDecoration(
+                        color: const Color(0xFFFEF3C7),
+                        borderRadius: BorderRadius.circular(8),
+                        border: Border.all(color: const Color(0xFFFDE68A)),
+                      ),
+                      child: const Row(
+                        children: [
+                          Icon(Icons.info_outline_rounded, size: 16, color: Color(0xFFD97706)),
+                          SizedBox(width: 8),
+                          Expanded(
+                            child: Text(
+                              'This is your own profile. Device controls are managed by hostel supervisors.',
+                              style: TextStyle(fontSize: 12, color: Color(0xFF92400E)),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    const SizedBox(height: AppDimens.gapLg),
+                  ],
 
                   // Primary action
                   AppButton(
@@ -104,7 +128,7 @@ class ParentalControlsCard extends StudentDetailWidget {
                     icon: locked ? Icons.lock_open_rounded : Icons.lock_rounded,
                     variant: locked ? AppButtonVariant.outline : AppButtonVariant.danger,
                     isLoading: busy,
-                    onPressed: () => _confirmLock(context, !locked),
+                    onPressed: controller.isSelfDevice ? null : () => _confirmLock(context, !locked),
                   ),
 
                   // Play Store: permanent block / allow
@@ -114,7 +138,7 @@ class ParentalControlsCard extends StudentDetailWidget {
                     passMinutesLeft: controller.hasActiveInstallPass
                         ? controller.installPassRemainingMinutes
                         : 0,
-                    onChanged: (allow) => _confirmPlayStore(context, block: !allow),
+                    onChanged: controller.isSelfDevice ? null : (allow) => _confirmPlayStore(context, block: !allow),
                   ),
 
                   // While blocked: a 15-min install pass for a one-off download.
@@ -310,12 +334,12 @@ class _PlayStoreRow extends StatelessWidget {
 
   /// Minutes left on a running install pass (0 = none).
   final int passMinutesLeft;
-  final ValueChanged<bool> onChanged;
+  final ValueChanged<bool>? onChanged;
 
   const _PlayStoreRow({
     required this.blocked,
     required this.passMinutesLeft,
-    required this.onChanged,
+    this.onChanged,
   });
 
   @override
@@ -363,14 +387,14 @@ class _RuleTile extends StatelessWidget {
   final String label;
   final String value;
   final Color color;
-  final VoidCallback onTap;
+  final VoidCallback? onTap;
 
   const _RuleTile({
     required this.icon,
     required this.label,
     required this.value,
     required this.color,
-    required this.onTap,
+    this.onTap,
   });
 
   @override

@@ -89,6 +89,41 @@ bool isStudentLocked(dynamic s) {
       pol['is_locked'] == 1;
 }
 
+bool isStudentLowBattery(dynamic s) {
+  if (s is! Map) return false;
+  final rawBattery = s['batteryLevel'] ??
+      s['battery_level'] ??
+      s['battery'] ??
+      (s['compliance'] is Map
+          ? (s['compliance']['batteryLevel'] ?? s['compliance']['battery_level'])
+          : null);
+  if (rawBattery == null) return false;
+  final b = toInt(rawBattery);
+  if (b < 0 || b > 15) return false;
+  final isCharging = toBool(
+      s['isCharging'] ??
+      s['is_charging'] ??
+      (s['compliance'] is Map
+          ? (s['compliance']['isCharging'] ?? s['compliance']['is_charging'])
+          : false));
+  return !isCharging;
+}
+
+bool isStudentExtendedOffline(dynamic s) {
+  if (s is! Map) return false;
+  if (isStudentOnline(s)) return false;
+  final lastSeen = lastSeenOf(s);
+  if (lastSeen == null) return true;
+  return DateTime.now().difference(lastSeen).inHours >= 12;
+}
+
+bool isStudentNeedsAttention(dynamic s) {
+  return isStudentTampered(s) ||
+      isStudentLocked(s) ||
+      isStudentLowBattery(s) ||
+      isStudentExtendedOffline(s);
+}
+
 List<String> blockedOf(dynamic s) {
   if (s is! Map) return const [];
   final pol = s['policy'] is Map ? s['policy'] as Map : const {};

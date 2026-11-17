@@ -35,7 +35,7 @@ class BroadcastDetailScreen extends GetView<BroadcastDetailController> {
             slivers: [
               SliverGradientHeader(
                 overline: 'Broadcast',
-                title: b?.title ?? 'Broadcast',
+                title: b?.displayTitle ?? 'Broadcast',
                 titleMaxLines: 2,
                 subtitle: b?.createdAt == null ? null : DateFormatting.dateTime(b!.createdAt!),
                 leading: HeaderIconButton(
@@ -78,6 +78,8 @@ class BroadcastDetailScreen extends GetView<BroadcastDetailController> {
                                   style: AppTextStyles.label,
                                 ),
                               ),
+                              BroadcastChannelBadge(channel: b.channels),
+                              const SizedBox(width: 8),
                               BroadcastStatusBadge(status: b.status),
                             ],
                           ),
@@ -91,9 +93,16 @@ class BroadcastDetailScreen extends GetView<BroadcastDetailController> {
                     const SizedBox(height: AppDimens.gapMd),
                     StatStrip(items: [
                       StatStripItem(value: '${b.recipientCount}', label: 'Recipients'),
-                      StatStripItem(value: '${b.pushSent}', label: 'Pushed', color: AppColors.pendingBlue),
-                      StatStripItem(value: '${b.readCount}', label: 'Read', color: AppColors.successGreen),
-                      StatStripItem(value: '${b.noDevice}', label: 'No device', color: AppColors.textMuted),
+                      if (b.channels != BroadcastChannel.whatsapp)
+                        StatStripItem(value: '${b.pushSent}', label: 'Pushed', color: AppColors.pendingBlue),
+                      if (b.channels != BroadcastChannel.app)
+                        StatStripItem(value: '${b.whatsappSent}', label: 'WhatsApp', color: AppColors.successGreen),
+                      if (b.channels != BroadcastChannel.whatsapp)
+                        StatStripItem(value: '${b.readCount}', label: 'Read', color: AppColors.primaryLight),
+                      if (b.channels == BroadcastChannel.whatsapp)
+                        StatStripItem(value: '${b.noWhatsapp}', label: 'No Phone', color: AppColors.textMuted)
+                      else
+                        StatStripItem(value: '${b.noDevice}', label: 'No device', color: AppColors.textMuted),
                     ]),
                     if (b.pushFailed > 0) ...[
                       const SizedBox(height: AppDimens.gapMd),
@@ -102,6 +111,14 @@ class BroadcastDetailScreen extends GetView<BroadcastDetailController> {
                         color: AppColors.errorRed,
                         message: '${b.pushFailed} ${b.pushFailed == 1 ? 'push' : 'pushes'} failed. '
                             'They can still read it in their inbox.',
+                      ),
+                    ],
+                    if (b.whatsappFailed > 0) ...[
+                      const SizedBox(height: AppDimens.gapMd),
+                      NoticeBanner(
+                        icon: Icons.error_outline_rounded,
+                        color: AppColors.errorRed,
+                        message: '${b.whatsappFailed} ${b.whatsappFailed == 1 ? 'WhatsApp message' : 'WhatsApp messages'} failed to send.',
                       ),
                     ],
                     const SizedBox(height: AppDimens.gapXl),
@@ -229,6 +246,10 @@ class _RecipientRow extends StatelessWidget {
                 Text(
                   [
                     r.room.isEmpty ? 'No room' : 'Room ${r.room}',
+                    if (r.whatsAppStatus != WhatsAppStatus.skipped && r.whatsAppStatus != WhatsAppStatus.unknown)
+                      r.whatsAppStatus == WhatsAppStatus.sent
+                          ? 'WA sent'
+                          : (r.whatsAppStatus == WhatsAppStatus.noPhone ? 'no WA' : 'WA ${r.whatsAppStatus.name}'),
                     if (r.isRead) 'read ${DateFormatting.relativeTime(r.readAt!)}',
                   ].join(' · '),
                   maxLines: 1,

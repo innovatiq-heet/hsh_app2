@@ -74,13 +74,14 @@ class _AppLimitSheetState extends State<AppLimitSheet> {
   }
 
   Future<void> _save(int limit) async {
+    if (_isSaving) return;
     setState(() => _isSaving = true);
-    try {
-      await controller.setAppLimit(widget.packageName, widget.appName, limit);
-      if (mounted) Get.back();
-    } finally {
-      if (mounted) setState(() => _isSaving = false);
-    }
+    final saved = await controller.setAppLimit(widget.packageName, widget.appName, limit);
+    if (!mounted) return;
+    setState(() => _isSaving = false);
+    // Navigator, not Get.back(): with the "Limit Set" snackbar showing, GetX 4
+    // closes the snackbar instead and the sheet stayed open.
+    if (saved) Navigator.of(context).pop();
   }
 
   @override

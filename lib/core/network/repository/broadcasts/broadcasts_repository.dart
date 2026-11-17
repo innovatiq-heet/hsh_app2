@@ -54,19 +54,22 @@ class BroadcastsRepository extends BaseRepository {
   /// broadcast (200) and sends nothing again.
   Future<Broadcast> send({
     required String clientRequestId,
-    required String title,
+    String? title,
     required String message,
     required List<int> tagIds,
     required List<int> studentIds,
+    String channels = 'both',
   }) =>
       _guard(() async {
-        final res = await _dio.post('/broadcasts', data: {
+        final payload = <String, dynamic>{
           'client_request_id': clientRequestId,
-          'title': title,
+          if (title != null && title.trim().isNotEmpty) 'title': title.trim(),
           'message': message,
+          'channels': channels,
           'tag_ids': tagIds,
           'student_ids': studentIds,
-        });
+        };
+        final res = await _dio.post('/broadcasts', data: payload);
         return Broadcast.fromJson(_data(res.data));
       });
 

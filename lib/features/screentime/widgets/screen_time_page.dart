@@ -12,6 +12,7 @@ class ScreenTimePage extends StatelessWidget {
   final String subtitle;
   final Widget body;
   final Future<void> Function()? onRefresh;
+  final Widget? bottomNavigationBar;
 
   const ScreenTimePage({
     super.key,
@@ -19,6 +20,7 @@ class ScreenTimePage extends StatelessWidget {
     required this.subtitle,
     required this.body,
     this.onRefresh,
+    this.bottomNavigationBar,
   });
 
   /// Opens [page] on top of everything, including the shell's bottom bar.
@@ -61,6 +63,7 @@ class ScreenTimePage extends StatelessWidget {
       value: SystemUiOverlayStyle.light,
       child: Scaffold(
         backgroundColor: const Color(0xFFF8FAFC),
+        bottomNavigationBar: bottomNavigationBar,
         body: onRefresh == null
             ? scroll
             : RefreshIndicator(

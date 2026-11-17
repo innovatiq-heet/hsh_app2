@@ -16,11 +16,7 @@ class StudentScreenTimeScreen extends GetView<ScreenTimeDirectoryController> {
     // Opened as its own route (not the operator shell tab): apply the route's
     // arguments (e.g. a student name from the phonebook) even when the
     // controller already existed.
-    return _LaunchArguments(
-      enabled: showBackButton,
-      controller: controller,
-      child: _buildScreen(context),
-    );
+    return _LaunchArguments(enabled: showBackButton, controller: controller, child: _buildScreen(context));
   }
 
   Widget _buildScreen(BuildContext context) {
@@ -36,8 +32,7 @@ class StudentScreenTimeScreen extends GetView<ScreenTimeDirectoryController> {
           canPop: canPopDirectly,
           onPopInvokedWithResult: (didPop, result) {
             if (didPop) return;
-            if (controller.selectedStudent.value != null &&
-                !controller.openedWithDirectTarget.value) {
+            if (controller.selectedStudent.value != null && !controller.openedWithDirectTarget.value) {
               controller.clearSelectedStudent();
             }
           },
@@ -58,12 +53,8 @@ class StudentScreenTimeScreen extends GetView<ScreenTimeDirectoryController> {
                 },
                 child: CustomScrollView(
                   controller: controller.pageScrollController,
-                  key: ValueKey(
-                    detail != null ? 'detail_${detail.tag}' : 'directory',
-                  ),
-                  physics: const AlwaysScrollableScrollPhysics(
-                    parent: BouncingScrollPhysics(),
-                  ),
+                  key: ValueKey(detail != null ? 'detail_${detail.tag}' : 'directory'),
+                  physics: const AlwaysScrollableScrollPhysics(parent: BouncingScrollPhysics()),
                   slivers: [
                     SliverPersistentHeader(
                       pinned: true,
@@ -88,7 +79,6 @@ class StudentScreenTimeScreen extends GetView<ScreenTimeDirectoryController> {
       }),
     );
   }
-
 }
 
 /// Applies the route arguments to [controller] once the route is shown, and
@@ -97,11 +87,7 @@ class _LaunchArguments extends StatefulWidget {
   final bool enabled;
   final ScreenTimeDirectoryController controller;
   final Widget child;
-  const _LaunchArguments({
-    required this.enabled,
-    required this.controller,
-    required this.child,
-  });
+  const _LaunchArguments({required this.enabled, required this.controller, required this.child});
 
   @override
   State<_LaunchArguments> createState() => _LaunchArgumentsState();
@@ -148,11 +134,7 @@ class _ScreenTimeHeaderDelegate extends SliverPersistentHeaderDelegate {
   final double topPadding;
   final bool showBackButton;
 
-  _ScreenTimeHeaderDelegate({
-    required this.controller,
-    required this.topPadding,
-    this.showBackButton = true,
-  });
+  _ScreenTimeHeaderDelegate({required this.controller, required this.topPadding, this.showBackButton = true});
 
   @override
   double get minExtent => topPadding + 62.0;
@@ -160,31 +142,21 @@ class _ScreenTimeHeaderDelegate extends SliverPersistentHeaderDelegate {
   @override
   double get maxExtent {
     // The all-students header has no subtitle line, so it needs less height.
-    return topPadding +
-        (controller.selectedStudent.value != null ? 176.0 : 108.0);
+    return topPadding + (controller.selectedStudent.value != null ? 176.0 : 108.0);
   }
 
   @override
-  Widget build(
-    BuildContext context,
-    double shrinkOffset,
-    bool overlapsContent,
-  ) {
+  Widget build(BuildContext context, double shrinkOffset, bool overlapsContent) {
     final progress = (shrinkOffset / (maxExtent - minExtent)).clamp(0.0, 1.0);
     final expandedOpacity = (1.0 - progress * 1.8).clamp(0.0, 1.0);
     final collapsedTitleOpacity = ((progress - 0.35) / 0.65).clamp(0.0, 1.0);
-    final cornerRadius = Radius.circular(
-      (34.0 * (1.0 - progress)).clamp(0.0, 34.0),
-    );
+    final cornerRadius = Radius.circular((34.0 * (1.0 - progress)).clamp(0.0, 34.0));
 
     return Obx(() {
       final selected = controller.selectedStudent.value;
       final direct = controller.openedWithDirectTarget.value;
-      final titleText = selected != null
-          ? (selected['name'] ?? 'Student')
-          : 'Screen Time';
-      final subtitleText =
-          'Room ${selected?['room'] ?? ''} • Aadhar ${selected?['aadhar'] ?? ''}';
+      final titleText = selected != null ? (selected['name'] ?? 'Student') : 'Screen Time';
+      final subtitleText = 'Room ${selected?['room'] ?? ''} • Aadhar ${selected?['aadhar'] ?? ''}';
       // The opened student's live flags; the list shows none of them.
       final detail = controller.detail.value;
       final isLoading = detail?.isLoading.value ?? false;
@@ -203,24 +175,14 @@ class _ScreenTimeHeaderDelegate extends SliverPersistentHeaderDelegate {
             decoration: BoxDecoration(
               color: Colors.white.withValues(alpha: 0.16),
               shape: BoxShape.circle,
-              border: Border.all(
-                color: Colors.white.withValues(alpha: 0.25),
-                width: 1,
-              ),
+              border: Border.all(color: Colors.white.withValues(alpha: 0.25), width: 1),
             ),
             child: isLoading
                 ? const Padding(
                     padding: EdgeInsets.all(11),
-                    child: CircularProgressIndicator(
-                      strokeWidth: 2.2,
-                      color: Colors.white,
-                    ),
+                    child: CircularProgressIndicator(strokeWidth: 2.2, color: Colors.white),
                   )
-                : const Icon(
-                    Icons.refresh_rounded,
-                    color: Colors.white,
-                    size: 20,
-                  ),
+                : const Icon(Icons.refresh_rounded, color: Colors.white, size: 20),
           ),
         ),
       );
@@ -230,21 +192,14 @@ class _ScreenTimeHeaderDelegate extends SliverPersistentHeaderDelegate {
           gradient: const LinearGradient(
             begin: Alignment.topLeft,
             end: Alignment.bottomRight,
-            colors: [
-              Color(0xFF03192E),
-              Color(0xFF032B4F),
-              Color(0xFF025A8D),
-              Color(0xFF0369A1),
-            ],
+            colors: [Color(0xFF03192E), Color(0xFF032B4F), Color(0xFF025A8D), Color(0xFF0369A1)],
             stops: [0.0, 0.38, 0.75, 1.0],
           ),
           borderRadius: BorderRadius.vertical(bottom: cornerRadius),
           boxShadow: progress > 0.25
               ? [
                   BoxShadow(
-                    color: const Color(
-                      0xFF03192E,
-                    ).withValues(alpha: 0.22 * progress),
+                    color: const Color(0xFF03192E).withValues(alpha: 0.22 * progress),
                     blurRadius: 10,
                     offset: const Offset(0, 3),
                   ),
@@ -257,9 +212,7 @@ class _ScreenTimeHeaderDelegate extends SliverPersistentHeaderDelegate {
             fit: StackFit.expand,
             children: [
               // Luminous ambient orbs & arcs
-              RepaintBoundary(
-                child: CustomPaint(painter: _HeaderOrbPainter()),
-              ),
+              RepaintBoundary(child: CustomPaint(painter: _HeaderOrbPainter())),
 
               // Top pinned navigation bar
               Positioned(
@@ -269,8 +222,7 @@ class _ScreenTimeHeaderDelegate extends SliverPersistentHeaderDelegate {
                 height: 46,
                 child: Row(
                   children: [
-                    if (selected != null ||
-                        (showBackButton && Navigator.canPop(context))) ...[
+                    if (selected != null || (showBackButton && Navigator.canPop(context))) ...[
                       Material(
                         color: Colors.transparent,
                         child: InkWell(
@@ -278,7 +230,9 @@ class _ScreenTimeHeaderDelegate extends SliverPersistentHeaderDelegate {
                             if (selected != null && !direct) {
                               controller.clearSelectedStudent();
                             } else {
-                              Get.back();
+                              // Not Get.back(): in GetX 4 that closes an open
+                              // snackbar instead of the screen.
+                              Navigator.of(context).maybePop();
                             }
                           },
                           borderRadius: BorderRadius.circular(24),
@@ -288,16 +242,9 @@ class _ScreenTimeHeaderDelegate extends SliverPersistentHeaderDelegate {
                             decoration: BoxDecoration(
                               color: Colors.white.withValues(alpha: 0.16),
                               shape: BoxShape.circle,
-                              border: Border.all(
-                                color: Colors.white.withValues(alpha: 0.25),
-                                width: 1,
-                              ),
+                              border: Border.all(color: Colors.white.withValues(alpha: 0.25), width: 1),
                             ),
-                            child: const Icon(
-                              Icons.arrow_back_rounded,
-                              color: Colors.white,
-                              size: 20,
-                            ),
+                            child: const Icon(Icons.arrow_back_rounded, color: Colors.white, size: 20),
                           ),
                         ),
                       ),
@@ -338,16 +285,9 @@ class _ScreenTimeHeaderDelegate extends SliverPersistentHeaderDelegate {
                             decoration: BoxDecoration(
                               color: Colors.white.withValues(alpha: 0.16),
                               shape: BoxShape.circle,
-                              border: Border.all(
-                                color: Colors.white.withValues(alpha: 0.25),
-                                width: 1,
-                              ),
+                              border: Border.all(color: Colors.white.withValues(alpha: 0.25), width: 1),
                             ),
-                            child: const Icon(
-                              Icons.people_alt_outlined,
-                              color: Colors.white,
-                              size: 20,
-                            ),
+                            child: const Icon(Icons.people_alt_outlined, color: Colors.white, size: 20),
                           ),
                         ),
                       ),
@@ -358,10 +298,7 @@ class _ScreenTimeHeaderDelegate extends SliverPersistentHeaderDelegate {
                     // shows it in the content row below)
                     Opacity(
                       opacity: collapsedTitleOpacity,
-                      child: IgnorePointer(
-                        ignoring: collapsedTitleOpacity < 0.5,
-                        child: refreshButton(),
-                      ),
+                      child: IgnorePointer(ignoring: collapsedTitleOpacity < 0.5, child: refreshButton()),
                     ),
                   ],
                 ),
@@ -379,95 +316,84 @@ class _ScreenTimeHeaderDelegate extends SliverPersistentHeaderDelegate {
                     child: Row(
                       crossAxisAlignment: CrossAxisAlignment.center,
                       children: [
+                        // The titles start above the top bar's bottom edge on
+                        // the list; let taps through to the back button.
                         Expanded(
-                          child: ClipRect(
-                            child: Transform.translate(
-                              offset: Offset(0, -progress * 18),
-                              child: SingleChildScrollView(
-                                physics: const NeverScrollableScrollPhysics(),
-                                reverse: true,
-                                child: Column(
-                                  crossAxisAlignment: CrossAxisAlignment.start,
-                                  mainAxisAlignment: MainAxisAlignment.end,
-                                  children: [
-                                    // Container(
-                                    //   width: 28,
-                                    //   height: 3.5,
-                                    //   decoration: BoxDecoration(
-                                    //     color: const Color(0xFFEAAB78),
-                                    //     borderRadius: BorderRadius.circular(2),
-                                    //   ),
-                                    // ),
-                                    const SizedBox(height: 6),
-                                    Text(
-                                      selected != null
-                                          ? 'PARENTAL CONTROL'
-                                          : 'PARENTAL CONTROL & DEVICE USAGE',
-                                      style: TextStyle(
-                                        fontSize: 11,
-                                        fontWeight: FontWeight.w800,
-                                        color: Color(0xFFF59E0B),
-                                        letterSpacing: 0.5,
-                                      ),
-                                    ),
-                                    const SizedBox(height: 3),
-                                    Text(
-                                      titleText,
-                                      style: const TextStyle(
-                                        color: Colors.white,
-                                        fontSize: 24,
-                                        fontWeight: FontWeight.w800,
-                                        letterSpacing: -0.6,
-                                      ),
-                                      maxLines: 1,
-                                      overflow: TextOverflow.ellipsis,
-                                    ),
-                                    const SizedBox(height: 2),
-                                    if (selected != null)
+                          child: IgnorePointer(
+                            child: ClipRect(
+                              child: Transform.translate(
+                                offset: Offset(0, -progress * 18),
+                                child: SingleChildScrollView(
+                                  physics: const NeverScrollableScrollPhysics(),
+                                  reverse: true,
+                                  child: Column(
+                                    crossAxisAlignment: CrossAxisAlignment.start,
+                                    mainAxisAlignment: MainAxisAlignment.end,
+                                    children: [
+                                      // Container(
+                                      //   width: 28,
+                                      //   height: 3.5,
+                                      //   decoration: BoxDecoration(
+                                      //     color: const Color(0xFFEAAB78),
+                                      //     borderRadius: BorderRadius.circular(2),
+                                      //   ),
+                                      // ),
+                                      const SizedBox(height: 6),
                                       Text(
-                                        subtitleText,
+                                        selected != null ? 'PARENTAL CONTROL' : 'PARENTAL CONTROL & DEVICE USAGE',
                                         style: TextStyle(
-                                          color: Colors.white.withValues(
-                                            alpha: 0.85,
-                                          ),
-                                          fontSize: 12.5,
-                                          fontWeight: FontWeight.w400,
+                                          fontSize: 11,
+                                          fontWeight: FontWeight.w800,
+                                          color: Color(0xFFF59E0B),
+                                          letterSpacing: 0.5,
+                                        ),
+                                      ),
+                                      const SizedBox(height: 3),
+                                      Text(
+                                        titleText,
+                                        style: const TextStyle(
+                                          color: Colors.white,
+                                          fontSize: 24,
+                                          fontWeight: FontWeight.w800,
+                                          letterSpacing: -0.6,
                                         ),
                                         maxLines: 1,
                                         overflow: TextOverflow.ellipsis,
                                       ),
-                                    if (selected != null) ...[
-                                      const SizedBox(height: 8),
-                                      Row(
-                                        children: [
-                                          _headerPill(
-                                            icon: isOnline
-                                                ? Icons.circle_rounded
-                                                : Icons
-                                                      .remove_circle_outline_rounded,
-                                            iconColor: isOnline
-                                                ? const Color(0xFF34D399)
-                                                : const Color(0xFF94A3B8),
-                                            label: isOnline
-                                                ? 'Online'
-                                                : 'Offline',
+                                      const SizedBox(height: 2),
+                                      if (selected != null)
+                                        Text(
+                                          subtitleText,
+                                          style: TextStyle(
+                                            color: Colors.white.withValues(alpha: 0.85),
+                                            fontSize: 12.5,
+                                            fontWeight: FontWeight.w400,
                                           ),
-                                          const SizedBox(width: 8),
-                                          _headerPill(
-                                            icon: isLocked
-                                                ? Icons.lock_rounded
-                                                : Icons.lock_open_rounded,
-                                            iconColor: isLocked
-                                                ? const Color(0xFFF87171)
-                                                : const Color(0xFF34D399),
-                                            label: isLocked
-                                                ? 'Device Locked'
-                                                : 'Unlocked',
-                                          ),
-                                        ],
-                                      ),
+                                          maxLines: 1,
+                                          overflow: TextOverflow.ellipsis,
+                                        ),
+                                      if (selected != null) ...[
+                                        const SizedBox(height: 8),
+                                        Row(
+                                          children: [
+                                            _headerPill(
+                                              icon: isOnline
+                                                  ? Icons.circle_rounded
+                                                  : Icons.remove_circle_outline_rounded,
+                                              iconColor: isOnline ? const Color(0xFF34D399) : const Color(0xFF94A3B8),
+                                              label: isOnline ? 'Online' : 'Offline',
+                                            ),
+                                            const SizedBox(width: 8),
+                                            _headerPill(
+                                              icon: isLocked ? Icons.lock_rounded : Icons.lock_open_rounded,
+                                              iconColor: isLocked ? const Color(0xFFF87171) : const Color(0xFF34D399),
+                                              label: isLocked ? 'Device Locked' : 'Unlocked',
+                                            ),
+                                          ],
+                                        ),
+                                      ],
                                     ],
-                                  ],
+                                  ),
                                 ),
                               ),
                             ),
@@ -487,20 +413,13 @@ class _ScreenTimeHeaderDelegate extends SliverPersistentHeaderDelegate {
     });
   }
 
-  Widget _headerPill({
-    required IconData icon,
-    required String label,
-    Color? iconColor,
-  }) {
+  Widget _headerPill({required IconData icon, required String label, Color? iconColor}) {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4.5),
       decoration: BoxDecoration(
         color: Colors.white.withValues(alpha: 0.14),
         borderRadius: BorderRadius.circular(20),
-        border: Border.all(
-          color: Colors.white.withValues(alpha: 0.22),
-          width: 1,
-        ),
+        border: Border.all(color: Colors.white.withValues(alpha: 0.22), width: 1),
       ),
       child: Row(
         mainAxisSize: MainAxisSize.min,
@@ -509,11 +428,7 @@ class _ScreenTimeHeaderDelegate extends SliverPersistentHeaderDelegate {
           const SizedBox(width: 5),
           Text(
             label,
-            style: const TextStyle(
-              color: Colors.white,
-              fontSize: 11,
-              fontWeight: FontWeight.w600,
-            ),
+            style: const TextStyle(color: Colors.white, fontSize: 11, fontWeight: FontWeight.w600),
           ),
         ],
       ),
@@ -532,43 +447,17 @@ class _HeaderOrbPainter extends CustomPainter {
   void paint(Canvas canvas, Size size) {
     // Top-right luminous ambient glow
     final glowPaintRight = Paint()
-      ..shader =
-          RadialGradient(
-            colors: [
-              const Color(0xFF38BDF8).withValues(alpha: 0.16),
-              const Color(0xFF0284C7).withValues(alpha: 0.0),
-            ],
-          ).createShader(
-            Rect.fromCircle(
-              center: Offset(size.width * 0.90, size.height * 0.15),
-              radius: size.width * 0.55,
-            ),
-          );
-    canvas.drawCircle(
-      Offset(size.width * 0.90, size.height * 0.15),
-      size.width * 0.55,
-      glowPaintRight,
-    );
+      ..shader = RadialGradient(
+        colors: [const Color(0xFF38BDF8).withValues(alpha: 0.16), const Color(0xFF0284C7).withValues(alpha: 0.0)],
+      ).createShader(Rect.fromCircle(center: Offset(size.width * 0.90, size.height * 0.15), radius: size.width * 0.55));
+    canvas.drawCircle(Offset(size.width * 0.90, size.height * 0.15), size.width * 0.55, glowPaintRight);
 
     // Bottom-left subtle ambient glow
     final glowPaintLeft = Paint()
-      ..shader =
-          RadialGradient(
-            colors: [
-              const Color(0xFF0284C7).withValues(alpha: 0.12),
-              const Color(0xFF032B4F).withValues(alpha: 0.0),
-            ],
-          ).createShader(
-            Rect.fromCircle(
-              center: Offset(size.width * 0.10, size.height * 0.85),
-              radius: size.width * 0.45,
-            ),
-          );
-    canvas.drawCircle(
-      Offset(size.width * 0.10, size.height * 0.85),
-      size.width * 0.45,
-      glowPaintLeft,
-    );
+      ..shader = RadialGradient(
+        colors: [const Color(0xFF0284C7).withValues(alpha: 0.12), const Color(0xFF032B4F).withValues(alpha: 0.0)],
+      ).createShader(Rect.fromCircle(center: Offset(size.width * 0.10, size.height * 0.85), radius: size.width * 0.45));
+    canvas.drawCircle(Offset(size.width * 0.10, size.height * 0.85), size.width * 0.45, glowPaintLeft);
 
     // Elegant concentric arcs with smooth stroke
     final strokePaint = Paint()
@@ -576,26 +465,10 @@ class _HeaderOrbPainter extends CustomPainter {
       ..style = PaintingStyle.stroke
       ..strokeWidth = 1.2;
 
-    canvas.drawCircle(
-      Offset(size.width * 0.88, size.height * 0.08),
-      size.width * 0.38,
-      strokePaint,
-    );
-    canvas.drawCircle(
-      Offset(size.width * 0.88, size.height * 0.08),
-      size.width * 0.62,
-      strokePaint,
-    );
-    canvas.drawCircle(
-      Offset(size.width * 0.88, size.height * 0.08),
-      size.width * 0.86,
-      strokePaint,
-    );
-    canvas.drawCircle(
-      Offset(size.width * 0.08, size.height * 0.92),
-      size.width * 0.46,
-      strokePaint,
-    );
+    canvas.drawCircle(Offset(size.width * 0.88, size.height * 0.08), size.width * 0.38, strokePaint);
+    canvas.drawCircle(Offset(size.width * 0.88, size.height * 0.08), size.width * 0.62, strokePaint);
+    canvas.drawCircle(Offset(size.width * 0.88, size.height * 0.08), size.width * 0.86, strokePaint);
+    canvas.drawCircle(Offset(size.width * 0.08, size.height * 0.92), size.width * 0.46, strokePaint);
   }
 
   @override

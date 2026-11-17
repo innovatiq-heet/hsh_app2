@@ -8,6 +8,9 @@ import '../utils/student_picker_host.dart';
 import 'app_button.dart';
 import 'empty_state.dart';
 
+/// Filter options for student picker when alumni are included.
+enum StudentFilterCategory { all, residents, alumni }
+
 /// Searchable list of students; tapping a row adds or removes them from the
 /// host's [StudentPickerHost.selectedStudents].
 class StudentPickerSheet extends StatefulWidget {
@@ -32,6 +35,7 @@ class StudentPickerSheet extends StatefulWidget {
 class _StudentPickerSheetState extends State<StudentPickerSheet> {
   final _search = TextEditingController();
   String _query = '';
+  StudentFilterCategory _selectedCategory = StudentFilterCategory.all;
 
   StudentPickerHost get c => widget.controller;
 
@@ -39,6 +43,35 @@ class _StudentPickerSheetState extends State<StudentPickerSheet> {
   void dispose() {
     _search.dispose();
     super.dispose();
+  }
+
+  Widget _buildFilterTab(StudentFilterCategory category, String label) {
+    final isSelected = _selectedCategory == category;
+    return Expanded(
+      child: InkWell(
+        onTap: () => setState(() => _selectedCategory = category),
+        borderRadius: BorderRadius.circular(AppDimens.radiusSm),
+        child: Container(
+          padding: const EdgeInsets.symmetric(vertical: 6),
+          decoration: BoxDecoration(
+            color: isSelected ? AppColors.primarySoft : Colors.transparent,
+            borderRadius: BorderRadius.circular(AppDimens.radiusSm),
+            border: Border.all(
+              color: isSelected ? AppColors.primaryLight : AppColors.border,
+              width: 1,
+            ),
+          ),
+          alignment: Alignment.center,
+          child: Text(
+            label,
+            style: AppTextStyles.label.copyWith(
+              color: isSelected ? AppColors.primaryLight : AppColors.textSecondary,
+              fontWeight: isSelected ? FontWeight.w600 : FontWeight.w500,
+            ),
+          ),
+        ),
+      ),
+    );
   }
 
   @override
@@ -99,6 +132,21 @@ class _StudentPickerSheetState extends State<StudentPickerSheet> {
               ),
             ),
           ),
+          if (c.includeAlumniInPicker) ...[
+            const SizedBox(height: AppDimens.gapSm),
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: AppDimens.screenPadding),
+              child: Row(
+                children: [
+                  _buildFilterTab(StudentFilterCategory.all, 'All'),
+                  const SizedBox(width: AppDimens.gapSm),
+                  _buildFilterTab(StudentFilterCategory.residents, 'Residents'),
+                  const SizedBox(width: AppDimens.gapSm),
+                  _buildFilterTab(StudentFilterCategory.alumni, 'Alumni'),
+                ],
+              ),
+            ),
+          ],
           const SizedBox(height: AppDimens.gapSm),
           Expanded(
             child: Obx(() {
@@ -115,13 +163,21 @@ class _StudentPickerSheetState extends State<StudentPickerSheet> {
                   onAction: () => c.loadStudents(force: true),
                 );
               }
-              final list = _query.isEmpty
-                  ? c.students
-                  : c.students
-                      .where((s) =>
-                          s.name.toLowerCase().contains(_query) ||
-                          s.room.toLowerCase().contains(_query))
-                      .toList();
+              var list = c.students.toList();
+              if (c.includeAlumniInPicker) {
+                if (_selectedCategory == StudentFilterCategory.residents) {
+                  list = list.where((s) => !s.isAlumni).toList();
+                } else if (_selectedCategory == StudentFilterCategory.alumni) {
+                  list = list.where((s) => s.isAlumni).toList();
+                }
+              }
+              if (_query.isNotEmpty) {
+                list = list
+                    .where((s) =>
+                        s.name.toLowerCase().contains(_query) ||
+                        s.room.toLowerCase().contains(_query))
+                    .toList();
+              }
               if (list.isEmpty) {
                 return const EmptyState(
                   icon: Icons.person_search_rounded,
@@ -149,7 +205,12 @@ class _StudentPickerSheetState extends State<StudentPickerSheet> {
                             ),
                     ),
                     title: Text(name, style: AppTextStyles.subtitle),
-                    subtitle: Text('Room ${s.room}', style: AppTextStyles.caption),
+                    subtitle: Text(
+                      s.isAlumni ? 'Alumni' : 'Room ${s.room}',
+                      style: AppTextStyles.caption.copyWith(
+                        color: s.isAlumni ? AppColors.primaryLight : null,
+                      ),
+                    ),
                     trailing: Icon(
                       isSelected ? Icons.check_circle_rounded : Icons.add_circle_outline_rounded,
                       color: isSelected ? AppColors.successGreen : AppColors.textLight,

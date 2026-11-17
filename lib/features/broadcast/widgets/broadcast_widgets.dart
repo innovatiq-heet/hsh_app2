@@ -37,6 +37,34 @@ class BroadcastStatusBadge extends StatelessWidget {
   }
 }
 
+/// Channel badge: Both / In-App / WhatsApp.
+class BroadcastChannelBadge extends StatelessWidget {
+  final BroadcastChannel channel;
+
+  const BroadcastChannelBadge({super.key, required this.channel});
+
+  @override
+  Widget build(BuildContext context) {
+    return switch (channel) {
+      BroadcastChannel.both => const StatusBadge(
+          label: 'App + WA',
+          color: AppColors.primaryDark,
+          icon: Icons.campaign_rounded,
+        ),
+      BroadcastChannel.app => const StatusBadge(
+          label: 'In-App',
+          color: AppColors.primaryLight,
+          icon: Icons.notifications_active_rounded,
+        ),
+      BroadcastChannel.whatsapp => const StatusBadge(
+          label: 'WhatsApp',
+          color: AppColors.successGreen,
+          icon: Icons.chat_rounded,
+        ),
+    };
+  }
+}
+
 /// Tag pills plus "N individual", describing who a broadcast went to.
 class BroadcastAudience extends StatelessWidget {
   final Broadcast broadcast;
@@ -112,13 +140,15 @@ class BroadcastCard extends StatelessWidget {
             children: [
               Expanded(
                 child: Text(
-                  b.title,
+                  b.displayTitle,
                   maxLines: 2,
                   overflow: TextOverflow.ellipsis,
                   style: AppTextStyles.title,
                 ),
               ),
               const SizedBox(width: AppDimens.gapSm),
+              BroadcastChannelBadge(channel: b.channels),
+              const SizedBox(width: 6),
               BroadcastStatusBadge(status: b.status),
             ],
           ),
@@ -140,18 +170,27 @@ class BroadcastCard extends StatelessWidget {
                   runSpacing: 4,
                   children: [
                     BroadcastCount(icon: Icons.groups_rounded, value: b.recipientCount, label: 'to'),
-                    BroadcastCount(
-                      icon: Icons.notifications_active_rounded,
-                      value: b.pushSent,
-                      label: 'pushed',
-                      color: AppColors.pendingBlue,
-                    ),
-                    BroadcastCount(
-                      icon: Icons.done_all_rounded,
-                      value: b.readCount,
-                      label: 'read',
-                      color: AppColors.successGreen,
-                    ),
+                    if (b.channels != BroadcastChannel.whatsapp)
+                      BroadcastCount(
+                        icon: Icons.notifications_active_rounded,
+                        value: b.pushSent,
+                        label: 'pushed',
+                        color: AppColors.pendingBlue,
+                      ),
+                    if (b.channels != BroadcastChannel.app)
+                      BroadcastCount(
+                        icon: Icons.chat_rounded,
+                        value: b.whatsappSent,
+                        label: 'WA',
+                        color: AppColors.successGreen,
+                      ),
+                    if (b.channels != BroadcastChannel.whatsapp)
+                      BroadcastCount(
+                        icon: Icons.done_all_rounded,
+                        value: b.readCount,
+                        label: 'read',
+                        color: AppColors.primaryLight,
+                      ),
                   ],
                 ),
               ),

@@ -1,6 +1,6 @@
 # Parental Control & Screen Time
 
-> **Last updated:** 2026-11-13 · **Repos:** `hsh_app2` (Flutter + native Android) and `hsh_api` (Node/Express/MySQL)
+> **Last updated:** 2026-11-17 · **Repos:** `hsh_app2` (Flutter + native Android) and `hsh_api` (Node/Express/MySQL)
 >
 > Paths starting with `lib/` or `android/` are in this repo; paths starting with `hsh_api/` are in the backend repo. Location tracking and curfew breaches are documented separately in [GEOFENCING_DOCS.md](GEOFENCING_DOCS.md).
 
@@ -172,7 +172,7 @@ graph TD
 2. `isLocked` → `DEVICE_LOCKED`.
 2a. `restrictAppInstalls` and the package is an app store or installer (`PolicyEvaluator.INSTALLER_PACKAGES`: Play Store, Galaxy Store, Mi/Oppo/Vivo/Huawei stores, package installers) → `INSTALLER_BLOCKED`, unless an install pass is running (`installPassUntil` in the future). `restrictAppInstalls` defaults to **false** on the phone when the backend has never sent it, so the Play Store is available by default until a warden blocks it.
 3. Package in `blockedPackages` → `APP_BLOCKED`.
-4. Package has `appLimits` set and today's usage ≥ limit → `APP_LIMIT`.
+4. Package has its own daily limit and that app's minutes today ≥ the limit → `APP_LIMIT` ("App Time Over"; opens again tomorrow). The limits are the `daily_limit_minutes` of the app rules in `GET /policies/me` (`data.apps`), kept in `DevicePolicy.appLimits` (only limits above 0; `AppLimits.fromRules`). The ping echo carries no `apps`, so it leaves the stored limits alone. Per-app minutes come from the same `UsageCollector` snapshot as the daily total (cached 60 s), and the service's tick re-checks the app on screen, so a limit reached mid-use blocks the app within a minute or two. `clearStudentState()` (logout) clears the limits.
 5. Inside the bedtime window (overnight wrap supported) → `BEDTIME`.
 6. Daily limit set and today's minutes ≥ limit → `DAILY_LIMIT`.
 
@@ -204,6 +204,16 @@ A force-stopped app runs nothing (no service, no ping, no blocker) until the stu
 - Needs `canRetrieveWindowContent="true"` in `accessibility_service_config.xml`.
 - Not covered: Uninstall from the launcher's long-press menu, ADB, and Force stop from other Settings paths that don't show the App info page. Closing these fully needs Device Owner/MDM.
 
+### 5.5 Self-protection (Active apps panel)
+
+On Android 13+ the notification shade has an "N apps are active" button. It opens a list of apps running a foreground service, each with a **Stop** button ("Active apps" on Pixel, "Enabled apps" on OnePlus/Oppo). Because `PolicyPollService` is a foreground service, this app is always listed. Stop kills the whole app (poller, blocker, location pings). Android shows that button for every ordinary app; only system, Device Owner/Profile Owner, persistent and default-dialer apps are spared. So `AppBlockerAccessibilityService` closes the panel (Back, then collapse the shade) and shows a toast.
+
+- Matching is in `SelfProtection.offersToStopOwnApp`, for SystemUI windows (`com.android.systemui`) only: a Stop control and **this app's name** must be in the same row (at most 3 levels above the button). Another app's "Stop" notification action next to our monitoring notification does not match, and the panel is left alone when it doesn't list this app.
+- "Stop" is read from SystemUI's own string (`fgs_manager_app_item_stop_button_label`, so it follows the phone's language), plus English. This needs the `<queries><package android:name="com.android.systemui"/></queries>` entry in the manifest.
+- Only for phones with a student session. The list fills in just after the panel opens, so it is checked at 0, 100, 250, 500, 1000 and 1500 ms after any SystemUI window change. Two text searches run first, so a normal pull-down of the shade does not walk the whole tree.
+- Reads every SystemUI window via `flagRetrieveInteractiveWindows` in `accessibility_service_config.xml`, falling back to the active window.
+- Not covered: a student who taps Stop within about 100 ms of the panel opening, and ROMs that draw the panel from a package other than SystemUI. If the app is stopped anyway, its scheduled `ScreenTimeWorker` (WorkManager) still runs and tries to restart the poller; Android 12+ only allows that when battery optimization is off for the app (setup step 4).
+
 ---
 
 ## 6. Usage telemetry
@@ -217,17 +227,20 @@ A force-stopped app runs nothing (no service, no ping, no blocker) until the stu
 
 ## 7. Warden dashboard
 
-Operator home → **Screen Time**. Allowed app roles: `canViewScreenTime` (admin, warden); allowed backend roles: operator, platform-admin.
+Operator home → **Screen Time** (leaders: Services → Leader Tools, or the profile hub). Allowed app roles: `canViewScreenTime` (admin, warden, leader); allowed backend roles: operator, platform-admin, leader, wing-leader.
 
 **Students are identified only by their numeric `students.id`** (the `id` of a directory entry). Every request for the selected student uses it; there is no fallback to bank codes or names. Another screen can open a student directly by passing `{id}` (or a numeric `studentId`) as route arguments. The phonebook has no `students.id`, so it passes `{name, room}` and the directory opens searched by that name; the warden then taps the student. The directory search box is sent to the server, so it searches every student, not just the 100 shown unfiltered.
 
-- **Directory:** all students with today's minutes, online, screen-on, current app and locked state. Filters: All, Online, Locked, Restricted, Night, Attention.
+- **Directory:** all students with today's minutes, online, screen-on, current app and locked state. Summary tiles (Total, Online, Offline, Locked, Attention) and a filter sheet (group, floor, residence status, usage and policy toggles, sort).
+- **Leaders see only their own group.** `ScreenTimeDirectoryController` first asks `GET /students?limit=1` for the caller's `leaderGroupName`, then loads the whole group in one request (`?group=<name>&limit=1000`). The server's totals are then the group's. Every later list, search and refresh request carries `group`. Phonebook residents without a phone set up are merged only when their phonebook group matches, and the list filter also drops any row of another group. Pending app requests are kept only for the group's students. A student passed in by another screen or a notification (`{id}`) is held until the role is known; a leader only gets it opened when that student is in their group ("Not in Your Group" otherwise). Without a `leaderGroupName` the leader sees "Your group is not set" and no students. A fixed note under the search says which group is shown; the filter sheet has no group section for leaders.
+- **Groups (admins and wardens):** a row of group chips (Param, Pavitra, Pulkit, Paramanand, Alumni). One tap narrows the list, another tap shows everyone. The picked group shows how many of its students are loaded, with "+" while more pages remain (the list loads 20 at a time). A student's group comes from the directory row or, failing that, the phonebook cache; it is a display filter only and never used to pick a student for an action.
 - **Student detail:**
   - live status and usage hero (today vs limit);
   - per-app list with categories (Social Media, Entertainment, Gaming, Study & Tools, Other) and a Restrict button;
-  - 30-day history;
+  - 30-day history (Usage & trends, and the calendar);
   - parental controls card: lock/unlock (with confirmation), curfew & daily limit sheet, restrict-app sheet, **Play Store switch** (Blocked / Allowed, with confirmation; covers every package in `INSTALLER_PACKAGES`), and, while blocked, a 15-min install pass. Blocking ends a running pass. The student sees the "Installation Blocked" screen and can send a request from it.
-- Each action is applied optimistically and rolled back with an error message if the server rejects it.
+- Each action is applied optimistically and rolled back with an error message if the server rejects it. A policy read that was requested before such a change is not shown when it lands, so it can't put the old rules back on screen.
+- **Requests while a student is open:** the live status every 2 minutes and on resume (`include_history=1` on open and pull-to-refresh). The 30-day history is fetched again only when it is older than 15 minutes. Past days are asked for one by one (`/history/:id?date=`) only for days with usage, at most once per opened student, and not at all after the server answers one without an app list (today's API keeps only daily totals for past days).
 
 ---
 
@@ -239,14 +252,14 @@ Mounted at both `/api/screen-time/...` and `/screen-time/...`; all require a Bea
 | :--- | :--- | :--- |
 | `POST /ping` | Student's own phone (supervisor may pass `student_id`) | Body: `date`, `totalScreenTimeMinutes`, `isScreenOn`, `currentApp`, `appUsageBreakdown[]`, `geofenceEvents[]`, `deviceUuid?`. Response echoes `policy` (with `policy_version`) and `blockedPackages`. |
 | `POST /inventory` | Student's own phone | `{ apps: [{packageName, appName}] }` |
-| `GET /live/:id?` | Self or supervisor | Today's status, `appUsageBreakdown`, `policy`, `blockedPackages`, `lastPing` |
-| `GET /history/:id?` | Self or supervisor | Last 30 days |
+| `GET /live/:id?` | Self or supervisor | Today's status, `appUsageBreakdown`, `policy`, `blockedPackages`, `lastPing`. `?include_history=1` adds the 30-day `records` (same rows as `/history`). |
+| `GET /history/:id?` | Self or supervisor | Last 30 days of daily totals: `date` (`yyyy-MM-dd`), `total_screen_time_minutes`, `night_screen_time_minutes`, `current_app`, `last_ping`. `?date=` is ignored; there is no per-app breakdown for past days. |
 | `GET /students?search=` | Supervisor | Directory (max 100) |
 | `GET /policies/:id?` | Self or supervisor | `{ policy, apps, blockedPackages, geofence }`. Long-poll with `?wait=<s ≤ 25>&since=<version>` (self only); response has `longPoll`. |
 | `PUT /policies/:id` | Supervisor | **Partial:** any of `is_locked`, `daily_limit_minutes` (0–1440), `bedtime_start`/`bedtime_end` (`HH:mm`, or `''`/`null` to clear both), `blockedPackages` (complete set), `restrict_app_installs` (boolean, Play Store blocked), `install_pass_until` (epoch ms, `0` = none). camelCase accepted. `GET /policies/:id`, `GET /policies/me` and the ping echo must return `restrict_app_installs` and `install_pass_until` inside `policy`. |
 | `POST /apps/rule` | Supervisor | `{ student_id, package_name, app_name?, is_blocked, daily_limit_minutes? }`. One app; version bump + rule in one transaction. |
 
-**Supervisor** = `requireRole('operator')`: the operator console token and platform-admin staff. Students can no longer change their own policy (previously a student could unlock themselves).
+**Supervisor** = `requireRole('operator', 'leader', 'wing-leader')`: the operator console token, platform-admin staff and student leaders (`GET /students` also returns the leader's `leaderGroupName`). A student, leaders included, can never change the policy of their own phone. Students can no longer change their own policy (previously a student could unlock themselves).
 
 ---
 
@@ -280,7 +293,7 @@ Mounted at both `/api/screen-time/...` and `/screen-time/...`; all require a Bea
 
 ## 11. Permissions
 
-`PACKAGE_USAGE_STATS` (granted in Settings → Usage access), the Accessibility service `AppBlockerAccessibilityService` (`BIND_ACCESSIBILITY_SERVICE`, listens to `typeWindowStateChanged`, reads window content to spot the App info page), `RECEIVE_BOOT_COMPLETED`, `FOREGROUND_SERVICE` + `FOREGROUND_SERVICE_SPECIAL_USE` (+ `_LOCATION`), `REQUEST_IGNORE_BATTERY_OPTIMIZATIONS`, `POST_NOTIFICATIONS`. `BlockedAppActivity` is `singleTask`, excluded from recents, full-screen.
+`PACKAGE_USAGE_STATS` (granted in Settings → Usage access), the Accessibility service `AppBlockerAccessibilityService` (`BIND_ACCESSIBILITY_SERVICE`, listens to `typeWindowStateChanged`, reads window content and the interactive window list to spot the App info page and the Active apps panel), a `<queries>` entry for `com.android.systemui`, `RECEIVE_BOOT_COMPLETED`, `FOREGROUND_SERVICE` + `FOREGROUND_SERVICE_SPECIAL_USE` (+ `_LOCATION`), `REQUEST_IGNORE_BATTERY_OPTIMIZATIONS`, `POST_NOTIFICATIONS`. `BlockedAppActivity` is `singleTask`, excluded from recents, full-screen.
 
 ---
 
@@ -321,5 +334,6 @@ All checks passed. Native code compiles; `flutter analyze` is clean.
 - **Missed app switch:** if Android never reports that the student left an app, the re-check falls back to usage events. If those are unavailable too, nothing is blocked until the next switch (it fails open rather than blocking the wrong app).
 - **Old app builds** still push the policy from Flutter without a version and don't re-check the open app; the new backend still serves them correctly.
 - **Android only:** iOS student phones are not monitored.
-- **Force stop is only guarded on the App info page** (5.4). A student who force-stops by another route, or uninstalls from the launcher, still stops the lock; the phone then goes offline on the warden's dashboard.
-- **Update needed on phones:** the accessibility config changed (`canRetrieveWindowContent`). Some devices only pick that up after the student turns the service off and on once.
+- **Leader scope is enforced by the app, not the server.** `hsh_api` returns every student to a leader unless `group` is sent, and lets a leader read or change any student's rules. The app always sends the group, but the backend should also limit leaders to `leaderGroupName` on `/students`, `/live`, `/history`, `/policies`, `/apps/*`.
+- **Force stop is only guarded on the App info page and the Active apps panel** (5.4, 5.5). A student who force-stops by another route, or uninstalls from the launcher, still stops the lock; the phone then goes offline on the warden's dashboard.
+- **Update needed on phones:** the accessibility config changed (`canRetrieveWindowContent`, then `flagRetrieveInteractiveWindows` on 2026-11-16). Some devices only pick that up after the student turns the service off and on once. Until then the Active apps guard only sees the active window.

@@ -30,6 +30,9 @@ class _RestrictAppsScreenState extends State<RestrictAppsScreen> {
   final _pkgCtrl = TextEditingController();
   final _nameCtrl = TextEditingController();
   bool _showCustom = false;
+  bool _multiSelect = false;
+  final Set<String> _selectedPkgs = {};
+  final Map<String, String> _pkgToName = {};
 
   @override
   void dispose() {
@@ -38,17 +41,135 @@ class _RestrictAppsScreenState extends State<RestrictAppsScreen> {
     super.dispose();
   }
 
+  void _toggleSelect(String pkg, String name) {
+    setState(() {
+      if (_selectedPkgs.contains(pkg)) {
+        _selectedPkgs.remove(pkg);
+        _pkgToName.remove(pkg);
+      } else {
+        _selectedPkgs.add(pkg);
+        _pkgToName[pkg] = name;
+      }
+    });
+  }
+
+  Future<void> _handleBulkAction(bool block) async {
+    final list = _selectedPkgs
+        .map((pkg) => (packageName: pkg, appName: _pkgToName[pkg] ?? pkg))
+        .toList();
+    setState(() {
+      _selectedPkgs.clear();
+      _pkgToName.clear();
+      _multiSelect = false;
+    });
+    await controller.batchSetAppBlocks(list, block);
+  }
+
   @override
   Widget build(BuildContext context) {
     return ScreenTimePage(
       title: 'Restrict apps',
       subtitle: ScreenTimePage.studentLine(controller.selectedStudent.value),
+      bottomNavigationBar: _multiSelect && _selectedPkgs.isNotEmpty
+          ? Container(
+              padding: EdgeInsets.fromLTRB(
+                16,
+                12,
+                16,
+                12 + MediaQuery.of(context).padding.bottom,
+              ),
+              decoration: BoxDecoration(
+                color: Colors.white,
+                boxShadow: [
+                  BoxShadow(
+                    color: const Color(0xFF0F172A).withValues(alpha: 0.08),
+                    blurRadius: 10,
+                    offset: const Offset(0, -3),
+                  ),
+                ],
+              ),
+              child: Row(
+                children: [
+                  Text(
+                    '${_selectedPkgs.length} selected',
+                    style: const TextStyle(
+                      fontWeight: FontWeight.w700,
+                      fontSize: 14,
+                      color: Color(0xFF0F172A),
+                    ),
+                  ),
+                  const Spacer(),
+                  OutlinedButton.icon(
+                    onPressed: () => _handleBulkAction(false),
+                    style: OutlinedButton.styleFrom(
+                      foregroundColor: AppColors.successGreen,
+                      side: const BorderSide(color: AppColors.successGreen),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(10),
+                      ),
+                      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                    ),
+                    icon: const Icon(Icons.check_circle_outline, size: 16),
+                    label: const Text('Allow All', style: TextStyle(fontWeight: FontWeight.w700, fontSize: 13)),
+                  ),
+                  const SizedBox(width: 8),
+                  ElevatedButton.icon(
+                    onPressed: () => _handleBulkAction(true),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: AppColors.cancelledRed,
+                      foregroundColor: Colors.white,
+                      elevation: 0,
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(10),
+                      ),
+                      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                    ),
+                    icon: const Icon(Icons.block_rounded, size: 16),
+                    label: const Text('Block All', style: TextStyle(fontWeight: FontWeight.w700, fontSize: 13)),
+                  ),
+                ],
+              ),
+            )
+          : null,
       body: Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        Text(
-          'Tap to block or allow. Long-press to set a daily time limit.',
-          style: AppTextStyles.bodySm.copyWith(color: AppColors.textSecondary),
+        Row(
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          children: [
+            Expanded(
+              child: Text(
+                _multiSelect
+                    ? 'Select apps to apply rules in bulk.'
+                    : 'Tap to block or allow. Long-press to set a daily time limit.',
+                style: AppTextStyles.bodySm.copyWith(color: AppColors.textSecondary),
+              ),
+            ),
+            TextButton.icon(
+              onPressed: () {
+                setState(() {
+                  _multiSelect = !_multiSelect;
+                  if (!_multiSelect) {
+                    _selectedPkgs.clear();
+                    _pkgToName.clear();
+                  }
+                });
+              },
+              icon: Icon(
+                _multiSelect ? Icons.close : Icons.checklist_rounded,
+                size: 16,
+                color: _multiSelect ? AppColors.cancelledRed : AppColors.primary,
+              ),
+              label: Text(
+                _multiSelect ? 'Cancel' : 'Select Multi',
+                style: TextStyle(
+                  fontSize: 12,
+                  fontWeight: FontWeight.w700,
+                  color: _multiSelect ? AppColors.cancelledRed : AppColors.primary,
+                ),
+              ),
+            ),
+          ],
         ),
         const SizedBox(height: AppDimens.gapLg),
         Obx(() {
@@ -76,14 +197,21 @@ class _RestrictAppsScreenState extends State<RestrictAppsScreen> {
                     name: p['name']!,
                     blocked: blocked.contains(p['pkg']),
                     limitMinutes: controller.appLimits[p['pkg']!] ?? 0,
-                    onTap: () => controller.toggleAppBlock(p['pkg']!, p['name']!, !blocked.contains(p['pkg'])),
-                    onLongPress: () => AppLimitSheet.show(
-                      context,
-                      controller: controller,
-                      packageName: p['pkg']!,
-                      appName: p['name']!,
-                      currentLimit: controller.appLimits[p['pkg']!] ?? 0,
-                    ),
+                    isSelected: _selectedPkgs.contains(p['pkg']!),
+                    isSelectionMode: _multiSelect,
+                    onTap: _multiSelect
+                        ? () => _toggleSelect(p['pkg']!, p['name']!)
+                        : () => controller.toggleAppBlock(p['pkg']!, p['name']!, !blocked.contains(p['pkg'])),
+                    onLongPress: _multiSelect
+                        ? null
+                        : () => AppLimitSheet.show(
+                              context,
+                              controller: controller,
+                              packageName: p['pkg']!,
+                              appName: p['name']!,
+                              currentLimit: controller.appLimits[p['pkg']!] ?? 0,
+                              currentUsage: controller.usedTodayMinutes(p['pkg']!),
+                            ),
                   ),
               ]),
               if (used.isNotEmpty) ...[
@@ -97,14 +225,21 @@ class _RestrictAppsScreenState extends State<RestrictAppsScreen> {
                       name: a.name.isNotEmpty ? a.name : a.pkg.split('.').last,
                       blocked: blocked.contains(a.pkg),
                       limitMinutes: controller.appLimits[a.pkg] ?? 0,
-                      onTap: () => controller.toggleAppBlock(a.pkg, a.name, !blocked.contains(a.pkg)),
-                      onLongPress: () => AppLimitSheet.show(
-                        context,
-                        controller: controller,
-                        packageName: a.pkg,
-                        appName: a.name.isNotEmpty ? a.name : a.pkg.split('.').last,
-                        currentLimit: controller.appLimits[a.pkg] ?? 0,
-                      ),
+                      isSelected: _selectedPkgs.contains(a.pkg),
+                      isSelectionMode: _multiSelect,
+                      onTap: _multiSelect
+                          ? () => _toggleSelect(a.pkg, a.name.isNotEmpty ? a.name : a.pkg.split('.').last)
+                          : () => controller.toggleAppBlock(a.pkg, a.name, !blocked.contains(a.pkg)),
+                      onLongPress: _multiSelect
+                          ? null
+                          : () => AppLimitSheet.show(
+                                context,
+                                controller: controller,
+                                packageName: a.pkg,
+                                appName: a.name.isNotEmpty ? a.name : a.pkg.split('.').last,
+                                currentLimit: controller.appLimits[a.pkg] ?? 0,
+                                currentUsage: controller.usedTodayMinutes(a.pkg),
+                              ),
                     ),
                 ]),
               ],
@@ -201,6 +336,8 @@ class _AppTile extends StatelessWidget {
   final String name;
   final bool blocked;
   final int limitMinutes;
+  final bool isSelected;
+  final bool isSelectionMode;
   final VoidCallback onTap;
   final VoidCallback? onLongPress;
 
@@ -209,12 +346,21 @@ class _AppTile extends StatelessWidget {
     required this.name,
     required this.blocked,
     this.limitMinutes = 0,
+    this.isSelected = false,
+    this.isSelectionMode = false,
     required this.onTap,
     this.onLongPress,
   });
 
   @override
   Widget build(BuildContext context) {
+    final borderColor = isSelected
+        ? const Color(0xFF0284C7)
+        : (blocked ? AppColors.cancelledRed.withValues(alpha: 0.5) : AppColors.borderLight);
+    final bgColor = isSelected
+        ? const Color(0xFFE0F2FE)
+        : (blocked ? AppColors.cancelledRed.withValues(alpha: 0.08) : AppColors.surfaceMuted);
+
     return InkWell(
       onTap: onTap,
       onLongPress: onLongPress,
@@ -223,38 +369,65 @@ class _AppTile extends StatelessWidget {
         duration: const Duration(milliseconds: 160),
         padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 4),
         decoration: BoxDecoration(
-          color: blocked ? AppColors.cancelledRed.withValues(alpha: 0.08) : AppColors.surfaceMuted,
+          color: bgColor,
           borderRadius: BorderRadius.circular(AppDimens.radiusMd),
           border: Border.all(
-            color: blocked ? AppColors.cancelledRed.withValues(alpha: 0.5) : AppColors.borderLight,
-            width: blocked ? 1.5 : 1,
+            color: borderColor,
+            width: isSelected ? 2.0 : (blocked ? 1.5 : 1),
           ),
         ),
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
+        child: Stack(
+          alignment: Alignment.center,
           children: [
-            AppBrandIcon(packageName: pkg, appName: name, size: 40, isBlocked: blocked),
-            const SizedBox(height: 6),
-            Text(
-              name,
-              textAlign: TextAlign.center,
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-              style: AppTextStyles.caption.copyWith(
-                fontWeight: FontWeight.w600,
-                color: blocked ? AppColors.cancelledRed : AppColors.textPrimary,
-              ),
-            ),
-            if (limitMinutes > 0)
-              Padding(
-                padding: const EdgeInsets.only(top: 2),
-                child: Text(
-                  '${formatMinutes(limitMinutes)} limit',
+            Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                AppBrandIcon(packageName: pkg, appName: name, size: 40, isBlocked: blocked),
+                const SizedBox(height: 6),
+                Text(
+                  name,
+                  textAlign: TextAlign.center,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
                   style: AppTextStyles.caption.copyWith(
-                    fontSize: 9,
-                    color: AppColors.primary,
-                    fontWeight: FontWeight.w700,
+                    fontWeight: FontWeight.w600,
+                    color: isSelected
+                        ? const Color(0xFF0284C7)
+                        : (blocked ? AppColors.cancelledRed : AppColors.textPrimary),
                   ),
+                ),
+                if (limitMinutes > 0)
+                  Padding(
+                    padding: const EdgeInsets.only(top: 2),
+                    child: Text(
+                      '${formatMinutes(limitMinutes)} limit',
+                      style: AppTextStyles.caption.copyWith(
+                        fontSize: 9,
+                        color: AppColors.primary,
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
+                  ),
+              ],
+            ),
+            if (isSelectionMode)
+              Positioned(
+                top: 0,
+                right: 2,
+                child: Container(
+                  width: 18,
+                  height: 18,
+                  decoration: BoxDecoration(
+                    color: isSelected ? const Color(0xFF0284C7) : Colors.white,
+                    shape: BoxShape.circle,
+                    border: Border.all(
+                      color: isSelected ? const Color(0xFF0284C7) : const Color(0xFF94A3B8),
+                      width: 1.5,
+                    ),
+                  ),
+                  child: isSelected
+                      ? const Icon(Icons.check, size: 12, color: Colors.white)
+                      : null,
                 ),
               ),
           ],

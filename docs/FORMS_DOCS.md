@@ -1,6 +1,6 @@
 # Forms & Polls
 
-> **Last updated:** 2026-11-12 · **Repos:** `hsh_app2` (Flutter) and `hsh_api` (`src/modules/forms/`, e2e `tests/e2e/forms.e2e.test.ts`). The app is built against the backend handoff of 2026-11-11.
+> **Last updated:** 2026-11-15 · **Repos:** `hsh_app2` (Flutter) and `hsh_api` (`src/modules/forms/`, e2e `tests/e2e/forms.e2e.test.ts`). The app is built against the backend handoff of 2026-11-11.
 
 ---
 

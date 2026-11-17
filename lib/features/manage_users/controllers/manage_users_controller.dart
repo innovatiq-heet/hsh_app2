@@ -14,9 +14,26 @@ import '../../../core/utils/validators.dart';
 /// Admin → Manage Users: staff accounts (complain-solver, laundry-man) that
 /// sign in with their mobile number alone, and student role tags.
 class ManageUsersController extends GetxController with LoadStateMixin {
-  final StaffUsersRepository _repository = Get.find();
-  final ComplaintsRepository _complaints = Get.find();
-  final TagsRepository _tagsRepo = Get.find();
+  ManageUsersController({
+    StaffUsersRepository? repository,
+    ComplaintsRepository? complaints,
+    TagsRepository? tagsRepo,
+  })  : _repository = repository ??
+            (Get.isRegistered<StaffUsersRepository>()
+                ? Get.find<StaffUsersRepository>()
+                : Get.put(StaffUsersRepository())),
+        _complaints = complaints ??
+            (Get.isRegistered<ComplaintsRepository>()
+                ? Get.find<ComplaintsRepository>()
+                : Get.put(ComplaintsRepository())),
+        _tagsRepo = tagsRepo ??
+            (Get.isRegistered<TagsRepository>()
+                ? Get.find<TagsRepository>()
+                : Get.put(TagsRepository()));
+
+  final StaffUsersRepository _repository;
+  final ComplaintsRepository _complaints;
+  final TagsRepository _tagsRepo;
 
   /// Tab index: 0 = Staff Users, 1 = Student Tags
   final selectedTab = 0.obs;

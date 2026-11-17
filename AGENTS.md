@@ -7,7 +7,7 @@ Rules and context for anyone (human or AI agent) changing this repo. Read this b
 - Flutter app (GetX) for Hari Saurabh Hostel: students, leaders, wardens / operator console, staff.
 - Backend is the separate **`hsh_api`** repo (Node + Express + MySQL). It has its own `AGENTS.md`.
 - Background behaviour on student phones (screen time, app blocking, geofence, location) is **native Android Kotlin**, so it runs with the Flutter UI closed. Caller ID is native on Android and iOS.
-- Feature docs: [docs/GEOFENCING_DOCS.md](docs/GEOFENCING_DOCS.md), [docs/PARENT_CONTROL_DOCS.md](docs/PARENT_CONTROL_DOCS.md), [docs/PHONEBOOK_DOCS.md](docs/PHONEBOOK_DOCS.md), [docs/COMPLAINTS_DOCS.md](docs/COMPLAINTS_DOCS.md), [docs/BIRTHDAY_DOCS.md](docs/BIRTHDAY_DOCS.md), [docs/BROADCAST_DOCS.md](docs/BROADCAST_DOCS.md), [docs/FORMS_DOCS.md](docs/FORMS_DOCS.md).
+- Feature docs: [docs/GEOFENCING_DOCS.md](docs/GEOFENCING_DOCS.md), [docs/PARENT_CONTROL_DOCS.md](docs/PARENT_CONTROL_DOCS.md), [docs/PHONEBOOK_DOCS.md](docs/PHONEBOOK_DOCS.md), [docs/COMPLAINTS_DOCS.md](docs/COMPLAINTS_DOCS.md), [docs/BIRTHDAY_DOCS.md](docs/BIRTHDAY_DOCS.md), [docs/BROADCAST_DOCS.md](docs/BROADCAST_DOCS.md), [docs/FORMS_DOCS.md](docs/FORMS_DOCS.md), [docs/ROOM_KEYS_DOCS.md](docs/ROOM_KEYS_DOCS.md).
 
 ## 2. Commands
 
@@ -40,7 +40,7 @@ test/                  unit tests (offline); tag tests that hit real APIs with @
 - **HTTP:** always `Get.find<ApiClient>().dio` (adds the token). Repositories throw on failure; controllers show the error and roll back optimistic UI.
 - **Platform code:** one Dart service per MethodChannel (`ScreenTimeService`, `GeofenceDeviceService`, `CallerIdService`), each a no-op on unsupported platforms. Keep channel method names in sync on both sides.
 - **Reuse before adding:** shared widgets live in `lib/features/shared/widgets`, and date helpers in `lib/core/utils/date_formatting.dart`.
-- **Roles:** gate screens with `UserRole` helpers: `canOperate` (admin/warden: phonebook, caller ID, operator console) and `canViewScreenTime` (admin/warden). Manage Users is admin-only.
+- **Roles:** gate screens with `UserRole` helpers: `canOperate` (admin/warden: phonebook, caller ID, operator console) and `canViewScreenTime` (admin/warden/leader). A leader sees only the students of their own group (`leaderGroupName`): every `/screen-time/students` request carries `group`, and app requests and directly opened students are checked against the group; admins and wardens get group chips. Manage Users is admin-only.
 - **Closing after a snackbar:** in GetX 4, `Get.back()` closes an open snackbar instead of the route. After showing a success snackbar, close the page or sheet with `Navigator.of(context).pop()`.
 - **Never commit** `android/key.properties`, keystores, `.env` files or new credentials.
 
@@ -52,6 +52,7 @@ test/                  unit tests (offline); tag tests that hit real APIs with @
 - The phonebook has no `students.id`; it opens Screen Time with `{name, room}` only, and the warden picks the student. Do not add bank-code or name auto-matching.
 - Exception, bookmark only: phonebook **Favourites** (`/phonebook/calls`, `/phonebook/favourites`) store the phonebook's `student_key` (`HSH-…`) as an opaque string per user. Neither side may resolve it to a `students.id` or use it for any action on a student.
 - Broadcast recipients and Forms & Polls `target_student_ids` send numeric `students.id` only: the shared `StudentPickerSource` / `studentIdOf` reads a row's `id` (positive integer, no leading zero), never `student_id` / `student_code`, and never the phonebook cache.
+- Room Keys gives a key to a student by numeric `students.id` only, from `StudentPickerSource`; never the phonebook cache or a bank code. `PUT /room-keys/:id` is a partial update.
 - Exception, display only: birthday cards borrow a student's group/status from the synced phonebook by bank code (`PhonebookDatabaseService.groupInfoByBankCode`). Never use that lookup to pick a student for an action.
 
 **Parental control / screen time**
@@ -61,6 +62,8 @@ test/                  unit tests (offline); tag tests that hit real APIs with @
 - Warden writes are targeted: `POST /screen-time/apps/rule` for one app; `PUT /screen-time/policies/:id` with **only the fields being changed** (it is a partial update). Never send a full policy object.
 - `AppBlockerAccessibilityService` must re-check the **app already on screen** when the policy changes. Never block protected packages (dialer, emergency, keyboard, launcher, Settings, this app). When unsure which app is in front, fail open rather than block the wrong one.
 - **One exception inside Settings:** `SelfProtection` sends the student home when Settings shows *this app's* App info page (name plus a Force stop / Uninstall control), because a force-stopped app enforces nothing. Never widen it to other Settings screens (the Accessibility page is needed during setup). Our own flows that open App info (`openAppSettings()`) must call `ScreenTimeService.allowAppSettings()` first. This needs `canRetrieveWindowContent="true"` on the accessibility service, so the Play accessibility disclosure must mention it.
+- **One exception inside SystemUI:** `SelfProtection.offersToStopOwnApp` closes the Android 13+ Active apps panel (notification shade, "N apps are active") only while it shows a Stop button in the same row as *this app's* name. Never close the shade for anything else: other apps' rows and notification actions must stay usable.
+- Per-app time limits are enforced on the phone: `PolicyStore` keeps each app's `daily_limit_minutes` from the `apps` rules of `/policies/me` (`DevicePolicy.appLimits`), and a payload without `apps` (the ping echo) must keep the stored limits. The warden UI reads a limit from the loaded policy (`appLimitFor`), not from the usage row, whose `dailyLimitMinutes` is 0 for every app without a rule.
 - A `null` bedtime means "no bedtime" (never a 23:00–05:00 default).
 - A missing `restrict_app_installs` means the Play Store (and other stores/installers) is **allowed** by default; only an explicit `true` restricts it. The warden switch sends only that field.
 

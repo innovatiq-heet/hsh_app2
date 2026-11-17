@@ -297,6 +297,9 @@ class BirthdayDashboardData {
   final List<BirthdayLogModel> recentLogs;
   final bool isWhatsAppConnected;
   final String? senderPhone;
+  final bool isLeader;
+  final String? leaderGroup;
+  final String? leaderTemplate;
 
   const BirthdayDashboardData({
     required this.config,
@@ -305,6 +308,9 @@ class BirthdayDashboardData {
     required this.recentLogs,
     required this.isWhatsAppConnected,
     this.senderPhone,
+    this.isLeader = false,
+    this.leaderGroup,
+    this.leaderTemplate,
   });
 
   factory BirthdayDashboardData.fromJson(Map<String, dynamic> json) {
@@ -331,6 +337,9 @@ class BirthdayDashboardData {
       recentLogs: logsList,
       isWhatsAppConnected: json['isWhatsAppConnected'] == true,
       senderPhone: json['senderPhone']?.toString(),
+      isLeader: json['isLeader'] == true,
+      leaderGroup: json['leaderGroup']?.toString(),
+      leaderTemplate: json['leaderTemplate']?.toString(),
     );
   }
 }

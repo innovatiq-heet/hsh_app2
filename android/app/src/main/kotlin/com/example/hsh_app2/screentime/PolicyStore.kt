@@ -23,6 +23,8 @@ data class DevicePolicy(
     val restrictAppInstalls: Boolean = false,
     /** Epoch ms timestamp until which app stores / installers are temporarily unlocked. */
     val installPassUntil: Long = 0L,
+    /** Per-app daily allowance in minutes (package → minutes; only apps with a limit). */
+    val appLimits: Map<String, Int> = emptyMap(),
 ) {
     val hasBedtime: Boolean get() = bedtimeStart.isNotBlank() && bedtimeEnd.isNotBlank()
     val hasActiveInstallPass: Boolean get() = installPassUntil > System.currentTimeMillis()
@@ -168,6 +170,7 @@ object PolicyStore {
             version = p.getString(KEY_POLICY_VERSION, "") ?: "",
             restrictAppInstalls = p.getBoolean(KEY_RESTRICT_APP_INSTALLS, false),
             installPassUntil = p.getLong(KEY_INSTALL_PASS_UNTIL, 0L),
+            appLimits = readIntMap(p.getString(KEY_APP_LIMITS, null)),
         ).also { policyCache = it }
     }
 
@@ -187,6 +190,7 @@ object PolicyStore {
             .putString(KEY_POLICY_VERSION, policy.version)
             .putBoolean(KEY_RESTRICT_APP_INSTALLS, policy.restrictAppInstalls)
             .putLong(KEY_INSTALL_PASS_UNTIL, policy.installPassUntil)
+            .putString(KEY_APP_LIMITS, JSONObject(policy.appLimits as Map<*, *>).toString())
             .putLong(KEY_POLICY_APPLIED_AT, System.currentTimeMillis())
             .also { if (versionNumber != null) it.putInt(KEY_POLICY_VERSION_NUM, versionNumber) }
             .apply()
@@ -218,6 +222,7 @@ object PolicyStore {
             "is_locked", "isLocked", "blockedPackages", "blocked_packages",
             "daily_limit_minutes", "dailyLimitMinutes", "bedtime_start", "bedtimeStart",
             "restrict_app_installs", "restrictAppInstalls", "install_pass_until", "installPassUntil",
+            "apps", "app_limits", "appLimits",
         ).any { pol.has(it) || data.has(it) }
         if (!hasAny) return null
 
@@ -264,9 +269,33 @@ object PolicyStore {
                 ?: optBool(data, "restrict_app_installs", "restrictAppInstalls")
                 ?: current.restrictAppInstalls,
             installPassUntil = rawPassUntil ?: current.installPassUntil,
+            // `/policies/me` sends every app rule; the ping echo sends none, so
+            // the stored limits stay until the next full policy.
+            appLimits = parseAppLimits(data, pol) ?: current.appLimits,
         )
         savePolicy(context, updated, incomingVersion)
         return updated
+    }
+
+    /**
+     * Per-app limits from the app rules (`data.apps`: `package_name`,
+     * `daily_limit_minutes`) or an `app_limits` / `appLimits` object; null when
+     * the payload has neither.
+     */
+    private fun parseAppLimits(data: JSONObject, pol: JSONObject): Map<String, Int>? {
+        val apps = data.optJSONArray("apps") ?: pol.optJSONArray("apps")
+        if (apps != null) {
+            val rules = (0 until apps.length()).mapNotNull { i ->
+                val a = apps.optJSONObject(i) ?: return@mapNotNull null
+                val pkg = optStr(a, "package_name", "packageName") ?: return@mapNotNull null
+                pkg to optInt(a, "daily_limit_minutes", "dailyLimitMinutes")
+            }
+            return AppLimits.fromRules(rules)
+        }
+        val obj = data.optJSONObject("app_limits") ?: data.optJSONObject("appLimits")
+            ?: pol.optJSONObject("app_limits") ?: pol.optJSONObject("appLimits")
+            ?: return null
+        return AppLimits.fromRules(obj.keys().asSequence().map { it to optInt(obj, it) }.toList())
     }
 
     fun addBlockedPackage(context: Context, packageName: String) {
@@ -463,8 +492,10 @@ object PolicyStore {
             .remove(KEY_POLICY_VERSION_NUM)
             .remove(KEY_LAST_SENT_YESTERDAY)
             .remove(KEY_SYNCED_PAST_DATES)
+            .remove(KEY_APP_LIMITS)
             .apply()
         geoPolicyCache = null
+        policyCache = policyCache?.copy(appLimits = emptyMap())
     }
 
     fun recordGeofenceEvent(context: Context, event: JSONObject) {
@@ -497,6 +528,16 @@ object PolicyStore {
             (0 until arr.length()).map { arr.getString(it) }.toSet()
         } catch (_: Exception) {
             emptySet()
+        }
+    }
+
+    private fun readIntMap(raw: String?): Map<String, Int> {
+        if (raw.isNullOrEmpty()) return emptyMap()
+        return try {
+            val obj = JSONObject(raw)
+            obj.keys().asSequence().associateWith { obj.getInt(it) }
+        } catch (_: Exception) {
+            emptyMap()
         }
     }
 

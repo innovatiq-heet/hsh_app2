@@ -3,6 +3,7 @@ package com.example.hsh_app2.screentime
 import android.accessibilityservice.AccessibilityService
 import android.content.ComponentName
 import android.content.Context
+import android.os.Build
 import android.os.Handler
 import android.os.Looper
 import android.provider.Settings
@@ -33,6 +34,10 @@ class AppBlockerAccessibilityService : AccessibilityService() {
         private const val MAX_ACTIVITY_CACHE = 512
         private const val MAX_NODES_SCANNED = 400
         private val GUARD_CHECK_DELAYS_MS = longArrayOf(0L, 250L, 700L, 1500L)
+        /** The Active apps list fills in just after its panel opens; look early and often. */
+        private val PANEL_CHECK_DELAYS_MS = longArrayOf(0L, 100L, 250L, 500L, 1000L, 1500L)
+        /** Lets Back close the panel before the shade itself is collapsed. */
+        private const val COLLAPSE_SHADE_DELAY_MS = 150L
 
         @Volatile private var instance: AppBlockerAccessibilityService? = null
 
@@ -64,6 +69,7 @@ class AppBlockerAccessibilityService : AccessibilityService() {
     private var lastBlockedPkg: String? = null
     private var lastBlockedAt = 0L
     private var lastGuardAt = 0L
+    private var lastPanelGuardAt = 0L
 
     /** Package of the last *activity* window shown (dialogs, keyboards and the shade don't count). */
     @Volatile private var foregroundPkg: String? = null
@@ -116,6 +122,7 @@ class AppBlockerAccessibilityService : AccessibilityService() {
         val pkg = event.packageName?.toString() ?: return
         ensureBackgroundSync()
         if (pkg in SelfProtection.SETTINGS_PACKAGES) guardOwnAppInfo()
+        if (pkg in SelfProtection.SYSTEM_UI_PACKAGES) guardActiveAppsPanel()
         if (isActivityWindow(pkg, event.className?.toString()) && foregroundPkg != pkg) {
             foregroundPkg = pkg
             switchSeq++
@@ -204,6 +211,79 @@ class AppBlockerAccessibilityService : AccessibilityService() {
         Log.w(TAG, "Blocked access to own App info page")
         performGlobalAction(GLOBAL_ACTION_HOME)
         Toast.makeText(this, R.string.app_info_protected, Toast.LENGTH_LONG).show()
+    }
+
+    /**
+     * Closes the notification shade's Active apps panel (Android 13+) while it
+     * offers a Stop button for this app. Stop kills the whole app, and Android
+     * shows it for every ordinary app with a foreground service.
+     */
+    private fun guardActiveAppsPanel() {
+        if (!PolicyStore.hasSession(this)) return
+        for (delay in PANEL_CHECK_DELAYS_MS) {
+            mainHandler.postDelayed({ checkActiveAppsPanel() }, delay)
+        }
+    }
+
+    private fun checkActiveAppsPanel() {
+        if (!PolicyStore.hasSession(this)) return
+        val appLabel = applicationInfo.loadLabel(packageManager).toString()
+        val stopLabels = SelfProtection.stopLabels(this)
+        for (root in systemUiRoots()) {
+            // Two cheap searches first, so an ordinary shade pull doesn't walk the whole tree.
+            if (!mentionsAny(root, stopLabels) || !mentionsAny(root, listOf(appLabel))) continue
+            if (!SelfProtection.offersToStopOwnApp(snapshot(root), appLabel, stopLabels)) continue
+
+            val now = System.currentTimeMillis()
+            if (now - lastPanelGuardAt < DEBOUNCE_MS) return
+            lastPanelGuardAt = now
+            Log.w(TAG, "Closed the Active apps panel: it offered to stop this app")
+            performGlobalAction(GLOBAL_ACTION_BACK)
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+                mainHandler.postDelayed(
+                    { performGlobalAction(GLOBAL_ACTION_DISMISS_NOTIFICATION_SHADE) },
+                    COLLAPSE_SHADE_DELAY_MS,
+                )
+            }
+            Toast.makeText(this, getString(R.string.stop_app_protected, appLabel), Toast.LENGTH_LONG).show()
+            return
+        }
+    }
+
+    /**
+     * Every SystemUI window on screen (shade, panels, dialogs). The window list
+     * needs `flagRetrieveInteractiveWindows`; the active window covers devices
+     * that haven't picked that flag up yet.
+     */
+    private fun systemUiRoots(): List<AccessibilityNodeInfo> {
+        val roots = ArrayList<AccessibilityNodeInfo>()
+        runCatching { windows }.getOrNull()?.forEach { w -> runCatching { w.root }.getOrNull()?.let(roots::add) }
+        rootInActiveWindow?.let(roots::add)
+        return roots
+            .filter { it.packageName?.toString() in SelfProtection.SYSTEM_UI_PACKAGES }
+            .distinctBy { it.windowId }
+    }
+
+    /** Case-insensitive "contains" search done by the system in one call. */
+    private fun mentionsAny(root: AccessibilityNodeInfo, words: Collection<String>): Boolean =
+        words.any { w ->
+            w.isNotBlank() && runCatching { root.findAccessibilityNodeInfosByText(w) }.getOrNull()?.isNotEmpty() == true
+        }
+
+    /** Copies the window's node tree for [SelfProtection], capped like [collectTexts]. */
+    private fun snapshot(root: AccessibilityNodeInfo): SelfProtection.ScreenNode {
+        var budget = MAX_NODES_SCANNED
+        fun copy(node: AccessibilityNodeInfo): SelfProtection.ScreenNode {
+            budget--
+            val texts = listOfNotNull(node.text?.toString(), node.contentDescription?.toString())
+            val children = ArrayList<SelfProtection.ScreenNode>()
+            for (i in 0 until node.childCount) {
+                if (budget <= 0) break
+                node.getChild(i)?.let { children.add(copy(it)) }
+            }
+            return SelfProtection.ScreenNode(texts, children)
+        }
+        return copy(root)
     }
 
     /** Breadth-first, capped, so a huge Settings list can't stall the main thread. */

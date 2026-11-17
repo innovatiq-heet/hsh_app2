@@ -140,14 +140,14 @@ void main() {
         {'id': '0768', 'name': 'Leading zero', 'room': '301'}, // a bank code, not an id
         {'student_id': 999, 'name': 'No id field', 'room': '302'},
         {'id': 'HSH-12', 'name': 'Code as id', 'room': '303'},
-        {'id': 300, 'name': 'Left student', 'room': 'N/A'}, // alumni are not offered
+        {'id': 300, 'name': 'Alumni student', 'room': 'N/A'}, // alumni are offered
       ],
     });
 
     await c.loadStudents();
-    expect(c.students.map((s) => s.id), unorderedEquals([102, 215]));
+    expect(c.students.map((s) => s.id), unorderedEquals([102, 215, 300]));
 
-    previewReturns(2);
+    previewReturns(3);
     c.titleController.text = 'Hi';
     c.messageController.text = 'Hello';
     for (final s in c.students) {
@@ -160,7 +160,7 @@ void main() {
     final sent = api.last('POST /broadcasts').data as Map;
     final ids = sent['student_ids'] as List;
     expect(ids, everyElement(isA<int>()));
-    expect(ids.toSet(), {102, 215});
+    expect(ids.toSet(), {102, 215, 300});
     expect(jsonEncode(sent), isNot(contains('0768')));
     expect(jsonEncode(api.last('POST /broadcasts/preview').data), isNot(contains('HSH')));
   });
@@ -175,12 +175,28 @@ void main() {
     final body = api.last('POST /broadcasts').data as Map;
     expect(body['title'], 'Water supply');
     expect(body['message'], 'No water 2-4 pm today.');
+    expect(body['channels'], 'both');
     expect(body['tag_ids'], [3]);
     expect(body['student_ids'], <int>[]);
     expect(
       body['client_request_id'],
       matches(RegExp(r'^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$')),
     );
+  });
+
+  test('send without title succeeds and omits title from request', () async {
+    await fillValid();
+    c.titleController.text = '   ';
+    c.setChannel(BroadcastChannel.whatsapp);
+    api.on('POST /broadcasts', {'success': true, 'data': broadcastJson()}, status: 201);
+
+    final result = await c.send();
+
+    expect(result?.id, 91);
+    final body = api.last('POST /broadcasts').data as Map;
+    expect(body.containsKey('title'), isFalse);
+    expect(body['message'], 'No water 2-4 pm today.');
+    expect(body['channels'], 'whatsapp');
   });
 
   test('a double tap sends once', () async {
@@ -231,7 +247,7 @@ void main() {
     expect(c.canSend, isTrue);
 
     c.titleController.text = '   ';
-    expect(c.canSend, isFalse, reason: 'blank title');
+    expect(c.canSend, isTrue, reason: 'blank title is optional and allowed');
     c.titleController.text = 'x' * 101;
     expect(c.canSend, isFalse, reason: 'title over 100');
     c.titleController.text = 'Water supply';

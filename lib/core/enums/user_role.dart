@@ -17,6 +17,10 @@ extension UserRoleX on UserRole {
       case 'alumni':
         return UserRole.student;
       case 'leader':
+      case 'wing-leader':
+      case 'wing_leader':
+      case 'floor-leader':
+      case 'floor_leader':
         return UserRole.leader;
       case 'admin':
         return UserRole.admin;
@@ -73,10 +77,11 @@ extension UserRoleX on UserRole {
   /// True if user is a student leader
   bool get isLeader => this == UserRole.leader;
 
-  /// Can view student phone screen time and parental control data (Admin & Warden only).
+  /// Can view student phone screen time and parental control data (Admin, Warden & Leader).
   bool get canViewScreenTime =>
       this == UserRole.admin ||
-      this == UserRole.warden;
+      this == UserRole.warden ||
+      this == UserRole.leader;
 
   /// Laundry recharge/status actions are shared across these operator roles.
   bool get canOperateLaundry =>

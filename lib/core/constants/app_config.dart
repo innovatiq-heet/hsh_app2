@@ -33,7 +33,7 @@ class AppConfig {
 
   /// Authorized mobile numbers permitted to log in as Admin.
   static const List<String> allowedAdminPhoneNumbers = [
-    '7984907753',
+    // '7984907753',
     '7778885383',
     '9712977261',
     // '9081476469',

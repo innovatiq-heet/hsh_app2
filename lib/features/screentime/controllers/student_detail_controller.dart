@@ -6,6 +6,8 @@ import 'package:intl/intl.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../../../core/network/repository/screentime/screen_time_repository.dart';
 import '../../../core/utils/app_snackbar.dart';
+import '../../../core/storage/session_store.dart';
+import '../../../core/enums/user_role.dart';
 import '../models/screen_time_policy.dart';
 import '../services/app_icon_cache.dart';
 import 'app_requests_host.dart';
@@ -21,8 +23,10 @@ import 'screen_time_utils.dart';
 class StudentDetailController extends GetxController
     with WidgetsBindingObserver
     implements AppRequestsHost {
-  StudentDetailController(dynamic student)
+  StudentDetailController(dynamic student, {this.host})
     : selectedStudent = Rx<dynamic>(student);
+
+  final AppRequestsHost? host;
 
   /// The directory entry this controller is for (a raw API map).
   final Rx<dynamic> selectedStudent;
@@ -60,20 +64,28 @@ class StudentDetailController extends GetxController
     super.onClose();
   }
 
+  DateTime? _lastRefreshedAt;
+
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
-    if (state == AppLifecycleState.resumed) _autoRefresh();
+    if (state == AppLifecycleState.resumed) {
+      final now = DateTime.now();
+      if (_lastRefreshedAt == null ||
+          now.difference(_lastRefreshedAt!).inSeconds > 45) {
+        _lastRefreshedAt = now;
+        _autoRefresh();
+      }
+    }
   }
 
-  Future<void> _autoRefresh() => refreshAll();
+  Future<void> _autoRefresh() => fetchLiveStatus();
 
   /// Pull-to-refresh and the periodic refresh.
-  Future<void> refreshAll() async {
+  Future<void> refreshAll({bool full = false}) async {
+    _lastRefreshedAt = DateTime.now();
     await Future.wait([
-      fetchLiveStatus(),
-      fetchHistory(),
-      fetchStudentPolicies(),
-      fetchAppRequests(studentId: _studentId),
+      fetchLiveStatus(includeHistory: true, forceRefresh: true),
+      if (host == null || full) fetchAppRequests(studentId: _studentId),
     ]);
   }
 
@@ -154,15 +166,19 @@ class StudentDetailController extends GetxController
       '[ScreenTime] open student: ${student['name']}, id=$_studentId, initialMins=${totalMinutesToday.value}, appsCount=${appBreakdown.length}',
     );
 
-    fetchLiveStatus();
-    fetchHistory();
-    fetchStudentPolicies();
-    fetchAppRequests(studentId: id);
+    fetchLiveStatus(includeHistory: true);
+    if (host != null && host!.pendingAppRequests.isNotEmpty) {
+      pendingAppRequests.assignAll(
+        host!.pendingAppRequests.where((req) => req['student_id']?.toString() == id),
+      );
+    } else {
+      fetchAppRequests(studentId: id);
+    }
   }
 
   final ScreenTimeRepository _repo = ScreenTimeRepository();
 
-  static const _refreshInterval = Duration(minutes: 1);
+  static const _refreshInterval = Duration(minutes: 2);
 
   final RxBool isLoading = false.obs;
 
@@ -492,6 +508,17 @@ class StudentDetailController extends GetxController
     return list;
   }
 
+  /// Goes back to today once the current frame is done. For a screen's
+  /// `dispose()`: changing [selectedDate] while the widget tree is being torn
+  /// down makes every `Obx` reading it throw "setState() or markNeedsBuild()
+  /// called when widget tree was locked".
+  void selectTodayAfterFrame() {
+    if (isTodaySelected) return;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!isClosed && !isTodaySelected) selectDate(todayDateStr);
+    });
+  }
+
   void selectDate(String dateStr) {
     final normalized = normalizeDateString(dateStr);
     selectedDate.value = normalized;
@@ -510,14 +537,19 @@ class StudentDetailController extends GetxController
                         rec['total_minutes'],
                   ) >
                   0);
-      if (!hasApps || !hasTotal) {
+      // Without a per-day breakdown on the server, a day whose total is known
+      // has nothing more to fetch.
+      if (!hasTotal || (!hasApps && !_perDayAppsUnavailable)) {
         fetchUsageForDate(normalized);
       }
     }
   }
 
   /// Fetches screen-time history & app breakdown for a specific date
-  Future<void> fetchUsageForDate(String dateStr) async {
+  ///
+  /// [quiet] (background prefetch) leaves the loading state alone, so the
+  /// day cards don't flash a spinner for a day nobody picked.
+  Future<void> fetchUsageForDate(String dateStr, {bool quiet = false}) async {
     final id = _studentId;
     if (id.isEmpty || dateStr.isEmpty) return;
     if (dateStr == todayDateStr) {
@@ -525,7 +557,7 @@ class StudentDetailController extends GetxController
       return;
     }
     final normalized = normalizeDateString(dateStr);
-    isLoadingDateUsage.value = true;
+    if (!quiet) isLoadingDateUsage.value = true;
     try {
       final body = await _repo.history(id, date: normalized);
       if (id != _studentId) return;
@@ -533,7 +565,7 @@ class StudentDetailController extends GetxController
     } catch (e) {
       debugPrint('[ScreenTime] fetchUsageForDate error for $normalized: $e');
     } finally {
-      isLoadingDateUsage.value = false;
+      if (!quiet) isLoadingDateUsage.value = false;
     }
   }
 
@@ -1121,7 +1153,46 @@ class StudentDetailController extends GetxController
     restrictAppInstalls: playStoreBlocked.value,
   );
 
+  /// Bumped by every change made on this screen (an optimistic update or its
+  /// rollback). A policy read that was requested before such a change is not
+  /// shown when it lands: it would put the old rules back on screen although
+  /// the server already has the new ones, which the next read shows.
+  int _policyEdits = 0;
+
+  /// A change made here, shown at once.
   void _applyPolicy(ScreenTimePolicy p) {
+    _policyEdits++;
+    _showPolicy(p);
+  }
+
+  /// A policy read from the server, requested when [_policyEdits] was
+  /// [editsAtRequest].
+  void _applyServerPolicy(ScreenTimePolicy p, int editsAtRequest) {
+    if (editsAtRequest != _policyEdits) return;
+    _showPolicy(p);
+  }
+
+  /// The student's policy (with every app's limit) has been shown once.
+  final RxBool policyLoaded = false.obs;
+
+  /// One app's daily limit in minutes (0 = none). The loaded policy wins, so a
+  /// limit just set or removed shows at once; before it loads, the usage
+  /// row's own value ([rowValue]).
+  int appLimitFor(String packageName, {Object? rowValue}) =>
+      appLimits[packageName] ?? (policyLoaded.value ? 0 : toInt(rowValue));
+
+  /// Today's minutes of one app on the student's phone (0 when not used).
+  int usedTodayMinutes(String packageName) {
+    for (final a in appBreakdown) {
+      if (a is Map && (a['packageName'] ?? a['package_name'])?.toString() == packageName) {
+        return extractAppMinutes(a);
+      }
+    }
+    return 0;
+  }
+
+  void _showPolicy(ScreenTimePolicy p) {
+    policyLoaded.value = true;
     isDeviceLocked.value = p.isLocked;
     blockedPackages.assignAll(p.blockedPackages.toList());
     dailyLimitMinutes.value = p.dailyLimitMinutes;
@@ -1163,14 +1234,41 @@ class StudentDetailController extends GetxController
 
   final RxBool isUpdatingPolicy = false.obs;
 
+  /// Short-lived in-memory cache to make re-opening a student instantaneous (sub-second)
+  /// and avoid repeating API calls when navigating back and forth in directory.
+  static final Map<String, ({dynamic body, DateTime timestamp})> _inMemoryDetailCache = {};
+
+  static void invalidateCacheFor(String studentId) {
+    _inMemoryDetailCache.remove(studentId);
+  }
+
   /// Fetch live status of the selected student (by student id) from the real API
-  Future<void> fetchLiveStatus() async {
+  Future<void> fetchLiveStatus({
+    bool includeHistory = false,
+    bool forceRefresh = false,
+  }) async {
     final id = _studentId;
     if (id.isEmpty) return;
-    isLoading.value = true;
+
+    final cached = Get.testMode ? null : _inMemoryDetailCache[id];
+    final isFresh = cached != null &&
+        DateTime.now().difference(cached.timestamp).inSeconds < 90;
+
+    if (cached != null) {
+      // Only to show a re-opened student at once; a periodic refresh of the
+      // student on screen already shows this body.
+      if (!_liveApplied) _applyLiveStatusResponse(cached.body);
+      if (isFresh && !forceRefresh) return;
+    }
+
+    if (cached == null) isLoading.value = true;
+    final edits = _policyEdits;
     try {
-      final body = await _repo.live(id);
-      if (id == _studentId) _applyLiveStatusResponse(body);
+      final body = await _repo.live(id, includeHistory: includeHistory);
+      if (id == _studentId) {
+        _inMemoryDetailCache[id] = (body: body, timestamp: DateTime.now());
+        _applyLiveStatusResponse(body, policyEditsAtRequest: edits);
+      }
     } catch (e) {
       debugPrint('[ScreenTime] fetchLiveStatus error: $e');
     } finally {
@@ -1178,11 +1276,13 @@ class StudentDetailController extends GetxController
     }
   }
 
-  void _applyLiveStatusResponse(dynamic raw) {
+  /// [policyEditsAtRequest]: the edit count when this body was requested
+  /// (see [_policyEdits]); null for a body shown from the cache on open.
+  void _applyLiveStatusResponse(dynamic raw, {int? policyEditsAtRequest}) {
+    final edits = policyEditsAtRequest ?? _policyEdits;
     final data = raw is Map ? (raw['data'] ?? raw) : null;
     if (data == null || data is! Map) return;
-
-    debugPrint('[ScreenTime] _applyLiveStatusResponse data: $data');
+    _liveApplied = true;
 
     final onlineVal = data['isOnline'] ?? data['is_online'] ?? data['online'];
     if (onlineVal != null) {
@@ -1292,8 +1392,12 @@ class StudentDetailController extends GetxController
     dateSpecificTotals[todayDateStr] = totalMinutesToday.value;
     dateSpecificNight[todayDateStr] = nightMinutesToday.value;
 
-    final policy = ScreenTimePolicy.tryParse(data, current: currentPolicy);
-    if (policy != null) _applyPolicy(policy);
+    if (data['policy'] is Map) {
+      final policy = ScreenTimePolicy.tryParse(data, current: currentPolicy);
+      if (policy != null) _applyServerPolicy(policy, edits);
+    } else {
+      fetchStudentPolicies(editsAtRequest: edits);
+    }
     _syncBlockedStatusToApps();
 
     final id = _studentId;
@@ -1306,7 +1410,35 @@ class StudentDetailController extends GetxController
         nightMinutesToday.value,
       );
     }
+
+    if (data['records'] is List || data['history'] is List) {
+      _applyHistoryResponse(data);
+    } else if (_historyIsStale) {
+      // Past days don't change and today comes from the live status above, so
+      // the periodic refresh doesn't need the history every time.
+      fetchHistory();
+    }
   }
+
+  /// Whether this controller has shown a live-status response yet.
+  bool _liveApplied = false;
+
+  /// When the daily history last arrived; null until it has.
+  DateTime? _historyLoadedAt;
+  static const _historyMaxAge = Duration(minutes: 15);
+
+  bool get _historyIsStale =>
+      historyRecords.isEmpty ||
+      _historyLoadedAt == null ||
+      DateTime.now().difference(_historyLoadedAt!) > _historyMaxAge;
+
+  /// Past days already asked for one by one, so a refresh never asks again.
+  final Set<String> _pastDaysRequested = <String>{};
+
+  /// Set when asking for one past day brings back no app list although that
+  /// day had usage: the server keeps only daily totals (already in the
+  /// history), so asking for the other days would only repeat that answer.
+  bool _perDayAppsUnavailable = false;
 
   void _syncBlockedStatusToApps() {
     if (appBreakdown.isEmpty) return;
@@ -1326,17 +1458,29 @@ class StudentDetailController extends GetxController
   }
 
   /// Fetch full policy, blocked list, and installed apps for the selected student (by student id)
-  Future<void> fetchStudentPolicies() async {
+  ///
+  /// [editsAtRequest]: when this read follows an earlier one (a live status
+  /// without a policy), the edit count at that earlier request.
+  Future<void> fetchStudentPolicies({int? editsAtRequest}) async {
     final id = _studentId;
     if (id.isEmpty) return;
+    final edits = editsAtRequest ?? _policyEdits;
     try {
       final body = await _repo.policy(id);
       if (id != _studentId) return; // another student was selected meanwhile
       final policy = ScreenTimePolicy.tryParse(body, current: currentPolicy);
-      if (policy != null) _applyPolicy(policy);
+      if (policy != null) _applyServerPolicy(policy, edits);
     } catch (e) {
       debugPrint('[ScreenTime] fetchStudentPolicies error: $e');
     }
+  }
+
+  /// Whether this controller represents the calling user's own student profile.
+  bool get isSelfDevice {
+    if (!Get.isRegistered<SessionStore>()) return false;
+    final mySession = Get.find<SessionStore>().currentSession;
+    if (mySession == null) return false;
+    return mySession.id.isNotEmpty && mySession.id == _studentId;
   }
 
   /// Saves only the given policy [fields] for the selected student (the PUT is
@@ -1346,12 +1490,22 @@ class StudentDetailController extends GetxController
   Future<void> _putPolicy(Map<String, dynamic> fields) async {
     final id = _studentId;
     if (id.isEmpty) throw StateError('No student selected');
+
+    if (isSelfDevice) {
+      final role = Get.find<SessionStore>().currentSession?.role;
+      if (role != UserRole.admin && role != UserRole.warden) {
+        throw 'You cannot modify device controls on your own phone.';
+      }
+    }
+
     await _repo.updatePolicy(id, fields);
+    invalidateCacheFor(id);
     policyVersion.value = DateTime.now().toIso8601String();
   }
 
   /// Set daily time limit for an app in minutes (0 = no limit)
-  Future<void> setAppLimit(
+  /// True when saved; false when it could not be (the change is rolled back).
+  Future<bool> setAppLimit(
     String packageName,
     String appName,
     int limitMinutes,
@@ -1365,7 +1519,7 @@ class StudentDetailController extends GetxController
         'Device Not Setup',
         '$studentName has not installed the monitoring app on their phone yet.',
       );
-      return;
+      return false;
     }
     final previous = currentPolicy;
     final updatedLimits = Map<String, int>.from(previous.appLimits);
@@ -1387,6 +1541,7 @@ class StudentDetailController extends GetxController
         isBlocked: isBlocked,
         dailyLimitMinutes: limitMinutes,
       );
+      invalidateCacheFor(id);
       policyVersion.value = DateTime.now().toIso8601String();
       if (limitMinutes > 0) {
         AppSnackbar.success(
@@ -1399,6 +1554,7 @@ class StudentDetailController extends GetxController
           'Time limit removed for $appName on $studentName\'s phone.',
         );
       }
+      return true;
     } catch (e) {
       debugPrint('[ScreenTime] setAppLimit error: $e');
       _applyPolicy(previous);
@@ -1406,6 +1562,7 @@ class StudentDetailController extends GetxController
         'Not Saved',
         'Could not update limit for $appName for $studentName. Please try again.',
       );
+      return false;
     }
   }
 
@@ -1445,6 +1602,7 @@ class StudentDetailController extends GetxController
         appName: appName,
         isBlocked: block,
       );
+      invalidateCacheFor(id);
       policyVersion.value = DateTime.now().toIso8601String();
       if (block) {
         AppSnackbar.warning(
@@ -1463,6 +1621,69 @@ class StudentDetailController extends GetxController
       AppSnackbar.error(
         'Not Saved',
         'Could not update $appName for $studentName. Please try again.',
+      );
+    }
+  }
+
+  /// Batch update blocking/unblocking multiple apps in one single transaction
+  Future<void> batchSetAppBlocks(
+    List<({String packageName, String appName})> apps,
+    bool block,
+  ) async {
+    if (apps.isEmpty) return;
+    final studentName = selectedStudent.value is Map
+        ? (selectedStudent.value['name'] ?? 'Student')
+        : 'Student';
+    final id = _studentId;
+    if (id.isEmpty) {
+      AppSnackbar.info(
+        'Device Not Setup',
+        '$studentName has not installed the monitoring app on their phone yet.',
+      );
+      return;
+    }
+
+    final previous = currentPolicy;
+    final pkgs = apps.map((a) => a.packageName).toSet();
+    final updated = previous.copyWith(
+      blockedPackages: block
+          ? {...previous.blockedPackages, ...pkgs}
+          : previous.blockedPackages.where((p) => !pkgs.contains(p)).toSet(),
+    );
+
+    _applyPolicy(updated);
+    try {
+      final rules = apps
+          .map((a) => {
+                'package_name': a.packageName,
+                'app_name': a.appName,
+                'is_blocked': block,
+              })
+          .toList();
+
+      await _repo.setAppBatchRules(
+        studentId: id,
+        rules: rules,
+      );
+      invalidateCacheFor(id);
+      policyVersion.value = DateTime.now().toIso8601String();
+      if (block) {
+        AppSnackbar.warning(
+          'Apps Restricted',
+          '${apps.length} apps restricted for $studentName.',
+        );
+      } else {
+        AppSnackbar.success(
+          'Apps Allowed',
+          '${apps.length} app restrictions removed for $studentName.',
+        );
+      }
+    } catch (e) {
+      debugPrint('[ScreenTime] batchSetAppBlocks error: $e');
+      _applyPolicy(previous);
+      AppSnackbar.error(
+        'Not Saved',
+        'Could not update rules for $studentName. Please try again.',
       );
     }
   }
@@ -2042,8 +2263,10 @@ class StudentDetailController extends GetxController
               dateSpecificNight[d] = recNight;
             }
 
+            // Daily totals are kept with the whole history below; a day is
+            // only stored on its own when it brought an app breakdown.
             final id = _studentId;
-            if (id.isNotEmpty) {
+            if (id.isNotEmpty && dateSpecificApps[d]?.isNotEmpty == true) {
               _saveCachedDateUsage(
                 id,
                 d,
@@ -2056,6 +2279,7 @@ class StudentDetailController extends GetxController
         }
       }
       historyRecords.assignAll(records);
+      _historyLoadedAt = DateTime.now();
       debugPrint(
         '[ScreenTime] loaded ${historyRecords.length} history records: ${historyRecords.first}',
       );
@@ -2092,19 +2316,27 @@ class StudentDetailController extends GetxController
     _fetchPastDaysDayByDay();
   }
 
-  /// Automatically fetches and stores past 7 days usage day-by-day in background
+  /// Prefetches the app breakdown of the past 7 days that had usage, each day
+  /// at most once per opened student. Stops at the first day the server
+  /// answers without apps: it then only has daily totals, which the history
+  /// already holds.
   Future<void> _fetchPastDaysDayByDay() async {
     final id = _studentId;
     if (id.isEmpty) return;
     final now = DateTime.now();
     for (int i = 1; i <= 7; i++) {
-      if (id != _studentId) return; // Student selection changed
+      if (id != _studentId || _perDayAppsUnavailable) return;
       final dt = now.subtract(Duration(days: i));
       final dStr =
           '${dt.year.toString().padLeft(4, '0')}-${dt.month.toString().padLeft(2, '0')}-${dt.day.toString().padLeft(2, '0')}';
-      if (!dateSpecificApps.containsKey(dStr) ||
-          dateSpecificApps[dStr]!.isEmpty) {
-        await fetchUsageForDate(dStr);
+      if (dateSpecificApps[dStr]?.isNotEmpty == true) continue;
+      // Nothing recorded that day, so there is nothing to break down.
+      if ((dateSpecificTotals[dStr] ?? 0) <= 0) continue;
+      if (!_pastDaysRequested.add(dStr)) continue;
+      await fetchUsageForDate(dStr, quiet: true);
+      if (dateSpecificApps[dStr]?.isNotEmpty != true) {
+        _perDayAppsUnavailable = true;
+        return;
       }
     }
   }

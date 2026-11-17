@@ -66,7 +66,9 @@ class _StudentFormFillScreenState extends State<StudentFormFillScreen> {
     }
     AppSnackbar.success(
       'Submitted',
-      form.kind == FormKind.poll ? 'Your vote is in.' : 'Thanks for your response.',
+      form.kind == FormKind.poll
+          ? 'Your vote is in.'
+          : 'Thanks for your response.',
     );
     // Close with Navigator, not Get.back(): that would close the snackbar.
     Navigator.of(context).pop();
@@ -82,7 +84,8 @@ class _StudentFormFillScreenState extends State<StudentFormFillScreen> {
         final form = _form;
         final submitted = form?.hasSubmitted ?? false;
         final closed =
-            form?.endTime != null && form!.endTime!.isBefore(DateTime.now().toUtc());
+            form?.endTime != null &&
+            form!.endTime!.isBefore(DateTime.now().toUtc());
         final isPoll = form?.kind == FormKind.poll;
 
         return Scaffold(
@@ -107,7 +110,9 @@ class _StudentFormFillScreenState extends State<StudentFormFillScreen> {
                     ],
                   ),
                   child: Obx(() {
-                    final isSubmitting = controller.submitting.contains(form.id);
+                    final isSubmitting = controller.submitting.contains(
+                      form.id,
+                    );
                     return Material(
                       color: Colors.transparent,
                       child: InkWell(
@@ -128,7 +133,9 @@ class _StudentFormFillScreenState extends State<StudentFormFillScreen> {
                             borderRadius: BorderRadius.circular(16),
                             boxShadow: [
                               BoxShadow(
-                                color: const Color(0xFF0284C7).withValues(alpha: 0.35),
+                                color: const Color(
+                                  0xFF0284C7,
+                                ).withValues(alpha: 0.35),
                                 blurRadius: 12,
                                 offset: const Offset(0, 4),
                               ),
@@ -148,7 +155,9 @@ class _StudentFormFillScreenState extends State<StudentFormFillScreen> {
                                   mainAxisAlignment: MainAxisAlignment.center,
                                   children: [
                                     Icon(
-                                      isPoll ? Icons.how_to_vote_rounded : Icons.send_rounded,
+                                      isPoll
+                                          ? Icons.how_to_vote_rounded
+                                          : Icons.send_rounded,
                                       color: Colors.white,
                                       size: 19,
                                     ),
@@ -188,7 +197,9 @@ class _StudentFormFillScreenState extends State<StudentFormFillScreen> {
                       ],
                       stops: [0.0, 0.38, 0.75, 1.0],
                     ),
-                    borderRadius: BorderRadius.vertical(bottom: Radius.circular(28)),
+                    borderRadius: BorderRadius.vertical(
+                      bottom: Radius.circular(28),
+                    ),
                     boxShadow: [
                       BoxShadow(
                         color: Color(0xFF03192E),
@@ -199,7 +210,9 @@ class _StudentFormFillScreenState extends State<StudentFormFillScreen> {
                   ),
                   child: Stack(
                     children: [
-                      Positioned.fill(child: CustomPaint(painter: _HeaderOrbPainter())),
+                      Positioned.fill(
+                        child: CustomPaint(painter: _HeaderOrbPainter()),
+                      ),
                       Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
@@ -215,10 +228,14 @@ class _StudentFormFillScreenState extends State<StudentFormFillScreen> {
                                     width: 42,
                                     height: 42,
                                     decoration: BoxDecoration(
-                                      color: Colors.white.withValues(alpha: 0.16),
+                                      color: Colors.white.withValues(
+                                        alpha: 0.16,
+                                      ),
                                       shape: BoxShape.circle,
                                       border: Border.all(
-                                        color: Colors.white.withValues(alpha: 0.25),
+                                        color: Colors.white.withValues(
+                                          alpha: 0.25,
+                                        ),
                                         width: 1,
                                       ),
                                     ),
@@ -239,21 +256,31 @@ class _StudentFormFillScreenState extends State<StudentFormFillScreen> {
                                   ),
                                   decoration: BoxDecoration(
                                     color: submitted
-                                        ? const Color(0xFF10B981).withValues(alpha: 0.28)
+                                        ? const Color(
+                                            0xFF10B981,
+                                          ).withValues(alpha: 0.28)
                                         : (closed
-                                            ? const Color(0xFF64748B).withValues(alpha: 0.28)
-                                            : (form.isMandatory
-                                                ? const Color(0xFFEF4444).withValues(alpha: 0.3)
-                                                : Colors.white.withValues(alpha: 0.16))),
+                                              ? const Color(
+                                                  0xFF64748B,
+                                                ).withValues(alpha: 0.28)
+                                              : (form.isMandatory
+                                                    ? const Color(
+                                                        0xFFEF4444,
+                                                      ).withValues(alpha: 0.3)
+                                                    : Colors.white.withValues(
+                                                        alpha: 0.16,
+                                                      ))),
                                     borderRadius: BorderRadius.circular(20),
                                     border: Border.all(
                                       color: submitted
                                           ? const Color(0xFF34D399)
                                           : (closed
-                                              ? const Color(0xFF94A3B8)
-                                              : (form.isMandatory
-                                                  ? const Color(0xFFF87171)
-                                                  : Colors.white.withValues(alpha: 0.28))),
+                                                ? const Color(0xFF94A3B8)
+                                                : (form.isMandatory
+                                                      ? const Color(0xFFF87171)
+                                                      : Colors.white.withValues(
+                                                          alpha: 0.28,
+                                                        ))),
                                       width: 1,
                                     ),
                                   ),
@@ -264,10 +291,12 @@ class _StudentFormFillScreenState extends State<StudentFormFillScreen> {
                                         submitted
                                             ? Icons.check_circle_rounded
                                             : (closed
-                                                ? Icons.event_busy_rounded
-                                                : (form.isMandatory
-                                                    ? Icons.priority_high_rounded
-                                                    : Icons.edit_note_rounded)),
+                                                  ? Icons.event_busy_rounded
+                                                  : (form.isMandatory
+                                                        ? Icons
+                                                              .priority_high_rounded
+                                                        : Icons
+                                                              .edit_note_rounded)),
                                         size: 13,
                                         color: Colors.white,
                                       ),
@@ -276,10 +305,10 @@ class _StudentFormFillScreenState extends State<StudentFormFillScreen> {
                                         submitted
                                             ? 'Submitted'
                                             : (closed
-                                                ? 'Ended'
-                                                : (form.isMandatory
-                                                    ? 'Required'
-                                                    : 'Active')),
+                                                  ? 'Ended'
+                                                  : (form.isMandatory
+                                                        ? 'Required'
+                                                        : 'Active')),
                                         style: const TextStyle(
                                           color: Colors.white,
                                           fontSize: 12,
@@ -296,7 +325,10 @@ class _StudentFormFillScreenState extends State<StudentFormFillScreen> {
                           // Overline Kind Pill
                           if (form != null)
                             Container(
-                              padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 3.5),
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 9,
+                                vertical: 3.5,
+                              ),
                               margin: const EdgeInsets.only(bottom: 8),
                               decoration: BoxDecoration(
                                 color: Colors.white.withValues(alpha: 0.14),
@@ -306,7 +338,9 @@ class _StudentFormFillScreenState extends State<StudentFormFillScreen> {
                                 mainAxisSize: MainAxisSize.min,
                                 children: [
                                   Icon(
-                                    isPoll ? Icons.how_to_vote_rounded : Icons.assignment_rounded,
+                                    isPoll
+                                        ? Icons.how_to_vote_rounded
+                                        : Icons.assignment_rounded,
                                     color: Colors.white,
                                     size: 13,
                                   ),
@@ -381,7 +415,8 @@ class _StudentFormFillScreenState extends State<StudentFormFillScreen> {
                   sliver: SliverList(
                     delegate: SliverChildListDelegate([
                       // Description Card (if any)
-                      if (form.description != null && form.description!.trim().isNotEmpty) ...[
+                      if (form.description != null &&
+                          form.description!.trim().isNotEmpty) ...[
                         Container(
                           padding: const EdgeInsets.all(16),
                           decoration: BoxDecoration(
@@ -390,7 +425,9 @@ class _StudentFormFillScreenState extends State<StudentFormFillScreen> {
                             border: Border.all(color: const Color(0xFFE2E8F0)),
                             boxShadow: [
                               BoxShadow(
-                                color: const Color(0xFF0F172A).withValues(alpha: 0.03),
+                                color: const Color(
+                                  0xFF0F172A,
+                                ).withValues(alpha: 0.03),
                                 blurRadius: 10,
                                 offset: const Offset(0, 3),
                               ),
@@ -405,7 +442,9 @@ class _StudentFormFillScreenState extends State<StudentFormFillScreen> {
                                 decoration: BoxDecoration(
                                   color: const Color(0xFFF0F9FF),
                                   borderRadius: BorderRadius.circular(10),
-                                  border: Border.all(color: const Color(0xFFBAE6FD)),
+                                  border: Border.all(
+                                    color: const Color(0xFFBAE6FD),
+                                  ),
                                 ),
                                 alignment: Alignment.center,
                                 child: const Icon(
@@ -440,7 +479,9 @@ class _StudentFormFillScreenState extends State<StudentFormFillScreen> {
                             decoration: BoxDecoration(
                               color: const Color(0xFFF0FDF4),
                               borderRadius: BorderRadius.circular(18),
-                              border: Border.all(color: const Color(0xFFBBF7D0)),
+                              border: Border.all(
+                                color: const Color(0xFFBBF7D0),
+                              ),
                             ),
                             child: Row(
                               children: [
@@ -461,7 +502,8 @@ class _StudentFormFillScreenState extends State<StudentFormFillScreen> {
                                 const SizedBox(width: 14),
                                 Expanded(
                                   child: Column(
-                                    crossAxisAlignment: CrossAxisAlignment.start,
+                                    crossAxisAlignment:
+                                        CrossAxisAlignment.start,
                                     children: [
                                       const Text(
                                         'Response Recorded',
@@ -473,7 +515,9 @@ class _StudentFormFillScreenState extends State<StudentFormFillScreen> {
                                       ),
                                       const SizedBox(height: 2),
                                       Text(
-                                        (_response ?? form.myResponse)?.submittedAt == null
+                                        (_response ?? form.myResponse)
+                                                    ?.submittedAt ==
+                                                null
                                             ? 'You have answered this.'
                                             : 'Submitted on ${DateFormatting.dateTime((_response ?? form.myResponse)!.submittedAt!)}',
                                         style: const TextStyle(
@@ -496,7 +540,9 @@ class _StudentFormFillScreenState extends State<StudentFormFillScreen> {
                             decoration: BoxDecoration(
                               color: const Color(0xFFFEF2F2),
                               borderRadius: BorderRadius.circular(18),
-                              border: Border.all(color: const Color(0xFFFECACA)),
+                              border: Border.all(
+                                color: const Color(0xFFFECACA),
+                              ),
                             ),
                             child: Row(
                               children: [
@@ -517,7 +563,8 @@ class _StudentFormFillScreenState extends State<StudentFormFillScreen> {
                                 const SizedBox(width: 14),
                                 const Expanded(
                                   child: Column(
-                                    crossAxisAlignment: CrossAxisAlignment.start,
+                                    crossAxisAlignment:
+                                        CrossAxisAlignment.start,
                                     children: [
                                       Text(
                                         'Poll Ended',
@@ -552,7 +599,10 @@ class _StudentFormFillScreenState extends State<StudentFormFillScreen> {
                             decoration: BoxDecoration(
                               color: Colors.white,
                               borderRadius: BorderRadius.circular(20),
-                              border: Border.all(color: const Color(0xFFF1F5F9), width: 1.2),
+                              border: Border.all(
+                                color: const Color(0xFFF1F5F9),
+                                width: 1.2,
+                              ),
                               boxShadow: [
                                 BoxShadow(
                                   color: Colors.black.withValues(alpha: 0.03),
@@ -567,7 +617,8 @@ class _StudentFormFillScreenState extends State<StudentFormFillScreen> {
                                 _ExecutiveQuestionTitle(
                                   number: form.fields.length > 1 ? i + 1 : null,
                                   label: form.fields[i].label,
-                                  required: form.fields[i].required && !submitted,
+                                  required:
+                                      form.fields[i].required && !submitted,
                                 ),
                                 const SizedBox(height: 14),
                                 if (submitted)
@@ -582,15 +633,19 @@ class _StudentFormFillScreenState extends State<StudentFormFillScreen> {
                                   AnswerInput(
                                     field: form.fields[i],
                                     value: _answers[form.fields[i].answerKey],
-                                    textController: switch (form.fields[i].type) {
-                                      FormFieldType.text ||
-                                      FormFieldType.textarea ||
-                                      FormFieldType.number =>
-                                        _textFor(form.fields[i]),
-                                      _ => null,
-                                    },
-                                    onChanged: (v) =>
-                                        setState(() => _answers[form.fields[i].answerKey] = v),
+                                    textController:
+                                        switch (form.fields[i].type) {
+                                          FormFieldType.text ||
+                                          FormFieldType.textarea ||
+                                          FormFieldType.number => _textFor(
+                                            form.fields[i],
+                                          ),
+                                          _ => null,
+                                        },
+                                    onChanged: (v) => setState(
+                                      () => _answers[form.fields[i].answerKey] =
+                                          v,
+                                    ),
                                   ),
                               ],
                             ),
@@ -649,26 +704,28 @@ class _ExecutiveQuestionTitle extends StatelessWidget {
           child: Padding(
             padding: const EdgeInsets.only(top: 2),
             child: Text.rich(
-              TextSpan(children: [
-                TextSpan(
-                  text: label,
-                  style: const TextStyle(
-                    fontSize: 15.5,
-                    fontWeight: FontWeight.w700,
-                    color: Color(0xFF0F172A),
-                    height: 1.3,
-                  ),
-                ),
-                if (required)
-                  const TextSpan(
-                    text: ' *',
-                    style: TextStyle(
-                      color: Color(0xFFE11D48),
-                      fontSize: 16,
-                      fontWeight: FontWeight.w800,
+              TextSpan(
+                children: [
+                  TextSpan(
+                    text: label,
+                    style: const TextStyle(
+                      fontSize: 15.5,
+                      fontWeight: FontWeight.w700,
+                      color: Color(0xFF0F172A),
+                      height: 1.3,
                     ),
                   ),
-              ]),
+                  if (required)
+                    const TextSpan(
+                      text: ' *',
+                      style: TextStyle(
+                        color: Color(0xFFE11D48),
+                        fontSize: 16,
+                        fontWeight: FontWeight.w800,
+                      ),
+                    ),
+                ],
+              ),
             ),
           ),
         ),
@@ -736,7 +793,7 @@ class _HeaderOrbPainter extends CustomPainter {
     canvas.drawCircle(Offset(size.width * 0.9, size.height * 0.2), 65, orb1);
 
     final orb2 = Paint()
-      ..color = const Color(0xFF7C3AED).withValues(alpha: 0.2)
+      ..color = const Color(0xFF0369A1).withValues(alpha: 0.18)
       ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 55);
     canvas.drawCircle(Offset(size.width * 0.1, size.height * 0.8), 75, orb2);
   }

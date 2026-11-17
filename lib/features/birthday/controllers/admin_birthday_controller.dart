@@ -6,10 +6,13 @@ import 'package:get/get.dart';
 import 'package:intl/intl.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:url_launcher/url_launcher.dart';
+import '../../../core/enums/user_role.dart';
 import '../../../core/models/birthday/birthday_models.dart';
 import '../../../core/network/repository/birthday/birthday_repository.dart';
+import '../../../core/storage/session_store.dart';
 import '../../../core/utils/app_snackbar.dart';
 import '../../../core/utils/date_formatting.dart';
+import '../../phonebook/models/phonebook_models.dart';
 import '../../phonebook/services/phonebook_database_service.dart';
 import '../../phonebook/services/phonebook_sync_service.dart';
 
@@ -19,6 +22,15 @@ class AdminBirthdayController extends GetxController {
   final Rxn<BirthdayDashboardData> dashboard = Rxn<BirthdayDashboardData>();
   final RxList<BirthdayStudentModel> allStudents = <BirthdayStudentModel>[].obs;
 
+  final RxBool isLeader = (Get.isRegistered<SessionStore>() && Get.find<SessionStore>().isLeader).obs;
+  final RxnString leaderGroup = RxnString(
+    Get.isRegistered<SessionStore>()
+        ? Get.find<SessionStore>().currentSession?.studentProfile?.groupName
+        : null,
+  );
+  final RxString leaderTemplate = ''.obs;
+  final TextEditingController leaderTemplateController = TextEditingController();
+
   final RxBool isLoading = false.obs;
   final RxBool isSaving = false.obs;
   final RxBool isTriggering = false.obs;
@@ -27,7 +39,254 @@ class AdminBirthdayController extends GetxController {
   final RxString error = ''.obs;
 
   final RxInt selectedTab = 0.obs;
-  final RxString directoryFilter = 'all'.obs; // 'all', 'hostel', 'alumni', 'has_dob'
+  final RxString directoryFilter = 'all'.obs; // 'all', 'hostel', 'alumni', 'has_dob', 'no_dob'
+
+  static const List<String> hshGroups = [
+    'All',
+    'Param',
+    'Pavitra',
+    'Pulkit',
+    'Paramanand',
+    'Alumni',
+  ];
+
+  static const List<String> floorOptions = [
+    'All',
+    'Ground',
+    'Floor 1',
+    'Floor 2',
+    'Floor 3',
+    'Floor 4',
+    'Floor 5',
+    'Floor 6',
+    'Floor 7',
+    'Floor 8',
+  ];
+
+  static int? floorNumberOf(String option) {
+    if (option == 'Ground') return 0;
+    return int.tryParse(option.replaceAll(RegExp(r'\D'), ''));
+  }
+
+  static const List<String> statusOptions = [
+    'All',
+    'Active Residents',
+    'Alumni / Left',
+  ];
+
+  static const List<String> sortOptions = [
+    'Default (Hostel First)',
+    'Name (A-Z)',
+    'Name (Z-A)',
+    'Room (Low-High)',
+    'Room (High-Low)',
+    'Floor (Low-High)',
+    'Floor (High-Low)',
+  ];
+
+  // Filters & Sorting state
+  final RxString selectedGroup = 'All'.obs;
+  final RxString selectedFloor = 'All'.obs;
+  final RxString selectedStatus = 'All'.obs; // 'All', 'Active Residents', 'Alumni / Left'
+  final RxString selectedSort = 'Default (Hostel First)'.obs;
+
+  final RxBool onlyWithDob = false.obs;
+  final RxBool onlyWithoutDob = false.obs;
+  final RxBool onlyWithWhatsApp = false.obs;
+  final RxBool onlyWithParents = false.obs;
+  final RxBool onlyWithPhone = false.obs;
+
+  int get activeFilterCount {
+    int count = 0;
+    if (selectedGroup.value != 'All') count++;
+    if (selectedFloor.value != 'All') count++;
+    if (selectedStatus.value != 'All') count++;
+    if (directoryFilter.value != 'all') count++;
+    if (onlyWithDob.value) count++;
+    if (onlyWithoutDob.value) count++;
+    if (onlyWithWhatsApp.value) count++;
+    if (onlyWithParents.value) count++;
+    if (onlyWithPhone.value) count++;
+    if (selectedSort.value != 'Default (Hostel First)') count++;
+    return count;
+  }
+
+  void selectGroup(String group) {
+    if (isLeader.value) return; // Group is locked to leader's assigned group
+    if (selectedGroup.value == group) {
+      selectedGroup.value = 'All';
+    } else {
+      selectedGroup.value = group;
+    }
+  }
+
+  void selectFloor(String floor) {
+    if (selectedFloor.value == floor) {
+      selectedFloor.value = 'All';
+    } else {
+      selectedFloor.value = floor;
+    }
+  }
+
+  void selectStatus(String status) {
+    if (selectedStatus.value == status) {
+      selectedStatus.value = 'All';
+      if (directoryFilter.value == 'hostel' || directoryFilter.value == 'alumni') {
+        directoryFilter.value = 'all';
+      }
+    } else {
+      selectedStatus.value = status;
+      if (status == 'Active Residents') {
+        directoryFilter.value = 'hostel';
+      } else if (status == 'Alumni / Left') {
+        directoryFilter.value = 'alumni';
+      }
+    }
+  }
+
+  void selectSort(String sort) {
+    selectedSort.value = sort;
+  }
+
+  void toggleOnlyWithDob(bool val) {
+    onlyWithDob.value = val;
+    if (val) {
+      onlyWithoutDob.value = false;
+      if (directoryFilter.value == 'no_dob') directoryFilter.value = 'has_dob';
+    }
+  }
+
+  void toggleOnlyWithoutDob(bool val) {
+    onlyWithoutDob.value = val;
+    if (val) {
+      onlyWithDob.value = false;
+      if (directoryFilter.value == 'has_dob') directoryFilter.value = 'no_dob';
+    }
+  }
+
+  void toggleOnlyWithWhatsApp(bool val) {
+    onlyWithWhatsApp.value = val;
+  }
+
+  void toggleOnlyWithParents(bool val) {
+    onlyWithParents.value = val;
+  }
+
+  void toggleOnlyWithPhone(bool val) {
+    onlyWithPhone.value = val;
+  }
+
+  void resetAllFilters() {
+    selectedGroup.value = isLeader.value ? (leaderGroup.value ?? 'All') : 'All';
+    selectedFloor.value = 'All';
+    selectedStatus.value = 'All';
+    directoryFilter.value = 'all';
+    onlyWithDob.value = false;
+    onlyWithoutDob.value = false;
+    onlyWithWhatsApp.value = false;
+    onlyWithParents.value = false;
+    onlyWithPhone.value = false;
+    selectedSort.value = 'Default (Hostel First)';
+  }
+
+  List<BirthdayStudentModel> get filteredStudents {
+    final list = allStudents.where((s) {
+      // 1. Group filter
+      if (selectedGroup.value != 'All') {
+        final g = (groupFor(s) ?? '').toLowerCase().trim();
+        final selG = selectedGroup.value.toLowerCase();
+        if (selG == 'alumni') {
+          if (!isAlumni(s) && g != 'alumni') return false;
+        } else {
+          if (g != selG) return false;
+        }
+      }
+
+      // 2. Floor filter
+      if (selectedFloor.value != 'All') {
+        final expectedFloor = floorNumberOf(selectedFloor.value);
+        final studentFloor = PhonebookStudent.floorOfRoom(s.room);
+        if (studentFloor != expectedFloor) return false;
+      }
+
+      // 3. Status filter / directoryFilter
+      final alumni = isAlumni(s);
+      if (selectedStatus.value == 'Active Residents' && alumni) return false;
+      if (selectedStatus.value == 'Alumni / Left' && !alumni) return false;
+
+      if (directoryFilter.value == 'hostel' && alumni) return false;
+      if (directoryFilter.value == 'alumni' && !alumni) return false;
+      if (directoryFilter.value == 'has_dob' && s.dob.trim().isEmpty) return false;
+      if (directoryFilter.value == 'no_dob' && s.dob.trim().isNotEmpty) return false;
+
+      // 4. Toggle attributes
+      if (onlyWithDob.value && s.dob.trim().isEmpty) return false;
+      if (onlyWithoutDob.value && s.dob.trim().isNotEmpty) return false;
+      if (onlyWithWhatsApp.value && s.whatsappNumber.trim().isEmpty) return false;
+      if (onlyWithParents.value && s.parentPhone.trim().isEmpty) return false;
+      if (onlyWithPhone.value && s.phone.trim().isEmpty) return false;
+
+      return true;
+    }).toList();
+
+    // 5. Sorting
+    switch (selectedSort.value) {
+      case 'Name (A-Z)':
+        list.sort((a, b) => a.name.toLowerCase().compareTo(b.name.toLowerCase()));
+        break;
+      case 'Name (Z-A)':
+        list.sort((a, b) => b.name.toLowerCase().compareTo(a.name.toLowerCase()));
+        break;
+      case 'Room (Low-High)':
+        list.sort((a, b) {
+          final roomA = int.tryParse(a.room.replaceAll(RegExp(r'\D'), ''));
+          final roomB = int.tryParse(b.room.replaceAll(RegExp(r'\D'), ''));
+          if (roomA != null && roomB != null && roomA != roomB) {
+            return roomA.compareTo(roomB);
+          }
+          return a.room.compareTo(b.room);
+        });
+        break;
+      case 'Room (High-Low)':
+        list.sort((a, b) {
+          final roomA = int.tryParse(a.room.replaceAll(RegExp(r'\D'), ''));
+          final roomB = int.tryParse(b.room.replaceAll(RegExp(r'\D'), ''));
+          if (roomA != null && roomB != null && roomA != roomB) {
+            return roomB.compareTo(roomA);
+          }
+          return b.room.compareTo(a.room);
+        });
+        break;
+      case 'Floor (Low-High)':
+        list.sort((a, b) {
+          final floorA = PhonebookStudent.floorOfRoom(a.room) ?? 99;
+          final floorB = PhonebookStudent.floorOfRoom(b.room) ?? 99;
+          if (floorA != floorB) return floorA.compareTo(floorB);
+          final roomA = int.tryParse(a.room.replaceAll(RegExp(r'\D'), '')) ?? 0;
+          final roomB = int.tryParse(b.room.replaceAll(RegExp(r'\D'), '')) ?? 0;
+          if (roomA != roomB) return roomA.compareTo(roomB);
+          return a.name.toLowerCase().compareTo(b.name.toLowerCase());
+        });
+        break;
+      case 'Floor (High-Low)':
+        list.sort((a, b) {
+          final floorA = PhonebookStudent.floorOfRoom(a.room) ?? -1;
+          final floorB = PhonebookStudent.floorOfRoom(b.room) ?? -1;
+          if (floorA != floorB) return floorB.compareTo(floorA);
+          final roomA = int.tryParse(a.room.replaceAll(RegExp(r'\D'), '')) ?? 0;
+          final roomB = int.tryParse(b.room.replaceAll(RegExp(r'\D'), '')) ?? 0;
+          if (roomA != roomB) return roomA.compareTo(roomB);
+          return a.name.toLowerCase().compareTo(b.name.toLowerCase());
+        });
+        break;
+      case 'Default (Hostel First)':
+      default:
+        sortStudentsList(list);
+        break;
+    }
+
+    return list;
+  }
 
   // Template editor & config fields
   /// Body of the template open in the editor (see [editingTemplateId]).
@@ -38,6 +297,7 @@ class AdminBirthdayController extends GetxController {
   late TextEditingController searchController;
   late TextEditingController pairPhoneController;
 
+  final RxString adminPhone = ''.obs;
   final RxString sendTime = '08:00'.obs;
   final RxString targetAudience = 'student_only'.obs;
   final RxBool preferWhatsApp = true.obs;
@@ -84,17 +344,41 @@ class AdminBirthdayController extends GetxController {
   @override
   void onInit() {
     super.onInit();
+    if (Get.isRegistered<SessionStore>()) {
+      final session = Get.find<SessionStore>().currentSession;
+      if (session != null) {
+        if (session.role == UserRole.leader || Get.find<SessionStore>().isLeader) {
+          isLeader.value = true;
+          final grp = session.studentProfile?.groupName;
+          if (grp != null && grp.isNotEmpty) {
+            leaderGroup.value = grp;
+          }
+        }
+      }
+    }
+
+    if (isLeader.value && leaderGroup.value != null && leaderGroup.value!.isNotEmpty) {
+      selectedGroup.value = leaderGroup.value!;
+    }
+
     templateController = TextEditingController()..addListener(_onEditorChanged);
     templateNameController = TextEditingController()..addListener(_onEditorChanged);
     testPhoneController = TextEditingController();
-    adminPhoneController = TextEditingController();
+    adminPhoneController = TextEditingController()
+      ..addListener(() => adminPhone.value = adminPhoneController.text);
     searchController = TextEditingController();
     pairPhoneController = TextEditingController();
+
+    if (isLeader.value) {
+      _loadLeaderTemplate();
+    }
 
     _checkIfAlreadySentToday();
     _loadPhonebookInfo();
     loadDashboard();
-    fetchWhatsAppStatus();
+    if (!isLeader.value) {
+      fetchWhatsAppStatus();
+    }
   }
 
   Future<void> _checkIfAlreadySentToday() async {
@@ -110,6 +394,7 @@ class AdminBirthdayController extends GetxController {
   @override
   void onClose() {
     stopLinkingPolling();
+    leaderTemplateController.dispose();
     templateController.dispose();
     templateNameController.dispose();
     testPhoneController.dispose();
@@ -123,13 +408,21 @@ class AdminBirthdayController extends GetxController {
     isLoading.value = true;
     error.value = '';
     try {
-      final data = await _repository.fetchDashboard();
+      final grp = isLeader.value ? leaderGroup.value : null;
+      final data = await _repository.fetchDashboard(group: grp);
 
       // Ensure celebrants are stably sorted: active hostel students first, then alumni
       final sortedTodays = [...data.todaysBirthdays];
       sortStudentsList(sortedTodays);
       final sortedTomorrows = [...data.tomorrowsBirthdays];
       sortStudentsList(sortedTomorrows);
+
+      final isCurrentLeader = data.isLeader || (Get.isRegistered<SessionStore>() && (Get.find<SessionStore>().currentSession?.role == UserRole.leader));
+      isLeader.value = isCurrentLeader;
+      leaderGroup.value = data.leaderGroup;
+      if (isCurrentLeader && data.leaderGroup != null && data.leaderGroup!.isNotEmpty) {
+        selectedGroup.value = data.leaderGroup!;
+      }
 
       dashboard.value = BirthdayDashboardData(
         config: data.config,
@@ -138,7 +431,19 @@ class AdminBirthdayController extends GetxController {
         recentLogs: data.recentLogs,
         isWhatsAppConnected: data.isWhatsAppConnected,
         senderPhone: data.senderPhone,
+        isLeader: isCurrentLeader,
+        leaderGroup: data.leaderGroup,
+        leaderTemplate: data.leaderTemplate,
       );
+
+      if (data.leaderTemplate != null && data.leaderTemplate!.trim().isNotEmpty) {
+        leaderTemplate.value = data.leaderTemplate!;
+        leaderTemplateController.text = data.leaderTemplate!;
+        final prefs = await SharedPreferences.getInstance();
+        await prefs.setString('leader_birthday_wish_template', data.leaderTemplate!);
+      } else if (leaderTemplate.value.isEmpty && isCurrentLeader) {
+        await _loadLeaderTemplate();
+      }
 
       // Sync form fields
       isAutoEnabled.value = data.config.isEnabled;
@@ -147,6 +452,7 @@ class AdminBirthdayController extends GetxController {
       preferWhatsApp.value = data.config.preferWhatsAppNumber;
       await _loadTemplates(data.config);
       adminPhoneController.text = data.config.adminNotificationPhone ?? '';
+      adminPhone.value = adminPhoneController.text;
 
       // Sync WA connection state
       if (data.senderPhone != null && data.senderPhone!.isNotEmpty) {
@@ -181,7 +487,7 @@ class AdminBirthdayController extends GetxController {
   Future<void> _loadPhonebookInfo() async {
     try {
       var info = await PhonebookDatabaseService.instance.groupInfoByBankCode();
-      if (info.isEmpty) {
+      if (info.isEmpty && !isLeader.value) {
         final result = await PhonebookSyncService.instance.syncDirectory();
         if (result.success) {
           info = await PhonebookDatabaseService.instance.groupInfoByBankCode();
@@ -499,6 +805,10 @@ class AdminBirthdayController extends GetxController {
   }
 
   Future<void> toggleAutomation(bool enabled) async {
+    if (isLeader.value) {
+      AppSnackbar.warning('Access Denied', 'Global automation settings can only be modified by hostel administrators.');
+      return;
+    }
     final current = dashboard.value?.config;
     if (current == null) return;
     isAutoEnabled.value = enabled;
@@ -526,6 +836,10 @@ class AdminBirthdayController extends GetxController {
   }
 
   Future<void> saveSettings() async {
+    if (isLeader.value) {
+      AppSnackbar.warning('Access Denied', 'Global automation settings can only be modified by hostel administrators.');
+      return;
+    }
     // Close the keyboard (template / admin phone field) when saving.
     FocusManager.instance.primaryFocus?.unfocus();
     final current = dashboard.value?.config;
@@ -589,9 +903,6 @@ class AdminBirthdayController extends GetxController {
 
     isTriggering.value = true;
     try {
-      // Auto-save edited templates so the backend dispatches with the latest ones
-      await _autoSaveTemplates();
-
       final result = await _repository.triggerWishes();
       final count = result['count'] is num ? (result['count'] as num).toInt() : 0;
 
@@ -654,9 +965,6 @@ class AdminBirthdayController extends GetxController {
 
     isTriggering.value = true;
     try {
-      // Auto-save edited templates so the backend delivers the latest ones
-      await _autoSaveTemplates();
-
       final res = await _repository.triggerWishes(testPhone: phone);
       if (res['success'] == false) {
         AppSnackbar.warning(
@@ -676,7 +984,13 @@ class AdminBirthdayController extends GetxController {
   Future<void> fetchStudents({String? query}) async {
     isLoadingStudents.value = true;
     try {
-      final students = await _repository.fetchAllStudents(search: query);
+      final effectiveGroup = isLeader.value
+          ? leaderGroup.value
+          : (selectedGroup.value != 'All' ? selectedGroup.value : null);
+      final students = await _repository.fetchAllStudents(
+        search: query,
+        group: effectiveGroup,
+      );
       sortStudentsList(students);
       allStudents.assignAll(students);
     } catch (e) {
@@ -764,6 +1078,30 @@ class AdminBirthdayController extends GetxController {
   String activeBody(String audience) => _findTemplate(activeTemplateIds[audience])?.body.trim() ?? '';
 
   bool get hasUnsavedTemplateChanges => _templatesSnapshot() != _savedTemplatesSnapshot;
+
+  /// Returns true if any setting (target audience, send time, admin phone, or templates)
+  /// has been modified from the last saved configuration.
+  bool get hasUnsavedChanges {
+    final config = dashboard.value?.config;
+    if (config == null) return false;
+    if (targetAudience.value != config.targetAudience) return true;
+    if (sendTime.value != config.sendTime) return true;
+    final savedAdminPhone = (config.adminNotificationPhone ?? '').trim();
+    if (adminPhone.value.trim() != savedAdminPhone) return true;
+    if (hasUnsavedTemplateChanges) return true;
+    return false;
+  }
+
+  /// Reverts all settings and templates back to the last saved configuration from the server.
+  void discardUnsavedChanges() {
+    final config = dashboard.value?.config;
+    if (config == null) return;
+    targetAudience.value = config.targetAudience;
+    sendTime.value = config.sendTime;
+    adminPhoneController.text = config.adminNotificationPhone ?? '';
+    adminPhone.value = adminPhoneController.text;
+    _loadTemplates(config);
+  }
 
   void selectTemplateAudience(String audience) {
     editingAudience.value = audience;
@@ -914,15 +1252,7 @@ class AdminBirthdayController extends GetxController {
     }
   }
 
-  /// Saves template edits before a send so the server uses what the admin sees.
-  Future<void> _autoSaveTemplates() async {
-    final config = dashboard.value?.config;
-    if (config == null || !hasUnsavedTemplateChanges || _templateProblem() != null) return;
-    try {
-      await _repository.saveConfig(_withTemplates(config));
-      await _markTemplatesSaved();
-    } catch (_) {}
-  }
+
 
   void insertVariableTag(String tag) {
     final text = templateController.text;
@@ -938,15 +1268,91 @@ class AdminBirthdayController extends GetxController {
     }
   }
 
+  String defaultLeaderTemplate() {
+    final group = leaderGroup.value;
+    final groupPart = (group != null && group.isNotEmpty) ? '$group Group Leader' : 'Hostel Leader';
+    final leaderName = Get.isRegistered<SessionStore>()
+        ? (Get.find<SessionStore>().currentSession?.name ?? '')
+        : '';
+    final sign = leaderName.isNotEmpty ? '- $leaderName ($groupPart)' : '- $groupPart';
+
+    return 'Jay Swaminarayan {first_name}!\n\n'
+        'Wishing you a very Happy Birthday! 🎉🎂\n'
+        'May Maharaj and Swami bless you with good health, happiness, and great success in your studies! 🌟✨\n\n'
+        '$sign';
+  }
+
+  Future<void> _loadLeaderTemplate() async {
+    final prefs = await SharedPreferences.getInstance();
+    final cached = prefs.getString('leader_birthday_wish_template');
+    if (cached != null && cached.trim().isNotEmpty) {
+      leaderTemplate.value = cached;
+      leaderTemplateController.text = cached;
+    } else {
+      final def = defaultLeaderTemplate();
+      leaderTemplate.value = def;
+      leaderTemplateController.text = def;
+    }
+  }
+
+  Future<void> saveLeaderTemplate() async {
+    final text = leaderTemplateController.text.trim();
+    if (text.isEmpty) {
+      AppSnackbar.warning('Empty Template', 'Please enter a message for your birthday wish template.');
+      return;
+    }
+    isSaving.value = true;
+    try {
+      leaderTemplate.value = text;
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setString('leader_birthday_wish_template', text);
+      await _repository.saveLeaderTemplate(text);
+      AppSnackbar.success('Template Saved', 'Your custom group birthday template has been saved.');
+    } catch (e) {
+      AppSnackbar.info('Saved Locally', 'Template saved on device.');
+    } finally {
+      isSaving.value = false;
+    }
+  }
+
+  void resetLeaderTemplateToDefault() {
+    final def = defaultLeaderTemplate();
+    leaderTemplateController.text = def;
+    leaderTemplate.value = def;
+  }
+
+  void insertLeaderPlaceholder(String tag) {
+    final text = leaderTemplateController.text;
+    final selection = leaderTemplateController.selection;
+    if (selection.start >= 0 && selection.end >= 0) {
+      final newText = text.replaceRange(selection.start, selection.end, tag);
+      leaderTemplateController.value = TextEditingValue(
+        text: newText,
+        selection: TextSelection.collapsed(offset: selection.start + tag.length),
+      );
+    } else {
+      leaderTemplateController.text = text + tag;
+    }
+  }
+
   /// Formats the greeting message for a student based on current template settings
   String formatWishMessage(BirthdayStudentModel student) {
-    // Manual sends go to the student, so they use the active student template.
-    String template = activeBody(BirthdayAudience.student);
-    if (template.isEmpty) {
-      template = dashboard.value?.config.messageTemplate ?? '';
-    }
-    if (template.isEmpty) {
-      template = 'Hare Krishna {first_name}! Wishing you a very Happy Birthday from Hari Saurabh Hostel!';
+    String template;
+    if (isLeader.value) {
+      if (leaderTemplate.value.trim().isNotEmpty) {
+        template = leaderTemplate.value;
+      } else {
+        template = defaultLeaderTemplate();
+      }
+    } else {
+      // Manual sends go to the student, so they use the active student template.
+      template = activeBody(BirthdayAudience.student);
+      if (template.isEmpty) {
+        template = dashboard.value?.config.messageTemplate ?? '';
+      }
+      if (template.isEmpty) {
+        template = 'Hare Krishna {first_name}! Wishing you a very Happy Birthday from Hari Saurabh Hostel!';
+      }
     }
 
     final fullName = student.name.trim();
@@ -954,7 +1360,13 @@ class AdminBirthdayController extends GetxController {
     final room = (student.room.isEmpty || student.room == 'N/A') ? '' : student.room;
     final code = student.studentCode;
 
-    return fillTemplate(template, firstName: firstName, fullName: fullName, room: room, code: code);
+    var formatted = fillTemplate(template, firstName: firstName, fullName: fullName, room: room, code: code);
+    if (isLeader.value && formatted.contains('- HSH Warden Team')) {
+      final group = leaderGroup.value;
+      final sig = (group != null && group.isNotEmpty) ? '- $group Group Leader' : '- Hostel Leader';
+      formatted = formatted.replaceAll('- HSH Warden Team', sig);
+    }
+    return formatted;
   }
 
   /// Replaces the template placeholders. Shared by real sends and the Template Studio preview.

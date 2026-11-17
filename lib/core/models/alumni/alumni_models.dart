@@ -525,3 +525,235 @@ class AlumniAdminStatsModel {
     );
   }
 }
+
+// ============================================================================
+// DAILY ALUMNI OUTREACH & CONNECT MODELS
+// ============================================================================
+
+class AlumniOutreachStudentModel {
+  final int? outreachId;
+  final int studentId;
+  final String name;
+  final String studentCode;
+  final String phone;
+  final String whatsappNumber;
+  final String pastRoom;
+  final int? graduationYear;
+  final String? currentCompany;
+  final String? currentDesignation;
+  final String? currentCity;
+  final String groupName;
+  final String status; // 'pending' | 'messaged'
+  final String? message;
+  final String? contactedAt;
+
+  const AlumniOutreachStudentModel({
+    this.outreachId,
+    required this.studentId,
+    required this.name,
+    this.studentCode = '',
+    this.phone = '',
+    this.whatsappNumber = '',
+    this.pastRoom = 'N/A',
+    this.graduationYear,
+    this.currentCompany,
+    this.currentDesignation,
+    this.currentCity,
+    this.groupName = '',
+    this.status = 'pending',
+    this.message,
+    this.contactedAt,
+  });
+
+  bool get isMessaged => status.toLowerCase() == 'messaged';
+  bool get isPending => !isMessaged;
+
+  String get targetWhatsAppPhone {
+    final raw = whatsappNumber.trim().isNotEmpty ? whatsappNumber : phone;
+    return raw.replaceAll(RegExp(r'[^0-9]'), '');
+  }
+
+  String get initials {
+    final parts = name.trim().split(RegExp(r'\s+'));
+    if (parts.isEmpty || parts.first.isEmpty) return 'A';
+    if (parts.length == 1) return parts.first[0].toUpperCase();
+    return '${parts.first[0]}${parts.last[0]}'.toUpperCase();
+  }
+
+  String get batchLabel => graduationYear != null ? 'Batch of $graduationYear' : 'Past Resident';
+
+  String get currentRoleLine {
+    if ((currentDesignation ?? '').isNotEmpty && (currentCompany ?? '').isNotEmpty) {
+      return '$currentDesignation at $currentCompany';
+    }
+    if ((currentDesignation ?? '').isNotEmpty) return currentDesignation!;
+    if ((currentCompany ?? '').isNotEmpty) return 'Working at $currentCompany';
+    if ((currentCity ?? '').isNotEmpty) return currentCity!;
+    return 'Alumnus ($pastRoom)';
+  }
+
+  /// Whether there is real work or city info (not the room fallback of
+  /// [currentRoleLine]).
+  bool get hasWorkInfo =>
+      (currentDesignation ?? '').isNotEmpty || (currentCompany ?? '').isNotEmpty || (currentCity ?? '').isNotEmpty;
+
+  /// This alumnus after [message] was sent [at] (default: now).
+  AlumniOutreachStudentModel markedMessaged(String message, {DateTime? at}) => AlumniOutreachStudentModel(
+        outreachId: outreachId,
+        studentId: studentId,
+        name: name,
+        studentCode: studentCode,
+        phone: phone,
+        whatsappNumber: whatsappNumber,
+        pastRoom: pastRoom,
+        graduationYear: graduationYear,
+        currentCompany: currentCompany,
+        currentDesignation: currentDesignation,
+        currentCity: currentCity,
+        groupName: groupName,
+        status: 'messaged',
+        message: message,
+        contactedAt: (at ?? DateTime.now()).toIso8601String(),
+      );
+
+  factory AlumniOutreachStudentModel.fromJson(Map<String, dynamic> json) {
+    return AlumniOutreachStudentModel(
+      outreachId: json['outreachId'] != null ? int.tryParse(json['outreachId'].toString()) : null,
+      studentId: int.tryParse(json['studentId']?.toString() ?? '0') ?? 0,
+      name: json['name']?.toString() ?? '',
+      studentCode: json['studentCode']?.toString() ?? '',
+      phone: json['phone']?.toString() ?? '',
+      whatsappNumber: json['whatsappNumber']?.toString() ?? '',
+      pastRoom: json['pastRoom']?.toString() ?? 'N/A',
+      graduationYear: json['graduationYear'] != null ? int.tryParse(json['graduationYear'].toString()) : null,
+      currentCompany: json['currentCompany']?.toString(),
+      currentDesignation: json['currentDesignation']?.toString(),
+      currentCity: json['currentCity']?.toString(),
+      groupName: json['groupName']?.toString() ?? '',
+      status: json['status']?.toString() ?? 'pending',
+      message: json['message']?.toString(),
+      contactedAt: json['contactedAt']?.toString(),
+    );
+  }
+}
+
+class AlumniDailyOutreachDataModel {
+  final String groupName;
+  final String date;
+  final int targetDailyCount;
+  final int contactedTodayCount;
+  final int totalAlumniInGroup;
+  final int totalMessagedAlumni;
+  final String messageTemplate;
+  final List<AlumniOutreachStudentModel> students;
+
+  const AlumniDailyOutreachDataModel({
+    required this.groupName,
+    required this.date,
+    this.targetDailyCount = 5,
+    this.contactedTodayCount = 0,
+    this.totalAlumniInGroup = 0,
+    this.totalMessagedAlumni = 0,
+    this.messageTemplate = '',
+    this.students = const [],
+  });
+
+  bool get isAllCompleted => contactedTodayCount >= targetDailyCount && targetDailyCount > 0;
+  double get progressRatio => targetDailyCount > 0 ? (contactedTodayCount / targetDailyCount).clamp(0.0, 1.0) : 0.0;
+
+  factory AlumniDailyOutreachDataModel.fromJson(Map<String, dynamic> json) {
+    final list = <AlumniOutreachStudentModel>[];
+    if (json['students'] is List) {
+      for (final item in (json['students'] as List)) {
+        list.add(AlumniOutreachStudentModel.fromJson(item as Map<String, dynamic>));
+      }
+    }
+
+    return AlumniDailyOutreachDataModel(
+      groupName: json['groupName']?.toString() ?? '',
+      date: json['date']?.toString() ?? '',
+      targetDailyCount: int.tryParse(json['targetDailyCount']?.toString() ?? '5') ?? 5,
+      contactedTodayCount: int.tryParse(json['contactedTodayCount']?.toString() ?? '0') ?? 0,
+      totalAlumniInGroup: int.tryParse(json['totalAlumniInGroup']?.toString() ?? '0') ?? 0,
+      totalMessagedAlumni: int.tryParse(json['totalMessagedAlumni']?.toString() ?? '0') ?? 0,
+      messageTemplate: json['messageTemplate']?.toString() ?? '',
+      students: list,
+    );
+  }
+}
+
+class AlumniOutreachConfigModel {
+  final String messageTemplate;
+  final int dailyCount;
+
+  const AlumniOutreachConfigModel({
+    required this.messageTemplate,
+    this.dailyCount = 5,
+  });
+
+  factory AlumniOutreachConfigModel.fromJson(Map<String, dynamic> json) {
+    return AlumniOutreachConfigModel(
+      messageTemplate: json['messageTemplate']?.toString() ?? '',
+      dailyCount: int.tryParse(json['dailyCount']?.toString() ?? '5') ?? 5,
+    );
+  }
+}
+
+class AlumniOutreachHistoryModel {
+  final int id;
+  final int studentId;
+  final String name;
+  final String studentCode;
+  final String phone;
+  final String whatsappNumber;
+  final String pastRoom;
+  final int? graduationYear;
+  final String? currentCompany;
+  final String? currentDesignation;
+  final String? currentCity;
+  final String groupName;
+  final String outreachDate;
+  final String? contactedAt;
+  final String message;
+  final String leaderName;
+
+  const AlumniOutreachHistoryModel({
+    required this.id,
+    required this.studentId,
+    required this.name,
+    this.studentCode = '',
+    this.phone = '',
+    this.whatsappNumber = '',
+    this.pastRoom = 'N/A',
+    this.graduationYear,
+    this.currentCompany,
+    this.currentDesignation,
+    this.currentCity,
+    this.groupName = '',
+    this.outreachDate = '',
+    this.contactedAt,
+    this.message = '',
+    this.leaderName = 'Leader',
+  });
+
+  factory AlumniOutreachHistoryModel.fromJson(Map<String, dynamic> json) {
+    return AlumniOutreachHistoryModel(
+      id: int.tryParse(json['id']?.toString() ?? '0') ?? 0,
+      studentId: int.tryParse(json['studentId']?.toString() ?? '0') ?? 0,
+      name: json['name']?.toString() ?? '',
+      studentCode: json['studentCode']?.toString() ?? '',
+      phone: json['phone']?.toString() ?? '',
+      whatsappNumber: json['whatsappNumber']?.toString() ?? '',
+      pastRoom: json['pastRoom']?.toString() ?? 'N/A',
+      graduationYear: json['graduationYear'] != null ? int.tryParse(json['graduationYear'].toString()) : null,
+      currentCompany: json['currentCompany']?.toString(),
+      currentDesignation: json['currentDesignation']?.toString(),
+      currentCity: json['currentCity']?.toString(),
+      groupName: json['groupName']?.toString() ?? '',
+      outreachDate: json['outreachDate']?.toString() ?? '',
+      contactedAt: json['contactedAt']?.toString(),
+      message: json['message']?.toString() ?? '',
+      leaderName: json['leaderName']?.toString() ?? 'Leader',
+    );
+  }
+}

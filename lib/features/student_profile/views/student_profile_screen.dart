@@ -605,10 +605,10 @@ class _CampusHubSection extends StatelessWidget {
             Expanded(
               child: _HubActionCard(
                 icon: Icons.campaign_rounded,
-                iconColor: const Color(0xFFDB2777),
-                iconBg: const Color(0xFFFDF2F8),
-                iconBorder: const Color(0xFFFBCFE8),
-                waveColor: const Color(0xFFFCE7F3),
+                iconColor: const Color(0xFF0284C7),
+                iconBg: const Color(0xFFF0F9FF),
+                iconBorder: const Color(0xFFBAE6FD),
+                waveColor: const Color(0xFFE0F2FE),
                 title: 'Announcements',
                 subtitle: 'Office notices & news',
                 badgeBuilder: () => Obx(() {
@@ -619,13 +619,13 @@ class _CampusHubSection extends StatelessWidget {
                         : Icons.done_all_rounded,
                     text: unread > 0 ? '$unread New' : 'Up to date',
                     bgColor: unread > 0
-                        ? const Color(0xFFFDF2F8)
+                        ? const Color(0xFFFEF3C7)
                         : const Color(0xFFF8FAFC),
                     borderColor: unread > 0
-                        ? const Color(0xFFFBCFE8)
+                        ? const Color(0xFFFDE68A)
                         : const Color(0xFFE2E8F0),
                     textColor: unread > 0
-                        ? const Color(0xFFDB2777)
+                        ? const Color(0xFFD97706)
                         : const Color(0xFF64748B),
                   );
                 }),
@@ -639,10 +639,10 @@ class _CampusHubSection extends StatelessWidget {
             Expanded(
               child: _HubActionCard(
                 icon: Icons.how_to_vote_rounded,
-                iconColor: const Color(0xFF7C3AED),
-                iconBg: const Color(0xFFF5F3FF),
-                iconBorder: const Color(0xFFDDD6FE),
-                waveColor: const Color(0xFFEDE9FE),
+                iconColor: const Color(0xFF0284C7),
+                iconBg: const Color(0xFFF0F9FF),
+                iconBorder: const Color(0xFFBAE6FD),
+                waveColor: const Color(0xFFE0F2FE),
                 title: 'Polls & Forms',
                 subtitle: 'Hostel decisions & votes',
                 badgeBuilder: () => Obx(() {
@@ -653,13 +653,13 @@ class _CampusHubSection extends StatelessWidget {
                         : Icons.check_circle_outline_rounded,
                     text: pending > 0 ? '$pending to answer' : 'Completed',
                     bgColor: pending > 0
-                        ? const Color(0xFFF5F3FF)
+                        ? const Color(0xFFFEF3C7)
                         : const Color(0xFFECFDF5),
                     borderColor: pending > 0
-                        ? const Color(0xFFDDD6FE)
+                        ? const Color(0xFFFDE68A)
                         : const Color(0xFFA7F3D0),
                     textColor: pending > 0
-                        ? const Color(0xFF7C3AED)
+                        ? const Color(0xFFD97706)
                         : const Color(0xFF059669),
                   );
                 }),
@@ -670,6 +670,110 @@ class _CampusHubSection extends StatelessWidget {
             ),
           ],
         ),
+        Obx(() {
+          if (!controller.isLeader.value) return const SizedBox.shrink();
+          return Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const SizedBox(height: 20),
+              Row(
+                children: [
+                  Container(
+                    width: 20,
+                    height: 3.5,
+                    decoration: BoxDecoration(
+                      color: const Color(0xFF0284C7),
+                      borderRadius: BorderRadius.circular(2),
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  const Text(
+                    'GROUP LEADER TOOLS',
+                    style: TextStyle(
+                      fontSize: 11.5,
+                      fontWeight: FontWeight.w800,
+                      color: Color(0xFF475569),
+                      letterSpacing: 0.8,
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 12),
+              Row(
+                children: [
+                  // Birthday Wishes Card
+                  Expanded(
+                    child: _HubActionCard(
+                      icon: Icons.cake_rounded,
+                      iconColor: const Color(0xFFD97706),
+                      iconBg: const Color(0xFFFEF3C7),
+                      iconBorder: const Color(0xFFFDE68A),
+                      waveColor: const Color(0xFFFEF9C3),
+                      title: 'Birthday Wishes',
+                      subtitle: 'Wish group celebrants via WhatsApp',
+                      badgeBuilder: () => const CelebrantLightChip(
+                        icon: Icons.star_rounded,
+                        text: 'Leader Access',
+                        bgColor: Color(0xFFFEF3C7),
+                        borderColor: Color(0xFFFDE68A),
+                        textColor: Color(0xFFD97706),
+                      ),
+                      onTap: () => Get.toNamed(Routes.operatorBirthdayWishes),
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  // Daily Alumni Connect Card
+                  Expanded(
+                    child: _HubActionCard(
+                      icon: Icons.connect_without_contact_rounded,
+                      iconColor: const Color(0xFF0D9488),
+                      iconBg: const Color(0xFFCCFBF1),
+                      iconBorder: const Color(0xFF99F6E4),
+                      waveColor: const Color(0xFFE6FFFA),
+                      title: 'Daily Alumni Connect',
+                      subtitle: 'Connect with 5 alumni of your group daily',
+                      badgeBuilder: () => const CelebrantLightChip(
+                        icon: Icons.groups_rounded,
+                        text: '5 Daily',
+                        bgColor: Color(0xFFCCFBF1),
+                        borderColor: Color(0xFF99F6E4),
+                        textColor: Color(0xFF0F766E),
+                      ),
+                      onTap: () => Get.toNamed(Routes.dailyAlumniOutreach),
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 12),
+              Row(
+                children: [
+                  // Parental Controls & Lock Card
+                  Expanded(
+                    child: _HubActionCard(
+                      icon: Icons.lock_clock_rounded,
+                      iconColor: const Color(0xFF6366F1),
+                      iconBg: const Color(0xFFEEF2FF),
+                      iconBorder: const Color(0xFFC7D2FE),
+                      waveColor: const Color(0xFFF5F3FF),
+                      title: 'Parental Controls & Lock',
+                      subtitle: 'Remotely lock devices & manage screen time',
+                      badgeBuilder: () => const CelebrantLightChip(
+                        icon: Icons.security_rounded,
+                        text: 'Leader Access',
+                        bgColor: Color(0xFFEEF2FF),
+                        borderColor: Color(0xFFC7D2FE),
+                        textColor: Color(0xFF4F46E5),
+                      ),
+                      onTap: () => Get.toNamed(Routes.studentScreenTime),
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  const Expanded(child: SizedBox()),
+                ],
+              ),
+            ],
+          );
+        }),
       ],
     );
   }

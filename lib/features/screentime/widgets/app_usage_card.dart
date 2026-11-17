@@ -170,13 +170,19 @@ class _AppRow extends StudentDetailWidget {
   final int dayTotal;
   const _AppRow({required this.item, required this.dayTotal, required super.controller});
 
+  /// Own [Obx]: list rows are built outside the card's Obx, and a limit set or
+  /// removed must show at once.
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context) => Obx(() => _row(context));
+
+  Widget _row(BuildContext context) {
     final pkg = (item['packageName'] ?? '').toString();
     final name = (item['appName'] ?? pkg).toString();
     final mins = extractAppMinutes(item);
     final blocked = item['isBlocked'] == true;
-    final limit = (item['dailyLimitMinutes'] as int?) ?? controller.appLimits[pkg] ?? 0;
+    // The policy's limit, not the row's: the server sends 0 for every app
+    // without a rule, which hid a limit just set until the next refresh.
+    final limit = controller.appLimitFor(pkg, rowValue: item['dailyLimitMinutes']);
     final isLimitReached = limit > 0 && mins >= limit;
     final share = limit > 0
         ? (mins / limit).clamp(0.0, 1.0)

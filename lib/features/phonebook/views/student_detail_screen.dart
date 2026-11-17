@@ -10,7 +10,6 @@ import '../../../core/models/tags/student_tag_model.dart';
 import '../../shared/widgets/app_button.dart';
 import '../../shared/widgets/app_card.dart';
 import '../../shared/widgets/icon_badge.dart';
-import '../../shared/widgets/section_header.dart';
 import '../../shared/widgets/status_badge.dart';
 import '../../shared/widgets/student_contact_card.dart';
 import '../controllers/phonebook_controller.dart';
@@ -104,6 +103,115 @@ class _StudentDetailScreenState extends State<StudentDetailScreen> {
       PhoneNumberNormalizer.normalize(raw) ??
       (raw ?? '').replaceAll(RegExp(r'\D'), '');
 
+  /// Active expanded sections. All sections default to expanded so details
+  /// are immediately visible on open, with full interactive expand/collapse
+  /// per card and a master "Collapse all / Expand all" toggle.
+  final Set<String> _expandedSections = {
+    'contacts',
+    'tags',
+    'hostel',
+    'personal',
+    'family',
+    'family_contacts',
+  };
+
+  List<String> get _availableSections => [
+    'contacts',
+    'tags',
+    'hostel',
+    'personal',
+    if (_has(student.fatherName) || _has(student.motherName)) 'family',
+    if (_familyContacts().isNotEmpty) 'family_contacts',
+  ];
+
+  bool get _allExpanded => _availableSections.every(_expandedSections.contains);
+
+  void _toggleAll() {
+    setState(() {
+      if (_allExpanded) {
+        _expandedSections.clear();
+      } else {
+        _expandedSections.addAll(_availableSections);
+      }
+    });
+  }
+
+  void _toggleSection(String section) {
+    setState(() {
+      if (_expandedSections.contains(section)) {
+        _expandedSections.remove(section);
+      } else {
+        _expandedSections.add(section);
+      }
+    });
+  }
+
+  Widget _expandCollapseBar() {
+    final allExpanded = _allExpanded;
+    return Padding(
+      padding: const EdgeInsets.only(bottom: AppDimens.gapSm),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+        children: [
+          Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Container(
+                width: 3.5,
+                height: 14,
+                decoration: BoxDecoration(
+                  color: AppColors.secondary,
+                  borderRadius: BorderRadius.circular(2),
+                ),
+              ),
+              const SizedBox(width: 8),
+              Text(
+                'STUDENT PROFILE',
+                style: AppTextStyles.overline.copyWith(
+                  letterSpacing: 1.1,
+                  fontWeight: FontWeight.w800,
+                  color: AppColors.textSecondary,
+                ),
+              ),
+            ],
+          ),
+          InkWell(
+            onTap: _toggleAll,
+            borderRadius: BorderRadius.circular(20),
+            child: Container(
+              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+              decoration: BoxDecoration(
+                color: AppColors.surface,
+                borderRadius: BorderRadius.circular(20),
+                border: Border.all(color: AppColors.borderLight),
+              ),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Icon(
+                    allExpanded
+                        ? Icons.unfold_less_rounded
+                        : Icons.unfold_more_rounded,
+                    size: 15,
+                    color: AppColors.primary,
+                  ),
+                  const SizedBox(width: 4),
+                  Text(
+                    allExpanded ? 'Collapse all' : 'Expand all',
+                    style: AppTextStyles.caption.copyWith(
+                      color: AppColors.primary,
+                      fontWeight: FontWeight.w700,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
   /// True when the dedicated WhatsApp number equals one of the student's own
   /// mobile numbers (parents' numbers don't count), so it is not listed twice.
   bool get _whatsappSameAsMobile {
@@ -150,9 +258,14 @@ class _StudentDetailScreenState extends State<StudentDetailScreen> {
               ),
               sliver: SliverList.list(
                 children: [
+                  _expandCollapseBar(),
                   _studentContactCard(),
                   const SizedBox(height: AppDimens.gapMd),
-                  _StudentDetailTagsCard(student: student),
+                  _StudentDetailTagsCard(
+                    student: student,
+                    isExpanded: _expandedSections.contains('tags'),
+                    onToggle: () => _toggleSection('tags'),
+                  ),
                   const SizedBox(height: AppDimens.gapMd),
                   _hostelCard(),
                   const SizedBox(height: AppDimens.gapMd),
@@ -162,11 +275,10 @@ class _StudentDetailScreenState extends State<StudentDetailScreen> {
                     _familyCard(),
                   ],
                   if (_familyContacts().isNotEmpty) ...[
-                    const SizedBox(height: AppDimens.gapLg),
-                    const SectionHeader(title: 'Family contacts'),
-                    ..._familyContacts(),
+                    const SizedBox(height: AppDimens.gapMd),
+                    _familyContactsSection(),
                   ],
-                  const SizedBox(height: AppDimens.gapMd),
+                  const SizedBox(height: AppDimens.gapLg),
                   AppButton(
                     label: 'Add Contact Number',
                     icon: Icons.add_call,
@@ -297,7 +409,15 @@ class _StudentDetailScreenState extends State<StudentDetailScreen> {
       );
     }
 
+    final count = _studentNumbers.length;
+    final contactSummary = count > 0
+        ? '$count ${count == 1 ? 'number' : 'numbers'}${_has(student.email) ? ' · Email' : ''}'
+        : (_has(student.email) ? 'Email only' : null);
+
     return _CollapsibleContactCard(
+      isExpanded: _expandedSections.contains('contacts'),
+      onToggle: () => _toggleSection('contacts'),
+      summary: contactSummary,
       onManage: _openManageContacts,
       onAdd: _openAddContactNumber,
       lines: [
@@ -363,8 +483,15 @@ class _StudentDetailScreenState extends State<StudentDetailScreen> {
     final isAlumni = student.isAlumni;
     final floor = student.floor;
     final status = student.status?.toUpperCase() ?? (isAlumni ? 'ALUMNI' : 'ACTIVE');
+    final roomSummary = _has(student.room)
+        ? 'Room ${student.room}${floor != null ? ' · Floor $floor' : ''}'
+        : (isAlumni ? 'Alumni' : 'Not allotted');
+
     return _DetailCard(
       title: 'Hostel',
+      isExpanded: _expandedSections.contains('hostel'),
+      onToggle: () => _toggleSection('hostel'),
+      summary: roomSummary,
       children: [
         _DetailRow(
           icon: Icons.meeting_room_rounded,
@@ -410,8 +537,15 @@ class _StudentDetailScreenState extends State<StudentDetailScreen> {
   }
 
   Widget _personalCard() {
+    final personalSummary = student.hasDob
+        ? '${student.formattedDob}${_has(student.bloodGroup) ? ' · ${student.bloodGroup}' : ''}'
+        : (_has(student.bloodGroup) ? 'Blood: ${student.bloodGroup}' : null);
+
     return _DetailCard(
       title: 'Personal',
+      isExpanded: _expandedSections.contains('personal'),
+      onToggle: () => _toggleSection('personal'),
+      summary: personalSummary,
       children: [
         _DetailRow(
           icon: Icons.cake_rounded,
@@ -444,8 +578,17 @@ class _StudentDetailScreenState extends State<StudentDetailScreen> {
   }
 
   Widget _familyCard() {
+    final familySummary = _has(student.fatherName) && _has(student.motherName)
+        ? '${student.fatherName} & ${student.motherName}'
+        : (_has(student.fatherName)
+            ? 'Father: ${student.fatherName}'
+            : (_has(student.motherName) ? 'Mother: ${student.motherName}' : null));
+
     return _DetailCard(
       title: 'Family',
+      isExpanded: _expandedSections.contains('family'),
+      onToggle: () => _toggleSection('family'),
+      summary: familySummary,
       children: [
         if (_has(student.fatherName))
           _DetailRow(
@@ -462,6 +605,84 @@ class _StudentDetailScreenState extends State<StudentDetailScreen> {
             onCopy: () => _c.copyToClipboard(student.motherName!, 'Mother name'),
           ),
       ],
+    );
+  }
+
+  Widget _familyContactsSection() {
+    final contacts = _familyContacts();
+    if (contacts.isEmpty) return const SizedBox.shrink();
+    final isExpanded = _expandedSections.contains('family_contacts');
+    final summary = '${contacts.length} ${contacts.length == 1 ? 'contact' : 'contacts'}';
+
+    return AppCard(
+      padding: const EdgeInsets.fromLTRB(
+        AppDimens.cardPadding,
+        AppDimens.gapSm,
+        AppDimens.cardPadding,
+        AppDimens.gapSm,
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          InkWell(
+            onTap: () => _toggleSection('family_contacts'),
+            borderRadius: BorderRadius.circular(AppDimens.radiusSm),
+            child: Padding(
+              padding: const EdgeInsets.symmetric(vertical: AppDimens.gapSm),
+              child: Row(
+                children: [
+                  Expanded(
+                    child: Text('FAMILY CONTACTS', style: AppTextStyles.overline),
+                  ),
+                  if (!isExpanded)
+                    Container(
+                      margin: const EdgeInsets.only(right: 8),
+                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                      decoration: BoxDecoration(
+                        color: AppColors.surface,
+                        borderRadius: BorderRadius.circular(10),
+                        border: Border.all(color: AppColors.borderLight),
+                      ),
+                      child: Text(
+                        summary,
+                        style: AppTextStyles.caption.copyWith(
+                          fontWeight: FontWeight.w600,
+                          color: AppColors.textSecondary,
+                          fontSize: 11,
+                        ),
+                      ),
+                    ),
+                  AnimatedRotation(
+                    turns: isExpanded ? 0.5 : 0,
+                    duration: const Duration(milliseconds: 240),
+                    curve: Curves.easeInOutCubic,
+                    child: const Icon(
+                      Icons.keyboard_arrow_down_rounded,
+                      color: AppColors.textSecondary,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+          AnimatedSize(
+            duration: const Duration(milliseconds: 240),
+            curve: Curves.easeInOutCubic,
+            alignment: Alignment.topCenter,
+            child: isExpanded
+                ? Column(
+                    children: [
+                      const SizedBox(height: AppDimens.gapXs),
+                      for (var i = 0; i < contacts.length; i++) ...[
+                        if (i > 0) const SizedBox(height: AppDimens.gapSm),
+                        contacts[i],
+                      ],
+                    ],
+                  )
+                : const SizedBox(width: double.infinity),
+          ),
+        ],
+      ),
     );
   }
 
@@ -551,7 +772,14 @@ class _StudentDetailScreenState extends State<StudentDetailScreen> {
 /// with an action to edit or assign new tags via [StudentTagSheet].
 class _StudentDetailTagsCard extends StatefulWidget {
   final PhonebookStudent student;
-  const _StudentDetailTagsCard({required this.student});
+  final bool isExpanded;
+  final VoidCallback onToggle;
+
+  const _StudentDetailTagsCard({
+    required this.student,
+    required this.isExpanded,
+    required this.onToggle,
+  });
 
   @override
   State<_StudentDetailTagsCard> createState() => _StudentDetailTagsCardState();
@@ -607,17 +835,61 @@ class _StudentDetailTagsCardState extends State<_StudentDetailTagsCard> {
     return AppCard(
       padding: const EdgeInsets.fromLTRB(
         AppDimens.cardPadding,
-        AppDimens.gapMd,
+        AppDimens.gapSm,
         AppDimens.cardPadding,
-        AppDimens.gapMd,
+        AppDimens.gapSm,
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              Text('TAGS & ROLES', style: AppTextStyles.overline),
+              Expanded(
+                child: InkWell(
+                  onTap: widget.onToggle,
+                  borderRadius: BorderRadius.circular(AppDimens.radiusSm),
+                  child: Padding(
+                    padding: const EdgeInsets.symmetric(vertical: AppDimens.gapSm),
+                    child: Row(
+                      children: [
+                        Expanded(
+                          child: Text('TAGS & ROLES', style: AppTextStyles.overline),
+                        ),
+                        if (!widget.isExpanded)
+                          Container(
+                            margin: const EdgeInsets.only(right: 8),
+                            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                            decoration: BoxDecoration(
+                              color: AppColors.surface,
+                              borderRadius: BorderRadius.circular(10),
+                              border: Border.all(color: AppColors.borderLight),
+                            ),
+                            child: Text(
+                              _tags.isEmpty
+                                  ? 'None'
+                                  : '${_tags.length} ${_tags.length == 1 ? 'tag' : 'tags'}',
+                              style: AppTextStyles.caption.copyWith(
+                                fontWeight: FontWeight.w600,
+                                color: AppColors.textSecondary,
+                                fontSize: 11,
+                              ),
+                            ),
+                          ),
+                        AnimatedRotation(
+                          turns: widget.isExpanded ? 0.5 : 0,
+                          duration: const Duration(milliseconds: 240),
+                          curve: Curves.easeInOutCubic,
+                          child: const Icon(
+                            Icons.keyboard_arrow_down_rounded,
+                            color: AppColors.textSecondary,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              ),
+              const SizedBox(width: 8),
               InkWell(
                 onTap: _editTags,
                 borderRadius: BorderRadius.circular(AppDimens.radiusSm),
@@ -641,45 +913,61 @@ class _StudentDetailTagsCardState extends State<_StudentDetailTagsCard> {
               ),
             ],
           ),
-          const SizedBox(height: AppDimens.gapSm),
-          if (_tags.isEmpty)
-            InkWell(
-              onTap: _editTags,
-              borderRadius: BorderRadius.circular(AppDimens.radiusSm),
-              child: Padding(
-                padding: const EdgeInsets.symmetric(vertical: 4),
-                child: Row(
-                  children: [
-                    const Icon(Icons.add_circle_outline_rounded, size: 16, color: AppColors.textMuted),
-                    const SizedBox(width: 6),
-                    Expanded(
-                      child: Text(
-                        'No tags assigned yet. Tap to assign roles (e.g. Karyakarta) or tags.',
-                        style: AppTextStyles.bodySm.copyWith(
-                          color: AppColors.textMuted,
-                          fontStyle: FontStyle.italic,
+          AnimatedSize(
+            duration: const Duration(milliseconds: 240),
+            curve: Curves.easeInOutCubic,
+            alignment: Alignment.topCenter,
+            child: widget.isExpanded
+                ? Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      const SizedBox(height: AppDimens.gapXs),
+                      if (_tags.isEmpty)
+                        InkWell(
+                          onTap: _editTags,
+                          borderRadius: BorderRadius.circular(AppDimens.radiusSm),
+                          child: Padding(
+                            padding: const EdgeInsets.symmetric(vertical: 4),
+                            child: Row(
+                              children: [
+                                const Icon(Icons.add_circle_outline_rounded,
+                                    size: 16, color: AppColors.textMuted),
+                                const SizedBox(width: 6),
+                                Expanded(
+                                  child: Text(
+                                    'No tags assigned yet. Tap to assign roles (e.g. Karyakarta) or tags.',
+                                    style: AppTextStyles.bodySm.copyWith(
+                                      color: AppColors.textMuted,
+                                      fontStyle: FontStyle.italic,
+                                    ),
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        )
+                      else
+                        Wrap(
+                          spacing: 8,
+                          runSpacing: 8,
+                          children: [
+                            for (final tag in _tags)
+                              CelebrantLightChip(
+                                icon: tag.isSystem
+                                    ? Icons.lock_outline_rounded
+                                    : Icons.label_rounded,
+                                text: tag.name,
+                                bgColor: tag.backgroundColor,
+                                borderColor: tag.borderColor,
+                                textColor: tag.displayColor,
+                              ),
+                          ],
                         ),
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            )
-          else
-            Wrap(
-              spacing: 8,
-              runSpacing: 8,
-              children: [
-                for (final tag in _tags)
-                  CelebrantLightChip(
-                    icon: tag.isSystem ? Icons.lock_outline_rounded : Icons.label_rounded,
-                    text: tag.name,
-                    bgColor: tag.backgroundColor,
-                    borderColor: tag.borderColor,
-                    textColor: tag.displayColor,
-                  ),
-              ],
-            ),
+                      const SizedBox(height: AppDimens.gapXs),
+                    ],
+                  )
+                : const SizedBox(width: double.infinity),
+          ),
         ],
       ),
     );
@@ -692,28 +980,90 @@ class _StudentDetailTagsCardState extends State<_StudentDetailTagsCard> {
 class _DetailCard extends StatelessWidget {
   final String title;
   final List<Widget> children;
-  const _DetailCard({required this.title, required this.children});
+  final bool isExpanded;
+  final VoidCallback onToggle;
+  final String? summary;
+
+  const _DetailCard({
+    required this.title,
+    required this.children,
+    required this.isExpanded,
+    required this.onToggle,
+    this.summary,
+  });
 
   @override
   Widget build(BuildContext context) {
     return AppCard(
       padding: const EdgeInsets.fromLTRB(
         AppDimens.cardPadding,
-        AppDimens.gapMd,
+        AppDimens.gapSm,
         AppDimens.cardPadding,
         AppDimens.gapSm,
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Padding(
-            padding: const EdgeInsets.only(bottom: AppDimens.gapXs),
-            child: Text(title.toUpperCase(), style: AppTextStyles.overline),
+          InkWell(
+            onTap: onToggle,
+            borderRadius: BorderRadius.circular(AppDimens.radiusSm),
+            child: Padding(
+              padding: const EdgeInsets.symmetric(vertical: AppDimens.gapSm),
+              child: Row(
+                children: [
+                  Expanded(
+                    child: Text(title.toUpperCase(), style: AppTextStyles.overline),
+                  ),
+                  if (!isExpanded && summary != null && summary!.isNotEmpty)
+                    Container(
+                      margin: const EdgeInsets.only(right: 8),
+                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                      decoration: BoxDecoration(
+                        color: AppColors.surface,
+                        borderRadius: BorderRadius.circular(10),
+                        border: Border.all(color: AppColors.borderLight),
+                      ),
+                      child: Text(
+                        summary!,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: AppTextStyles.caption.copyWith(
+                          fontWeight: FontWeight.w600,
+                          color: AppColors.textSecondary,
+                          fontSize: 11,
+                        ),
+                      ),
+                    ),
+                  AnimatedRotation(
+                    turns: isExpanded ? 0.5 : 0,
+                    duration: const Duration(milliseconds: 240),
+                    curve: Curves.easeInOutCubic,
+                    child: const Icon(
+                      Icons.keyboard_arrow_down_rounded,
+                      color: AppColors.textSecondary,
+                    ),
+                  ),
+                ],
+              ),
+            ),
           ),
-          for (var i = 0; i < children.length; i++) ...[
-            if (i > 0) const Divider(height: 1, color: AppColors.borderLight),
-            children[i],
-          ],
+          AnimatedSize(
+            duration: const Duration(milliseconds: 240),
+            curve: Curves.easeInOutCubic,
+            alignment: Alignment.topCenter,
+            child: isExpanded
+                ? Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      const SizedBox(height: AppDimens.gapXs),
+                      for (var i = 0; i < children.length; i++) ...[
+                        if (i > 0) const Divider(height: 1, color: AppColors.borderLight),
+                        children[i],
+                      ],
+                    ],
+                  )
+                : const SizedBox(width: double.infinity),
+          ),
         ],
       ),
     );
@@ -867,69 +1217,71 @@ class _ContactCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final titleStyle = AppTextStyles.subtitle.copyWith(fontSize: 14.5);
-    return Padding(
-      padding: const EdgeInsets.only(bottom: AppDimens.gapSm),
-      child: AppCard(
-        padding: const EdgeInsets.fromLTRB(
-          AppDimens.cardPadding,
-          AppDimens.gapMd,
-          AppDimens.cardPadding,
-          AppDimens.gapXs,
-        ),
-        child: Column(
-          children: [
-            Row(
-              children: [
-                leading,
-                const SizedBox(width: AppDimens.gapMd),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(title, style: titleStyle),
-                      const SizedBox(height: 1),
-                      Text(subtitle, style: AppTextStyles.bodySm),
-                    ],
-                  ),
+    return Container(
+      decoration: BoxDecoration(
+        color: AppColors.surface,
+        borderRadius: BorderRadius.circular(AppDimens.radiusMd),
+        border: Border.all(color: AppColors.borderLight),
+      ),
+      padding: const EdgeInsets.fromLTRB(
+        AppDimens.cardPadding,
+        AppDimens.gapSm,
+        AppDimens.cardPadding,
+        AppDimens.gapXs,
+      ),
+      child: Column(
+        children: [
+          Row(
+            children: [
+              leading,
+              const SizedBox(width: AppDimens.gapMd),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(title, style: titleStyle),
+                    const SizedBox(height: 1),
+                    Text(subtitle, style: AppTextStyles.bodySm),
+                  ],
                 ),
-              ],
-            ),
-            const SizedBox(height: AppDimens.gapSm),
-            const Divider(height: 1, color: AppColors.borderLight),
-            Row(
-              children: [
-                for (final a in actions)
-                  Expanded(
-                    child: InkWell(
-                      onTap: a.onTap,
-                      borderRadius: BorderRadius.circular(AppDimens.radiusSm),
-                      child: Padding(
-                        padding: const EdgeInsets.symmetric(vertical: 9),
-                        child: Column(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            IconTheme(
-                              data: IconThemeData(color: a.color),
-                              child: a.icon,
+              ),
+            ],
+          ),
+          const SizedBox(height: AppDimens.gapSm),
+          const Divider(height: 1, color: AppColors.borderLight),
+          Row(
+            children: [
+              for (final a in actions)
+                Expanded(
+                  child: InkWell(
+                    onTap: a.onTap,
+                    borderRadius: BorderRadius.circular(AppDimens.radiusSm),
+                    child: Padding(
+                      padding: const EdgeInsets.symmetric(vertical: 9),
+                      child: Column(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          IconTheme(
+                            data: IconThemeData(color: a.color),
+                            child: a.icon,
+                          ),
+                          const SizedBox(height: 3),
+                          Text(
+                            a.label,
+                            style: AppTextStyles.caption.copyWith(
+                              color: a.color,
+                              fontWeight: FontWeight.w700,
+                              fontSize: 10.5,
                             ),
-                            const SizedBox(height: 3),
-                            Text(
-                              a.label,
-                              style: AppTextStyles.caption.copyWith(
-                                color: a.color,
-                                fontWeight: FontWeight.w700,
-                                fontSize: 10.5,
-                              ),
-                            ),
-                          ],
-                        ),
+                          ),
+                        ],
                       ),
                     ),
                   ),
-              ],
-            ),
-          ],
-        ),
+                ),
+            ],
+          ),
+        ],
       ),
     );
   }
@@ -1417,25 +1769,24 @@ class _GmailPainter extends CustomPainter {
 
 /// "Student contact" card whose number / email lines fold away with a chevron
 /// in the header. The action buttons stay visible either way.
-class _CollapsibleContactCard extends StatefulWidget {
+class _CollapsibleContactCard extends StatelessWidget {
   final List<Widget> lines;
   final Widget actions;
   final VoidCallback? onManage;
   final VoidCallback? onAdd;
+  final bool isExpanded;
+  final VoidCallback onToggle;
+  final String? summary;
 
   const _CollapsibleContactCard({
     required this.lines,
     required this.actions,
     this.onManage,
     this.onAdd,
+    required this.isExpanded,
+    required this.onToggle,
+    this.summary,
   });
-
-  @override
-  State<_CollapsibleContactCard> createState() => _CollapsibleContactCardState();
-}
-
-class _CollapsibleContactCardState extends State<_CollapsibleContactCard> {
-  bool _expanded = false;
 
   @override
   Widget build(BuildContext context) {
@@ -1453,7 +1804,7 @@ class _CollapsibleContactCardState extends State<_CollapsibleContactCard> {
             children: [
               Expanded(
                 child: InkWell(
-                  onTap: () => setState(() => _expanded = !_expanded),
+                  onTap: onToggle,
                   borderRadius: BorderRadius.circular(AppDimens.radiusSm),
                   child: Padding(
                     padding: const EdgeInsets.symmetric(vertical: AppDimens.gapSm),
@@ -1462,17 +1813,28 @@ class _CollapsibleContactCardState extends State<_CollapsibleContactCard> {
                         Expanded(
                           child: Text('STUDENT CONTACT', style: AppTextStyles.overline),
                         ),
-                        if (!_expanded)
-                          Padding(
-                            padding: const EdgeInsets.only(right: 6),
+                        if (!isExpanded && summary != null && summary!.isNotEmpty)
+                          Container(
+                            margin: const EdgeInsets.only(right: 8),
+                            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                            decoration: BoxDecoration(
+                              color: AppColors.surface,
+                              borderRadius: BorderRadius.circular(10),
+                              border: Border.all(color: AppColors.borderLight),
+                            ),
                             child: Text(
-                              '${widget.lines.length} ${widget.lines.length == 1 ? 'item' : 'items'}',
-                              style: AppTextStyles.bodySm,
+                              summary!,
+                              style: AppTextStyles.caption.copyWith(
+                                fontWeight: FontWeight.w600,
+                                color: AppColors.textSecondary,
+                                fontSize: 11,
+                              ),
                             ),
                           ),
                         AnimatedRotation(
-                          turns: _expanded ? 0.5 : 0,
-                          duration: const Duration(milliseconds: 200),
+                          turns: isExpanded ? 0.5 : 0,
+                          duration: const Duration(milliseconds: 240),
+                          curve: Curves.easeInOutCubic,
                           child: const Icon(
                             Icons.keyboard_arrow_down_rounded,
                             color: AppColors.textSecondary,
@@ -1483,10 +1845,10 @@ class _CollapsibleContactCardState extends State<_CollapsibleContactCard> {
                   ),
                 ),
               ),
-              if (widget.onAdd != null) ...[
+              if (onAdd != null) ...[
                 const SizedBox(width: 8),
                 InkWell(
-                  onTap: widget.onAdd,
+                  onTap: onAdd,
                   borderRadius: BorderRadius.circular(AppDimens.radiusSm),
                   child: Padding(
                     padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
@@ -1507,10 +1869,10 @@ class _CollapsibleContactCardState extends State<_CollapsibleContactCard> {
                   ),
                 ),
               ],
-              if (widget.onManage != null) ...[
+              if (onManage != null) ...[
                 const SizedBox(width: 6),
                 InkWell(
-                  onTap: widget.onManage,
+                  onTap: onManage,
                   borderRadius: BorderRadius.circular(AppDimens.radiusSm),
                   child: Padding(
                     padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
@@ -1534,17 +1896,17 @@ class _CollapsibleContactCardState extends State<_CollapsibleContactCard> {
             ],
           ),
           AnimatedSize(
-            duration: const Duration(milliseconds: 200),
-            curve: Curves.easeOut,
+            duration: const Duration(milliseconds: 240),
+            curve: Curves.easeInOutCubic,
             alignment: Alignment.topCenter,
-            child: _expanded
-                ? Column(children: widget.lines)
+            child: isExpanded
+                ? Column(children: lines)
                 : const SizedBox(width: double.infinity),
           ),
           const SizedBox(height: AppDimens.gapXs),
           const Divider(height: 1, color: AppColors.borderLight),
           const SizedBox(height: AppDimens.gapSm),
-          widget.actions,
+          actions,
         ],
       ),
     );

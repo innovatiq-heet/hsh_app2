@@ -36,6 +36,7 @@ class Routes {
   static const alumniMentorship = '/student/alumni/mentorship';
   static const alumniJobs = '/student/alumni/jobs';
   static const alumniNews = '/student/alumni/news';
+  static const dailyAlumniOutreach = '/student/alumni/daily-outreach';
 
   static const laundryModule = '/laundry_module';
 
@@ -56,6 +57,7 @@ class Routes {
   static const operatorGeofence = '/operator/geofence';
   static const operatorStudentLocations = '/operator/geofence/locations';
   static const operatorAlumni = '/operator/alumni';
+  static const operatorDailyAlumniOutreach = '/operator/alumni/daily-outreach';
   static const operatorBirthdayWishes = '/operator/birthday-wishes';
   static const operatorManageUsers = '/operator/manage-users';
   static const operatorBroadcasts = '/operator/broadcasts';
@@ -64,6 +66,8 @@ class Routes {
   static const operatorForms = '/operator/forms';
   static const operatorFormEditor = '/operator/forms/edit';
   static const operatorFormAnalytics = '/operator/forms/analytics';
+  static const operatorRoomKeys = '/operator/room-keys';
+  static const operatorRoomKeysRoom = '/operator/room-keys/room';
 
   static const noInternet = '/no-internet';
 }

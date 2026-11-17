@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import '../../../core/constants/app_dimens.dart';
+import '../../../core/enums/user_role.dart';
 import '../../../core/models/geofence/geofence_policy_model.dart';
 import '../../shared/widgets/app_card.dart';
 import '../../shared/widgets/empty_state.dart';
@@ -34,6 +35,8 @@ class StudentDirectoryView extends GetView<ScreenTimeDirectoryController> {
               _SummaryStrip(),
               const SizedBox(height: AppDimens.gapMd),
               _SearchField(),
+              const _LeaderGroupBanner(),
+              const _GroupQuickFilter(),
               const SizedBox(height: AppDimens.gapMd),
             ],
           ),
@@ -65,6 +68,17 @@ class StudentDirectoryView extends GetView<ScreenTimeDirectoryController> {
             padding: EdgeInsets.zero,
             shrinkWrap: true,
             physics: NeverScrollableScrollPhysics(),
+          ),
+        );
+      }
+      if (controller.leaderGroupMissing.value) {
+        return const SliverToBoxAdapter(
+          child: AppCard(
+            child: EmptyState(
+              icon: Icons.groups_2_outlined,
+              title: 'Your group is not set',
+              message: 'Ask the hostel office to set your group. Then the students of your group appear here.',
+            ),
           ),
         );
       }
@@ -304,83 +318,776 @@ class _SummaryStrip extends GetView<ScreenTimeDirectoryController> {
 }
 
 class _SearchField extends GetView<ScreenTimeDirectoryController> {
+  const _SearchField();
+
+  Widget _filterSectionHeader(String title, IconData icon) {
+    return Row(
+      children: [
+        Icon(icon, size: 15, color: const Color(0xFF0284C7)),
+        const SizedBox(width: 6),
+        Text(
+          title,
+          style: const TextStyle(
+            fontSize: 11.5,
+            fontWeight: FontWeight.w800,
+            color: Color(0xFF475569),
+            letterSpacing: 0.6,
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _toggleRow({
+    required IconData icon,
+    required Color iconColor,
+    required String title,
+    required String subtitle,
+    required bool value,
+    required ValueChanged<bool> onChanged,
+  }) {
+    return InkWell(
+      onTap: () => onChanged(!value),
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 11),
+        child: Row(
+          children: [
+            Container(
+              width: 34,
+              height: 34,
+              decoration: BoxDecoration(
+                color: iconColor.withValues(alpha: 0.12),
+                borderRadius: BorderRadius.circular(9),
+              ),
+              child: Icon(icon, color: iconColor, size: 18),
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    title,
+                    style: const TextStyle(
+                      fontSize: 13.5,
+                      fontWeight: FontWeight.w700,
+                      color: Color(0xFF0F172A),
+                    ),
+                  ),
+                  const SizedBox(height: 2),
+                  Text(
+                    subtitle,
+                    style: const TextStyle(
+                      fontSize: 11,
+                      color: Color(0xFF64748B),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            Switch(
+              value: value,
+              onChanged: onChanged,
+              activeThumbColor: const Color(0xFF0284C7),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  void _showFilterBottomSheet(BuildContext context) {
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: Colors.transparent,
+      isScrollControlled: true,
+      enableDrag: false,
+      builder: (ctx) => DraggableScrollableSheet(
+        expand: false,
+        initialChildSize: 0.85,
+        minChildSize: 0,
+        maxChildSize: 0.85,
+        snap: true,
+        snapSizes: const [0.85],
+        builder: (ctx, scrollController) => Container(
+          decoration: const BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.vertical(top: Radius.circular(28)),
+          ),
+          child: Column(
+            children: [
+              Expanded(
+                child: CustomScrollView(
+                  controller: scrollController,
+                  slivers: [
+                    SliverToBoxAdapter(
+                      child: Column(
+                        children: [
+                          // Drag Handle & Top Header
+                          Padding(
+                            padding: const EdgeInsets.fromLTRB(20, 14, 20, 10),
+                            child: Column(
+                              children: [
+                                Center(
+                                  child: Container(
+                                    width: 44,
+                                    height: 4.5,
+                                    decoration: BoxDecoration(
+                                      color: const Color(0xFFCBD5E1),
+                                      borderRadius: BorderRadius.circular(2.5),
+                                    ),
+                                  ),
+                                ),
+                                const SizedBox(height: 14),
+                                Row(
+                                  children: [
+                                    Container(
+                                      padding: const EdgeInsets.all(8),
+                                      decoration: BoxDecoration(
+                                        color: const Color(0xFFE0F2FE),
+                                        borderRadius: BorderRadius.circular(10),
+                                      ),
+                                      child: const Icon(Icons.tune_rounded, color: Color(0xFF0284C7), size: 20),
+                                    ),
+                                    const SizedBox(width: 10),
+                                    const Expanded(
+                                      child: Column(
+                                        crossAxisAlignment: CrossAxisAlignment.start,
+                                        children: [
+                                          Text(
+                                            'Filter & Sort Screen Time',
+                                            style: TextStyle(
+                                              fontSize: 18,
+                                              fontWeight: FontWeight.w800,
+                                              color: Color(0xFF0F172A),
+                                            ),
+                                          ),
+                                          Text(
+                                            'Refine by wings, floors, device status, and usage',
+                                            style: TextStyle(
+                                              fontSize: 11.5,
+                                              color: Color(0xFF64748B),
+                                            ),
+                                          ),
+                                        ],
+                                      ),
+                                    ),
+                                    Obx(() {
+                                      if (controller.activeFilterCount == 0) return const SizedBox.shrink();
+                                      return TextButton(
+                                        onPressed: () {
+                                          controller.resetAllFilters();
+                                        },
+                                        style: TextButton.styleFrom(
+                                          foregroundColor: Colors.redAccent,
+                                          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                                        ),
+                                        child: const Text(
+                                          'Reset All',
+                                          style: TextStyle(fontWeight: FontWeight.w700, fontSize: 13),
+                                        ),
+                                      );
+                                    }),
+                                    IconButton(
+                                      icon: const Icon(Icons.close_rounded, color: Color(0xFF64748B), size: 22),
+                                      tooltip: 'Close',
+                                      visualDensity: VisualDensity.compact,
+                                      onPressed: () => Navigator.pop(ctx),
+                                    ),
+                                  ],
+                                ),
+                              ],
+                            ),
+                          ),
+                          const Divider(height: 1, color: Color(0xFFE2E8F0)),
+                        ],
+                      ),
+                    ),
+
+                    // Scrollable Content
+                    SliverPadding(
+                      padding: const EdgeInsets.fromLTRB(20, 16, 20, 24),
+                      sliver: SliverToBoxAdapter(
+                        child: Obx(() {
+                          return Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              // 1. DEVICE & SECURITY STATUS
+                              _filterSectionHeader('DEVICE & SECURITY STATUS', Icons.devices_rounded),
+                              const SizedBox(height: 10),
+                              Wrap(
+                                spacing: 8,
+                                runSpacing: 8,
+                                children: ScreenTimeDirectoryController.directoryFilters.map((df) {
+                                  final sel = controller.directoryFilter.value == df;
+                                  final color = df == 'Locked'
+                                      ? const Color(0xFFDC2626)
+                                      : df == 'Attention'
+                                          ? const Color(0xFFD97706)
+                                          : df == 'Online'
+                                              ? const Color(0xFF16A34A)
+                                              : const Color(0xFF0284C7);
+                                  return FilterChip(
+                                    label: Text(df),
+                                    selected: sel,
+                                    selectedColor: color,
+                                    checkmarkColor: Colors.white,
+                                    labelStyle: TextStyle(
+                                      color: sel ? Colors.white : const Color(0xFF334155),
+                                      fontWeight: sel ? FontWeight.w700 : FontWeight.w600,
+                                      fontSize: 12.5,
+                                    ),
+                                    backgroundColor: const Color(0xFFF1F5F9),
+                                    shape: RoundedRectangleBorder(
+                                      borderRadius: BorderRadius.circular(12),
+                                      side: BorderSide(
+                                        color: sel ? color : const Color(0xFFE2E8F0),
+                                      ),
+                                    ),
+                                    onSelected: (v) => controller.setDirectoryFilter(df),
+                                  );
+                                }).toList(),
+                              ),
+                              const SizedBox(height: 20),
+
+                              // 2. WING / GROUP (not for a leader: their list is their group)
+                              if (!controller.isLeaderView) ...[
+                              _filterSectionHeader('HOSTEL WING / GROUP', Icons.apartment_rounded),
+                              const SizedBox(height: 10),
+                              Wrap(
+                                spacing: 8,
+                                runSpacing: 8,
+                                children: ScreenTimeDirectoryController.hshGroups.map((g) {
+                                  final sel = controller.selectedGroup.value == g;
+                                  final isAlumni = g.toLowerCase() == 'alumni';
+                                  final color = isAlumni ? const Color(0xFF9333EA) : const Color(0xFF0284C7);
+                                  return FilterChip(
+                                    label: Text(g),
+                                    selected: sel,
+                                    selectedColor: color,
+                                    checkmarkColor: Colors.white,
+                                    labelStyle: TextStyle(
+                                      color: sel ? Colors.white : const Color(0xFF334155),
+                                      fontWeight: sel ? FontWeight.w700 : FontWeight.w600,
+                                      fontSize: 13,
+                                    ),
+                                    backgroundColor: const Color(0xFFF1F5F9),
+                                    shape: RoundedRectangleBorder(
+                                      borderRadius: BorderRadius.circular(12),
+                                      side: BorderSide(
+                                        color: sel ? color : const Color(0xFFE2E8F0),
+                                      ),
+                                    ),
+                                    onSelected: (v) => controller.selectGroup(g),
+                                  );
+                                }).toList(),
+                              ),
+                              const SizedBox(height: 20),
+                              ],
+
+                              // 3. FLOOR SELECTOR
+                              _filterSectionHeader('HOSTEL FLOOR', Icons.layers_rounded),
+                              const SizedBox(height: 10),
+                              Wrap(
+                                spacing: 8,
+                                runSpacing: 8,
+                                children: ScreenTimeDirectoryController.floorOptions.map((f) {
+                                  final sel = controller.selectedFloor.value == f;
+                                  return FilterChip(
+                                    label: Text(f),
+                                    selected: sel,
+                                    selectedColor: const Color(0xFF0284C7),
+                                    checkmarkColor: Colors.white,
+                                    labelStyle: TextStyle(
+                                      color: sel ? Colors.white : const Color(0xFF334155),
+                                      fontWeight: sel ? FontWeight.w700 : FontWeight.w600,
+                                      fontSize: 12.5,
+                                    ),
+                                    backgroundColor: const Color(0xFFF1F5F9),
+                                    shape: RoundedRectangleBorder(
+                                      borderRadius: BorderRadius.circular(12),
+                                      side: BorderSide(
+                                        color: sel ? const Color(0xFF0284C7) : const Color(0xFFE2E8F0),
+                                      ),
+                                    ),
+                                    onSelected: (v) => controller.selectFloor(f),
+                                  );
+                                }).toList(),
+                              ),
+                              const SizedBox(height: 20),
+
+                              // 4. RESIDENCE STATUS
+                              _filterSectionHeader('RESIDENCE STATUS', Icons.badge_rounded),
+                              const SizedBox(height: 10),
+                              Wrap(
+                                spacing: 8,
+                                runSpacing: 8,
+                                children: ScreenTimeDirectoryController.statusOptions.map((s) {
+                                  final sel = controller.selectedStatus.value == s;
+                                  return FilterChip(
+                                    label: Text(s),
+                                    selected: sel,
+                                    selectedColor: const Color(0xFF059669),
+                                    checkmarkColor: Colors.white,
+                                    labelStyle: TextStyle(
+                                      color: sel ? Colors.white : const Color(0xFF334155),
+                                      fontWeight: sel ? FontWeight.w700 : FontWeight.w600,
+                                      fontSize: 12.5,
+                                    ),
+                                    backgroundColor: const Color(0xFFF1F5F9),
+                                    shape: RoundedRectangleBorder(
+                                      borderRadius: BorderRadius.circular(12),
+                                      side: BorderSide(
+                                        color: sel ? const Color(0xFF059669) : const Color(0xFFE2E8F0),
+                                      ),
+                                    ),
+                                    onSelected: (v) => controller.selectStatus(s),
+                                  );
+                                }).toList(),
+                              ),
+                              const SizedBox(height: 20),
+
+                              // 5. USAGE ATTRIBUTES
+                              _filterSectionHeader('USAGE & POLICY ATTRIBUTES', Icons.check_circle_outline_rounded),
+                              const SizedBox(height: 10),
+                              Container(
+                                decoration: BoxDecoration(
+                                  color: const Color(0xFFF8FAFC),
+                                  borderRadius: BorderRadius.circular(16),
+                                  border: Border.all(color: const Color(0xFFE2E8F0)),
+                                ),
+                                child: Column(
+                                  children: [
+                                    _toggleRow(
+                                      icon: Icons.timer_rounded,
+                                      iconColor: const Color(0xFF0284C7),
+                                      title: 'Has Screen Time Today',
+                                      subtitle: 'Show students with recorded usage today (> 0 min)',
+                                      value: controller.onlyWithUsage.value,
+                                      onChanged: controller.toggleOnlyWithUsage,
+                                    ),
+                                    const Divider(height: 1, indent: 52, color: Color(0xFFE2E8F0)),
+                                    _toggleRow(
+                                      icon: Icons.warning_amber_rounded,
+                                      iconColor: const Color(0xFFEA580C),
+                                      title: 'Heavy Screen Time (> 2 Hours)',
+                                      subtitle: 'Show students exceeding 120 minutes of usage',
+                                      value: controller.onlyHeavyUsage.value,
+                                      onChanged: controller.toggleOnlyHeavyUsage,
+                                    ),
+                                    const Divider(height: 1, indent: 52, color: Color(0xFFE2E8F0)),
+                                    _toggleRow(
+                                      icon: Icons.nights_stay_rounded,
+                                      iconColor: const Color(0xFF6366F1),
+                                      title: 'Night Curfew Usage',
+                                      subtitle: 'Show students who used their phone during night curfew',
+                                      value: controller.onlyNightUsage.value,
+                                      onChanged: controller.toggleOnlyNightUsage,
+                                    ),
+                                    const Divider(height: 1, indent: 52, color: Color(0xFFE2E8F0)),
+                                    _toggleRow(
+                                      icon: Icons.lock_clock_rounded,
+                                      iconColor: const Color(0xFFDC2626),
+                                      title: 'Locked or Restricted',
+                                      subtitle: 'Show students with locked devices or restricted apps',
+                                      value: controller.onlyLocked.value,
+                                      onChanged: controller.toggleOnlyLocked,
+                                    ),
+                                    const Divider(height: 1, indent: 52, color: Color(0xFFE2E8F0)),
+                                    _toggleRow(
+                                      icon: Icons.phone_rounded,
+                                      iconColor: const Color(0xFF059669),
+                                      title: 'Has Contact Phone',
+                                      subtitle: 'Show students with registered phone number',
+                                      value: controller.onlyWithPhone.value,
+                                      onChanged: controller.toggleOnlyWithPhone,
+                                    ),
+                                    const Divider(height: 1, indent: 52, color: Color(0xFFE2E8F0)),
+                                    _toggleRow(
+                                      icon: Icons.fingerprint_rounded,
+                                      iconColor: const Color(0xFF0D9488),
+                                      title: 'Has Aadhar / Student Code',
+                                      subtitle: 'Show students with registered Aadhar/code',
+                                      value: controller.onlyWithAadhar.value,
+                                      onChanged: controller.toggleOnlyWithAadhar,
+                                    ),
+                                  ],
+                                ),
+                              ),
+                              const SizedBox(height: 20),
+
+                              // 6. SORT ORDER
+                              _filterSectionHeader('SORT STUDENTS BY', Icons.sort_by_alpha_rounded),
+                              const SizedBox(height: 10),
+                              Wrap(
+                                spacing: 8,
+                                runSpacing: 8,
+                                children: ScreenTimeDirectoryController.sortOptions.map((s) {
+                                  final sel = controller.selectedSort.value == s;
+                                  return ChoiceChip(
+                                    label: Text(s),
+                                    selected: sel,
+                                    selectedColor: const Color(0xFF0F172A),
+                                    labelStyle: TextStyle(
+                                      color: sel ? Colors.white : const Color(0xFF334155),
+                                      fontWeight: sel ? FontWeight.w700 : FontWeight.w600,
+                                      fontSize: 12.5,
+                                    ),
+                                    backgroundColor: const Color(0xFFF1F5F9),
+                                    shape: RoundedRectangleBorder(
+                                      borderRadius: BorderRadius.circular(12),
+                                      side: BorderSide(
+                                        color: sel ? const Color(0xFF0F172A) : const Color(0xFFE2E8F0),
+                                      ),
+                                    ),
+                                    onSelected: (v) => controller.selectSort(s),
+                                  );
+                                }).toList(),
+                              ),
+                              const SizedBox(height: 16),
+                            ],
+                          );
+                        }),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+
+              // Bottom Sticky Action Button
+              Container(
+                padding: const EdgeInsets.fromLTRB(20, 12, 20, 16),
+                decoration: const BoxDecoration(
+                  color: Colors.white,
+                  border: Border(top: BorderSide(color: Color(0xFFE2E8F0))),
+                ),
+                child: SafeArea(
+                  top: false,
+                  child: SizedBox(
+                    width: double.infinity,
+                    height: 50,
+                    child: ElevatedButton(
+                      onPressed: () => Navigator.pop(ctx),
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: const Color(0xFF0284C7),
+                        foregroundColor: Colors.white,
+                        elevation: 2,
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(14),
+                        ),
+                      ),
+                      child: Obx(() {
+                        final count = controller.filteredStudents.length;
+                        return Row(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            const Icon(Icons.check_rounded, size: 20),
+                            const SizedBox(width: 8),
+                            Text(
+                              'Apply Filters & Show ($count Students)',
+                              style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 15),
+                            ),
+                          ],
+                        );
+                      }),
+                    ),
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     return Obx(() {
       final isSearching = controller.isSearchingServer.value;
       final hasText = controller.searchText.value.isNotEmpty;
 
-      return Container(
-        decoration: BoxDecoration(
-          color: Colors.white,
-          borderRadius: BorderRadius.circular(16),
-          border: Border.all(color: const Color(0xFFE2E8F0)),
-          boxShadow: [
-            BoxShadow(
-              color: const Color(0xFF0F172A).withValues(alpha: 0.04),
-              blurRadius: 14,
-              offset: const Offset(0, 3),
+      return Row(
+        children: [
+          Expanded(
+            child: Container(
+              decoration: BoxDecoration(
+                color: Colors.white,
+                borderRadius: BorderRadius.circular(16),
+                border: Border.all(color: const Color(0xFFE2E8F0)),
+                boxShadow: [
+                  BoxShadow(
+                    color: const Color(0xFF0F172A).withValues(alpha: 0.04),
+                    blurRadius: 14,
+                    offset: const Offset(0, 3),
+                  ),
+                ],
+              ),
+              child: TextField(
+                controller: controller.searchFilterController,
+                onChanged: controller.onSearchChanged,
+                onSubmitted: controller.onSearchSubmitted,
+                textInputAction: TextInputAction.search,
+                style: const TextStyle(
+                  color: Color(0xFF0F172A),
+                  fontSize: 14.5,
+                  fontWeight: FontWeight.w600,
+                ),
+                decoration: InputDecoration(
+                  hintText: 'Search by name, room, Aadhar or phone...',
+                  hintStyle: const TextStyle(
+                    color: Color(0xFF94A3B8),
+                    fontSize: 14,
+                    fontWeight: FontWeight.w400,
+                  ),
+                  isDense: true,
+                  contentPadding: const EdgeInsets.symmetric(
+                    horizontal: 16,
+                    vertical: 14,
+                  ),
+                  border: InputBorder.none,
+                  prefixIcon: const Icon(
+                    Icons.search_rounded,
+                    color: Color(0xFF0284C7),
+                    size: 22,
+                  ),
+                  suffixIcon: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      if (isSearching)
+                        const Padding(
+                          padding: EdgeInsets.only(right: 8),
+                          child: SizedBox(
+                            width: 16,
+                            height: 16,
+                            child: CircularProgressIndicator(
+                              strokeWidth: 2,
+                              color: Color(0xFF0284C7),
+                            ),
+                          ),
+                        ),
+                      if (hasText)
+                        IconButton(
+                          icon: const Icon(
+                            Icons.close_rounded,
+                            size: 18,
+                            color: Color(0xFF64748B),
+                          ),
+                          onPressed: controller.clearSearch,
+                        ),
+                    ],
+                  ),
+                ),
+              ),
             ),
-          ],
-        ),
-        child: TextField(
-          controller: controller.searchFilterController,
-          onChanged: controller.onSearchChanged,
-          onSubmitted: controller.onSearchSubmitted,
-          textInputAction: TextInputAction.search,
-          style: const TextStyle(
-            color: Color(0xFF0F172A),
-            fontSize: 14.5,
-            fontWeight: FontWeight.w600,
           ),
-          decoration: InputDecoration(
-            hintText: 'Search by name, room, Aadhar or phone...',
-            hintStyle: const TextStyle(
-              color: Color(0xFF94A3B8),
-              fontSize: 14,
-              fontWeight: FontWeight.w400,
-            ),
-            isDense: true,
-            contentPadding: const EdgeInsets.symmetric(
-              horizontal: 16,
-              vertical: 14,
-            ),
-            border: InputBorder.none,
-            prefixIcon: const Icon(
-              Icons.search_rounded,
-              color: Color(0xFF0284C7),
-              size: 22,
-            ),
-            suffixIcon: Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                if (isSearching)
-                  const Padding(
-                    padding: EdgeInsets.only(right: 8),
-                    child: SizedBox(
-                      width: 16,
-                      height: 16,
-                      child: CircularProgressIndicator(
-                        strokeWidth: 2,
-                        color: Color(0xFF0284C7),
+          const SizedBox(width: 8),
+          Obx(() {
+            final count = controller.activeFilterCount;
+            return Material(
+              color: count > 0 ? const Color(0xFF0284C7) : Colors.white,
+              borderRadius: BorderRadius.circular(16),
+              elevation: count > 0 ? 3 : 1,
+              shadowColor: count > 0 ? const Color(0xFF0284C7).withValues(alpha: 0.3) : Colors.black12,
+              child: InkWell(
+                key: const ValueKey('screentime_directory_filter_button'),
+                borderRadius: BorderRadius.circular(16),
+                onTap: () => _showFilterBottomSheet(context),
+                child: Container(
+                  height: 48,
+                  padding: const EdgeInsets.symmetric(horizontal: 14),
+                  decoration: BoxDecoration(
+                    borderRadius: BorderRadius.circular(16),
+                    border: Border.all(
+                      color: count > 0 ? const Color(0xFF0284C7) : const Color(0xFFE2E8F0),
+                    ),
+                  ),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Icon(
+                        Icons.tune_rounded,
+                        size: 20,
+                        color: count > 0 ? Colors.white : const Color(0xFF0284C7),
                       ),
-                    ),
+                      if (count > 0) ...[
+                        const SizedBox(width: 6),
+                        Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                          decoration: BoxDecoration(
+                            color: Colors.white,
+                            borderRadius: BorderRadius.circular(10),
+                          ),
+                          child: Text(
+                            '$count',
+                            style: const TextStyle(
+                              color: Color(0xFF0284C7),
+                              fontSize: 11,
+                              fontWeight: FontWeight.w800,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ],
                   ),
-                if (hasText)
-                  IconButton(
-                    icon: const Icon(
-                      Icons.close_rounded,
-                      size: 18,
-                      color: Color(0xFF64748B),
+                ),
+              ),
+            );
+          }),
+        ],
+      );
+    });
+  }
+}
+
+/// A leader's list is their own group only; this says which group.
+class _LeaderGroupBanner extends GetView<ScreenTimeDirectoryController> {
+  const _LeaderGroupBanner();
+
+  @override
+  Widget build(BuildContext context) {
+    return Obx(() {
+      final group = controller.leaderGroupName.value;
+      if (!controller.isLeaderView || group == null || group.isEmpty) {
+        return const SizedBox.shrink();
+      }
+      return Padding(
+        padding: const EdgeInsets.only(top: 8),
+        child: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+          decoration: BoxDecoration(
+            color: const Color(0xFFEEF2FF),
+            borderRadius: BorderRadius.circular(14),
+            border: Border.all(color: const Color(0xFFC7D2FE)),
+          ),
+          child: Row(
+            children: [
+              const Icon(Icons.groups_rounded, size: 20, color: Color(0xFF4F46E5)),
+              const SizedBox(width: 10),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      '$group group',
+                      style: const TextStyle(color: Color(0xFF312E81), fontWeight: FontWeight.w800, fontSize: 13.5),
                     ),
-                    onPressed: controller.clearSearch,
-                  ),
-              ],
-            ),
+                    const SizedBox(height: 1),
+                    const Text(
+                      'You see only the students of your group.',
+                      style: TextStyle(color: Color(0xFF4338CA), fontSize: 12),
+                    ),
+                  ],
+                ),
+              ),
+            ],
           ),
         ),
       );
     });
+  }
+}
+
+/// Admins and wardens: the counterpart of a leader's "My Group" banner. One
+/// tap narrows the list to a group (tap again for everyone); the picked group
+/// shows how many of its students are loaded.
+class _GroupQuickFilter extends GetView<ScreenTimeDirectoryController> {
+  const _GroupQuickFilter();
+
+  @override
+  Widget build(BuildContext context) {
+    return Obx(() {
+      if (!controller.currentRole.value.canOperate) return const SizedBox.shrink();
+      final selected = controller.selectedGroup.value;
+      return Padding(
+        padding: const EdgeInsets.only(top: 10),
+        child: SingleChildScrollView(
+          scrollDirection: Axis.horizontal,
+          child: Row(
+            children: [
+              for (final g in ScreenTimeDirectoryController.hshGroups)
+                Padding(
+                  padding: const EdgeInsets.only(right: 6),
+                  child: _GroupChip(
+                    label: g == 'All' ? 'All groups' : g,
+                    count: g != 'All' && g == selected ? controller.groupCountLabel(g) : null,
+                    selected: g == selected,
+                    onTap: () => controller.selectGroup(g),
+                  ),
+                ),
+            ],
+          ),
+        ),
+      );
+    });
+  }
+}
+
+class _GroupChip extends StatelessWidget {
+  final String label;
+  final String? count;
+  final bool selected;
+  final VoidCallback onTap;
+
+  const _GroupChip({
+    required this.label,
+    required this.count,
+    required this.selected,
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Material(
+      color: selected ? const Color(0xFF4F46E5) : const Color(0xFFEEF2FF),
+      borderRadius: BorderRadius.circular(999),
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(999),
+        child: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 7),
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(999),
+            border: Border.all(color: selected ? const Color(0xFF4338CA) : const Color(0xFFC7D2FE)),
+          ),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              if (label != 'All groups') ...[
+                Icon(
+                  Icons.groups_rounded,
+                  size: 15,
+                  color: selected ? Colors.white : const Color(0xFF4F46E5),
+                ),
+                const SizedBox(width: 5),
+              ],
+              Text(
+                label,
+                style: TextStyle(
+                  color: selected ? Colors.white : const Color(0xFF312E81),
+                  fontWeight: FontWeight.w700,
+                  fontSize: 12.5,
+                ),
+              ),
+              if (count != null) ...[
+                const SizedBox(width: 6),
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 1),
+                  decoration: BoxDecoration(
+                    color: Colors.white.withValues(alpha: 0.22),
+                    borderRadius: BorderRadius.circular(999),
+                  ),
+                  child: Text(
+                    count!,
+                    style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w800, fontSize: 11.5),
+                  ),
+                ),
+              ],
+            ],
+          ),
+        ),
+      ),
+    );
   }
 }
 
@@ -443,6 +1150,9 @@ class _StudentRow extends GetView<ScreenTimeDirectoryController> {
             : null);
     final hasInstallPass = passUntil != null &&
         toInt(passUntil) > DateTime.now().millisecondsSinceEpoch;
+
+    final lowBattery = isStudentLowBattery(student);
+    final extendedOffline = isStudentExtendedOffline(student);
 
     final statusColor = isOnline
         ? (isScreenOn ? const Color(0xFF16A34A) : const Color(0xFFD97706))
@@ -623,12 +1333,28 @@ class _StudentRow extends GetView<ScreenTimeDirectoryController> {
                           ],
                         ],
                       ),
-                      if (locked || restricted > 0 || tampered || hasInstallPass) ...[
+                      if (locked || restricted > 0 || tampered || hasInstallPass || lowBattery || extendedOffline) ...[
                         const SizedBox(height: 6),
                         Wrap(
                           spacing: 6,
                           runSpacing: 4,
                           children: [
+                            if (lowBattery)
+                              _Tag(
+                                icon: Icons.battery_alert_rounded,
+                                label: 'Low battery ($battery%)',
+                                color: const Color(0xFFDC2626),
+                                bg: const Color(0xFFFEF2F2),
+                              ),
+                            if (extendedOffline)
+                              _Tag(
+                                icon: Icons.cloud_off_rounded,
+                                label: lastSeen != null
+                                    ? 'Offline (${relativeTime(lastSeen)})'
+                                    : 'Offline (>12h)',
+                                color: const Color(0xFFD97706),
+                                bg: const Color(0xFFFEF3C7),
+                              ),
                             if (hasInstallPass)
                               const _Tag(
                                 icon: Icons.install_mobile_rounded,

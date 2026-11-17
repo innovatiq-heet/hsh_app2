@@ -3,6 +3,7 @@ import 'package:get/get.dart';
 import '../../../core/constants/app_colors.dart';
 import '../../../core/constants/app_dimens.dart';
 import '../../../core/constants/app_text_styles.dart';
+import '../../../core/models/broadcasts/broadcast_models.dart';
 import '../../../core/utils/app_snackbar.dart';
 import '../../../core/utils/string_formatting.dart';
 import '../../shared/widgets/app_button.dart';
@@ -21,6 +22,12 @@ class BroadcastComposeScreen extends GetView<BroadcastComposeController> {
   Future<void> _confirmAndSend(BuildContext context) async {
     final preview = controller.preview.value;
     final n = preview.recipientCount;
+    final titleText = controller.trimmedTitle.isNotEmpty
+        ? "'${controller.trimmedTitle}'"
+        : 'this broadcast';
+    final channel = controller.selectedChannel.value;
+    final channelDesc = channel.displayLabel;
+
     final ok = await showDialog<bool>(
       context: context,
       builder: (dialogContext) => AlertDialog(
@@ -30,14 +37,21 @@ class BroadcastComposeScreen extends GetView<BroadcastComposeController> {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Text(
-              "Send '${controller.trimmedTitle}' to $n ${n == 1 ? 'student' : 'students'}?",
+              "Send $titleText to $n ${n == 1 ? 'student' : 'students'} via $channelDesc?",
               style: AppTextStyles.bodyMd.copyWith(color: AppColors.textSecondary),
             ),
-            if (preview.noDeviceCount > 0) ...[
+            if (channel != BroadcastChannel.whatsapp && preview.noDeviceCount > 0) ...[
               const SizedBox(height: AppDimens.gapSm),
               Text(
-                "${preview.noDeviceCount} ${preview.noDeviceCount == 1 ? 'has' : 'have'} no device; "
-                "they'll see it in the inbox.",
+                "${preview.noDeviceCount} ${preview.noDeviceCount == 1 ? 'has' : 'have'} no app installed; "
+                "they'll see it in their inbox upon login.",
+                style: AppTextStyles.bodySm.copyWith(color: AppColors.textSecondary),
+              ),
+            ],
+            if (channel != BroadcastChannel.app && preview.noWhatsappCount > 0) ...[
+              const SizedBox(height: AppDimens.gapSm),
+              Text(
+                "${preview.noWhatsappCount} ${preview.noWhatsappCount == 1 ? 'has' : 'have'} no phone number recorded.",
                 style: AppTextStyles.bodySm.copyWith(color: AppColors.textSecondary),
               ),
             ],
@@ -93,7 +107,7 @@ class BroadcastComposeScreen extends GetView<BroadcastComposeController> {
           SliverGradientHeader(
             overline: 'Broadcast',
             title: 'New message',
-            subtitle: 'Push + inbox for the students you pick',
+            subtitle: 'Push, WhatsApp & inbox for the students you pick',
             leading: HeaderIconButton(
               icon: Icons.close_rounded,
               tooltip: 'Close',
@@ -109,6 +123,9 @@ class BroadcastComposeScreen extends GetView<BroadcastComposeController> {
             ),
             sliver: SliverList.list(
               children: [
+                const SectionHeader(title: 'Delivery Channel'),
+                _ChannelSelector(controller: controller),
+                const SizedBox(height: AppDimens.gapXl),
                 const SectionHeader(title: 'Message'),
                 AppCard(
                   child: Column(
@@ -118,8 +135,8 @@ class BroadcastComposeScreen extends GetView<BroadcastComposeController> {
                         maxLength: BroadcastComposeController.maxTitle,
                         textCapitalization: TextCapitalization.sentences,
                         decoration: const InputDecoration(
-                          labelText: 'Title',
-                          hintText: 'e.g. Water supply',
+                          labelText: 'Title (Optional)',
+                          hintText: 'e.g. Water supply (leave blank for quick notice)',
                         ),
                       ),
                       const SizedBox(height: AppDimens.gapSm),
@@ -147,6 +164,130 @@ class BroadcastComposeScreen extends GetView<BroadcastComposeController> {
             ),
           ),
         ],
+      ),
+    );
+  }
+}
+
+/// Segmented delivery channel picker: Both (App & WhatsApp), In-App, or WhatsApp.
+class _ChannelSelector extends StatelessWidget {
+  final BroadcastComposeController controller;
+
+  const _ChannelSelector({required this.controller});
+
+  @override
+  Widget build(BuildContext context) {
+    return Obx(() {
+      final current = controller.selectedChannel.value;
+      return Container(
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(16),
+          border: Border.all(color: const Color(0xFFE2E8F0)),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withValues(alpha: 0.03),
+              blurRadius: 8,
+              offset: const Offset(0, 3),
+            ),
+          ],
+        ),
+        padding: const EdgeInsets.all(4),
+        child: Row(
+          children: [
+            _buildOption(
+              channel: BroadcastChannel.both,
+              icon: Icons.campaign_rounded,
+              label: 'Both',
+              sublabel: 'App + WhatsApp',
+              isSelected: current == BroadcastChannel.both,
+            ),
+            const SizedBox(width: 4),
+            _buildOption(
+              channel: BroadcastChannel.app,
+              icon: Icons.notifications_active_rounded,
+              label: 'In-App',
+              sublabel: 'Push & Inbox',
+              isSelected: current == BroadcastChannel.app,
+            ),
+            const SizedBox(width: 4),
+            _buildOption(
+              channel: BroadcastChannel.whatsapp,
+              icon: Icons.chat_rounded,
+              label: 'WhatsApp',
+              sublabel: 'Direct Chat',
+              isSelected: current == BroadcastChannel.whatsapp,
+            ),
+          ],
+        ),
+      );
+    });
+  }
+
+  Widget _buildOption({
+    required BroadcastChannel channel,
+    required IconData icon,
+    required String label,
+    required String sublabel,
+    required bool isSelected,
+  }) {
+    return Expanded(
+      child: Material(
+        color: Colors.transparent,
+        child: InkWell(
+          borderRadius: BorderRadius.circular(12),
+          onTap: () => controller.setChannel(channel),
+          child: AnimatedContainer(
+            duration: const Duration(milliseconds: 200),
+            curve: Curves.easeInOut,
+            padding: const EdgeInsets.symmetric(vertical: 10, horizontal: 4),
+            decoration: BoxDecoration(
+              gradient: isSelected
+                  ? const LinearGradient(
+                      colors: [Color(0xFF0F172A), Color(0xFF1E293B)],
+                      begin: Alignment.topLeft,
+                      end: Alignment.bottomRight,
+                    )
+                  : null,
+              borderRadius: BorderRadius.circular(12),
+            ),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Icon(
+                  icon,
+                  size: 20,
+                  color: isSelected
+                      ? const Color(0xFF38BDF8)
+                      : const Color(0xFF64748B),
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  label,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: TextStyle(
+                    fontSize: 12.5,
+                    fontWeight: isSelected ? FontWeight.w700 : FontWeight.w600,
+                    color: isSelected ? Colors.white : const Color(0xFF334155),
+                  ),
+                ),
+                Text(
+                  sublabel,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: TextStyle(
+                    fontSize: 10,
+                    fontWeight: FontWeight.w500,
+                    color: isSelected
+                        ? const Color(0xFF94A3B8)
+                        : const Color(0xFF94A3B8),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
       ),
     );
   }
@@ -321,6 +462,7 @@ class _ReachBanner extends StatelessWidget {
       final p = controller.preview.value;
       final names = p.sample.map((s) => formatPersonName(s.name)).join(', ');
       final reach = p.recipientCount > 0;
+      final channel = controller.selectedChannel.value;
       return NoticeBanner(
         icon: reach ? Icons.groups_rounded : Icons.person_off_rounded,
         color: reach ? AppColors.successGreen : AppColors.warningOrange,
@@ -333,10 +475,15 @@ class _ReachBanner extends StatelessWidget {
                 text: '${p.recipientCount} ${p.recipientCount == 1 ? 'student' : 'students'}',
                 style: const TextStyle(fontWeight: FontWeight.w800),
               ),
+              TextSpan(text: ' via ${channel.displayLabel}'),
             ])),
-            if (p.noDeviceCount > 0) ...[
+            if (channel != BroadcastChannel.whatsapp && p.noDeviceCount > 0) ...[
               const SizedBox(height: 2),
               Text('${p.noDeviceCount} without the app (inbox only)', style: AppTextStyles.bodySm),
+            ],
+            if (channel != BroadcastChannel.app && p.noWhatsappCount > 0) ...[
+              const SizedBox(height: 2),
+              Text('${p.noWhatsappCount} without phone number recorded', style: AppTextStyles.bodySm),
             ],
             if (names.isNotEmpty) ...[
               const SizedBox(height: 2),

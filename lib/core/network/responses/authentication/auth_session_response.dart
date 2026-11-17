@@ -46,7 +46,17 @@ class AuthSessionResponse {
     bool? isAlumni,
   }) {
     final rawId = json['id'] ?? json['student_id'];
-    final role = UserRoleX.fromApi(json['role'] as String?);
+    final rolesList = (json['roles'] as List?)
+            ?.map((e) => e.toString().toLowerCase().trim())
+            .toList() ??
+        [];
+    final isLeaderApi = json['is_leader'] == true ||
+        rolesList.contains('leader') ||
+        rolesList.contains('wing-leader') ||
+        rolesList.contains('wing_leader') ||
+        rolesList.contains('floor-leader') ||
+        rolesList.contains('floor_leader');
+    final role = isLeaderApi ? UserRole.leader : UserRoleX.fromApi(json['role'] as String?);
     final roomVal = json['room']?.toString() ?? json['room_number']?.toString() ?? '';
     // Staff (complain-solver, laundry-man) have no room; that is not alumni.
     final canBeAlumni = role.isStudentOrLeader || role == UserRole.unknown;

@@ -31,6 +31,10 @@ enum class BlockReason(val wireName: String, val tag: String, val title: String,
     DAILY_LIMIT(
         "daily_limit", "DAILY LIMIT REACHED", "Screen Time Over",
         "You have used up today's screen-time allowance.",
+    ),
+    APP_LIMIT(
+        "app_limit", "APP TIME LIMIT REACHED", "App Time Over",
+        "You have used up today's time for this app. It opens again tomorrow.",
     );
 
     companion object {
@@ -40,8 +44,9 @@ enum class BlockReason(val wireName: String, val tag: String, val title: String,
 
 /**
  * Decides whether a package may be in the foreground right now, given the
- * stored [DevicePolicy]. All four rules are enforced on-device so they work
- * offline and don't depend on the backend's clock.
+ * stored [DevicePolicy]: remote lock, installers, blocked apps, bedtime, the
+ * daily limit and each app's own time limit. All are enforced on-device so
+ * they work offline and don't depend on the backend's clock.
  */
 object PolicyEvaluator {
     private const val PROTECTED_CACHE_MS = 5 * 60 * 1000L
@@ -100,6 +105,11 @@ object PolicyEvaluator {
             return BlockReason.INSTALLER_BLOCKED
         }
         if (packageName in policy.blockedPackages) return BlockReason.APP_BLOCKED
+        if (packageName in policy.appLimits &&
+            AppLimits.reached(policy.appLimits, packageName, appMinutesToday(context, packageName))
+        ) {
+            return BlockReason.APP_LIMIT
+        }
         if (policy.hasBedtime && isInBedtime(policy, context = context)) return BlockReason.BEDTIME
         if (policy.dailyLimitMinutes > 0 && todayMinutes(context) >= policy.dailyLimitMinutes) {
             return BlockReason.DAILY_LIMIT
@@ -149,17 +159,36 @@ object PolicyEvaluator {
 
     /** Today's total foreground minutes across all non-hostel apps, cached briefly. */
     fun todayMinutes(context: Context): Int {
+        refreshUsage(context)
+        return usageMinutesCache
+    }
+
+    /** Today's foreground minutes of one app (for its own time limit), cached briefly. */
+    fun appMinutesToday(context: Context, packageName: String): Int {
+        refreshUsage(context)
+        return ((usageByAppCache[packageName] ?: 0L) / 60_000L).toInt()
+    }
+
+    @Volatile private var usageByAppCache: Map<String, Long> = emptyMap()
+
+    /** Reads today's usage once per [USAGE_CACHE_MS]: the total and each app's share. */
+    private fun refreshUsage(context: Context) {
         val now = System.currentTimeMillis()
-        if (now - usageCacheAt < USAGE_CACHE_MS) return usageMinutesCache
-        if (!UsageCollector.hasPermission(context)) return 0
+        if (now - usageCacheAt < USAGE_CACHE_MS) return
+        if (!UsageCollector.hasPermission(context)) {
+            // No usage access: nothing to measure, so no time rule applies.
+            usageMinutesCache = 0
+            usageByAppCache = emptyMap()
+            return
+        }
         val dayStart = UsageCollector.startOfDay(now)
         val snap = runCatching {
             UsageCollector.collect(context, dayStart, UsageCollector.nextDayStart(dayStart))
-        }.getOrNull() ?: return usageMinutesCache
-        val total = snap.appMillis.filterKeys { it != context.packageName }.values.sum()
-        usageMinutesCache = (total / 60_000L).toInt()
+        }.getOrNull() ?: return
+        val apps = snap.appMillis.filterKeys { it != context.packageName }
+        usageByAppCache = apps
+        usageMinutesCache = (apps.values.sum() / 60_000L).toInt()
         usageCacheAt = now
-        return usageMinutesCache
     }
 
     // ---------- Protected apps ----------

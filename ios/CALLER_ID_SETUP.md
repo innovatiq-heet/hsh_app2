@@ -29,7 +29,7 @@
 
 ## 🔄 If You Change to Another Apple Developer Account (For Release)
 
-If your release account uses a different bundle ID prefix (e.g. `com.yourcompany.app` instead of `in.innovatiq.hshApp2`):
+If your release account uses a different bundle ID prefix (e.g. `com.yourcompany.app` instead of `com.avdhsh.org`):
 
 1. **Update 4 files in the codebase**:
    - `ios/Runner/CallerIdPlugin.swift` → Change `extensionIdentifier` & `appGroup`

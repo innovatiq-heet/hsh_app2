@@ -28,11 +28,13 @@ class ScreenTimeRepository extends BaseRepository {
 
   // ------------------------------------------------------------- directory
 
-  /// One page of the student directory, optionally narrowed by [search].
+  /// One page of the student directory, optionally narrowed by [search] and
+  /// to one hostel [group] (the server then counts that group only).
   Future<StudentsPage> students({
     required int limit,
     required int offset,
     String? search,
+    String? group,
   }) =>
       _guard(() async {
         final response = await _dio.get(
@@ -41,6 +43,7 @@ class ScreenTimeRepository extends BaseRepository {
             'limit': limit,
             'offset': offset,
             if (search != null && search.isNotEmpty) 'search': search,
+            if (group != null && group.isNotEmpty) 'group': group,
           },
         );
         return StudentsPage.parse(response.data);
@@ -48,9 +51,12 @@ class ScreenTimeRepository extends BaseRepository {
 
   // ------------------------------------------------------- one student: read
 
-  /// Today's live status, apps and usage.
-  Future<dynamic> live(String studentId) =>
-      _guard(() async => (await _dio.get('/screen-time/live/$studentId')).data);
+  /// Today's live status, apps, policy and optional 30-day history.
+  Future<dynamic> live(String studentId, {bool includeHistory = false}) =>
+      _guard(() async => (await _dio.get(
+            '/screen-time/live/$studentId',
+            queryParameters: includeHistory ? {'include_history': 1} : null,
+          )).data);
 
   /// Day-by-day history; with [date] (`yyyy-MM-dd`) the usage of that day.
   Future<dynamic> history(String studentId, {String? date}) => _guard(() async {
@@ -86,6 +92,16 @@ class ScreenTimeRepository extends BaseRepository {
             'app_name': appName,
             'is_blocked': isBlocked,
             'daily_limit_minutes': ?dailyLimitMinutes,
+          }));
+
+  /// Batch update multiple app rules in a single atomic transaction.
+  Future<Response<dynamic>> setAppBatchRules({
+    required String studentId,
+    required List<Map<String, dynamic>> rules,
+  }) =>
+      _guard(() => _dio.post('/screen-time/apps/batch-rules', data: {
+            'student_id': studentId,
+            'rules': rules,
           }));
 
   // ---------------------------------------------------------- app requests

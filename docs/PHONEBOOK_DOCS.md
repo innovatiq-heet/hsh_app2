@@ -1,6 +1,6 @@
 # Student Phonebook & Caller ID
 
-> **Last updated:** 2026-11-11 · **Repo:** `hsh_app2` (Flutter, native Android, native iOS). The directory itself comes straight from the AVD VVN API; only **Favourites** (section 5.1) uses `hsh_api`.
+> **Last updated:** 2026-11-15 · **Repo:** `hsh_app2` (Flutter, native Android, native iOS). The directory itself comes straight from the AVD VVN API; only **Favourites** (section 5.1) uses `hsh_api`.
 >
 > iOS signing and Xcode setup for caller ID: [ios/CALLER_ID_SETUP.md](../ios/CALLER_ID_SETUP.md) (quick reference) and [ios/CALLER_ID_HANDOFF.md](../ios/CALLER_ID_HANDOFF.md) (full guide).
 
@@ -180,7 +180,7 @@ Operator home → **Student Phonebook** (`Routes.operatorDirectory`).
 - **Search bar** and **group chips** (All, Param, Pavitra, Pulkit, Paramanand).
 - **Student cards:** name, group, room, primary number, quick **Call** and **WhatsApp** buttons.
 - **A-Z index rail** (Name A-Z sort, no search): two independent sections on the right edge, **Students** (blue) and **Alumni** (purple), each resting as its own small tab. Tapping a tab smoothly grows just that section into a strip of its letters while the other stays a tab (opening one folds the other); the open strip folds back after 3 seconds without a touch. On an open strip, slide a finger anywhere; the list jumps letter by letter with a haptic tick (`PhonebookController.railEntries`). Jumps are exact because `PrecalculateExtentsPolicy` measures every row in the background shortly after the list loads.
-- **Student details screen** (tap a card): a full screen with the navy header, a collapsible *Student contact* card (numbers + email, Call / WhatsApp / Message / Gmail), Hostel, Personal and Family cards, and family numbers (one card when father and mother share a number). **View screen time** (residents only; alumni don't have it) resolves the student's Screen Time `students.id` through Screen Time's own directory (bank code equal AND name or room equal, exactly one match) and opens that student directly; otherwise it opens Screen Time searched by name. A bank code is never sent as an id.
+- **Student details screen** (tap a card): a full screen with the navy header, an interactive **"Expand all / Collapse all"** master toggle, and smoothly expandable/collapsible detail sections (each with rotating chevron and collapsed summary badge): *Student contact* (numbers + email, Call / WhatsApp / Message / Gmail), *Tags & Roles*, *Hostel*, *Personal*, *Family*, and *Family contacts* (one card when father and mother share a number). **View screen time** (residents only; alumni don't have it) resolves the student's Screen Time `students.id` through Screen Time's own directory (bank code equal AND name or room equal, exactly one match) and opens that student directly; otherwise it opens Screen Time searched by name. A bank code is never sent as an id.
 - Call uses `tel:`; WhatsApp opens `https://wa.me/91XXXXXXXXXX` in the external app.
 
 ### 5.1 Favourites (manual star + most dialled)
@@ -266,7 +266,7 @@ Tapping the card or the notification launches the app with extras `hsh_target = 
    - names are shortened to first + last name; siblings sharing a number are merged (`Rohan Sharma & Meet Sharma`, or `Rohan Sharma +2` for three or more);
    - label `<who> · <place> · <relation>`, e.g. `Rohan Sharma · Rm 204 (Param) · Father`. The relation is left out for the student's own number and the place when it isn't known. Labels longer than 60 characters are cut with "…";
    - sorted ascending with no duplicates (CallKit rejects the whole batch otherwise).
-3. `CallerIdPlugin` re-sorts and de-duplicates defensively, writes `callerid-directory.json` to the App Group `group.in.innovatiq.hshApp2`, and asks CallKit to reload `in.innovatiq.hshApp2.CallDirectoryExtension`.
+3. `CallerIdPlugin` re-sorts and de-duplicates defensively, writes `callerid-directory.json` to the App Group `group.com.avdhsh.org`, and asks CallKit to reload `com.avdhsh.org.CallDirectoryExtension`.
 4. `CallDirectoryHandler` reads the file and adds every entry (on incremental reloads it clears and resends everything).
 5. `setActive(false)` (Turn off, logout, non-admin login) deletes the file and reloads, so labels disappear.
 
@@ -303,7 +303,7 @@ There is no tap-to-open on iOS (`consumeLaunchTarget` returns nil).
 </service>
 ```
 
-**iOS:** App Group `group.in.innovatiq.hshApp2` on both the Runner and CallDirectoryExtension targets; extension bundle ID `in.innovatiq.hshApp2.CallDirectoryExtension`; a paid Apple Developer team is required. Details in [ios/CALLER_ID_HANDOFF.md](../ios/CALLER_ID_HANDOFF.md).
+**iOS:** App Group `group.com.avdhsh.org` on both the Runner and CallDirectoryExtension targets; extension bundle ID `com.avdhsh.org.CallDirectoryExtension`; a paid Apple Developer team is required. Details in [ios/CALLER_ID_HANDOFF.md](../ios/CALLER_ID_HANDOFF.md).
 
 ---
 

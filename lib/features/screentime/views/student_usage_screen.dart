@@ -23,10 +23,8 @@ class _StudentUsageScreenState extends State<StudentUsageScreen> {
   @override
   void dispose() {
     // A past day picked here must not leak into the overview, which is always
-    // about today.
-    if (!controller.isClosed && !controller.isTodaySelected) {
-      controller.selectDate(controller.todayDateStr);
-    }
+    // about today. After the frame: the tree is locked during dispose().
+    if (!controller.isClosed) controller.selectTodayAfterFrame();
     super.dispose();
   }
 

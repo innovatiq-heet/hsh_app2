@@ -5,6 +5,7 @@ import '../../../core/enums/user_role.dart';
 import '../../../core/models/geofence/geofence_policy_model.dart';
 import '../../../core/network/repository/geofence/geofence_repository.dart';
 import '../../../core/network/repository/screentime/screen_time_repository.dart';
+import '../../../core/network/responses/screentime/students_page.dart';
 import '../../../core/storage/session_store.dart';
 import '../../../core/utils/app_snackbar.dart';
 import '../../phonebook/models/phonebook_models.dart';
@@ -30,9 +31,10 @@ class ScreenTimeDirectoryController extends GetxController with WidgetsBindingOb
     debounce(allStudents, (_) => _invalidateDirectoryCounts(),
         time: const Duration(milliseconds: 60));
     _checkInitialArguments();
-    _loadTotalHostelStudentCount();
+    // The role (and a leader's group) decides which students load, so the
+    // list, the totals and the app requests wait for it.
     _loadRole();
-    fetchAppRequests();
+    _loadPhonebookGroups();
     _refreshTimer = Timer.periodic(_refreshInterval, (_) => _autoRefresh());
   }
 
@@ -47,15 +49,25 @@ class ScreenTimeDirectoryController extends GetxController with WidgetsBindingOb
     super.onClose();
   }
 
+  DateTime? _lastDirectoryRefreshAt;
+
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
-    if (state == AppLifecycleState.resumed) _autoRefresh();
+    if (state == AppLifecycleState.resumed) {
+      final now = DateTime.now();
+      if (_lastDirectoryRefreshAt == null ||
+          now.difference(_lastDirectoryRefreshAt!).inSeconds > 45) {
+        _lastDirectoryRefreshAt = now;
+        _autoRefresh();
+      }
+    }
   }
 
   Future<void> _autoRefresh() async {
     if (!currentRole.value.canViewScreenTime) return;
     // An open student's controller refreshes itself.
     if (detail.value != null) return;
+    _lastDirectoryRefreshAt = DateTime.now();
     await Future.wait([
       _refreshLoadedStudents(),
       loadGlobalCurfew(),
@@ -82,7 +94,7 @@ class ScreenTimeDirectoryController extends GetxController with WidgetsBindingOb
   void selectStudent(dynamic student) {
     _closeDetail();
     selectedStudent.value = student;
-    final controller = StudentDetailController(student);
+    final controller = StudentDetailController(student, host: this);
     Get.put<StudentDetailController>(controller, tag: controller.tag);
     detail.value = controller;
   }
@@ -115,7 +127,7 @@ class ScreenTimeDirectoryController extends GetxController with WidgetsBindingOb
 
   final RxBool isUpdatingCurfew = false.obs;
 
-  static const _refreshInterval = Duration(minutes: 1);
+  static const _refreshInterval = Duration(minutes: 2);
 
   final RxBool isLoadingStudents = false.obs;
 
@@ -137,6 +149,226 @@ class ScreenTimeDirectoryController extends GetxController with WidgetsBindingOb
     'Night',
     'Attention'
   ];
+
+  static const List<String> hshGroups = [
+    'All',
+    'Param',
+    'Pavitra',
+    'Pulkit',
+    'Paramanand',
+    'Alumni',
+  ];
+
+  static const List<String> floorOptions = [
+    'All',
+    'Ground',
+    'Floor 1',
+    'Floor 2',
+    'Floor 3',
+    'Floor 4',
+    'Floor 5',
+    'Floor 6',
+    'Floor 7',
+    'Floor 8',
+  ];
+
+  static int? floorNumberOf(String option) {
+    if (option == 'Ground') return 0;
+    return int.tryParse(option.replaceAll(RegExp(r'\D'), ''));
+  }
+
+  static const List<String> statusOptions = [
+    'All',
+    'Active Residents',
+    'Alumni / Left',
+  ];
+
+  static const List<String> sortOptions = [
+    'Usage (High-Low)',
+    'Usage (Low-High)',
+    'Name (A-Z)',
+    'Name (Z-A)',
+    'Room (Low-High)',
+    'Room (High-Low)',
+    'Floor (Low-High)',
+    'Floor (High-Low)',
+  ];
+
+  // Filters & Sorting state
+  final RxString selectedGroup = 'All'.obs;
+
+  /// When caller is a student leader, their assigned group name from the server
+  final RxnString leaderGroupName = RxnString();
+
+  /// Count of students in the leader's assigned group currently in directory
+  int get leaderGroupStudentCount {
+    final grp = leaderGroupName.value?.trim();
+    if (grp == null || grp.isEmpty) return 0;
+    return groupStudentCount(grp);
+  }
+
+  /// Whether [student] belongs to [group] (one of [hshGroups] other than
+  /// 'All'). "Alumni" also takes students without a room or marked as left.
+  /// Display filter only: the group comes from the student row or, failing
+  /// that, the phonebook cache, and is never used to pick a student.
+  bool isInGroup(dynamic student, String group) {
+    final grp = (groupForStudent(student) ?? '').trim().toLowerCase();
+    final selG = group.trim().toLowerCase();
+    if (selG != 'alumni') return grp == selG;
+    final statusStr = (student is Map ? (student['status'] ?? '') : '').toString().toLowerCase();
+    final roomStr = (student is Map ? (student['room'] ?? student['room_number'] ?? student['roomNumber'] ?? '') : '')
+        .toString()
+        .toLowerCase();
+    return grp == 'alumni' ||
+        roomStr.isEmpty ||
+        roomStr == 'alumni' ||
+        statusStr.contains('left') ||
+        statusStr.contains('cancel') ||
+        statusStr.contains('alumni');
+  }
+
+  /// Students of [group] among the rows loaded so far.
+  int groupStudentCount(String group) => allStudents.where((s) => isInGroup(s, group)).length;
+
+  /// [groupStudentCount] for display: "24+" while more pages are still to
+  /// load (the directory fetches 20 students at a time), so it never reads
+  /// as the group's full size when it isn't.
+  String groupCountLabel(String group) {
+    final n = groupStudentCount(group);
+    return hasMoreStudents.value ? '$n+' : '$n';
+  }
+
+  final RxString selectedFloor = 'All'.obs;
+  final RxString selectedStatus = 'All'.obs;
+  final RxString selectedSort = 'Usage (High-Low)'.obs;
+
+  // Toggle Filters
+  final RxBool onlyWithUsage = false.obs;
+  final RxBool onlyHeavyUsage = false.obs;
+  final RxBool onlyNightUsage = false.obs;
+  final RxBool onlyLocked = false.obs;
+  final RxBool onlyWithPhone = false.obs;
+  final RxBool onlyWithAadhar = false.obs;
+
+  int get activeFilterCount {
+    int count = 0;
+    if (selectedGroup.value != 'All') count++;
+    if (selectedFloor.value != 'All') count++;
+    if (selectedStatus.value != 'All') count++;
+    if (directoryFilter.value != 'All') count++;
+    if (onlyWithUsage.value) count++;
+    if (onlyHeavyUsage.value) count++;
+    if (onlyNightUsage.value) count++;
+    if (onlyLocked.value) count++;
+    if (onlyWithPhone.value) count++;
+    if (onlyWithAadhar.value) count++;
+    if (selectedSort.value != 'Usage (High-Low)') count++;
+    return count;
+  }
+
+  void selectGroup(String group) {
+    if (selectedGroup.value == group) {
+      selectedGroup.value = 'All';
+    } else {
+      selectedGroup.value = group;
+    }
+    visibleStudentCount.value = uiBatchSize;
+    filterStudents(searchFilterController.text);
+    unawaited(_fillViewport());
+  }
+
+  void selectFloor(String floor) {
+    if (selectedFloor.value == floor) {
+      selectedFloor.value = 'All';
+    } else {
+      selectedFloor.value = floor;
+    }
+    visibleStudentCount.value = uiBatchSize;
+    filterStudents(searchFilterController.text);
+    unawaited(_fillViewport());
+  }
+
+  void selectStatus(String status) {
+    if (selectedStatus.value == status) {
+      selectedStatus.value = 'All';
+    } else {
+      selectedStatus.value = status;
+    }
+    visibleStudentCount.value = uiBatchSize;
+    filterStudents(searchFilterController.text);
+    unawaited(_fillViewport());
+  }
+
+  void selectSort(String sort) {
+    selectedSort.value = sort;
+    filterStudents(searchFilterController.text);
+  }
+
+  void toggleOnlyWithUsage(bool val) {
+    onlyWithUsage.value = val;
+    filterStudents(searchFilterController.text);
+  }
+
+  void toggleOnlyHeavyUsage(bool val) {
+    onlyHeavyUsage.value = val;
+    filterStudents(searchFilterController.text);
+  }
+
+  void toggleOnlyNightUsage(bool val) {
+    onlyNightUsage.value = val;
+    filterStudents(searchFilterController.text);
+  }
+
+  void toggleOnlyLocked(bool val) {
+    onlyLocked.value = val;
+    filterStudents(searchFilterController.text);
+  }
+
+  void toggleOnlyWithPhone(bool val) {
+    onlyWithPhone.value = val;
+    filterStudents(searchFilterController.text);
+  }
+
+  void toggleOnlyWithAadhar(bool val) {
+    onlyWithAadhar.value = val;
+    filterStudents(searchFilterController.text);
+  }
+
+  void resetAllFilters() {
+    selectedGroup.value = 'All';
+    selectedFloor.value = 'All';
+    selectedStatus.value = 'All';
+    directoryFilter.value = 'All';
+    onlyWithUsage.value = false;
+    onlyHeavyUsage.value = false;
+    onlyNightUsage.value = false;
+    onlyLocked.value = false;
+    onlyWithPhone.value = false;
+    onlyWithAadhar.value = false;
+    selectedSort.value = 'Usage (High-Low)';
+    filterStudents(searchFilterController.text);
+  }
+
+  final Map<String, PhonebookGroupInfo> _phonebookInfo = {};
+
+  Future<void> _loadPhonebookGroups() async {
+    try {
+      final map = await PhonebookDatabaseService.instance.groupInfoByBankCode();
+      _phonebookInfo.clear();
+      _phonebookInfo.addAll(map);
+    } catch (e) {
+      debugPrint('[ScreenTime] phonebook group lookup error: $e');
+    }
+  }
+
+  String? groupForStudent(dynamic student) {
+    if (student is! Map) return null;
+    final grp = (student['groupName'] ?? student['group_name'] ?? student['group'])?.toString().trim();
+    if (grp != null && grp.isNotEmpty) return grp;
+    final bank = PhonebookDatabaseService.normalizeBankCode(
+        (student['bankCode'] ?? student['bank_code'] ?? student['aadhar'] ?? student['student_code'] ?? '').toString());
+    return _phonebookInfo[bank]?.group;
+  }
 
   void setDirectoryFilter(String filter) {
     directoryFilter.value = filter;
@@ -170,7 +402,7 @@ class ScreenTimeDirectoryController extends GetxController with WidgetsBindingOb
               0) {
         night++;
       }
-      if (isStudentTampered(s) || isStudentLocked(s)) attention++;
+      if (isStudentNeedsAttention(s)) attention++;
     }
     return {
       'All': valid,
@@ -212,6 +444,7 @@ class ScreenTimeDirectoryController extends GetxController with WidgetsBindingOb
         addMap(body[k]);
         if (body['data'] is Map) addMap((body['data'] as Map)[k]);
       }
+      _readLeaderGroup(body);
     }
     final found = <String, int>{};
     _countKeys.forEach((filter, keys) {
@@ -253,8 +486,8 @@ class ScreenTimeDirectoryController extends GetxController with WidgetsBindingOb
     return count;
   }
 
-  static bool _matchesDirectoryFilter(dynamic s, String filter) {
-    if (!hasValidRoom(s)) return false;
+  static bool _matchesDirectoryFilter(dynamic s, String filter, {bool allowWithoutRoom = false}) {
+    if (!allowWithoutRoom && !hasValidRoom(s)) return false;
 
     switch (filter) {
       case 'Online':
@@ -269,7 +502,7 @@ class ScreenTimeDirectoryController extends GetxController with WidgetsBindingOb
         return s is Map && toInt(
             s['nightScreenTimeMinutes'] ?? s['night_screen_time_minutes']) > 0;
       case 'Attention':
-        return isStudentTampered(s) || isStudentLocked(s);
+        return isStudentNeedsAttention(s);
       default:
         return true;
     }
@@ -386,17 +619,20 @@ class ScreenTimeDirectoryController extends GetxController with WidgetsBindingOb
   bool applyLaunchArguments(dynamic args, {bool refetch = false}) {
     if (args is! Map) return false;
     final map = Map<String, dynamic>.from(args);
-    final name = (map['name'] ?? map['fullName'] ?? '').toString().trim();
+    final name = (map['name'] ?? map['fullName'] ?? map['student_name'] ?? '').toString().trim();
     final room = (map['room'] ?? '').toString().trim();
-    final id = (map['id'] ?? map['studentId'] ?? '').toString().trim();
+    final id = (map['id'] ?? map['studentId'] ?? map['student_id'] ?? '').toString().trim();
 
     if (isStudentId(id)) {
-      openedWithDirectTarget.value = true;
-      selectStudent({
+      final target = <String, dynamic>{
         'id': id,
         'name': name.isNotEmpty ? name : 'Student',
         'room': room.isNotEmpty ? room : 'N/A',
-      });
+      };
+      // Held until the role is known: a leader may only open a student of
+      // their own group, checked against the group's list.
+      _pendingTarget = target;
+      if (_roleLoaded) _openPendingTarget();
       return true;
     }
 
@@ -428,17 +664,132 @@ class ScreenTimeDirectoryController extends GetxController with WidgetsBindingOb
       Get.back();
       AppSnackbar.error(
         'Access Denied',
-        'Screen Time & Parental Controls are restricted to Administrators only.',
+        'Screen Time & Parental Controls are restricted to Administrators and Leaders only.',
       );
       return;
     }
 
+    _roleLoaded = true;
+    if (role == UserRole.leader) {
+      unawaited(loadGlobalCurfew());
+      await _resolveLeaderGroup();
+      if (leaderGroupMissing.value) {
+        _openPendingTarget();
+        return;
+      }
+      await fetchStudentsList();
+      _leaderGroupLoaded = true;
+      _openPendingTarget();
+      await fetchAppRequests();
+      return;
+    }
+
+    _openPendingTarget();
+    unawaited(_loadTotalHostelStudentCount());
+    unawaited(fetchAppRequests());
     await Future.wait([
       fetchStudentsList(),
       loadGlobalCurfew(),
-      _loadTotalHostelStudentCount(),
     ]);
   }
+
+  // ------------------------------------------------------------------
+  // Leaders see only the students of their own group.
+  // ------------------------------------------------------------------
+
+  /// A student leader: every list, count and request is limited to
+  /// [leaderGroupName].
+  bool get isLeaderView => currentRole.value == UserRole.leader;
+
+  /// [_loadRole] has read the role.
+  bool _roleLoaded = false;
+
+  /// The leader's group could not be found: no students are shown.
+  final RxBool leaderGroupMissing = false.obs;
+
+  /// The leader's whole group has been loaded once.
+  bool _leaderGroupLoaded = false;
+
+  /// A student another screen asked to open, held until a leader's group is
+  /// loaded so a student of another group is never opened.
+  Map<String, dynamic>? _pendingTarget;
+
+  /// A leader's group is loaded in one request (groups are far below the
+  /// API's 1000-row cap), so counts, search and membership are exact.
+  static const int leaderGroupPageSize = 1000;
+
+  int get _requestSize => isLeaderView ? leaderGroupPageSize : pageSize;
+
+  /// The group every directory request is limited to, or null for all.
+  String? get _groupScope => isLeaderView ? leaderGroupName.value : null;
+
+  Future<StudentsPage> _fetchPage({required int offset, String? search}) =>
+      _repo.students(limit: _requestSize, offset: offset, search: search, group: _groupScope);
+
+  /// Asks the server which group this leader leads (`leaderGroupName` of
+  /// `/screen-time/students`), with a one-row request.
+  Future<void> _resolveLeaderGroup() async {
+    if ((leaderGroupName.value ?? '').isNotEmpty) return;
+    isLoadingStudents.value = true;
+    try {
+      final probe = await _repo.students(limit: 1, offset: 0);
+      _readLeaderGroup(probe.body);
+    } catch (e) {
+      debugPrint('[ScreenTime] leader group lookup error: $e');
+    } finally {
+      isLoadingStudents.value = false;
+    }
+    leaderGroupMissing.value = (leaderGroupName.value ?? '').isEmpty;
+    if (leaderGroupMissing.value) {
+      allStudents.clear();
+      filteredStudents.clear();
+      hasMoreStudents.value = false;
+    }
+  }
+
+  void _readLeaderGroup(dynamic body) {
+    if (body is! Map) return;
+    final grp = body['leaderGroupName'] ?? (body['data'] is Map ? body['data']['leaderGroupName'] : null);
+    if (grp != null && grp.toString().trim().isNotEmpty) {
+      leaderGroupName.value = grp.toString().trim();
+    }
+  }
+
+  /// Opens the student held in [_pendingTarget]. A leader only gets a student
+  /// of their own group (once it has loaded); otherwise it says so.
+  void _openPendingTarget() {
+    final target = _pendingTarget;
+    if (target == null || !_roleLoaded) return;
+    if (!isLeaderView) {
+      _pendingTarget = null;
+      openedWithDirectTarget.value = true;
+      selectStudent(target);
+      return;
+    }
+    if (leaderGroupMissing.value) {
+      _pendingTarget = null;
+      return;
+    }
+    if (!_leaderGroupLoaded) return;
+    _pendingTarget = null;
+    final id = target['id'].toString();
+    final row = allStudents.firstWhereOrNull((s) => s is Map && s['id']?.toString() == id);
+    if (row != null) {
+      openedWithDirectTarget.value = true;
+      selectStudent(row);
+    } else {
+      AppSnackbar.info(
+        'Not in Your Group',
+        '${target['name']} is not in the ${leaderGroupName.value ?? 'your'} group.',
+      );
+    }
+  }
+
+  /// Numeric ids of the loaded students (for a leader: their group).
+  Set<String> get _loadedStudentIds => {
+        for (final s in allStudents)
+          if (s is Map && isStudentId((s['id'] ?? '').toString())) s['id'].toString(),
+      };
 
   /// Load hostel-wide curfew policy (night curfew window & active status).
   Future<void> loadGlobalCurfew() async {
@@ -632,6 +983,8 @@ class ScreenTimeDirectoryController extends GetxController with WidgetsBindingOb
   /// Leader/Staff fetches directory of all students with today screen time overview from real API.
   Future<void> fetchStudentsList(
       {String? search, bool silent = false, bool refresh = true}) async {
+    // A leader without a known group sees nobody (never the whole hostel).
+    if (isLeaderView && _groupScope == null) return;
     final query = (search ?? searchFilterController.text).trim();
     if (query.isNotEmpty) {
       isSearchingServer.value = true;
@@ -644,8 +997,7 @@ class ScreenTimeDirectoryController extends GetxController with WidgetsBindingOb
     }
 
     try {
-      final page = await _repo.students(
-        limit: pageSize,
+      final page = await _fetchPage(
         offset: refresh ? 0 : _serverLoadedCount,
         search: query,
       );
@@ -672,7 +1024,7 @@ class ScreenTimeDirectoryController extends GetxController with WidgetsBindingOb
         } else if (serverTotal > 0) {
           hasMoreStudents.value = _serverLoadedCount < serverTotal;
         } else {
-          hasMoreStudents.value = loaded.length >= pageSize;
+          hasMoreStudents.value = loaded.length >= _requestSize;
         }
 
         _mergeServerStudents(loaded, isRefresh: refresh);
@@ -727,6 +1079,12 @@ class ScreenTimeDirectoryController extends GetxController with WidgetsBindingOb
             sortBy: 'room_asc',
           );
         } catch (_) {}
+      }
+
+      if (isLeaderView) {
+        final group = (_groupScope ?? '').trim().toLowerCase();
+        if (group.isEmpty) return;
+        pbStudents = pbStudents.where((p) => (p.groupName ?? '').trim().toLowerCase() == group).toList();
       }
 
       if (pbStudents.isEmpty) return;
@@ -867,8 +1225,7 @@ class ScreenTimeDirectoryController extends GetxController with WidgetsBindingOb
     isLoadingMore.value = true;
     try {
       final query = searchFilterController.text.trim();
-      final page = await _repo.students(
-        limit: pageSize,
+      final page = await _fetchPage(
         offset: _serverLoadedCount,
         search: query,
       );
@@ -886,7 +1243,7 @@ class ScreenTimeDirectoryController extends GetxController with WidgetsBindingOb
         } else if (serverTotal > 0) {
           hasMoreStudents.value = _serverLoadedCount < serverTotal;
         } else {
-          hasMoreStudents.value = loaded.length >= pageSize;
+          hasMoreStudents.value = loaded.length >= _requestSize;
         }
         if (loaded.isNotEmpty) {
           _mergeServerStudents(loaded, isRefresh: false);
@@ -935,8 +1292,8 @@ class ScreenTimeDirectoryController extends GetxController with WidgetsBindingOb
     }
     try {
       final end = _serverLoadedCount;
-      for (var offset = 0; offset < end; offset += pageSize) {
-        final page = await _repo.students(limit: pageSize, offset: offset);
+      for (var offset = 0; offset < end; offset += _requestSize) {
+        final page = await _fetchPage(offset: offset);
         if (offset == 0) _captureServerCounts(page.body);
         if (page.students.isEmpty) break;
         _mergeServerStudents(page.students, isRefresh: false);
@@ -997,22 +1354,68 @@ class ScreenTimeDirectoryController extends GetxController with WidgetsBindingOb
     }
   }
 
-  /// Filter students locally by name, room, or Aadhar/student code/phone
+  /// Filter students locally by name, room, or Aadhar/student code/phone, plus wings, floors, attributes and sort order
   void filterStudents(String query) {
     searchText.value = query;
     final q = query.trim().toLowerCase();
     final filter = directoryFilter.value;
+    final isAlumniFilterActive =
+        selectedStatus.value == 'Alumni / Left' || selectedGroup.value.toLowerCase() == 'alumni';
 
     final matched = allStudents.where((student) {
-      if (!_matchesDirectoryFilter(student, filter)) return false;
+      if (!_matchesDirectoryFilter(student, filter, allowWithoutRoom: isAlumniFilterActive)) return false;
+
+      // A leader's list is their group only (the server already limits it;
+      // this also covers rows merged from the phonebook).
+      if (isLeaderView && !isInGroup(student, leaderGroupName.value ?? '')) return false;
+
+      // Group / Wing filter
+      if (selectedGroup.value != 'All' && !isInGroup(student, selectedGroup.value)) {
+        return false;
+      }
+
+      // Floor filter
+      if (selectedFloor.value != 'All') {
+        final expectedFloor = floorNumberOf(selectedFloor.value);
+        final roomStr = (student is Map ? (student['room'] ?? student['room_number'] ?? student['roomNumber'] ?? '') : '').toString();
+        final floorNum = PhonebookStudent.floorOfRoom(roomStr);
+        if (floorNum != expectedFloor) return false;
+      }
+
+      // Residence status
+      if (selectedStatus.value != 'All') {
+        final roomStr = (student is Map ? (student['room'] ?? student['room_number'] ?? student['roomNumber'] ?? '') : '').toString().toLowerCase();
+        final statusStr = (student is Map ? (student['status'] ?? '') : '').toString().toLowerCase();
+        final isAlumni = roomStr.isEmpty || roomStr == 'alumni' || roomStr == 'n/a' ||
+            statusStr.contains('left') || statusStr.contains('cancel') || statusStr.contains('alumni');
+        if (selectedStatus.value == 'Active Residents' && isAlumni) return false;
+        if (selectedStatus.value == 'Alumni / Left' && !isAlumni) return false;
+      }
+
+      // Toggle attributes
+      if (student is Map) {
+        final mins = toInt(student['totalScreenTimeMinutes'] ?? student['todayScreenTimeMinutes'] ?? student['total_screen_time_minutes']);
+        final nightMins = toInt(student['nightScreenTimeMinutes'] ?? student['night_screen_time_minutes']);
+        final phone = (student['phone'] ?? student['phoneNumber'] ?? student['phone_number'] ?? '').toString().trim();
+        final aadhar = (student['aadhar'] ?? student['student_code'] ?? student['studentCode'] ?? '').toString().trim();
+
+        if (onlyWithUsage.value && mins <= 0) return false;
+        if (onlyHeavyUsage.value && mins < 120) return false;
+        if (onlyNightUsage.value && nightMins <= 0) return false;
+        if (onlyLocked.value && !(isStudentLocked(student) || isStudentRestricted(student))) return false;
+        if (onlyWithPhone.value && phone.isEmpty) return false;
+        if (onlyWithAadhar.value && aadhar.isEmpty) return false;
+      }
+
+      // Search query
       if (q.isEmpty) return true;
-      final name = (student['name'] ?? '').toString().toLowerCase();
-      final room = (student['room'] ?? student['room_number'] ??
-          student['roomNumber'] ?? '').toString().toLowerCase();
-      final aadhar = (student['aadhar'] ?? student['student_code'] ??
-          student['studentCode'] ?? '').toString().toLowerCase();
-      final phone = (student['phone'] ?? student['phone_number'] ??
-          student['phoneNumber'] ?? '').toString().toLowerCase();
+      final name = (student is Map ? (student['name'] ?? '') : '').toString().toLowerCase();
+      final room = (student is Map ? (student['room'] ?? student['room_number'] ??
+          student['roomNumber'] ?? '') : '').toString().toLowerCase();
+      final aadhar = (student is Map ? (student['aadhar'] ?? student['student_code'] ??
+          student['studentCode'] ?? '') : '').toString().toLowerCase();
+      final phone = (student is Map ? (student['phone'] ?? student['phone_number'] ??
+          student['phoneNumber'] ?? '') : '').toString().toLowerCase();
 
       final qTrimmed = q.replaceFirst(RegExp(r'^0+'), '');
       final aadharTrimmed = aadhar.replaceFirst(RegExp(r'^0+'), '');
@@ -1024,28 +1427,94 @@ class ScreenTimeDirectoryController extends GetxController with WidgetsBindingOb
           phone.contains(q);
     }).toList();
 
-    // Students needing attention first, then online students, then heaviest users, then room number.
+    // Sorting according to selectedSort
     matched.sort((a, b) {
-      final attA = isStudentTampered(a) || isStudentLocked(a);
-      final attB = isStudentTampered(b) || isStudentLocked(b);
-      if (attA != attB) return attA ? -1 : 1;
+      switch (selectedSort.value) {
+        case 'Usage (Low-High)': {
+          final minsA = toInt(a['totalScreenTimeMinutes'] ?? a['todayScreenTimeMinutes'] ?? a['total_screen_time_minutes']);
+          final minsB = toInt(b['totalScreenTimeMinutes'] ?? b['todayScreenTimeMinutes'] ?? b['total_screen_time_minutes']);
+          if (minsA != minsB) return minsA.compareTo(minsB);
+          final nameA = (a['name'] ?? a['fullName'] ?? '').toString();
+          final nameB = (b['name'] ?? b['fullName'] ?? '').toString();
+          return nameA.compareTo(nameB);
+        }
+        case 'Name (A-Z)': {
+          final nameA = (a['name'] ?? a['fullName'] ?? '').toString();
+          final nameB = (b['name'] ?? b['fullName'] ?? '').toString();
+          return nameA.toLowerCase().compareTo(nameB.toLowerCase());
+        }
+        case 'Name (Z-A)': {
+          final nameA = (a['name'] ?? a['fullName'] ?? '').toString();
+          final nameB = (b['name'] ?? b['fullName'] ?? '').toString();
+          return nameB.toLowerCase().compareTo(nameA.toLowerCase());
+        }
+        case 'Room (Low-High)': {
+          final roomA = (a['room'] ?? a['room_number'] ?? a['roomNumber'] ?? '').toString();
+          final roomB = (b['room'] ?? b['room_number'] ?? b['roomNumber'] ?? '').toString();
+          final roomCmp = _compareRoomStrings(roomA, roomB);
+          if (roomCmp != 0) return roomCmp;
+          final nameA = (a['name'] ?? a['fullName'] ?? '').toString();
+          final nameB = (b['name'] ?? b['fullName'] ?? '').toString();
+          return nameA.compareTo(nameB);
+        }
+        case 'Room (High-Low)': {
+          final roomA = (a['room'] ?? a['room_number'] ?? a['roomNumber'] ?? '').toString();
+          final roomB = (b['room'] ?? b['room_number'] ?? b['roomNumber'] ?? '').toString();
+          final roomCmp = _compareRoomStrings(roomB, roomA);
+          if (roomCmp != 0) return roomCmp;
+          final nameA = (a['name'] ?? a['fullName'] ?? '').toString();
+          final nameB = (b['name'] ?? b['fullName'] ?? '').toString();
+          return nameA.compareTo(nameB);
+        }
+        case 'Floor (Low-High)': {
+          final roomA = (a['room'] ?? a['room_number'] ?? a['roomNumber'] ?? '').toString();
+          final roomB = (b['room'] ?? b['room_number'] ?? b['roomNumber'] ?? '').toString();
+          final floorA = PhonebookStudent.floorOfRoom(roomA) ?? 99;
+          final floorB = PhonebookStudent.floorOfRoom(roomB) ?? 99;
+          if (floorA != floorB) return floorA.compareTo(floorB);
+          final roomCmp = _compareRoomStrings(roomA, roomB);
+          if (roomCmp != 0) return roomCmp;
+          final nameA = (a['name'] ?? a['fullName'] ?? '').toString();
+          final nameB = (b['name'] ?? b['fullName'] ?? '').toString();
+          return nameA.compareTo(nameB);
+        }
+        case 'Floor (High-Low)': {
+          final roomA = (a['room'] ?? a['room_number'] ?? a['roomNumber'] ?? '').toString();
+          final roomB = (b['room'] ?? b['room_number'] ?? b['roomNumber'] ?? '').toString();
+          final floorA = PhonebookStudent.floorOfRoom(roomA) ?? -1;
+          final floorB = PhonebookStudent.floorOfRoom(roomB) ?? -1;
+          if (floorA != floorB) return floorB.compareTo(floorA);
+          final roomCmp = _compareRoomStrings(roomA, roomB);
+          if (roomCmp != 0) return roomCmp;
+          final nameA = (a['name'] ?? a['fullName'] ?? '').toString();
+          final nameB = (b['name'] ?? b['fullName'] ?? '').toString();
+          return nameA.compareTo(nameB);
+        }
+        case 'Usage (High-Low)':
+        default: {
+          // Students needing attention first, then online students, then heaviest users, then room number.
+          final attA = isStudentNeedsAttention(a);
+          final attB = isStudentNeedsAttention(b);
+          if (attA != attB) return attA ? -1 : 1;
 
-      final onA = isStudentOnline(a);
-      final onB = isStudentOnline(b);
-      if (onA != onB) return onA ? -1 : 1;
+          final onA = isStudentOnline(a);
+          final onB = isStudentOnline(b);
+          if (onA != onB) return onA ? -1 : 1;
 
-      final minsA = toInt(a['totalScreenTimeMinutes'] ?? a['todayScreenTimeMinutes'] ?? a['total_screen_time_minutes']);
-      final minsB = toInt(b['totalScreenTimeMinutes'] ?? b['todayScreenTimeMinutes'] ?? b['total_screen_time_minutes']);
-      if (minsA != minsB) return minsB.compareTo(minsA);
+          final minsA = toInt(a['totalScreenTimeMinutes'] ?? a['todayScreenTimeMinutes'] ?? a['total_screen_time_minutes']);
+          final minsB = toInt(b['totalScreenTimeMinutes'] ?? b['todayScreenTimeMinutes'] ?? b['total_screen_time_minutes']);
+          if (minsA != minsB) return minsB.compareTo(minsA);
 
-      final roomA = (a['room'] ?? a['room_number'] ?? a['roomNumber'] ?? '').toString();
-      final roomB = (b['room'] ?? b['room_number'] ?? b['roomNumber'] ?? '').toString();
-      final roomCmp = _compareRoomStrings(roomA, roomB);
-      if (roomCmp != 0) return roomCmp;
+          final roomA = (a['room'] ?? a['room_number'] ?? a['roomNumber'] ?? '').toString();
+          final roomB = (b['room'] ?? b['room_number'] ?? b['roomNumber'] ?? '').toString();
+          final roomCmp = _compareRoomStrings(roomA, roomB);
+          if (roomCmp != 0) return roomCmp;
 
-      final nameA = (a['name'] ?? a['fullName'] ?? '').toString();
-      final nameB = (b['name'] ?? b['fullName'] ?? '').toString();
-      return nameA.compareTo(nameB);
+          final nameA = (a['name'] ?? a['fullName'] ?? '').toString();
+          final nameB = (b['name'] ?? b['fullName'] ?? '').toString();
+          return nameA.compareTo(nameB);
+        }
+      }
     });
 
     final seen = <String>{};
@@ -1072,11 +1541,21 @@ class ScreenTimeDirectoryController extends GetxController with WidgetsBindingOb
 
   /// Fetch pending app installation requests for all students or a specific student
   Future<void> fetchAppRequests({String? studentId}) async {
+    // A leader only reviews requests from their own group, once it is loaded.
+    if (isLeaderView && !_leaderGroupLoaded) {
+      pendingAppRequests.clear();
+      return;
+    }
     try {
       isLoadingAppRequests.value = true;
-      pendingAppRequests.assignAll(
-        await _repo.pendingAppRequests(studentId: studentId),
-      );
+      var requests = await _repo.pendingAppRequests(studentId: studentId);
+      if (isLeaderView) {
+        final ids = _loadedStudentIds;
+        requests = requests
+            .where((r) => ids.contains((r['student_id'] ?? r['studentId'] ?? '').toString()))
+            .toList();
+      }
+      pendingAppRequests.assignAll(requests);
     } catch (e) {
       debugPrint('[ScreenTime] fetchAppRequests error: $e');
     } finally {

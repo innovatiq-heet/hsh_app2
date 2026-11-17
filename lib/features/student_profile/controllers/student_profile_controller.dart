@@ -2,12 +2,14 @@ import 'package:get/get.dart';
 import '../../../core/abstracts/mixins/aadhar_resolving_mixin.dart';
 import '../../../core/abstracts/mixins/load_state_mixin.dart';
 import '../../../core/models/student_profile/student_profile_model.dart';
+import '../../../core/network/repository/authentication/auth_repository.dart';
 import '../../../core/network/repository/broadcasts/broadcasts_repository.dart';
 import '../../../core/network/repository/fees/fees_repository.dart';
 import '../../../core/network/repository/forms/forms_repository.dart';
 import '../../../core/network/repository/laundry/laundry_repository.dart';
 import '../../../core/network/repository/student_profile/student_profile_repository.dart';
 import '../../../core/constants/app_routes.dart';
+import '../../../core/enums/user_role.dart';
 import '../../../core/storage/session_store.dart';
 
 class StudentProfileController extends GetxController
@@ -19,6 +21,7 @@ class StudentProfileController extends GetxController
   final Rxn<StudentProfileModel> profile = Rxn<StudentProfileModel>();
   final unreadAnnouncementsCount = 0.obs;
   final pendingFormsCount = 0.obs;
+  final isLeader = false.obs;
 
   @override
   void onInit() {
@@ -27,8 +30,43 @@ class StudentProfileController extends GetxController
     if (cached != null) {
       profile.value = cached;
     }
+    if (Get.isRegistered<SessionStore>()) {
+      isLeader.value = Get.find<SessionStore>().currentSession?.role == UserRole.leader;
+    }
     loadProfile(showLoading: cached == null);
     loadHubBadges();
+    refreshLeaderStatus();
+  }
+
+  Future<void> refreshLeaderStatus() async {
+    try {
+      if (!Get.isRegistered<SessionStore>()) return;
+      final sessionStore = Get.find<SessionStore>();
+      final token = await sessionStore.token;
+      if (token == null || token.isEmpty) return;
+
+      final authRepo = Get.isRegistered<AuthRepository>()
+          ? Get.find<AuthRepository>()
+          : AuthRepository();
+
+      final updated = await authRepo.checkSession(token);
+      if (updated != null) {
+        final current = sessionStore.currentSession;
+        if (updated.role != current?.role) {
+          await sessionStore.saveSession(
+            token: updated.token.isNotEmpty ? updated.token : token,
+            role: updated.role,
+            email: updated.email.isNotEmpty ? updated.email : (current?.email ?? ''),
+            name: updated.name.isNotEmpty ? updated.name : (current?.name ?? ''),
+            phone: updated.phone.isNotEmpty ? updated.phone : current?.phone,
+            studentCode: updated.studentCode.isNotEmpty ? updated.studentCode : current?.studentCode,
+            room: updated.room.isNotEmpty ? updated.room : current?.room,
+            isAlumni: updated.isAlumni,
+          );
+        }
+        isLeader.value = updated.role == UserRole.leader;
+      }
+    } catch (_) {}
   }
 
   Future<void> loadHubBadges() async {
@@ -102,6 +140,7 @@ class StudentProfileController extends GetxController
   /// already defines that, for forcing a `GetBuilder` rebuild.)
   Future<void> refreshProfile() {
     loadHubBadges();
+    refreshLeaderStatus();
     return loadProfile(forceRefresh: true, showLoading: true);
   }
 

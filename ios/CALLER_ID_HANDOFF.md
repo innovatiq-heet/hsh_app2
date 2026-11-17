@@ -50,7 +50,7 @@ Instead, Apple provides **CallKit's Call Directory Extension (`CXCallDirectoryPr
 | **App Group** | `group.com.avdhsh.org` | Shared container between app and extension |
 | **Method Channel** | `hsh/caller_id` | Flutter ↔ Native bridge |
 | **Directory File** | `callerid-directory.json` | Shared JSON database in App Group |
-| **Development Team** | `INNOVATIQ SYSTEMS PRIVATE LIMITED` (Team ID `K3FAYYRWH6`) | Paid Apple Developer Team |
+| **Development Team** | (Team ID `HX5L8BCQ5S`) | Paid Apple Developer Team |
 
 ### When the directory is exported
 

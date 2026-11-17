@@ -8,6 +8,8 @@ import '../../features/alumni/views/alumni_events_screen.dart';
 import '../../features/alumni/views/alumni_mentorship_screen.dart';
 import '../../features/alumni/views/alumni_jobs_screen.dart';
 import '../../features/alumni/views/alumni_news_screen.dart';
+import '../../features/alumni/bindings/alumni_daily_outreach_binding.dart';
+import '../../features/alumni/views/alumni_daily_outreach_screen.dart';
 import 'package:get/get.dart';
 import '../../features/screentime/bindings/student_screen_time_binding.dart';
 import '../../features/screentime/views/student_screen_time_screen.dart';
@@ -79,6 +81,9 @@ import '../../features/forms/bindings/forms_bindings.dart';
 import '../../features/forms/views/form_analytics_screen.dart';
 import '../../features/forms/views/form_editor_screen.dart';
 import '../../features/forms/views/forms_list_screen.dart';
+import '../../features/room_keys/bindings/room_keys_binding.dart';
+import '../../features/room_keys/views/room_keys_room_screen.dart';
+import '../../features/room_keys/views/room_keys_screen.dart';
 import '../../features/forms/views/student_form_fill_screen.dart';
 import '../../features/forms/views/student_forms_screen.dart';
 import '../../features/shared/screens/no_internet_screen.dart';
@@ -236,6 +241,16 @@ class AppPages {
       page: () => const AlumniNewsScreen(),
       binding: AlumniBinding(),
     ),
+    GetPage(
+      name: Routes.dailyAlumniOutreach,
+      page: () => const AlumniDailyOutreachScreen(),
+      binding: AlumniDailyOutreachBinding(),
+    ),
+    GetPage(
+      name: Routes.operatorDailyAlumniOutreach,
+      page: () => const AlumniDailyOutreachScreen(),
+      binding: AlumniDailyOutreachBinding(),
+    ),
 
     GetPage(name: Routes.setting, page: () => const SettingScreen()),
     GetPage(name: Routes.vehicle, page: () => const VehicleRedirectScreen()),
@@ -376,6 +391,16 @@ class AppPages {
       name: Routes.operatorFormEditor,
       page: () => const FormEditorScreen(),
       binding: FormEditorBinding(),
+    ),
+    GetPage(
+      name: Routes.operatorRoomKeys,
+      page: () => const RoomKeysScreen(),
+      binding: RoomKeysBinding(),
+    ),
+    GetPage(
+      name: Routes.operatorRoomKeysRoom,
+      page: () => RoomKeysRoomScreen(room: Get.arguments?.toString() ?? ''),
+      binding: RoomKeysBinding(),
     ),
     GetPage(
       name: Routes.operatorFormAnalytics,

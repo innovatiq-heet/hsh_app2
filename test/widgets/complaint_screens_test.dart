@@ -206,14 +206,14 @@ void main() {
     StaffUserFormSheet.show(user: c.users.first);
     await tester.pump();
     await tester.pump(const Duration(seconds: 1));
-    expect(find.text('Edit user'), findsOneWidget);
+    expect(find.text('Edit Staff User'), findsOneWidget);
     expect(find.text('Complaint Solver'), findsWidgets);
 
     // Close the sheet so its animation is finished before teardown.
     await tester.tap(find.byTooltip('Close'));
     await tester.pump();
     await tester.pump(const Duration(seconds: 1));
-    expect(find.text('Edit user'), findsNothing);
+    expect(find.text('Edit Staff User'), findsNothing);
   });
 
   testWidgets('a failed load shows a way back', (tester) async {

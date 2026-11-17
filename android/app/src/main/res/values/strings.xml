@@ -2,5 +2,6 @@
     <string name="app_name">HSH Connect</string>
     <string name="accessibility_service_label">HSH Connect Blocker &amp; Screen Time Service</string>
     <string name="app_info_protected">This app\'s settings are protected by hostel policy.</string>
-    <string name="accessibility_service_description">Monitors and restricts prohibited applications during study and curfew hours as configured by the hostel administration.</string>
+    <string name="stop_app_protected">%1$s can\'t be stopped. It is required by hostel policy.</string>
+    <string name="accessibility_service_description">Monitors and restricts prohibited applications during study and curfew hours as configured by the hostel administration. It reads what is on screen to find the app in use, and to keep this app from being stopped from its App info page or the Active apps panel.</string>
 </resources>

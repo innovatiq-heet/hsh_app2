@@ -8,7 +8,9 @@ import '../../shared/widgets/student_contact_card.dart'
     show CelebrantLightChip, CornerWavePainter;
 import '../controllers/broadcast_inbox_controller.dart';
 
-/// Student → Dashboard → Announcements: official broadcasts from hostel office.
+/// Student → More → Announcements: official broadcasts from hostel office,
+/// styled with the signature executive deep navy header, organic orbs,
+/// ambient filter chips, and executive cards.
 class BroadcastInboxScreen extends StatefulWidget {
   const BroadcastInboxScreen({super.key});
 
@@ -83,14 +85,14 @@ class _BroadcastInboxScreenState extends State<BroadcastInboxScreen> {
                           width: 46,
                           height: 46,
                           decoration: BoxDecoration(
-                            color: const Color(0xFFFDF2F8),
+                            color: const Color(0xFFF0F9FF),
                             borderRadius: BorderRadius.circular(14),
-                            border: Border.all(color: const Color(0xFFFBCFE8)),
+                            border: Border.all(color: const Color(0xFFBAE6FD)),
                           ),
                           alignment: Alignment.center,
                           child: const Icon(
                             Icons.campaign_rounded,
-                            color: Color(0xFFDB2777),
+                            color: Color(0xFF0284C7),
                             size: 24,
                           ),
                         ),
@@ -100,7 +102,7 @@ class _BroadcastInboxScreenState extends State<BroadcastInboxScreen> {
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
                               Text(
-                                item.title,
+                                item.displayTitle,
                                 style: const TextStyle(
                                   fontSize: 17.5,
                                   fontWeight: FontWeight.w800,
@@ -125,7 +127,9 @@ class _BroadcastInboxScreenState extends State<BroadcastInboxScreen> {
                                   if (item.createdAt != null)
                                     CelebrantLightChip(
                                       icon: Icons.schedule_rounded,
-                                      text: DateFormatting.dateTime(item.createdAt!),
+                                      text: DateFormatting.dateTime(
+                                        item.createdAt!,
+                                      ),
                                       bgColor: const Color(0xFFF8FAFC),
                                       borderColor: const Color(0xFFE2E8F0),
                                       textColor: const Color(0xFF64748B),
@@ -166,7 +170,10 @@ class _BroadcastInboxScreenState extends State<BroadcastInboxScreen> {
                         ),
                         child: const Text(
                           'Close',
-                          style: TextStyle(fontWeight: FontWeight.w700, fontSize: 14.5),
+                          style: TextStyle(
+                            fontWeight: FontWeight.w700,
+                            fontSize: 14.5,
+                          ),
                         ),
                       ),
                     ),
@@ -192,10 +199,12 @@ class _BroadcastInboxScreenState extends State<BroadcastInboxScreen> {
     final query = searchText.value.trim().toLowerCase();
     if (query.isNotEmpty) {
       filtered = filtered.where((i) {
-        final title = i.title.toLowerCase();
+        final title = (i.title ?? '').toLowerCase();
         final msg = i.message.toLowerCase();
         final sender = i.senderName.toLowerCase();
-        return title.contains(query) || msg.contains(query) || sender.contains(query);
+        return title.contains(query) ||
+            msg.contains(query) ||
+            sender.contains(query);
       }).toList();
     }
     return filtered;
@@ -219,7 +228,9 @@ class _BroadcastInboxScreenState extends State<BroadcastInboxScreen> {
               return false;
             },
             child: CustomScrollView(
-              physics: const AlwaysScrollableScrollPhysics(parent: BouncingScrollPhysics()),
+              physics: const AlwaysScrollableScrollPhysics(
+                parent: BouncingScrollPhysics(),
+              ),
               slivers: [
                 // Signature Deep Navy Executive Header
                 SliverToBoxAdapter(
@@ -237,7 +248,9 @@ class _BroadcastInboxScreenState extends State<BroadcastInboxScreen> {
                         ],
                         stops: [0.0, 0.38, 0.75, 1.0],
                       ),
-                      borderRadius: BorderRadius.vertical(bottom: Radius.circular(28)),
+                      borderRadius: BorderRadius.vertical(
+                        bottom: Radius.circular(28),
+                      ),
                       boxShadow: [
                         BoxShadow(
                           color: Color(0xFF03192E),
@@ -248,7 +261,9 @@ class _BroadcastInboxScreenState extends State<BroadcastInboxScreen> {
                     ),
                     child: Stack(
                       children: [
-                        Positioned.fill(child: CustomPaint(painter: _HeaderOrbPainter())),
+                        Positioned.fill(
+                          child: CustomPaint(painter: _HeaderOrbPainter()),
+                        ),
                         Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
@@ -258,16 +273,21 @@ class _BroadcastInboxScreenState extends State<BroadcastInboxScreen> {
                                 Material(
                                   color: Colors.transparent,
                                   child: InkWell(
-                                    onTap: () => Navigator.of(context).maybePop(),
+                                    onTap: () =>
+                                        Navigator.of(context).maybePop(),
                                     borderRadius: BorderRadius.circular(24),
                                     child: Container(
                                       width: 42,
                                       height: 42,
                                       decoration: BoxDecoration(
-                                        color: Colors.white.withValues(alpha: 0.16),
+                                        color: Colors.white.withValues(
+                                          alpha: 0.16,
+                                        ),
                                         shape: BoxShape.circle,
                                         border: Border.all(
-                                          color: Colors.white.withValues(alpha: 0.25),
+                                          color: Colors.white.withValues(
+                                            alpha: 0.25,
+                                          ),
                                           width: 1,
                                         ),
                                       ),
@@ -289,13 +309,19 @@ class _BroadcastInboxScreenState extends State<BroadcastInboxScreen> {
                                     ),
                                     decoration: BoxDecoration(
                                       color: unread > 0
-                                          ? const Color(0xFFEF4444).withValues(alpha: 0.3)
-                                          : Colors.white.withValues(alpha: 0.16),
+                                          ? const Color(
+                                              0xFFEF4444,
+                                            ).withValues(alpha: 0.3)
+                                          : Colors.white.withValues(
+                                              alpha: 0.16,
+                                            ),
                                       borderRadius: BorderRadius.circular(20),
                                       border: Border.all(
                                         color: unread > 0
                                             ? const Color(0xFFF87171)
-                                            : Colors.white.withValues(alpha: 0.28),
+                                            : Colors.white.withValues(
+                                                alpha: 0.28,
+                                              ),
                                         width: 1,
                                       ),
                                     ),
@@ -311,7 +337,9 @@ class _BroadcastInboxScreenState extends State<BroadcastInboxScreen> {
                                         ),
                                         const SizedBox(width: 6),
                                         Text(
-                                          unread > 0 ? '$unread Unread' : 'All Read',
+                                          unread > 0
+                                              ? '$unread Unread'
+                                              : 'All Read',
                                           style: const TextStyle(
                                             color: Colors.white,
                                             fontSize: 12,
@@ -328,26 +356,35 @@ class _BroadcastInboxScreenState extends State<BroadcastInboxScreen> {
                                   return Material(
                                     color: Colors.transparent,
                                     child: InkWell(
-                                      onTap: loading ? null : () => controller.load(showLoading: false),
+                                      onTap: loading
+                                          ? null
+                                          : () => controller.load(
+                                              showLoading: false,
+                                            ),
                                       borderRadius: BorderRadius.circular(24),
                                       child: Container(
                                         width: 42,
                                         height: 42,
                                         decoration: BoxDecoration(
-                                          color: Colors.white.withValues(alpha: 0.16),
+                                          color: Colors.white.withValues(
+                                            alpha: 0.16,
+                                          ),
                                           shape: BoxShape.circle,
                                           border: Border.all(
-                                            color: Colors.white.withValues(alpha: 0.25),
+                                            color: Colors.white.withValues(
+                                              alpha: 0.25,
+                                            ),
                                             width: 1,
                                           ),
                                         ),
                                         child: loading
                                             ? const Padding(
                                                 padding: EdgeInsets.all(12),
-                                                child: CircularProgressIndicator(
-                                                  strokeWidth: 2,
-                                                  color: Colors.white,
-                                                ),
+                                                child:
+                                                    CircularProgressIndicator(
+                                                      strokeWidth: 2,
+                                                      color: Colors.white,
+                                                    ),
                                               )
                                             : const Icon(
                                                 Icons.refresh_rounded,
@@ -401,7 +438,9 @@ class _BroadcastInboxScreenState extends State<BroadcastInboxScreen> {
                             border: Border.all(color: const Color(0xFFE2E8F0)),
                             boxShadow: [
                               BoxShadow(
-                                color: const Color(0xFF0F172A).withValues(alpha: 0.04),
+                                color: const Color(
+                                  0xFF0F172A,
+                                ).withValues(alpha: 0.04),
                                 blurRadius: 14,
                                 offset: const Offset(0, 3),
                               ),
@@ -416,7 +455,8 @@ class _BroadcastInboxScreenState extends State<BroadcastInboxScreen> {
                               fontWeight: FontWeight.w600,
                             ),
                             decoration: InputDecoration(
-                              hintText: 'Search announcements, notices, admin...',
+                              hintText:
+                                  'Search announcements, notices, admin...',
                               hintStyle: const TextStyle(
                                 color: Color(0xFF94A3B8),
                                 fontSize: 13.5,
@@ -424,13 +464,19 @@ class _BroadcastInboxScreenState extends State<BroadcastInboxScreen> {
                               ),
                               prefixIcon: const Icon(
                                 Icons.search_rounded,
-                                color: Color(0xFFDB2777),
+                                color: Color(0xFF0284C7),
                                 size: 21,
                               ),
                               suffixIcon: Obx(() {
-                                if (searchText.value.isEmpty) return const SizedBox.shrink();
+                                if (searchText.value.isEmpty) {
+                                  return const SizedBox.shrink();
+                                }
                                 return IconButton(
-                                  icon: const Icon(Icons.close_rounded, size: 18, color: Color(0xFF64748B)),
+                                  icon: const Icon(
+                                    Icons.close_rounded,
+                                    size: 18,
+                                    color: Color(0xFF64748B),
+                                  ),
                                   onPressed: () {
                                     searchController.clear();
                                     searchText.value = '';
@@ -456,9 +502,15 @@ class _BroadcastInboxScreenState extends State<BroadcastInboxScreen> {
                             final unreadTotal = controller.unreadCount.value;
 
                             final filters = [
-                              {'label': 'All', 'count': controller.items.length},
+                              {
+                                'label': 'All',
+                                'count': controller.items.length,
+                              },
                               {'label': 'Unread', 'count': unreadTotal},
-                              {'label': 'Read', 'count': controller.items.length - unreadTotal},
+                              {
+                                'label': 'Read',
+                                'count': controller.items.length - unreadTotal,
+                              },
                             ];
 
                             return Row(
@@ -466,7 +518,9 @@ class _BroadcastInboxScreenState extends State<BroadcastInboxScreen> {
                                 final label = item['label'] as String;
                                 final count = item['count'] as int;
                                 final isSelected = cur == label;
-                                const color = Color(0xFFDB2777);
+                                final activeColor = label == 'Unread'
+                                    ? const Color(0xFFD97706)
+                                    : const Color(0xFF0284C7);
 
                                 return Padding(
                                   padding: const EdgeInsets.only(right: 8),
@@ -476,22 +530,33 @@ class _BroadcastInboxScreenState extends State<BroadcastInboxScreen> {
                                       borderRadius: BorderRadius.circular(20),
                                       onTap: () => selectedFilter.value = label,
                                       child: AnimatedContainer(
-                                        duration: const Duration(milliseconds: 200),
+                                        duration: const Duration(
+                                          milliseconds: 200,
+                                        ),
                                         padding: const EdgeInsets.symmetric(
                                           horizontal: 14,
                                           vertical: 7.5,
                                         ),
                                         decoration: BoxDecoration(
-                                          color: isSelected ? color : Colors.white,
-                                          borderRadius: BorderRadius.circular(20),
+                                          color: isSelected
+                                              ? activeColor
+                                              : Colors.white,
+                                          borderRadius: BorderRadius.circular(
+                                            20,
+                                          ),
                                           border: Border.all(
-                                            color: isSelected ? color : const Color(0xFFE2E8F0),
+                                            color: isSelected
+                                                ? activeColor
+                                                : const Color(0xFFE2E8F0),
                                             width: 1,
                                           ),
                                           boxShadow: isSelected
                                               ? [
                                                   BoxShadow(
-                                                    color: color.withValues(alpha: 0.25),
+                                                    color: activeColor
+                                                        .withValues(
+                                                          alpha: 0.25,
+                                                        ),
                                                     blurRadius: 8,
                                                     offset: const Offset(0, 2),
                                                   ),
@@ -504,25 +569,40 @@ class _BroadcastInboxScreenState extends State<BroadcastInboxScreen> {
                                             Text(
                                               label,
                                               style: TextStyle(
-                                                color: isSelected ? Colors.white : const Color(0xFF475569),
+                                                color: isSelected
+                                                    ? Colors.white
+                                                    : const Color(0xFF475569),
                                                 fontSize: 13,
-                                                fontWeight: isSelected ? FontWeight.w700 : FontWeight.w600,
+                                                fontWeight: isSelected
+                                                    ? FontWeight.w700
+                                                    : FontWeight.w600,
                                               ),
                                             ),
                                             if (count >= 0) ...[
                                               const SizedBox(width: 5),
                                               Container(
-                                                padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1.5),
+                                                padding:
+                                                    const EdgeInsets.symmetric(
+                                                      horizontal: 5,
+                                                      vertical: 1.5,
+                                                    ),
                                                 decoration: BoxDecoration(
                                                   color: isSelected
-                                                      ? Colors.white.withValues(alpha: 0.24)
+                                                      ? Colors.white.withValues(
+                                                          alpha: 0.24,
+                                                        )
                                                       : const Color(0xFFF1F5F9),
-                                                  borderRadius: BorderRadius.circular(8),
+                                                  borderRadius:
+                                                      BorderRadius.circular(8),
                                                 ),
                                                 child: Text(
                                                   '$count',
                                                   style: TextStyle(
-                                                    color: isSelected ? Colors.white : const Color(0xFF64748B),
+                                                    color: isSelected
+                                                        ? Colors.white
+                                                        : const Color(
+                                                            0xFF64748B,
+                                                          ),
                                                     fontSize: 10.5,
                                                     fontWeight: FontWeight.w700,
                                                   ),
@@ -579,7 +659,9 @@ class _BroadcastInboxScreenState extends State<BroadcastInboxScreen> {
                     return const SliverFillRemaining(
                       hasScrollBody: false,
                       child: Center(
-                        child: CircularProgressIndicator(color: Color(0xFF0284C7)),
+                        child: CircularProgressIndicator(
+                          color: Color(0xFF0284C7),
+                        ),
                       ),
                     );
                   }
@@ -601,18 +683,23 @@ class _BroadcastInboxScreenState extends State<BroadcastInboxScreen> {
                     return SliverFillRemaining(
                       hasScrollBody: false,
                       child: Padding(
-                        padding: const EdgeInsets.symmetric(vertical: 36, horizontal: 20),
+                        padding: const EdgeInsets.symmetric(
+                          vertical: 36,
+                          horizontal: 20,
+                        ),
                         child: EmptyState(
                           icon: Icons.campaign_outlined,
                           title: searchText.value.isNotEmpty
                               ? 'No matching announcements'
                               : (selectedFilter.value == 'Unread'
-                                  ? 'No unread announcements'
-                                  : 'No announcements yet'),
+                                    ? 'No unread announcements'
+                                    : 'No announcements yet'),
                           message: searchText.value.isNotEmpty
                               ? 'Try searching for another keyword or clear active filter.'
                               : 'Messages from the hostel office will appear here.',
-                          actionLabel: searchText.value.isNotEmpty || selectedFilter.value != 'All'
+                          actionLabel:
+                              searchText.value.isNotEmpty ||
+                                  selectedFilter.value != 'All'
                               ? 'Clear Filters'
                               : null,
                           onAction: () {
@@ -634,7 +721,9 @@ class _BroadcastInboxScreenState extends State<BroadcastInboxScreen> {
                           return const Padding(
                             padding: EdgeInsets.all(16),
                             child: Center(
-                              child: CircularProgressIndicator(color: Color(0xFF0284C7)),
+                              child: CircularProgressIndicator(
+                                color: Color(0xFF0284C7),
+                              ),
                             ),
                           );
                         }
@@ -664,23 +753,22 @@ class _ExecutiveAnnouncementCard extends StatelessWidget {
   final InboxBroadcast item;
   final VoidCallback onTap;
 
-  const _ExecutiveAnnouncementCard({
-    required this.item,
-    required this.onTap,
-  });
+  const _ExecutiveAnnouncementCard({required this.item, required this.onTap});
 
   @override
   Widget build(BuildContext context) {
     final unread = !item.isRead;
-    const accentColor = Color(0xFFDB2777);
-    const waveColor = Color(0xFFFCE7F3);
+    const accentColor = Color(0xFF0284C7);
+    final waveColor = unread
+        ? const Color(0xFFFEF3C7)
+        : const Color(0xFFE0F2FE);
 
     return Container(
       decoration: BoxDecoration(
-        color: unread ? const Color(0xFFFFF9FB) : Colors.white,
+        color: Colors.white,
         borderRadius: BorderRadius.circular(22),
         border: Border.all(
-          color: unread ? const Color(0xFFFBCFE8) : const Color(0xFFF1F5F9),
+          color: unread ? const Color(0xFFBAE6FD) : const Color(0xFFF1F5F9),
           width: unread ? 1.5 : 1.2,
         ),
         boxShadow: [
@@ -729,11 +817,13 @@ class _ExecutiveAnnouncementCard extends StatelessWidget {
                               width: 46,
                               height: 46,
                               decoration: BoxDecoration(
-                                color: unread ? const Color(0xFFFDF2F8) : const Color(0xFFF8FAFC),
+                                color: unread
+                                    ? const Color(0xFFF0F9FF)
+                                    : const Color(0xFFF8FAFC),
                                 borderRadius: BorderRadius.circular(14),
                                 border: Border.all(
                                   color: unread
-                                      ? const Color(0xFFFBCFE8)
+                                      ? const Color(0xFFBAE6FD)
                                       : const Color(0xFFE2E8F0),
                                   width: 1,
                                 ),
@@ -741,7 +831,9 @@ class _ExecutiveAnnouncementCard extends StatelessWidget {
                               alignment: Alignment.center,
                               child: Icon(
                                 Icons.campaign_rounded,
-                                color: unread ? accentColor : const Color(0xFF94A3B8),
+                                color: unread
+                                    ? accentColor
+                                    : const Color(0xFF94A3B8),
                                 size: 23,
                               ),
                             ),
@@ -755,7 +847,10 @@ class _ExecutiveAnnouncementCard extends StatelessWidget {
                                   decoration: BoxDecoration(
                                     color: const Color(0xFFEF4444),
                                     shape: BoxShape.circle,
-                                    border: Border.all(color: Colors.white, width: 2),
+                                    border: Border.all(
+                                      color: Colors.white,
+                                      width: 2,
+                                    ),
                                   ),
                                 ),
                               ),
@@ -767,9 +862,11 @@ class _ExecutiveAnnouncementCard extends StatelessWidget {
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
                               Text(
-                                item.title,
+                                item.displayTitle,
                                 style: TextStyle(
-                                  fontWeight: unread ? FontWeight.w800 : FontWeight.w700,
+                                  fontWeight: unread
+                                      ? FontWeight.w800
+                                      : FontWeight.w700,
                                   fontSize: 15.5,
                                   color: const Color(0xFF0F172A),
                                   letterSpacing: -0.2,
@@ -787,14 +884,23 @@ class _ExecutiveAnnouncementCard extends StatelessWidget {
                                       style: TextStyle(
                                         fontSize: 11.5,
                                         fontWeight: FontWeight.w600,
-                                        color: unread ? accentColor : const Color(0xFF64748B),
+                                        color: unread
+                                            ? accentColor
+                                            : const Color(0xFF64748B),
                                       ),
                                     ),
-                                    const Text(' • ', style: TextStyle(color: Color(0xFF94A3B8))),
+                                    const Text(
+                                      ' • ',
+                                      style: TextStyle(
+                                        color: Color(0xFF94A3B8),
+                                      ),
+                                    ),
                                   ],
                                   if (item.createdAt != null)
                                     Text(
-                                      DateFormatting.relativeTime(item.createdAt!),
+                                      DateFormatting.relativeTime(
+                                        item.createdAt!,
+                                      ),
                                       style: const TextStyle(
                                         fontSize: 11,
                                         color: Color(0xFF94A3B8),
@@ -847,9 +953,9 @@ class _ExecutiveAnnouncementCard extends StatelessWidget {
                           const CelebrantLightChip(
                             icon: Icons.mark_email_unread_rounded,
                             text: 'New Notice',
-                            bgColor: Color(0xFFFDF2F8),
-                            borderColor: Color(0xFFFBCFE8),
-                            textColor: Color(0xFFDB2777),
+                            bgColor: Color(0xFFFEF3C7),
+                            borderColor: Color(0xFFFDE68A),
+                            textColor: Color(0xFFD97706),
                           )
                         else
                           const CelebrantLightChip(
@@ -888,17 +994,37 @@ class _HeaderOrbPainter extends CustomPainter {
       ..color = Colors.white.withValues(alpha: 0.05)
       ..style = PaintingStyle.fill;
 
-    canvas.drawCircle(Offset(size.width * 0.15, size.height * 0.15), size.width * 0.45, fillPaint);
-    canvas.drawCircle(Offset(size.width * 0.85, size.height * 0.8), size.width * 0.35, fillPaint);
+    canvas.drawCircle(
+      Offset(size.width * 0.15, size.height * 0.15),
+      size.width * 0.45,
+      fillPaint,
+    );
+    canvas.drawCircle(
+      Offset(size.width * 0.85, size.height * 0.8),
+      size.width * 0.35,
+      fillPaint,
+    );
 
     final strokePaint = Paint()
       ..color = Colors.white.withValues(alpha: 0.05)
       ..style = PaintingStyle.stroke
       ..strokeWidth = 1.2;
 
-    canvas.drawCircle(Offset(size.width * 0.88, size.height * 0.08), size.width * 0.38, strokePaint);
-    canvas.drawCircle(Offset(size.width * 0.88, size.height * 0.08), size.width * 0.62, strokePaint);
-    canvas.drawCircle(Offset(size.width * 0.88, size.height * 0.08), size.width * 0.86, strokePaint);
+    canvas.drawCircle(
+      Offset(size.width * 0.88, size.height * 0.08),
+      size.width * 0.38,
+      strokePaint,
+    );
+    canvas.drawCircle(
+      Offset(size.width * 0.88, size.height * 0.08),
+      size.width * 0.62,
+      strokePaint,
+    );
+    canvas.drawCircle(
+      Offset(size.width * 0.88, size.height * 0.08),
+      size.width * 0.86,
+      strokePaint,
+    );
   }
 
   @override

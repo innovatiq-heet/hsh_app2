@@ -1,15 +1,13 @@
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
-import '../../../core/constants/app_colors.dart';
 import '../../../core/constants/app_dimens.dart';
-import '../../../core/constants/app_text_styles.dart';
 import '../../../core/enums/complaint_status.dart';
 import '../../../core/models/attachments/attachment_model.dart';
 import '../../../core/network/responses/complaints/complaint_response.dart';
 import '../../../core/storage/session_store.dart';
 import '../../shared/screens/image_gallery_viewer_screen.dart';
 import '../../shared/utils/complaint_category_style.dart';
-import '../../shared/widgets/app_card.dart';
+import '../../shared/widgets/phonebook_style_widgets.dart';
 import '../../shared/widgets/status_badge.dart';
 import '../../shared/widgets/stepper_timeline.dart';
 
@@ -23,17 +21,21 @@ class ComplaintTimelineCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final status = complaint.status;
-    return AppCard(
-      padding: const EdgeInsets.all(AppDimens.cardPadding),
+    return PhonebookCard(
+      padding: const EdgeInsets.all(16),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Row(
             children: [
-              Expanded(
+              const Expanded(
                 child: Text(
                   'Current Status',
-                  style: AppTextStyles.subtitle,
+                  style: TextStyle(
+                    fontSize: 15,
+                    fontWeight: FontWeight.w800,
+                    color: PhonebookTheme.ink,
+                  ),
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
                 ),
@@ -41,7 +43,7 @@ class ComplaintTimelineCard extends StatelessWidget {
               StatusBadge(label: status.label, color: status.color),
             ],
           ),
-          const SizedBox(height: AppDimens.gapLg),
+          const SizedBox(height: 16),
           StepperTimeline(
             stages: [
               for (final stage in ComplaintStatus.values)
@@ -69,8 +71,8 @@ class ComplaintIssueCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final style = ComplaintCategoryStyle.of(complaint.category);
-    return AppCard(
-      padding: const EdgeInsets.all(AppDimens.cardPadding),
+    return PhonebookCard(
+      padding: const EdgeInsets.all(16),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -89,7 +91,8 @@ class ComplaintIssueCard extends StatelessWidget {
                     const SizedBox(width: 5),
                     Text(
                       complaint.category,
-                      style: AppTextStyles.caption.copyWith(
+                      style: TextStyle(
+                        fontSize: 12,
                         color: style.color,
                         fontWeight: FontWeight.w700,
                       ),
@@ -100,29 +103,41 @@ class ComplaintIssueCard extends StatelessWidget {
               const Spacer(),
               Text(
                 'ID: #${complaint.id}',
-                style: AppTextStyles.caption.copyWith(
-                  color: AppColors.textMuted,
-                  letterSpacing: 0.5,
+                style: const TextStyle(
+                  fontSize: 12,
+                  fontWeight: FontWeight.w600,
+                  color: PhonebookTheme.muted,
+                  letterSpacing: 0.4,
                 ),
               ),
             ],
           ),
-          const SizedBox(height: AppDimens.gapMd),
-          Text(complaint.item, style: AppTextStyles.headline),
-          const SizedBox(height: AppDimens.gapSm),
+          const SizedBox(height: 12),
+          Text(
+            complaint.item,
+            style: const TextStyle(
+              fontSize: 18,
+              fontWeight: FontWeight.w800,
+              color: PhonebookTheme.ink,
+              letterSpacing: -0.3,
+            ),
+          ),
+          const SizedBox(height: 10),
           Container(
             width: double.infinity,
-            padding: const EdgeInsets.all(AppDimens.gapMd),
+            padding: const EdgeInsets.all(12),
             decoration: BoxDecoration(
-              color: AppColors.surfaceMuted,
-              borderRadius: BorderRadius.circular(AppDimens.radiusMd),
+              color: PhonebookTheme.bg,
+              borderRadius: BorderRadius.circular(12),
+              border: Border.all(color: PhonebookTheme.border),
             ),
             child: Text(
               complaint.hasComment ? complaint.comment! : 'No comment added.',
-              style: AppTextStyles.bodyMd.copyWith(
+              style: TextStyle(
+                fontSize: 13.5,
                 color: complaint.hasComment
-                    ? AppColors.textSecondary
-                    : AppColors.textMuted,
+                    ? PhonebookTheme.slate
+                    : PhonebookTheme.muted,
                 fontStyle:
                     complaint.hasComment ? FontStyle.normal : FontStyle.italic,
                 height: 1.45,
@@ -151,29 +166,40 @@ class ComplaintPhotoCard extends StatelessWidget {
       headers: {'Authorization': 'Bearer $token'},
     );
 
-    return AppCard(
-      padding: const EdgeInsets.all(AppDimens.cardPadding),
+    return PhonebookCard(
+      padding: const EdgeInsets.all(16),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Row(
+          const Row(
             children: [
-              Text('Photo', style: AppTextStyles.subtitle),
-              const Spacer(),
+              Text(
+                'Photo',
+                style: TextStyle(
+                  fontSize: 15,
+                  fontWeight: FontWeight.w800,
+                  color: PhonebookTheme.ink,
+                ),
+              ),
+              Spacer(),
               Text(
                 'Tap to zoom',
-                style: AppTextStyles.caption.copyWith(color: AppColors.textMuted),
+                style: TextStyle(
+                  fontSize: 12,
+                  color: PhonebookTheme.muted,
+                  fontWeight: FontWeight.w600,
+                ),
               ),
             ],
           ),
-          const SizedBox(height: AppDimens.gapMd),
+          const SizedBox(height: 12),
           InkWell(
             onTap: () => Get.to(
               () => ImageGalleryViewerScreen(attachments: [attachment]),
             ),
-            borderRadius: BorderRadius.circular(AppDimens.radiusMd),
+            borderRadius: BorderRadius.circular(12),
             child: ClipRRect(
-              borderRadius: BorderRadius.circular(AppDimens.radiusMd),
+              borderRadius: BorderRadius.circular(12),
               child: AspectRatio(
                 aspectRatio: 4 / 3,
                 child: Image.network(
@@ -183,24 +209,29 @@ class ComplaintPhotoCard extends StatelessWidget {
                   loadingBuilder: (context, child, progress) => progress == null
                       ? child
                       : const ColoredBox(
-                          color: AppColors.surfaceMuted,
-                          child: Center(child: CircularProgressIndicator()),
+                          color: PhonebookTheme.bg,
+                          child: Center(
+                            child: CircularProgressIndicator(
+                              color: PhonebookTheme.blue,
+                            ),
+                          ),
                         ),
-                  errorBuilder: (context, _, _) => ColoredBox(
-                    color: AppColors.surfaceMuted,
+                  errorBuilder: (context, _, _) => const ColoredBox(
+                    color: PhonebookTheme.bg,
                     child: Center(
                       child: Column(
                         mainAxisSize: MainAxisSize.min,
                         children: [
-                          const Icon(
+                          Icon(
                             Icons.broken_image_outlined,
-                            color: AppColors.textMuted,
+                            color: PhonebookTheme.muted,
                           ),
-                          const SizedBox(height: 4),
+                          SizedBox(height: 4),
                           Text(
                             'Photo could not be loaded',
-                            style: AppTextStyles.caption.copyWith(
-                              color: AppColors.textMuted,
+                            style: TextStyle(
+                              fontSize: 12,
+                              color: PhonebookTheme.muted,
                             ),
                           ),
                         ],

@@ -120,6 +120,7 @@ class PhonebookHeaderDelegate extends SliverPersistentHeaderDelegate {
   final IconData leadingIcon;
   final String leadingTooltip;
   final VoidCallback onLeadingTap;
+  final bool showLeading;
   final Widget? trailing;
   final Widget? pills;
 
@@ -131,6 +132,7 @@ class PhonebookHeaderDelegate extends SliverPersistentHeaderDelegate {
     this.leadingIcon = Icons.arrow_back_rounded,
     this.leadingTooltip = 'Back',
     required this.onLeadingTap,
+    this.showLeading = true,
     this.trailing,
     this.pills,
   });
@@ -180,12 +182,15 @@ class PhonebookHeaderDelegate extends SliverPersistentHeaderDelegate {
               height: 48,
               child: Row(
                 children: [
-                  PhonebookHeaderCircleButton(
-                    icon: leadingIcon,
-                    tooltip: leadingTooltip,
-                    onTap: onLeadingTap,
-                  ),
-                  const SizedBox(width: 12),
+                  if (showLeading) ...[
+                    PhonebookHeaderCircleButton(
+                      icon: leadingIcon,
+                      tooltip: leadingTooltip,
+                      onTap: onLeadingTap,
+                    ),
+                    const SizedBox(width: 12),
+                  ] else
+                    const SizedBox(width: 6),
                   Expanded(
                     child: Opacity(
                       opacity: collapsedTitleOpacity,

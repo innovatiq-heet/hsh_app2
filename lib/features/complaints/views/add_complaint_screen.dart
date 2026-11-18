@@ -2,15 +2,10 @@ import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:image_picker/image_picker.dart';
-import '../../../core/constants/app_colors.dart';
 import '../../../core/constants/app_dimens.dart';
-import '../../../core/constants/app_text_styles.dart';
 import '../../shared/utils/complaint_category_style.dart';
-import '../../shared/widgets/app_button.dart';
-import '../../shared/widgets/app_card.dart';
 import '../../shared/widgets/empty_state.dart';
-import '../../shared/widgets/gradient_header.dart';
-import '../../shared/widgets/section_header.dart';
+import '../../shared/widgets/phonebook_style_widgets.dart';
 import '../../shared/widgets/skeleton_loader.dart';
 import '../controllers/add_complaint_controller.dart';
 
@@ -19,36 +14,33 @@ class AddComplaintScreen extends GetView<AddComplaintController> {
 
   @override
   Widget build(BuildContext context) {
+    final topPadding = MediaQuery.of(context).padding.top;
+
     return Scaffold(
+      backgroundColor: PhonebookTheme.bg,
       body: CustomScrollView(
         slivers: [
-          SliverGradientHeader(
-            overline: 'Help Desk',
-            title: 'New Complaint',
-            subtitle: 'Report a room issue to the maintenance team',
-            expandedHeight: 220.0,
-            leading: HeaderIconButton(
-              icon: Icons.arrow_back_rounded,
-              tooltip: 'Back',
-              onPressed: () => Get.back(),
-            ),
-            child: Obx(
-              () => HeaderPill(
-                icon: Icons.meeting_room_outlined,
-                label: controller.hasRoom
-                    ? 'Room ${controller.room.value}'
-                    : 'Standard resolution: 24 - 48 business hours',
+          Obx(
+            () => SliverPersistentHeader(
+              pinned: true,
+              delegate: PhonebookHeaderDelegate(
+                overline: 'Help Desk',
+                title: 'New Complaint',
+                subtitle: 'Report a room issue to the maintenance team',
+                topPadding: topPadding,
+                onLeadingTap: () => Get.back(),
+                pills: PhonebookHeaderPill(
+                  icon: Icons.meeting_room_outlined,
+                  label: controller.hasRoom
+                      ? 'Room ${controller.room.value}'
+                      : 'Standard resolution: 24 - 48 hrs',
+                ),
               ),
             ),
           ),
           SliverToBoxAdapter(
             child: Padding(
-              padding: const EdgeInsets.fromLTRB(
-                AppDimens.screenPadding,
-                AppDimens.gapXl,
-                AppDimens.screenPadding,
-                40,
-              ),
+              padding: const EdgeInsets.fromLTRB(16, 18, 16, 40),
               child: Obx(() {
                 if (controller.isLoading.value) {
                   return const SkeletonList(count: 4, padding: EdgeInsets.zero);
@@ -88,15 +80,15 @@ class _ComplaintForm extends GetView<AddComplaintController> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        const SectionHeader(title: 'Select category'),
+        const PhonebookSectionHeader(title: 'Select category'),
         const _CategoryGrid(),
-        const SizedBox(height: AppDimens.gapXl),
-        const SectionHeader(title: 'What needs fixing?'),
+        const SizedBox(height: 20),
+        const PhonebookSectionHeader(title: 'What needs fixing?'),
         const _ItemPicker(),
-        const SizedBox(height: AppDimens.gapXl),
-        const SectionHeader(title: 'Details'),
-        AppCard(
-          padding: const EdgeInsets.all(AppDimens.cardPadding),
+        const SizedBox(height: 20),
+        const PhonebookSectionHeader(title: 'Details'),
+        PhonebookCard(
+          padding: const EdgeInsets.all(16),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
@@ -105,47 +97,119 @@ class _ComplaintForm extends GetView<AddComplaintController> {
               TextFormField(
                 initialValue: controller.room.value,
                 enabled: false,
-                decoration: const InputDecoration(
+                style: const TextStyle(
+                  color: PhonebookTheme.ink,
+                  fontWeight: FontWeight.w700,
+                ),
+                decoration: InputDecoration(
                   labelText: 'Room',
-                  prefixIcon: Icon(Icons.meeting_room_outlined, size: 20),
-                  suffixIcon: Icon(Icons.lock_outline_rounded, size: 18),
+                  filled: true,
+                  fillColor: PhonebookTheme.bg,
+                  prefixIcon: const Icon(
+                    Icons.meeting_room_outlined,
+                    size: 20,
+                    color: PhonebookTheme.blue,
+                  ),
+                  suffixIcon: const Icon(
+                    Icons.lock_outline_rounded,
+                    size: 18,
+                    color: PhonebookTheme.muted,
+                  ),
+                  border: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(14),
+                    borderSide: const BorderSide(color: PhonebookTheme.border),
+                  ),
+                  disabledBorder: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(14),
+                    borderSide: const BorderSide(color: PhonebookTheme.border),
+                  ),
                 ),
               ),
-              const SizedBox(height: AppDimens.gapMd),
+              const SizedBox(height: 14),
               TextFormField(
                 controller: controller.commentController,
                 maxLines: 4,
                 maxLength: AddComplaintController.maxCommentLength,
-                decoration: const InputDecoration(
+                style: const TextStyle(
+                  color: PhonebookTheme.ink,
+                  fontSize: 14,
+                ),
+                decoration: InputDecoration(
                   labelText: 'Comment (optional)',
                   hintText: 'e.g. AC not cooling since last night',
                   alignLabelWithHint: true,
+                  filled: true,
+                  fillColor: PhonebookTheme.bg,
+                  border: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(14),
+                    borderSide: const BorderSide(color: PhonebookTheme.border),
+                  ),
+                  enabledBorder: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(14),
+                    borderSide: const BorderSide(color: PhonebookTheme.border),
+                  ),
+                  focusedBorder: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(14),
+                    borderSide: const BorderSide(
+                      color: PhonebookTheme.blue,
+                      width: 1.6,
+                    ),
+                  ),
                 ),
               ),
             ],
           ),
         ),
-        const SizedBox(height: AppDimens.gapXl),
-        const SectionHeader(title: 'Attach a photo (optional)'),
+        const SizedBox(height: 20),
+        const PhonebookSectionHeader(title: 'Attach a photo (optional)'),
         const _PhotoCard(),
-        const SizedBox(height: AppDimens.gapXl),
+        const SizedBox(height: 20),
         const _NoticeCard(),
-        const SizedBox(height: AppDimens.gapXxl),
-        Obx(
-          () => AppButton(
-            label: 'Submit Complaint',
-            icon: Icons.send_rounded,
-            isLoading: controller.isSaving.value,
-            onPressed: controller.selectedItem.value == null
-                ? null
-                : () async {
-                    final ok = await controller.submit();
-                    // Not Get.back(): with the success snackbar open it
-                    // would only close the snackbar.
-                    if (ok && context.mounted) Navigator.of(context).pop(true);
-                  },
-          ),
-        ),
+        const SizedBox(height: 24),
+        Obx(() {
+          final enabled =
+              controller.selectedItem.value != null && !controller.isSaving.value;
+          return SizedBox(
+            height: 52,
+            child: ElevatedButton.icon(
+              onPressed: enabled
+                  ? () async {
+                      final ok = await controller.submit();
+                      // Not Get.back(): with the success snackbar open it
+                      // would only close the snackbar.
+                      if (ok && context.mounted) Navigator.of(context).pop(true);
+                    }
+                  : null,
+              style: ElevatedButton.styleFrom(
+                backgroundColor: PhonebookTheme.blue,
+                foregroundColor: Colors.white,
+                disabledBackgroundColor: PhonebookTheme.border,
+                disabledForegroundColor: PhonebookTheme.muted,
+                elevation: enabled ? 2 : 0,
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(14),
+                ),
+              ),
+              icon: controller.isSaving.value
+                  ? const SizedBox(
+                      width: 18,
+                      height: 18,
+                      child: CircularProgressIndicator(
+                        strokeWidth: 2.2,
+                        color: Colors.white,
+                      ),
+                    )
+                  : const Icon(Icons.send_rounded, size: 19),
+              label: Text(
+                controller.isSaving.value ? 'Submitting...' : 'Submit Complaint',
+                style: const TextStyle(
+                  fontSize: 15,
+                  fontWeight: FontWeight.w700,
+                ),
+              ),
+            ),
+          );
+        }),
       ],
     );
   }
@@ -173,9 +237,9 @@ class _CategoryGrid extends GetView<AddComplaintController> {
         itemCount: categories.length,
         gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
           crossAxisCount: 3,
-          mainAxisSpacing: AppDimens.gapSm,
-          crossAxisSpacing: AppDimens.gapSm,
-          childAspectRatio: 1.35,
+          mainAxisSpacing: 10,
+          crossAxisSpacing: 10,
+          childAspectRatio: 1.28,
         ),
         itemBuilder: (context, index) {
           final category = categories[index];
@@ -184,51 +248,51 @@ class _CategoryGrid extends GetView<AddComplaintController> {
 
           return Material(
             color: isSelected
-                ? style.color.withValues(alpha: 0.12)
-                : AppColors.surface,
+                ? style.color.withValues(alpha: 0.1)
+                : Colors.white,
             shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(AppDimens.radiusSm + 2),
+              borderRadius: BorderRadius.circular(14),
               side: BorderSide(
-                color: isSelected ? style.color : AppColors.border,
+                color: isSelected ? style.color : PhonebookTheme.border,
                 width: isSelected ? 1.6 : 1.0,
               ),
             ),
             child: InkWell(
-              borderRadius: BorderRadius.circular(AppDimens.radiusSm + 2),
+              borderRadius: BorderRadius.circular(14),
               onTap: () => controller.selectCategory(category),
               child: Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 6),
+                padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 8),
                 child: Column(
                   mainAxisAlignment: MainAxisAlignment.center,
                   children: [
                     Container(
-                      width: 32,
-                      height: 32,
+                      width: 34,
+                      height: 34,
                       decoration: BoxDecoration(
                         color: isSelected
                             ? style.color
                             : style.color.withValues(alpha: 0.12),
-                        shape: BoxShape.circle,
+                        borderRadius: BorderRadius.circular(10),
                       ),
                       child: Icon(
                         style.icon,
-                        size: 17,
+                        size: 18,
                         color: isSelected ? Colors.white : style.color,
                       ),
                     ),
-                    const SizedBox(height: 5),
+                    const SizedBox(height: 6),
                     Text(
                       category.name,
                       textAlign: TextAlign.center,
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
-                      style: AppTextStyles.caption.copyWith(
+                      style: TextStyle(
                         color: isSelected
-                            ? AppColors.textPrimary
-                            : AppColors.textSecondary,
+                            ? PhonebookTheme.ink
+                            : PhonebookTheme.slate,
                         fontWeight:
-                            isSelected ? FontWeight.w700 : FontWeight.w600,
-                        fontSize: 11,
+                            isSelected ? FontWeight.w800 : FontWeight.w600,
+                        fontSize: 11.5,
                       ),
                     ),
                   ],
@@ -248,8 +312,8 @@ class _ItemPicker extends GetView<AddComplaintController> {
 
   @override
   Widget build(BuildContext context) {
-    return AppCard(
-      padding: const EdgeInsets.all(AppDimens.cardPadding),
+    return PhonebookCard(
+      padding: const EdgeInsets.all(16),
       child: Obx(() {
         final category = controller.selectedCategory.value;
         if (category == null) {
@@ -259,7 +323,7 @@ class _ItemPicker extends GetView<AddComplaintController> {
           return const Center(
             child: Padding(
               padding: EdgeInsets.all(AppDimens.gapMd),
-              child: CircularProgressIndicator(),
+              child: CircularProgressIndicator(color: PhonebookTheme.blue),
             ),
           );
         }
@@ -281,22 +345,32 @@ class _ItemPicker extends GetView<AddComplaintController> {
         final style = ComplaintCategoryStyle.of(category.name);
         final selectedId = controller.selectedItem.value?.id;
         return Wrap(
-          spacing: AppDimens.gapSm,
-          runSpacing: AppDimens.gapSm,
+          spacing: 8,
+          runSpacing: 8,
           children: [
             for (final item in controller.items)
               ChoiceChip(
                 label: Text(item.name),
                 selected: selectedId == item.id,
                 selectedColor: style.color,
+                backgroundColor: PhonebookTheme.bg,
+                side: BorderSide(
+                  color: selectedId == item.id
+                      ? style.color
+                      : PhonebookTheme.border,
+                ),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(20),
+                ),
                 showCheckmark: false,
-                labelStyle: AppTextStyles.label.copyWith(
+                labelStyle: TextStyle(
                   color: selectedId == item.id
                       ? Colors.white
-                      : AppColors.textPrimary,
+                      : PhonebookTheme.ink,
+                  fontSize: 13,
                   fontWeight: selectedId == item.id
                       ? FontWeight.w700
-                      : FontWeight.w500,
+                      : FontWeight.w600,
                 ),
                 onSelected: (_) => controller.selectItem(item),
               ),
@@ -308,7 +382,10 @@ class _ItemPicker extends GetView<AddComplaintController> {
 
   Widget _hint(String text) => Text(
         text,
-        style: AppTextStyles.bodySm.copyWith(color: AppColors.textSecondary),
+        style: const TextStyle(
+          color: PhonebookTheme.muted,
+          fontSize: 13.5,
+        ),
       );
 }
 
@@ -319,24 +396,37 @@ class _PhotoCard extends GetView<AddComplaintController> {
   void _showImageSourceSheet() {
     Get.bottomSheet(
       Container(
-        padding: const EdgeInsets.all(AppDimens.gapLg),
+        padding: const EdgeInsets.all(20),
         decoration: const BoxDecoration(
-          color: AppColors.surface,
-          borderRadius: BorderRadius.vertical(
-            top: Radius.circular(AppDimens.radiusXl),
-          ),
+          color: Colors.white,
+          borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
         ),
         child: SafeArea(
           child: Column(
             mainAxisSize: MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              Text(
+              Center(
+                child: Container(
+                  width: 38,
+                  height: 4,
+                  margin: const EdgeInsets.only(bottom: 14),
+                  decoration: BoxDecoration(
+                    color: PhonebookTheme.border,
+                    borderRadius: BorderRadius.circular(2),
+                  ),
+                ),
+              ),
+              const Text(
                 'Add Photo',
-                style: AppTextStyles.title,
+                style: TextStyle(
+                  fontSize: 17,
+                  fontWeight: FontWeight.w800,
+                  color: PhonebookTheme.ink,
+                ),
                 textAlign: TextAlign.center,
               ),
-              const SizedBox(height: AppDimens.gapMd),
+              const SizedBox(height: 12),
               _sourceTile(
                 Icons.camera_alt_outlined,
                 'Take photo with camera',
@@ -357,14 +447,20 @@ class _PhotoCard extends GetView<AddComplaintController> {
   Widget _sourceTile(IconData icon, String title, ImageSource source) {
     return ListTile(
       leading: Container(
-        padding: const EdgeInsets.all(8),
+        padding: const EdgeInsets.all(9),
         decoration: const BoxDecoration(
-          color: AppColors.primarySoft,
+          color: PhonebookTheme.blueSoft,
           shape: BoxShape.circle,
         ),
-        child: Icon(icon, color: AppColors.primary),
+        child: Icon(icon, color: PhonebookTheme.blue, size: 20),
       ),
-      title: Text(title),
+      title: Text(
+        title,
+        style: const TextStyle(
+          color: PhonebookTheme.ink,
+          fontWeight: FontWeight.w600,
+        ),
+      ),
       onTap: () {
         Get.back();
         controller.pickImage(source);
@@ -374,16 +470,20 @@ class _PhotoCard extends GetView<AddComplaintController> {
 
   @override
   Widget build(BuildContext context) {
-    return AppCard(
-      padding: const EdgeInsets.all(AppDimens.cardPadding),
+    return PhonebookCard(
+      padding: const EdgeInsets.all(16),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text(
+          const Text(
             'A photo helps technicians bring the right tools. JPEG, PNG or WebP, up to 5 MB.',
-            style: AppTextStyles.bodySm.copyWith(color: AppColors.textSecondary),
+            style: TextStyle(
+              color: PhonebookTheme.muted,
+              fontSize: 13,
+              height: 1.35,
+            ),
           ),
-          const SizedBox(height: AppDimens.gapMd),
+          const SizedBox(height: 12),
           Obx(() {
             final image = controller.image.value;
             return image == null
@@ -408,7 +508,7 @@ class _ImageThumbnail extends StatelessWidget {
       clipBehavior: Clip.none,
       children: [
         ClipRRect(
-          borderRadius: BorderRadius.circular(AppDimens.radiusMd),
+          borderRadius: BorderRadius.circular(14),
           child: Image.file(file, width: 110, height: 110, fit: BoxFit.cover),
         ),
         Positioned(
@@ -417,9 +517,9 @@ class _ImageThumbnail extends StatelessWidget {
           child: GestureDetector(
             onTap: onRemove,
             child: Container(
-              padding: const EdgeInsets.all(3),
+              padding: const EdgeInsets.all(4),
               decoration: const BoxDecoration(
-                color: AppColors.cancelledRed,
+                color: PhonebookTheme.red,
                 shape: BoxShape.circle,
                 boxShadow: [
                   BoxShadow(
@@ -447,14 +547,14 @@ class _AddPhotoButton extends StatelessWidget {
   Widget build(BuildContext context) {
     return InkWell(
       onTap: onTap,
-      borderRadius: BorderRadius.circular(AppDimens.radiusMd),
+      borderRadius: BorderRadius.circular(14),
       child: Container(
         width: 110,
         height: 110,
         decoration: BoxDecoration(
-          color: AppColors.surfaceMuted,
-          borderRadius: BorderRadius.circular(AppDimens.radiusMd),
-          border: Border.all(color: AppColors.border, width: 1.2),
+          color: PhonebookTheme.bg,
+          borderRadius: BorderRadius.circular(14),
+          border: Border.all(color: PhonebookTheme.border, width: 1.2),
         ),
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
@@ -462,15 +562,15 @@ class _AddPhotoButton extends StatelessWidget {
             const Icon(
               Icons.add_a_photo_outlined,
               size: 24,
-              color: AppColors.primary,
+              color: PhonebookTheme.blue,
             ),
-            const SizedBox(height: 4),
-            Text(
+            const SizedBox(height: 6),
+            const Text(
               'Add photo',
-              style: AppTextStyles.caption.copyWith(
-                color: AppColors.textSecondary,
-                fontSize: 10.5,
-                fontWeight: FontWeight.w600,
+              style: TextStyle(
+                color: PhonebookTheme.slate,
+                fontSize: 11,
+                fontWeight: FontWeight.w700,
               ),
             ),
           ],
@@ -487,39 +587,40 @@ class _NoticeCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Container(
-      padding: const EdgeInsets.all(AppDimens.gapMd),
+      padding: const EdgeInsets.all(14),
       decoration: BoxDecoration(
-        color: AppColors.surfaceMuted,
-        borderRadius: BorderRadius.circular(AppDimens.radiusMd),
-        border: Border.all(color: AppColors.border.withValues(alpha: 0.8)),
+        color: PhonebookTheme.blueSoft.withValues(alpha: 0.55),
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: const Color(0xFFBAE6FD)),
       ),
-      child: Row(
+      child: const Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const Icon(
+          Icon(
             Icons.info_outline_rounded,
-            size: 18,
-            color: AppColors.primary,
+            size: 19,
+            color: PhonebookTheme.blue,
           ),
-          const SizedBox(width: AppDimens.gapSm),
+          SizedBox(width: 10),
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
                   'Technician visit guidelines',
-                  style: AppTextStyles.subtitle.copyWith(
+                  style: TextStyle(
                     fontSize: 13.5,
-                    fontWeight: FontWeight.w700,
-                    color: AppColors.primary,
+                    fontWeight: FontWeight.w800,
+                    color: PhonebookTheme.ink,
                   ),
                 ),
-                const SizedBox(height: 2),
+                SizedBox(height: 3),
                 Text(
                   'Technicians visit rooms on working days between 10:00 AM - 5:00 PM. Please ensure the affected area is accessible.',
-                  style: AppTextStyles.bodySm.copyWith(
-                    color: AppColors.textSecondary,
-                    height: 1.35,
+                  style: TextStyle(
+                    fontSize: 12.5,
+                    color: PhonebookTheme.slate,
+                    height: 1.4,
                   ),
                 ),
               ],

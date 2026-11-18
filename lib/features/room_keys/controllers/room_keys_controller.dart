@@ -1,3 +1,4 @@
+import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import '../../../core/abstracts/mixins/load_state_mixin.dart';
 import '../../../core/models/room_keys/room_key_models.dart';
@@ -78,7 +79,9 @@ class RoomKeysController extends GetxController with LoadStateMixin {
   final studentsUnavailable = false.obs;
 
   final search = ''.obs;
+  final searchController = TextEditingController();
   final filter = RoomFilter.all.obs;
+  final selectedFloor = 'All'.obs;
 
   /// Keys with a change in flight.
   final busyIds = <int>{}.obs;
@@ -88,6 +91,63 @@ class RoomKeysController extends GetxController with LoadStateMixin {
   void onInit() {
     super.onInit();
     load();
+  }
+
+  @override
+  void onClose() {
+    searchController.dispose();
+    super.onClose();
+  }
+
+  void onSearchChanged(String value) => search.value = value;
+
+  void clearSearch() {
+    searchController.clear();
+    search.value = '';
+  }
+
+  int get activeFilterCount {
+    var count = 0;
+    if (filter.value != RoomFilter.all) count++;
+    if (selectedFloor.value != 'All') count++;
+    return count;
+  }
+
+  void resetFilters() {
+    filter.value = RoomFilter.all;
+    selectedFloor.value = 'All';
+  }
+
+  static String floorLabelForRoom(String roomNumber) {
+    final trimmed = roomNumber.trim().toUpperCase();
+    final digits = RegExp(r'^\d+').stringMatch(trimmed);
+    if (digits != null) {
+      final n = int.tryParse(digits);
+      if (n != null) {
+        if (n < 100) return 'Ground';
+        return 'Floor ${n ~/ 100}';
+      }
+    }
+    if (trimmed.startsWith('G')) return 'Ground';
+    return 'Other';
+  }
+
+  List<String> get availableFloors {
+    final found = <String>{};
+    for (final r in rooms) {
+      found.add(floorLabelForRoom(r.number));
+    }
+    final list = found.toList()
+      ..sort((a, b) {
+        if (a == 'Ground') return -1;
+        if (b == 'Ground') return 1;
+        if (a == 'Other') return 1;
+        if (b == 'Other') return -1;
+        final na = int.tryParse(a.replaceAll(RegExp(r'\D'), '')) ?? 999;
+        final nb = int.tryParse(b.replaceAll(RegExp(r'\D'), '')) ?? 999;
+        return na.compareTo(nb);
+      });
+    return ['All', ...list];
   }
 
   Future<void> load({bool showLoading = true}) => guard(() async {
@@ -131,7 +191,11 @@ class RoomKeysController extends GetxController with LoadStateMixin {
   /// Rooms for the current filter and search (room, key number or name).
   List<KeyRoom> get visibleRooms {
     final q = search.value.trim().toLowerCase();
+    final floor = selectedFloor.value;
     return rooms.where((r) {
+      if (floor != 'All' && floorLabelForRoom(r.number) != floor) {
+        return false;
+      }
       switch (filter.value) {
         case RoomFilter.missing:
           if (!r.missingKeys) return false;

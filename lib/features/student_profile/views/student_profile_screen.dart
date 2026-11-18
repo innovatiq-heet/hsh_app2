@@ -106,29 +106,116 @@ class StudentProfileScreen extends GetView<StudentProfileController> {
                               ),
                             ],
                           ),
-                          // if (profile.fatherPhone.isNotEmpty ||
-                          //     profile.motherPhone.isNotEmpty) ...[
-                          //   const SizedBox(height: AppDimens.gapXl),
-                          //   const SectionHeader(
-                          //     title: 'Parent & guardian contact',
-                          //   ),
-                          //   _DetailsCard(
-                          //     rows: [
-                          //       if (profile.fatherPhone.isNotEmpty)
-                          //         InfoRow(
-                          //           icon: Icons.family_restroom_outlined,
-                          //           label: "Father's phone",
-                          //           value: profile.fatherPhone,
-                          //         ),
-                          //       if (profile.motherPhone.isNotEmpty)
-                          //         InfoRow(
-                          //           icon: Icons.family_restroom_outlined,
-                          //           label: "Mother's phone",
-                          //           value: profile.motherPhone,
-                          //         ),
-                          //     ],
-                          //   ),
-                          // ],
+                          // Family Details Section
+                          if (profile.fatherFullName.isNotEmpty ||
+                              profile.fatherPhone.isNotEmpty ||
+                              profile.fatherProfession.isNotEmpty ||
+                              profile.fatherBusiness.isNotEmpty ||
+                              profile.fatherDob.isNotEmpty ||
+                              profile.motherFullName.isNotEmpty ||
+                              profile.motherPhone.isNotEmpty ||
+                              profile.motherBusiness.isNotEmpty ||
+                              profile.motherDob.isNotEmpty ||
+                              profile.anniversaryFormatted.isNotEmpty) ...[
+                            const SizedBox(height: AppDimens.gapXl),
+                            const SectionHeader(title: 'Family details'),
+                            _DetailsCard(
+                              rows: [
+                                if (profile.fatherFullName.isNotEmpty)
+                                  InfoRow(
+                                    icon: Icons.man_rounded,
+                                    label: "Father's name",
+                                    value: profile.fatherFullName,
+                                    locked: true,
+                                  ),
+                                if (profile.fatherPhone.isNotEmpty)
+                                  InfoRow(
+                                    icon: Icons.phone_outlined,
+                                    label: "Father's phone",
+                                    value: profile.fatherPhone,
+                                  ),
+                                if (profile.fatherProfession.isNotEmpty ||
+                                    profile.fatherBusiness.isNotEmpty)
+                                  InfoRow(
+                                    icon: Icons.work_outline_rounded,
+                                    label: "Father's profession",
+                                    value: profile.fatherProfession.isNotEmpty
+                                        ? profile.fatherProfession
+                                        : profile.fatherBusiness,
+                                  ),
+                                if (profile.fatherDob.isNotEmpty)
+                                  InfoRow(
+                                    icon: Icons.cake_outlined,
+                                    label: "Father's date of birth",
+                                    value: profile.fatherDob,
+                                    locked: true,
+                                  ),
+                                if (profile.motherFullName.isNotEmpty)
+                                  InfoRow(
+                                    icon: Icons.woman_rounded,
+                                    label: "Mother's name",
+                                    value: profile.motherFullName,
+                                    locked: true,
+                                  ),
+                                if (profile.motherPhone.isNotEmpty)
+                                  InfoRow(
+                                    icon: Icons.phone_outlined,
+                                    label: "Mother's phone",
+                                    value: profile.motherPhone,
+                                  ),
+                                if (profile.motherBusiness.isNotEmpty)
+                                  InfoRow(
+                                    icon: Icons.work_outline_rounded,
+                                    label: "Mother's profession",
+                                    value: profile.motherBusiness,
+                                  ),
+                                if (profile.motherDob.isNotEmpty)
+                                  InfoRow(
+                                    icon: Icons.cake_outlined,
+                                    label: "Mother's date of birth",
+                                    value: profile.motherDob,
+                                    locked: true,
+                                  ),
+                                if (profile.anniversaryFormatted.isNotEmpty)
+                                  InfoRow(
+                                    icon: Icons.favorite_border_rounded,
+                                    label: "Parents' anniversary",
+                                    value: profile.anniversaryFormatted,
+                                    locked: true,
+                                  ),
+                              ],
+                            ),
+                          ],
+                          // Address & Hometown Section
+                          if (profile.address.isNotEmpty ||
+                              profile.hometown.isNotEmpty ||
+                              profile.pinCode.isNotEmpty) ...[
+                            const SizedBox(height: AppDimens.gapXl),
+                            const SectionHeader(title: 'Address & hometown'),
+                            _DetailsCard(
+                              rows: [
+                                if (profile.address.isNotEmpty)
+                                  InfoRow(
+                                    icon: Icons.home_outlined,
+                                    label: 'Home address',
+                                    value: profile.address,
+                                  ),
+                                if (profile.hometown.isNotEmpty)
+                                  InfoRow(
+                                    icon: Icons.location_city_outlined,
+                                    label: 'Hometown / Region',
+                                    value: profile.hometown,
+                                    locked: true,
+                                  ),
+                                if (profile.pinCode.isNotEmpty)
+                                  InfoRow(
+                                    icon: Icons.pin_drop_outlined,
+                                    label: 'PIN code',
+                                    value: profile.pinCode,
+                                  ),
+                              ],
+                            ),
+                          ],
                         ],
                       ),
                     ),

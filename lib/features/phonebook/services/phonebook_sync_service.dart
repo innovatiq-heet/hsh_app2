@@ -231,15 +231,76 @@ class PhonebookSyncService {
             ? rawExternalPin
             : null;
 
-        final resolvedFatherName =
-            rawMiddle.isNotEmpty ? formatPersonName(rawMiddle) : null;
-        final resolvedMotherName =
-            rawMother.isNotEmpty ? formatPersonName(rawMother) : null;
+        // Extract parent names using new composite fields, fallback to middle/mother
+        final fFirst = (s['fatherFirstName'] ?? s['father_first_name'] ?? '').toString().trim();
+        final fMiddle = (s['fatherMiddleName'] ?? s['father_middle_name'] ?? '').toString().trim();
+        final fLast = (s['fatherLastName'] ?? s['father_last_name'] ?? '').toString().trim();
+        final fParts = [fFirst, fMiddle, fLast].where((p) => p.isNotEmpty).toList();
+
+        String? resolvedFatherName;
+        if (fParts.isNotEmpty) {
+          resolvedFatherName = formatPersonName(fParts.join(' '));
+        } else if (rawMiddle.isNotEmpty) {
+          resolvedFatherName = formatPersonName(rawMiddle);
+        }
+
+        final mFirst = (s['motherFirstName'] ?? s['mother_first_name'] ?? '').toString().trim();
+        final mMiddle = (s['motherMiddleName'] ?? s['mother_middle_name'] ?? '').toString().trim();
+        final mLast = (s['motherLastName'] ?? s['mother_last_name'] ?? '').toString().trim();
+        final mParts = [mFirst, mMiddle, mLast].where((p) => p.isNotEmpty).toList();
+
+        String? resolvedMotherName;
+        if (mParts.isNotEmpty) {
+          resolvedMotherName = formatPersonName(mParts.join(' '));
+        } else if (rawMother.isNotEmpty) {
+          resolvedMotherName = formatPersonName(rawMother);
+        }
+
         final resolvedFatherPhone = (s['fatherPhone']?.toString().trim().isNotEmpty == true)
             ? s['fatherPhone']?.toString().trim()
             : null;
         final resolvedMotherPhone = (s['motherPhone']?.toString().trim().isNotEmpty == true)
             ? s['motherPhone']?.toString().trim()
+            : null;
+
+        final rawFatherDob = (s['fatherDob'] ?? s['father_dob'])?.toString().trim();
+        final fatherDob = (rawFatherDob != null && rawFatherDob.isNotEmpty && rawFatherDob != 'null')
+            ? rawFatherDob
+            : null;
+
+        final rawFatherBiz = (s['fatherBusiness'] ?? s['father_business'] ?? s['fatherProfession'])?.toString().trim();
+        final fatherBusiness = (rawFatherBiz != null && rawFatherBiz.isNotEmpty && rawFatherBiz != 'null')
+            ? rawFatherBiz
+            : null;
+
+        final rawMotherDob = (s['motherDob'] ?? s['mother_dob'])?.toString().trim();
+        final motherDob = (rawMotherDob != null && rawMotherDob.isNotEmpty && rawMotherDob != 'null')
+            ? rawMotherDob
+            : null;
+
+        final rawMotherBiz = (s['motherBusiness'] ?? s['mother_business'])?.toString().trim();
+        final motherBusiness = (rawMotherBiz != null && rawMotherBiz.isNotEmpty && rawMotherBiz != 'null')
+            ? rawMotherBiz
+            : null;
+
+        final rawAnniversary = s['anniversary']?.toString().trim();
+        final anniversary = (rawAnniversary != null && rawAnniversary.isNotEmpty && rawAnniversary != 'null')
+            ? rawAnniversary
+            : null;
+
+        final rawCity = (s['city'] ?? s['city_name'])?.toString().trim();
+        final city = (rawCity != null && rawCity.isNotEmpty && rawCity.toLowerCase() != 'null')
+            ? formatPersonName(rawCity)
+            : null;
+
+        final rawDistrict = s['district']?.toString().trim();
+        final district = (rawDistrict != null && rawDistrict.isNotEmpty && rawDistrict.toLowerCase() != 'null')
+            ? formatPersonName(rawDistrict)
+            : null;
+
+        final rawState = s['state']?.toString().trim();
+        final state = (rawState != null && rawState.isNotEmpty && rawState.toLowerCase() != 'null')
+            ? formatPersonName(rawState)
             : null;
 
         // 1. Student Personal Mobile
@@ -265,6 +326,14 @@ class PhonebookSyncService {
             'mother_name': resolvedMotherName,
             'father_phone': resolvedFatherPhone,
             'mother_phone': resolvedMotherPhone,
+            'father_dob': fatherDob,
+            'father_business': fatherBusiness,
+            'mother_dob': motherDob,
+            'mother_business': motherBusiness,
+            'anniversary': anniversary,
+            'city': city,
+            'district': district,
+            'state': state,
             'whatsapp_number': whatsappNumber,
             'status': status,
             'bank_code': bankCode,
@@ -303,6 +372,14 @@ class PhonebookSyncService {
             'mother_name': resolvedMotherName,
             'father_phone': resolvedFatherPhone,
             'mother_phone': resolvedMotherPhone,
+            'father_dob': fatherDob,
+            'father_business': fatherBusiness,
+            'mother_dob': motherDob,
+            'mother_business': motherBusiness,
+            'anniversary': anniversary,
+            'city': city,
+            'district': district,
+            'state': state,
             'whatsapp_number': whatsappNumber,
             'status': status,
             'bank_code': bankCode,
@@ -339,6 +416,14 @@ class PhonebookSyncService {
             'mother_name': resolvedMotherName,
             'father_phone': resolvedFatherPhone,
             'mother_phone': resolvedMotherPhone,
+            'father_dob': fatherDob,
+            'father_business': fatherBusiness,
+            'mother_dob': motherDob,
+            'mother_business': motherBusiness,
+            'anniversary': anniversary,
+            'city': city,
+            'district': district,
+            'state': state,
             'whatsapp_number': whatsappNumber,
             'status': status,
             'bank_code': bankCode,

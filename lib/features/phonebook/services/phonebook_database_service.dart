@@ -2,10 +2,12 @@ import 'dart:convert';
 import 'package:sqflite/sqflite.dart';
 import 'package:path/path.dart' as p;
 import '../../../core/models/tags/student_tag_model.dart';
+import '../../../core/utils/string_formatting.dart';
 import '../models/phonebook_models.dart';
 import 'phone_number_normalizer.dart';
 
 typedef PhonebookGroupInfo = ({String? group, String? status});
+typedef PhonebookLocationOption = ({String name, int count});
 
 class PhonebookDatabaseService {
   static final PhonebookDatabaseService instance =
@@ -26,7 +28,7 @@ class PhonebookDatabaseService {
 
     return await openDatabase(
       path,
-      version: 6,
+      version: 7,
       onUpgrade: _onUpgrade,
       onCreate: (db, version) async {
         await db.execute('''
@@ -51,6 +53,14 @@ class PhonebookDatabaseService {
             mother_name TEXT,
             father_phone TEXT,
             mother_phone TEXT,
+            father_dob TEXT,
+            father_business TEXT,
+            mother_dob TEXT,
+            mother_business TEXT,
+            anniversary TEXT,
+            city TEXT,
+            district TEXT,
+            state TEXT,
             whatsapp_number TEXT,
             status TEXT,
             bank_code TEXT,
@@ -134,6 +144,24 @@ class PhonebookDatabaseService {
         await db.execute('ALTER TABLE student_cache ADD COLUMN tags TEXT');
       } catch (_) {}
     }
+
+    if (oldVersion < 7) {
+      final newCols = [
+        'father_dob TEXT',
+        'father_business TEXT',
+        'mother_dob TEXT',
+        'mother_business TEXT',
+        'anniversary TEXT',
+        'city TEXT',
+        'district TEXT',
+        'state TEXT',
+      ];
+      for (final col in newCols) {
+        try {
+          await db.execute('ALTER TABLE student_cache ADD COLUMN $col');
+        } catch (_) {}
+      }
+    }
   }
 
   /// Everything caller ID needs, one row per phone number.
@@ -186,6 +214,14 @@ class PhonebookDatabaseService {
             'mother_name': r['mother_name'],
             'father_phone': r['father_phone'],
             'mother_phone': r['mother_phone'],
+            'father_dob': r['father_dob'],
+            'father_business': r['father_business'],
+            'mother_dob': r['mother_dob'],
+            'mother_business': r['mother_business'],
+            'anniversary': r['anniversary'],
+            'city': r['city'],
+            'district': r['district'],
+            'state': r['state'],
             'whatsapp_number': r['whatsapp_number'],
             'status': r['status'],
             'bank_code': r['bank_code'],
@@ -211,6 +247,9 @@ class PhonebookDatabaseService {
     int? floor,
     String? status, // 'all', 'active', 'alumni'
     String? tag,
+    String? state,
+    String? district,
+    String? city,
     bool? hasDob,
     bool? hasParent,
     bool? hasWhatsApp,
@@ -228,7 +267,7 @@ class PhonebookDatabaseService {
       final cleanedNum = cleanQuery.replaceAll(RegExp(r'\D'), '');
       if (cleanedNum.isNotEmpty && cleanedNum.length >= 3) {
         whereClauses.add(
-          '(phone LIKE ? OR phone_normalized LIKE ? OR name LIKE ? OR student_id LIKE ? OR enrollment_number LIKE ? OR aadhar LIKE ? OR bank_code LIKE ? OR father_name LIKE ? OR mother_name LIKE ? OR room_num LIKE ?)',
+          '(phone LIKE ? OR phone_normalized LIKE ? OR name LIKE ? OR student_id LIKE ? OR enrollment_number LIKE ? OR aadhar LIKE ? OR bank_code LIKE ? OR father_name LIKE ? OR mother_name LIKE ? OR room_num LIKE ? OR city LIKE ? OR district LIKE ? OR state LIKE ? OR father_business LIKE ? OR mother_business LIKE ?)',
         );
         whereArgs.addAll([
           '%$cleanQuery%',
@@ -241,12 +280,22 @@ class PhonebookDatabaseService {
           '%$cleanQuery%',
           '%$cleanQuery%',
           '%$cleanQuery%',
+          '%$cleanQuery%',
+          '%$cleanQuery%',
+          '%$cleanQuery%',
+          '%$cleanQuery%',
+          '%$cleanQuery%',
         ]);
       } else {
         whereClauses.add(
-          '(name LIKE ? OR student_id LIKE ? OR enrollment_number LIKE ? OR aadhar LIKE ? OR bank_code LIKE ? OR father_name LIKE ? OR mother_name LIKE ? OR room_num LIKE ?)',
+          '(name LIKE ? OR student_id LIKE ? OR enrollment_number LIKE ? OR aadhar LIKE ? OR bank_code LIKE ? OR father_name LIKE ? OR mother_name LIKE ? OR room_num LIKE ? OR city LIKE ? OR district LIKE ? OR state LIKE ? OR father_business LIKE ? OR mother_business LIKE ?)',
         );
         whereArgs.addAll([
+          '%$cleanQuery%',
+          '%$cleanQuery%',
+          '%$cleanQuery%',
+          '%$cleanQuery%',
+          '%$cleanQuery%',
           '%$cleanQuery%',
           '%$cleanQuery%',
           '%$cleanQuery%',
@@ -322,6 +371,22 @@ class PhonebookDatabaseService {
       whereArgs.add('%$tag%');
     }
 
+    // Location filters (State, District, City)
+    if (state != null && state.isNotEmpty && state.toLowerCase() != 'all') {
+      whereClauses.add('LOWER(TRIM(state)) = ?');
+      whereArgs.add(state.trim().toLowerCase());
+    }
+    if (district != null &&
+        district.isNotEmpty &&
+        district.toLowerCase() != 'all') {
+      whereClauses.add('LOWER(TRIM(district)) = ?');
+      whereArgs.add(district.trim().toLowerCase());
+    }
+    if (city != null && city.isNotEmpty && city.toLowerCase() != 'all') {
+      whereClauses.add('LOWER(TRIM(city)) = ?');
+      whereArgs.add(city.trim().toLowerCase());
+    }
+
     final whereString =
         whereClauses.isNotEmpty ? whereClauses.join(' AND ') : null;
 
@@ -381,6 +446,14 @@ class PhonebookDatabaseService {
           'mother_name': row['mother_name'],
           'father_phone': row['father_phone'],
           'mother_phone': row['mother_phone'],
+          'father_dob': row['father_dob'],
+          'father_business': row['father_business'],
+          'mother_dob': row['mother_dob'],
+          'mother_business': row['mother_business'],
+          'anniversary': row['anniversary'],
+          'city': row['city'],
+          'district': row['district'],
+          'state': row['state'],
           'whatsapp_number': row['whatsapp_number'],
           'status': row['status'],
           'bank_code': row['bank_code'],
@@ -471,6 +544,102 @@ class PhonebookDatabaseService {
       index[key] = info;
     }
     return index;
+  }
+
+  /// Parses aggregated `(val, cnt)` rows into deduplicated, sorted location options.
+  static List<PhonebookLocationOption> parseLocationRows(
+    List<Map<String, Object?>> rows,
+  ) {
+    final counts = <String, ({String display, int count})>{};
+    for (final row in rows) {
+      final raw = row['val']?.toString().trim() ?? '';
+      if (raw.isEmpty || raw.toLowerCase() == 'null') continue;
+      final formatted = formatPersonName(raw);
+      if (formatted.isEmpty) continue;
+      final key = formatted.toLowerCase();
+      final cnt = int.tryParse(row['cnt']?.toString() ?? '0') ?? 0;
+      final existing = counts[key];
+      if (existing != null) {
+        counts[key] = (display: existing.display, count: existing.count + cnt);
+      } else {
+        counts[key] = (display: formatted, count: cnt);
+      }
+    }
+    final list = counts.values
+        .map((e) => (name: e.display, count: e.count))
+        .toList();
+    list.sort((a, b) => a.name.toLowerCase().compareTo(b.name.toLowerCase()));
+    return list;
+  }
+
+  /// Distinct states with unique student counts.
+  Future<List<PhonebookLocationOption>> getDistinctStates() async {
+    final db = await database;
+    final rows = await db.rawQuery('''
+      SELECT TRIM(state) AS val, COUNT(DISTINCT student_id) AS cnt
+      FROM student_cache
+      WHERE state IS NOT NULL AND TRIM(state) != '' AND LOWER(TRIM(state)) != 'null'
+      GROUP BY LOWER(TRIM(state))
+      ORDER BY val COLLATE NOCASE ASC
+    ''');
+    return parseLocationRows(rows);
+  }
+
+  /// Distinct districts with unique student counts, optionally scoped to [state].
+  Future<List<PhonebookLocationOption>> getDistinctDistricts({
+    String? state,
+  }) async {
+    final db = await database;
+    final where = <String>[
+      'district IS NOT NULL',
+      "TRIM(district) != ''",
+      "LOWER(TRIM(district)) != 'null'",
+    ];
+    final args = <dynamic>[];
+    if (state != null && state.isNotEmpty && state.toLowerCase() != 'all') {
+      where.add('LOWER(TRIM(state)) = ?');
+      args.add(state.trim().toLowerCase());
+    }
+    final rows = await db.rawQuery('''
+      SELECT TRIM(district) AS val, COUNT(DISTINCT student_id) AS cnt
+      FROM student_cache
+      WHERE ${where.join(' AND ')}
+      GROUP BY LOWER(TRIM(district))
+      ORDER BY val COLLATE NOCASE ASC
+    ''', args);
+    return parseLocationRows(rows);
+  }
+
+  /// Distinct cities with unique student counts, optionally scoped to [state] and [district].
+  Future<List<PhonebookLocationOption>> getDistinctCities({
+    String? state,
+    String? district,
+  }) async {
+    final db = await database;
+    final where = <String>[
+      'city IS NOT NULL',
+      "TRIM(city) != ''",
+      "LOWER(TRIM(city)) != 'null'",
+    ];
+    final args = <dynamic>[];
+    if (state != null && state.isNotEmpty && state.toLowerCase() != 'all') {
+      where.add('LOWER(TRIM(state)) = ?');
+      args.add(state.trim().toLowerCase());
+    }
+    if (district != null &&
+        district.isNotEmpty &&
+        district.toLowerCase() != 'all') {
+      where.add('LOWER(TRIM(district)) = ?');
+      args.add(district.trim().toLowerCase());
+    }
+    final rows = await db.rawQuery('''
+      SELECT TRIM(city) AS val, COUNT(DISTINCT student_id) AS cnt
+      FROM student_cache
+      WHERE ${where.join(' AND ')}
+      GROUP BY LOWER(TRIM(city))
+      ORDER BY val COLLATE NOCASE ASC
+    ''', args);
+    return parseLocationRows(rows);
   }
 
   Future<int> getStudentCount() async {

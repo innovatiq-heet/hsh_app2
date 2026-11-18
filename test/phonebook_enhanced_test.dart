@@ -1,5 +1,6 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:hsh_app2/features/phonebook/models/phonebook_models.dart';
+import 'package:hsh_app2/features/phonebook/services/phonebook_database_service.dart';
 
 void main() {
   group('PhonebookStudent Model & Formatted Getters', () {
@@ -189,6 +190,84 @@ void main() {
         expect(studentLower.name, 'Shah Meet Mukeshbhai');
         expect(studentLower.fatherName, 'Mukeshbhai Shah');
         expect(studentLower.motherName, 'Gitaben Shah');
+      },
+    );
+
+    test(
+      'Correctly parses and formats new father/mother details, anniversary, and hometown',
+      () {
+        final map = {
+          'id': '106',
+          'student_id': '106',
+          'name': 'Smit Hasmukhbhai Padaliya',
+          'enrollment_number': 'EN106',
+          'department': 'B.Tech IT',
+          'batch': 'ACTIVE',
+          'phone': '9409726301',
+          'room': '308',
+          'group_name': 'Pavitra',
+          'father_name': 'Hasmukhbhai Padaliya',
+          'father_phone': '9825123456',
+          'father_business': 'Diamond Business',
+          'father_dob': '1974-05-15',
+          'mother_name': 'Hansaben Padaliya',
+          'mother_phone': '9825654321',
+          'mother_business': 'Home Maker',
+          'mother_dob': '1977-08-20',
+          'anniversary': '974658600000',
+          'city': 'Surat',
+          'district': 'Surat',
+          'state': 'Gujarat',
+        };
+
+        final student = PhonebookStudent.fromJson(map);
+
+        expect(student.name, 'Smit Hasmukhbhai Padaliya');
+        expect(student.fatherName, 'Hasmukhbhai Padaliya');
+        expect(student.fatherBusiness, 'Diamond Business');
+        expect(student.hasFatherBusiness, isTrue);
+        expect(student.fatherDob, '1974-05-15');
+        expect(student.hasFatherDob, isTrue);
+
+        expect(student.motherName, 'Hansaben Padaliya');
+        expect(student.motherBusiness, 'Home Maker');
+        expect(student.hasMotherBusiness, isTrue);
+        expect(student.motherDob, '1977-08-20');
+        expect(student.hasMotherDob, isTrue);
+
+        expect(student.hasAnniversary, isTrue);
+        expect(student.anniversaryFormatted, contains('2000'));
+        expect(student.hasHometown, isTrue);
+        expect(student.hometown, 'Surat, Gujarat');
+
+        final shareText = student.toShareText();
+        expect(shareText, contains('Diamond Business'));
+        expect(shareText, contains('Home Maker'));
+        expect(shareText, contains('Parents’ Anniversary'));
+      },
+    );
+
+    test(
+      'PhonebookDatabaseService.parseLocationRows deduplicates case-insensitively, skips empty/null, and sorts alphabetically',
+      () {
+        final rows = <Map<String, Object?>>[
+          {'val': 'SURAT', 'cnt': 10},
+          {'val': 'surat', 'cnt': 5},
+          {'val': '  new  delhi ', 'cnt': 3},
+          {'val': 'Ahmedabad', 'cnt': 20},
+          {'val': '', 'cnt': 4},
+          {'val': 'null', 'cnt': 2},
+          {'val': null, 'cnt': 1},
+        ];
+
+        final options = PhonebookDatabaseService.parseLocationRows(rows);
+        expect(options.length, 3);
+        expect(options[0].name, 'Ahmedabad');
+        expect(options[0].count, 20);
+        expect(options[1].name, 'New Delhi');
+        expect(options[1].count, 3);
+        expect(options[2].name, 'Surat');
+        expect(options[2].count, 15);
       },
     );
   });

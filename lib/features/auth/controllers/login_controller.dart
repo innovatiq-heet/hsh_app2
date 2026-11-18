@@ -182,13 +182,20 @@ class LoginController extends GetxController {
           room: session.room,
         );
 
-        final isAlumni = session.isAlumni ||
-            UserSession.isAlumniRoomOrId(
-              room: session.room.isNotEmpty ? session.room : (profile.room),
-              profileRoom: profile.room,
-              studentCode: session.studentCode,
-              id: session.id,
-            );
+        final effectiveRoom = UserSession.isValidHostelRoom(session.room)
+            ? session.room
+            : (UserSession.isValidHostelRoom(profile.room)
+                ? profile.room
+                : session.room);
+        final isAlumni = session.role == UserRole.student &&
+            (UserSession.isAlumniRoomOrId(
+                  room: effectiveRoom,
+                  profileRoom: profile.room,
+                  studentCode: session.studentCode,
+                  id: session.id,
+                ) ||
+                (session.isAlumniApi &&
+                    !UserSession.isValidHostelRoom(effectiveRoom)));
 
         await _session.saveSession(
           token: session.token,
@@ -199,7 +206,7 @@ class LoginController extends GetxController {
               ? session.phone
               : simNumbers.firstOrNull,
           studentCode: session.studentCode,
-          room: isAlumni ? 'N/A' : session.room,
+          room: isAlumni ? 'N/A' : effectiveRoom,
           studentProfile: profile,
           isAlumni: isAlumni,
         );
@@ -380,17 +387,25 @@ class LoginController extends GetxController {
           ? session.phone
           : (rawInput.length >= 10 ? rawInput : '');
 
-      // Staff (complain-solver, laundry-man) have no room; that is not alumni.
-      final isAlumni = session.role.isStudentOrLeader &&
-          (session.isAlumni ||
-              UserSession.isAlumniRoomOrId(
-                room: session.room.isNotEmpty ? session.room : (verifiedProfile?.room ?? ''),
+      final effectiveCode = session.studentCode.isNotEmpty
+          ? session.studentCode
+          : studentIdController.text.trim();
+      final effectiveRoom = UserSession.isValidHostelRoom(session.room)
+          ? session.room
+          : (UserSession.isValidHostelRoom(verifiedProfile?.room)
+              ? verifiedProfile!.room
+              : session.room);
+
+      // Leaders and staff (complain-solver, laundry-man) are never alumni.
+      final isAlumni = session.role == UserRole.student &&
+          (UserSession.isAlumniRoomOrId(
+                room: effectiveRoom,
                 profileRoom: verifiedProfile?.room,
-                studentCode: session.studentCode.isNotEmpty
-                    ? session.studentCode
-                    : studentIdController.text.trim(),
+                studentCode: effectiveCode,
                 id: session.id,
-              ));
+              ) ||
+              (session.isAlumniApi &&
+                  !UserSession.isValidHostelRoom(effectiveRoom)));
 
       await _session.saveSession(
         token: session.token,
@@ -398,10 +413,8 @@ class LoginController extends GetxController {
         email: session.email,
         name: session.name,
         phone: effectivePhone,
-        studentCode: session.studentCode.isNotEmpty
-            ? session.studentCode
-            : studentIdController.text.trim(),
-        room: isAlumni ? 'N/A' : session.room,
+        studentCode: effectiveCode,
+        room: isAlumni ? 'N/A' : effectiveRoom,
         studentProfile: verifiedProfile,
         isAlumni: isAlumni,
       );

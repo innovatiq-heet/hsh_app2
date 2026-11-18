@@ -40,16 +40,22 @@ class EditProfileController extends GetxController {
     text: initialProfile.pinCode,
   );
   late final fatherNameController = TextEditingController(
-    text: initialProfile.fatherFirstName,
+    text: initialProfile.fatherFullName.isNotEmpty
+        ? initialProfile.fatherFullName
+        : initialProfile.fatherFirstName,
   );
   late final fatherPhoneController = TextEditingController(
     text: initialProfile.fatherPhone,
   );
   late final fatherProfessionController = TextEditingController(
-    text: initialProfile.fatherProfession,
+    text: initialProfile.fatherProfession.isNotEmpty
+        ? initialProfile.fatherProfession
+        : initialProfile.fatherBusiness,
   );
   late final motherNameController = TextEditingController(
-    text: initialProfile.motherFirstName,
+    text: initialProfile.motherFullName.isNotEmpty
+        ? initialProfile.motherFullName
+        : initialProfile.motherFirstName,
   );
   late final motherPhoneController = TextEditingController(
     text: initialProfile.motherPhone,

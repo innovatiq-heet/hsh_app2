@@ -18,12 +18,24 @@ class StudentProfileModel {
 
   final String address;
   final String pinCode;
+  final String city;
+  final String district;
+  final String state;
 
   final String fatherFirstName;
+  final String fatherMiddleName;
+  final String fatherLastName;
   final String fatherPhone;
   final String fatherProfession;
+  final String fatherBusiness;
+  final String fatherDob;
   final String motherFirstName;
+  final String motherMiddleName;
+  final String motherLastName;
   final String motherPhone;
+  final String motherBusiness;
+  final String motherDob;
+  final String anniversary;
 
   final bool playsCricket;
   final bool playsBadminton;
@@ -52,11 +64,23 @@ class StudentProfileModel {
     this.dob = '',
     this.address = '',
     this.pinCode = '',
+    this.city = '',
+    this.district = '',
+    this.state = '',
     this.fatherFirstName = '',
+    this.fatherMiddleName = '',
+    this.fatherLastName = '',
     this.fatherPhone = '',
     this.fatherProfession = '',
+    this.fatherBusiness = '',
+    this.fatherDob = '',
     this.motherFirstName = '',
+    this.motherMiddleName = '',
+    this.motherLastName = '',
     this.motherPhone = '',
+    this.motherBusiness = '',
+    this.motherDob = '',
+    this.anniversary = '',
     this.playsCricket = false,
     this.playsBadminton = false,
     this.goesToGym = false,
@@ -73,6 +97,47 @@ class StudentProfileModel {
     middleName,
     lastName,
   ].where((e) => e.trim().isNotEmpty).join(' ');
+
+  String get fatherFullName {
+    final parts = [fatherFirstName, fatherMiddleName, fatherLastName]
+        .where((e) => e.trim().isNotEmpty)
+        .join(' ');
+    return parts.isNotEmpty ? parts : fatherFirstName;
+  }
+
+  String get motherFullName {
+    final parts = [motherFirstName, motherMiddleName, motherLastName]
+        .where((e) => e.trim().isNotEmpty)
+        .join(' ');
+    return parts.isNotEmpty ? parts : motherFirstName;
+  }
+
+  String get anniversaryFormatted {
+    if (anniversary.trim().isEmpty) return '';
+    final ms = int.tryParse(anniversary.trim());
+    if (ms != null && ms > 0) {
+      try {
+        final dt = DateTime.fromMillisecondsSinceEpoch(ms);
+        final y = dt.year.toString().padLeft(4, '0');
+        final m = dt.month.toString().padLeft(2, '0');
+        final d = dt.day.toString().padLeft(2, '0');
+        return '$y-$m-$d';
+      } catch (_) {}
+    }
+    return anniversary.trim();
+  }
+
+  String get hometown {
+    final seen = <String>{};
+    final parts = <String>[];
+    for (final s in [city, district, state]) {
+      final trimmed = s.trim();
+      if (trimmed.isNotEmpty && seen.add(trimmed.toLowerCase())) {
+        parts.add(trimmed);
+      }
+    }
+    return parts.join(', ');
+  }
 
   /// Parses student data from backend or external AVD API.
   factory StudentProfileModel.fromJson(Map<String, dynamic> json) {
@@ -104,15 +169,39 @@ class StudentProfileModel {
       pinCode: json['pinCode']?.toString().trim() ??
           json['pin_code']?.toString().trim() ??
           '',
+      city: json['city']?.toString().trim() ??
+          json['city_name']?.toString().trim() ??
+          '',
+      district: json['district']?.toString().trim() ?? '',
+      state: json['state']?.toString().trim() ?? '',
       fatherFirstName: json['fatherFirstName']?.toString().trim() ?? '',
+      fatherMiddleName: json['fatherMiddleName']?.toString().trim() ?? '',
+      fatherLastName: json['fatherLastName']?.toString().trim() ?? '',
       fatherPhone: json['fatherPhone']?.toString().trim() ??
           json['father_phone']?.toString().trim() ??
           '',
-      fatherProfession: json['fatherProfession']?.toString().trim() ?? '',
+      fatherProfession: json['fatherProfession']?.toString().trim() ??
+          json['fatherBusiness']?.toString().trim() ??
+          '',
+      fatherBusiness: json['fatherBusiness']?.toString().trim() ??
+          json['fatherProfession']?.toString().trim() ??
+          '',
+      fatherDob: json['fatherDob']?.toString().trim() ??
+          json['father_dob']?.toString().trim() ??
+          '',
       motherFirstName: json['motherFirstName']?.toString().trim() ?? '',
+      motherMiddleName: json['motherMiddleName']?.toString().trim() ?? '',
+      motherLastName: json['motherLastName']?.toString().trim() ?? '',
       motherPhone: json['motherPhone']?.toString().trim() ??
           json['mother_phone']?.toString().trim() ??
           '',
+      motherBusiness: json['motherBusiness']?.toString().trim() ??
+          json['mother_business']?.toString().trim() ??
+          '',
+      motherDob: json['motherDob']?.toString().trim() ??
+          json['mother_dob']?.toString().trim() ??
+          '',
+      anniversary: json['anniversary']?.toString().trim() ?? '',
       playsCricket: json['cricket'] as bool? ?? false,
       playsBadminton: json['badminton'] as bool? ?? false,
       goesToGym: json['gym'] as bool? ?? false,
@@ -193,21 +282,47 @@ class StudentProfileModel {
       dob: other.dob.isNotEmpty ? other.dob : dob,
       address: other.address.isNotEmpty ? other.address : address,
       pinCode: other.pinCode.isNotEmpty ? other.pinCode : pinCode,
+      city: other.city.isNotEmpty ? other.city : city,
+      district: other.district.isNotEmpty ? other.district : district,
+      state: other.state.isNotEmpty ? other.state : state,
       fatherFirstName: other.fatherFirstName.isNotEmpty
           ? other.fatherFirstName
           : fatherFirstName,
+      fatherMiddleName: other.fatherMiddleName.isNotEmpty
+          ? other.fatherMiddleName
+          : fatherMiddleName,
+      fatherLastName: other.fatherLastName.isNotEmpty
+          ? other.fatherLastName
+          : fatherLastName,
       fatherPhone: other.fatherPhone.isNotEmpty
           ? other.fatherPhone
           : fatherPhone,
       fatherProfession: other.fatherProfession.isNotEmpty
           ? other.fatherProfession
           : fatherProfession,
+      fatherBusiness: other.fatherBusiness.isNotEmpty
+          ? other.fatherBusiness
+          : fatherBusiness,
+      fatherDob: other.fatherDob.isNotEmpty ? other.fatherDob : fatherDob,
       motherFirstName: other.motherFirstName.isNotEmpty
           ? other.motherFirstName
           : motherFirstName,
+      motherMiddleName: other.motherMiddleName.isNotEmpty
+          ? other.motherMiddleName
+          : motherMiddleName,
+      motherLastName: other.motherLastName.isNotEmpty
+          ? other.motherLastName
+          : motherLastName,
       motherPhone: other.motherPhone.isNotEmpty
           ? other.motherPhone
           : motherPhone,
+      motherBusiness: other.motherBusiness.isNotEmpty
+          ? other.motherBusiness
+          : motherBusiness,
+      motherDob: other.motherDob.isNotEmpty ? other.motherDob : motherDob,
+      anniversary: other.anniversary.isNotEmpty
+          ? other.anniversary
+          : anniversary,
       playsCricket: other.playsCricket || playsCricket,
       playsBadminton: other.playsBadminton || playsBadminton,
       goesToGym: other.goesToGym || goesToGym,
@@ -247,54 +362,88 @@ class StudentProfileModel {
       !studentBlockedFields.contains(fieldKey);
 
   StudentProfileModel copyWith({
+    String? aadhar,
     String? firstName,
     String? middleName,
     String? lastName,
     String? phone,
     String? whatsappNumber,
+    String? email,
+    String? room,
+    AdmissionStatus? status,
+    String? subStatus,
     String? bloodGroup,
     String? dob,
     String? address,
     String? pinCode,
+    String? city,
+    String? district,
+    String? state,
     String? fatherFirstName,
+    String? fatherMiddleName,
+    String? fatherLastName,
     String? fatherPhone,
     String? fatherProfession,
+    String? fatherBusiness,
+    String? fatherDob,
     String? motherFirstName,
+    String? motherMiddleName,
+    String? motherLastName,
     String? motherPhone,
+    String? motherBusiness,
+    String? motherDob,
+    String? anniversary,
     bool? playsCricket,
     bool? playsBadminton,
     bool? goesToGym,
     String? vehicleNumber,
+    String? category,
+    String? groupName,
+    String? bankCode,
+    bool? bankCodeChecked,
+    String? notes,
   }) {
     return StudentProfileModel(
-      aadhar: aadhar,
+      aadhar: aadhar ?? this.aadhar,
       firstName: firstName ?? this.firstName,
       middleName: middleName ?? this.middleName,
       lastName: lastName ?? this.lastName,
       phone: phone ?? this.phone,
       whatsappNumber: whatsappNumber ?? this.whatsappNumber,
-      email: email,
-      room: room,
-      status: status,
-      subStatus: subStatus,
+      email: email ?? this.email,
+      room: room ?? this.room,
+      status: status ?? this.status,
+      subStatus: subStatus ?? this.subStatus,
       bloodGroup: bloodGroup ?? this.bloodGroup,
       dob: dob ?? this.dob,
       address: address ?? this.address,
       pinCode: pinCode ?? this.pinCode,
+      city: city ?? this.city,
+      district: district ?? this.district,
+      state: state ?? this.state,
       fatherFirstName: fatherFirstName ?? this.fatherFirstName,
+      fatherMiddleName: fatherMiddleName ?? this.fatherMiddleName,
+      fatherLastName: fatherLastName ?? this.fatherLastName,
       fatherPhone: fatherPhone ?? this.fatherPhone,
       fatherProfession: fatherProfession ?? this.fatherProfession,
+      fatherBusiness: fatherBusiness ?? this.fatherBusiness,
+      fatherDob: fatherDob ?? this.fatherDob,
       motherFirstName: motherFirstName ?? this.motherFirstName,
+      motherMiddleName: motherMiddleName ?? this.motherMiddleName,
+      motherLastName: motherLastName ?? this.motherLastName,
       motherPhone: motherPhone ?? this.motherPhone,
+      motherBusiness: motherBusiness ?? this.motherBusiness,
+      motherDob: motherDob ?? this.motherDob,
+      anniversary: anniversary ?? this.anniversary,
       playsCricket: playsCricket ?? this.playsCricket,
       playsBadminton: playsBadminton ?? this.playsBadminton,
       goesToGym: goesToGym ?? this.goesToGym,
       vehicleNumber: vehicleNumber ?? this.vehicleNumber,
-      category: category,
-      groupName: groupName,
-      bankCode: bankCode,
-      bankCodeChecked: bankCodeChecked,
-      notes: notes,
+      category: category ?? this.category,
+      groupName: groupName ?? this.groupName,
+      bankCode: bankCode ?? this.bankCode,
+      bankCodeChecked: bankCodeChecked ?? this.bankCodeChecked,
+      notes: notes ?? this.notes,
     );
   }
 
@@ -314,11 +463,23 @@ class StudentProfileModel {
     'dob': dob,
     'address': address,
     'pinCode': pinCode,
+    'city': city,
+    'district': district,
+    'state': state,
     'fatherFirstName': fatherFirstName,
+    'fatherMiddleName': fatherMiddleName,
+    'fatherLastName': fatherLastName,
     'fatherPhone': fatherPhone,
     'fatherProfession': fatherProfession,
+    'fatherBusiness': fatherBusiness,
+    'fatherDob': fatherDob,
     'motherFirstName': motherFirstName,
+    'motherMiddleName': motherMiddleName,
+    'motherLastName': motherLastName,
     'motherPhone': motherPhone,
+    'motherBusiness': motherBusiness,
+    'motherDob': motherDob,
+    'anniversary': anniversary,
     'cricket': playsCricket,
     'badminton': playsBadminton,
     'gym': goesToGym,

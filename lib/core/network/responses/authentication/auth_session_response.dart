@@ -27,15 +27,17 @@ class AuthSessionResponse {
   });
 
   /// True if user is an alumni / former resident (e.g. room is N/A, empty, or isAlumniApi is true).
-  /// Staff roles are never alumni.
-  bool get isAlumni =>
-      isAlumniApi ||
-      ((role.isStudentOrLeader || role == UserRole.unknown) &&
-          UserSession.isAlumniRoomOrId(
-            room: room,
-            studentCode: studentCode,
-            id: id,
-          ));
+  /// Leaders, admins, and staff roles are never alumni.
+  bool get isAlumni {
+    if (role == UserRole.leader) return false;
+    if (role != UserRole.student && role != UserRole.unknown) return false;
+    return isAlumniApi ||
+        UserSession.isAlumniRoomOrId(
+          room: room,
+          studentCode: studentCode,
+          id: id,
+        );
+  }
 
   /// [json] is the API's `user` object (e.g. `data.user` from the login/me
   /// response) — the backend sends `id` as an integer, so it's coerced to a
@@ -58,13 +60,20 @@ class AuthSessionResponse {
         rolesList.contains('floor_leader');
     final role = isLeaderApi ? UserRole.leader : UserRoleX.fromApi(json['role'] as String?);
     final roomVal = json['room']?.toString() ?? json['room_number']?.toString() ?? '';
-    // Staff (complain-solver, laundry-man) have no room; that is not alumni.
-    final canBeAlumni = role.isStudentOrLeader || role == UserRole.unknown;
+    final codeVal = json['student_code']?.toString() ??
+        json['studentCode']?.toString() ??
+        json['bank_code']?.toString() ??
+        json['bankCode']?.toString() ??
+        json['username']?.toString() ??
+        '';
+    // Leaders and staff (complain-solver, laundry-man) are never alumni.
+    final canBeAlumni = role == UserRole.student || role == UserRole.unknown;
+    final explicitAlumni = isAlumni == true ||
+        json['is_alumni'] == true ||
+        json['role']?.toString().toLowerCase().trim() == 'alumni';
     final isAlum = canBeAlumni &&
-        (isAlumni == true ||
-            json['is_alumni'] == true ||
-            json['role']?.toString().toLowerCase().trim() == 'alumni' ||
-            UserSession.isAlumniRoomOrId(room: roomVal));
+        explicitAlumni &&
+        !UserSession.isValidHostelRoom(roomVal);
 
     return AuthSessionResponse(
       id: rawId == null ? '' : rawId.toString(),
@@ -73,12 +82,8 @@ class AuthSessionResponse {
       role: role,
       token: token ?? '',
       phone: json['phone']?.toString() ?? json['phone_number']?.toString() ?? '',
-      studentCode: json['student_code']?.toString() ??
-          json['studentCode']?.toString() ??
-          json['bank_code']?.toString() ??
-          json['bankCode']?.toString() ??
-          '',
-      room: isAlum && (roomVal.isEmpty || UserSession.isAlumniRoomOrId(room: roomVal)) ? 'N/A' : roomVal,
+      studentCode: codeVal,
+      room: isAlum && !UserSession.isValidHostelRoom(roomVal) ? 'N/A' : roomVal,
       isAlumniApi: isAlum,
     );
   }

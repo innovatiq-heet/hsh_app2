@@ -86,6 +86,12 @@ class PhonebookController extends GetxController {
   // Secondary filters
   final selectedFloor = 'All'.obs;
   final selectedStatus = 'All'.obs; // 'All', 'Active', 'Alumni'
+  final selectedState = 'All'.obs;
+  final selectedDistrict = 'All'.obs;
+  final selectedCity = 'All'.obs;
+  final availableStates = <PhonebookLocationOption>[].obs;
+  final availableDistricts = <PhonebookLocationOption>[].obs;
+  final availableCities = <PhonebookLocationOption>[].obs;
   final onlyWithDob = false.obs;
   final onlyWithParents = false.obs;
   final onlyWithWhatsApp = false.obs;
@@ -171,6 +177,9 @@ class PhonebookController extends GetxController {
     if (selectedFloor.value != 'All') count++;
     if (selectedStatus.value != 'All') count++;
     if (selectedTag.value != 'All') count++;
+    if (selectedState.value != 'All') count++;
+    if (selectedDistrict.value != 'All') count++;
+    if (selectedCity.value != 'All') count++;
     if (onlyWithDob.value) count++;
     if (onlyWithParents.value) count++;
     if (onlyWithWhatsApp.value) count++;
@@ -321,6 +330,58 @@ class PhonebookController extends GetxController {
     lastSync.value = await PhonebookSyncService.instance.getLastSyncTime();
     totalCachedCount.value =
         await PhonebookDatabaseService.instance.getStudentCount();
+    await loadLocationOptions();
+  }
+
+  Future<void> loadLocationOptions() async {
+    try {
+      final stateFilter =
+          selectedState.value == 'All' ? null : selectedState.value;
+      final districtFilter =
+          selectedDistrict.value == 'All' ? null : selectedDistrict.value;
+      final results = await Future.wait([
+        PhonebookDatabaseService.instance.getDistinctStates(),
+        PhonebookDatabaseService.instance.getDistinctDistricts(
+          state: stateFilter,
+        ),
+        PhonebookDatabaseService.instance.getDistinctCities(
+          state: stateFilter,
+          district: districtFilter,
+        ),
+      ]);
+      availableStates.assignAll(results[0]);
+      availableDistricts.assignAll(results[1]);
+      availableCities.assignAll(results[2]);
+    } catch (_) {}
+  }
+
+  Future<void> selectState(String state) async {
+    if (selectedState.value == state) return;
+    selectedState.value = state;
+    selectedDistrict.value = 'All';
+    selectedCity.value = 'All';
+    selectedStudentIds.clear();
+    isSelectionMode.value = false;
+    await loadLocationOptions();
+    await search();
+  }
+
+  Future<void> selectDistrict(String district) async {
+    if (selectedDistrict.value == district) return;
+    selectedDistrict.value = district;
+    selectedCity.value = 'All';
+    selectedStudentIds.clear();
+    isSelectionMode.value = false;
+    await loadLocationOptions();
+    await search();
+  }
+
+  void selectCity(String city) {
+    if (selectedCity.value == city) return;
+    selectedCity.value = city;
+    selectedStudentIds.clear();
+    isSelectionMode.value = false;
+    search();
   }
 
   void onSearchChanged(String val) {
@@ -398,12 +459,16 @@ class PhonebookController extends GetxController {
     selectedFloor.value = 'All';
     selectedStatus.value = 'All';
     selectedTag.value = 'All';
+    selectedState.value = 'All';
+    selectedDistrict.value = 'All';
+    selectedCity.value = 'All';
     onlyWithDob.value = false;
     onlyWithParents.value = false;
     onlyWithWhatsApp.value = false;
     onlyWithAddress.value = false;
     onlyWithAadhar.value = false;
     selectedSort.value = 'Name (A-Z)';
+    loadLocationOptions();
     clearSearch();
   }
 
@@ -508,6 +573,9 @@ class PhonebookController extends GetxController {
         floor: floorNumber,
         status: statusFilter,
         tag: selectedTag.value == 'All' ? null : selectedTag.value,
+        state: selectedState.value == 'All' ? null : selectedState.value,
+        district: selectedDistrict.value == 'All' ? null : selectedDistrict.value,
+        city: selectedCity.value == 'All' ? null : selectedCity.value,
         hasDob: onlyWithDob.value ? true : null,
         hasParent: onlyWithParents.value ? true : null,
         hasWhatsApp: onlyWithWhatsApp.value ? true : null,

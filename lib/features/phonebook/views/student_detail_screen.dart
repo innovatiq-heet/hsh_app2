@@ -582,7 +582,9 @@ class _StudentDetailScreenState extends State<StudentDetailScreen> {
         ? '${student.fatherName} & ${student.motherName}'
         : (_has(student.fatherName)
             ? 'Father: ${student.fatherName}'
-            : (_has(student.motherName) ? 'Mother: ${student.motherName}' : null));
+            : (_has(student.motherName)
+                ? 'Mother: ${student.motherName}'
+                : (student.hasHometown ? student.hometown : null)));
 
     return _DetailCard(
       title: 'Family',
@@ -597,12 +599,59 @@ class _StudentDetailScreenState extends State<StudentDetailScreen> {
             value: student.fatherName!,
             onCopy: () => _c.copyToClipboard(student.fatherName!, 'Father name'),
           ),
+        if (student.hasFatherBusiness)
+          _DetailRow(
+            icon: Icons.work_outline_rounded,
+            label: "Father's profession",
+            value: student.fatherBusiness!,
+            iconColor: AppColors.secondaryDark,
+            onCopy: () => _c.copyToClipboard(student.fatherBusiness!, "Father's profession"),
+          ),
+        if (student.hasFatherDob)
+          _DetailRow(
+            icon: Icons.cake_outlined,
+            label: "Father's DOB",
+            value: student.fatherDob!,
+            iconColor: AppColors.secondaryDark,
+          ),
         if (_has(student.motherName))
           _DetailRow(
             icon: Icons.woman_rounded,
             label: 'Mother',
             value: student.motherName!,
+            iconColor: const Color(0xFFDB2777),
             onCopy: () => _c.copyToClipboard(student.motherName!, 'Mother name'),
+          ),
+        if (student.hasMotherBusiness)
+          _DetailRow(
+            icon: Icons.work_outline_rounded,
+            label: "Mother's profession",
+            value: student.motherBusiness!,
+            iconColor: const Color(0xFFDB2777),
+            onCopy: () => _c.copyToClipboard(student.motherBusiness!, "Mother's profession"),
+          ),
+        if (student.hasMotherDob)
+          _DetailRow(
+            icon: Icons.cake_outlined,
+            label: "Mother's DOB",
+            value: student.motherDob!,
+            iconColor: const Color(0xFFDB2777),
+          ),
+        if (student.hasAnniversary)
+          _DetailRow(
+            icon: Icons.favorite_border_rounded,
+            label: "Parents' anniversary",
+            value: student.anniversaryFormatted,
+            iconColor: const Color(0xFFE11D48),
+            onCopy: () => _c.copyToClipboard(student.anniversaryFormatted, "Parents' anniversary"),
+          ),
+        if (student.hasHometown)
+          _DetailRow(
+            icon: Icons.location_city_rounded,
+            label: 'Hometown / Region',
+            value: student.hometown,
+            iconColor: AppColors.pendingBlue,
+            onCopy: () => _c.copyToClipboard(student.hometown, 'Hometown'),
           ),
       ],
     );

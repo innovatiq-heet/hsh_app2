@@ -61,6 +61,53 @@ void main() {
     expect(profile.status, AdmissionStatus.active);
   });
 
+  test('StudentProfileModel correctly parses expanded family and address fields', () {
+    final json = {
+      "firstName": "Smit",
+      "middleName": "Hasmukhbhai",
+      "lastName": "Padaliya",
+      "phone": "9409726301",
+      "fatherFirstName": "Hasmukhbhai",
+      "fatherMiddleName": "K",
+      "fatherLastName": "Padaliya",
+      "fatherPhone": "9825123456",
+      "fatherBusiness": "Diamond Business",
+      "fatherDob": "1974-05-15",
+      "motherFirstName": "Hansaben",
+      "motherMiddleName": "H",
+      "motherLastName": "Padaliya",
+      "motherPhone": "9825654321",
+      "motherBusiness": "Home Maker",
+      "motherDob": "1977-08-20",
+      "anniversary": "974658600000",
+      "address": "12 Shanti Nagar",
+      "city": "Surat",
+      "district": "Surat",
+      "state": "Gujarat",
+      "pinCode": "395006",
+      "whatsAppNumber": "9409726301",
+      "email": "shpadalia18@gmail.com",
+      "dob": "1999-08-27",
+      "room": "308",
+      "groupName": "Pavitra",
+      "bankCode": "0028",
+      "aadhar": "123456789012",
+      "status": "active"
+    };
+
+    final profile = StudentProfileModel.fromJson(json);
+
+    expect(profile.fatherFullName, 'Hasmukhbhai K Padaliya');
+    expect(profile.fatherBusiness, 'Diamond Business');
+    expect(profile.fatherProfession, 'Diamond Business');
+    expect(profile.fatherDob, '1974-05-15');
+    expect(profile.motherFullName, 'Hansaben H Padaliya');
+    expect(profile.motherBusiness, 'Home Maker');
+    expect(profile.motherDob, '1977-08-20');
+    expect(profile.anniversaryFormatted, '2000-11-20');
+    expect(profile.hometown, 'Surat, Gujarat');
+  });
+
   test('matchStudent correctly identifies target student by phone, aadhar, or bank code', () {
     final repo = StudentProfileRepository();
     final sampleList = [

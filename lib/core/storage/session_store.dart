@@ -114,15 +114,25 @@ class SessionStore extends GetxService {
   }) async {
     final effectiveProfile = studentProfile ?? _cachedStudentProfile;
 
-    // Staff (complain-solver, laundry-man) have no room; that is not alumni.
-    final canBeAlumni = role.isStudentOrLeader || role == UserRole.unknown;
+    // Leaders and staff (complain-solver, laundry-man) are never alumni.
+    final canBeAlumni = role == UserRole.student || role == UserRole.unknown;
+    final resolvedRoom = UserSession.isValidHostelRoom(room)
+        ? room!.trim()
+        : (UserSession.isValidHostelRoom(effectiveProfile?.room)
+            ? effectiveProfile!.room.trim()
+            : (room ?? ''));
+    final hasValidRoom = UserSession.isValidHostelRoom(resolvedRoom);
+    final isHardcodedAlumni =
+        (studentCode ?? '').trim().replaceFirst(RegExp(r'^0+'), '') == '345';
     final computedIsAlumni = canBeAlumni &&
-        (isAlumni == true ||
-            UserSession.isAlumniRoomOrId(
-              room: room,
-              profileRoom: effectiveProfile?.room,
-              studentCode: studentCode,
-            ));
+        (isHardcodedAlumni ||
+            (!hasValidRoom &&
+                (isAlumni == true ||
+                    UserSession.isAlumniRoomOrId(
+                      room: resolvedRoom,
+                      profileRoom: effectiveProfile?.room,
+                      studentCode: studentCode,
+                    ))));
 
     final session = UserSession(
       token: token,
@@ -131,9 +141,9 @@ class SessionStore extends GetxService {
       email: email,
       phone: phone ?? '',
       studentCode: studentCode ?? '',
-      room: (computedIsAlumni && (room == null || room.isEmpty || UserSession.isAlumniRoomOrId(room: room))) ? 'N/A' : (room ?? ''),
+      room: computedIsAlumni ? 'N/A' : resolvedRoom,
       studentProfile: effectiveProfile,
-      isAlumniFlag: canBeAlumni ? (computedIsAlumni ? true : isAlumni) : false,
+      isAlumniFlag: canBeAlumni ? computedIsAlumni : false,
     );
 
     _cachedToken = token;
@@ -311,36 +321,7 @@ class SessionStore extends GetxService {
   Future<void> cacheAadhar(String aadhar) async {
     if (_cachedStudentProfile != null) {
       await saveStudentProfile(
-        StudentProfileModel(
-          aadhar: aadhar,
-          firstName: _cachedStudentProfile!.firstName,
-          middleName: _cachedStudentProfile!.middleName,
-          lastName: _cachedStudentProfile!.lastName,
-          phone: _cachedStudentProfile!.phone,
-          whatsappNumber: _cachedStudentProfile!.whatsappNumber,
-          email: _cachedStudentProfile!.email,
-          room: _cachedStudentProfile!.room,
-          status: _cachedStudentProfile!.status,
-          subStatus: _cachedStudentProfile!.subStatus,
-          bloodGroup: _cachedStudentProfile!.bloodGroup,
-          dob: _cachedStudentProfile!.dob,
-          address: _cachedStudentProfile!.address,
-          pinCode: _cachedStudentProfile!.pinCode,
-          fatherFirstName: _cachedStudentProfile!.fatherFirstName,
-          fatherPhone: _cachedStudentProfile!.fatherPhone,
-          fatherProfession: _cachedStudentProfile!.fatherProfession,
-          motherFirstName: _cachedStudentProfile!.motherFirstName,
-          motherPhone: _cachedStudentProfile!.motherPhone,
-          playsCricket: _cachedStudentProfile!.playsCricket,
-          playsBadminton: _cachedStudentProfile!.playsBadminton,
-          goesToGym: _cachedStudentProfile!.goesToGym,
-          vehicleNumber: _cachedStudentProfile!.vehicleNumber,
-          category: _cachedStudentProfile!.category,
-          groupName: _cachedStudentProfile!.groupName,
-          bankCode: _cachedStudentProfile!.bankCode,
-          bankCodeChecked: _cachedStudentProfile!.bankCodeChecked,
-          notes: _cachedStudentProfile!.notes,
-        ),
+        _cachedStudentProfile!.copyWith(aadhar: aadhar),
       );
     }
   }
@@ -423,36 +404,7 @@ class SessionStore extends GetxService {
   Future<void> cacheRoom(String room) async {
     if (_cachedStudentProfile != null) {
       await saveStudentProfile(
-        StudentProfileModel(
-          aadhar: _cachedStudentProfile!.aadhar,
-          firstName: _cachedStudentProfile!.firstName,
-          middleName: _cachedStudentProfile!.middleName,
-          lastName: _cachedStudentProfile!.lastName,
-          phone: _cachedStudentProfile!.phone,
-          whatsappNumber: _cachedStudentProfile!.whatsappNumber,
-          email: _cachedStudentProfile!.email,
-          room: room,
-          status: _cachedStudentProfile!.status,
-          subStatus: _cachedStudentProfile!.subStatus,
-          bloodGroup: _cachedStudentProfile!.bloodGroup,
-          dob: _cachedStudentProfile!.dob,
-          address: _cachedStudentProfile!.address,
-          pinCode: _cachedStudentProfile!.pinCode,
-          fatherFirstName: _cachedStudentProfile!.fatherFirstName,
-          fatherPhone: _cachedStudentProfile!.fatherPhone,
-          fatherProfession: _cachedStudentProfile!.fatherProfession,
-          motherFirstName: _cachedStudentProfile!.motherFirstName,
-          motherPhone: _cachedStudentProfile!.motherPhone,
-          playsCricket: _cachedStudentProfile!.playsCricket,
-          playsBadminton: _cachedStudentProfile!.playsBadminton,
-          goesToGym: _cachedStudentProfile!.goesToGym,
-          vehicleNumber: _cachedStudentProfile!.vehicleNumber,
-          category: _cachedStudentProfile!.category,
-          groupName: _cachedStudentProfile!.groupName,
-          bankCode: _cachedStudentProfile!.bankCode,
-          bankCodeChecked: _cachedStudentProfile!.bankCodeChecked,
-          notes: _cachedStudentProfile!.notes,
-        ),
+        _cachedStudentProfile!.copyWith(room: room),
       );
     }
   }

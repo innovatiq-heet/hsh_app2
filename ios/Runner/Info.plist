@@ -42,6 +42,8 @@
 	<string>Microphone access is required for media recording if needed.</string>
 	<key>NSPhotoLibraryUsageDescription</key>
 	<string>Photo library access is required to select and upload fee payment receipts and complaint attachments.</string>
+	<key>NSPhotoLibraryAddUsageDescription</key>
+	<string>Photo library access is required to save photos or receipts if needed.</string>
 	<key>UIApplicationSceneManifest</key>
 	<dict>
 		<key>UIApplicationSupportsMultipleScenes</key>

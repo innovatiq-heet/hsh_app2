@@ -33,9 +33,19 @@ class UserSession {
   bool get isStudentOrLeader => role.isStudentOrLeader;
 
   /// True if user is an alumni / former resident (e.g. room is N/A, empty, or flag is true).
+  /// Leaders, admins, and staff are never alumni.
   bool get isAlumni {
+    if (role == UserRole.leader) return false;
+    if (role != UserRole.student && role != UserRole.unknown) return false;
+
+    final cleanCode = studentCode.trim().replaceFirst(RegExp(r'^0+'), '');
+    final cleanId = id.trim().replaceFirst(RegExp(r'^0+'), '');
+    if (cleanCode == '345' || cleanId == '345') return true;
+
+    if (isValidHostelRoom(room) || isValidHostelRoom(studentProfile?.room)) {
+      return false;
+    }
     if (isAlumniFlag == true) return true;
-    if (!isStudentOrLeader && role != UserRole.unknown) return false;
     return isAlumniRoomOrId(
       room: room,
       profileRoom: studentProfile?.room,
@@ -43,6 +53,28 @@ class UserSession {
       id: id,
     );
   }
+
+  static bool _isPlaceholderRoom(String value) {
+    final r = value.trim().toLowerCase();
+    return r.isEmpty ||
+        r == 'n/a' ||
+        r == 'na' ||
+        r == 'none' ||
+        r == '0' ||
+        r == 'null' ||
+        r == 'undefined' ||
+        r == '-' ||
+        r == '--' ||
+        r == 'nil' ||
+        r == 'not assigned' ||
+        r == 'unassigned' ||
+        r.contains('n/a') ||
+        r.contains('passout');
+  }
+
+  /// True if [room] represents a real assigned hostel room (e.g. "904", "308").
+  static bool isValidHostelRoom(String? room) =>
+      room != null && !_isPlaceholderRoom(room);
 
   /// Pure static utility to determine if a room / student identifier indicates alumni status.
   static bool isAlumniRoomOrId({
@@ -55,24 +87,10 @@ class UserSession {
     final cleanId = (id ?? '').trim().replaceFirst(RegExp(r'^0+'), '');
     if (cleanCode == '345' || cleanId == '345') return true;
 
-    final r1 = (room ?? '').trim().toLowerCase();
-    final r2 = (profileRoom ?? '').trim().toLowerCase();
-    final effectiveRoom = r1.isNotEmpty ? r1 : r2;
-
-    return effectiveRoom.isEmpty ||
-        effectiveRoom == 'n/a' ||
-        effectiveRoom == 'na' ||
-        effectiveRoom == 'none' ||
-        effectiveRoom == '0' ||
-        effectiveRoom == 'null' ||
-        effectiveRoom == 'undefined' ||
-        effectiveRoom == '-' ||
-        effectiveRoom == '--' ||
-        effectiveRoom == 'nil' ||
-        effectiveRoom == 'not assigned' ||
-        effectiveRoom == 'unassigned' ||
-        effectiveRoom.contains('n/a') ||
-        effectiveRoom.contains('passout');
+    if (isValidHostelRoom(room) || isValidHostelRoom(profileRoom)) {
+      return false;
+    }
+    return true;
   }
 
   UserSession copyWith({

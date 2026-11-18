@@ -113,20 +113,24 @@ class AddComplaintController extends GetxController {
   /// `imageQuality` makes image_picker re-encode to JPEG, which also turns
   /// iPhone HEIC photos into something the API accepts.
   Future<void> pickImage(ImageSource source) async {
-    final picked = await ImagePicker().pickImage(
-      source: source,
-      imageQuality: 80,
-      maxWidth: 1920,
-      maxHeight: 1920,
-    );
-    if (picked == null) return;
-    final file = File(picked.path);
-    final error = await validateImage(file);
-    if (error != null) {
-      AppSnackbar.warning('Photo not added', error);
-      return;
+    try {
+      final picked = await ImagePicker().pickImage(
+        source: source,
+        imageQuality: 80,
+        maxWidth: 1920,
+        maxHeight: 1920,
+      );
+      if (picked == null) return;
+      final file = File(picked.path);
+      final error = await validateImage(file);
+      if (error != null) {
+        AppSnackbar.warning('Photo not added', error);
+        return;
+      }
+      image.value = file;
+    } catch (e) {
+      AppSnackbar.error('Photo', 'Could not select photo: $e');
     }
-    image.value = file;
   }
 
   /// Why the API would reject [file], or `null` if it is fine.

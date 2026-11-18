@@ -65,6 +65,14 @@ class PhonebookStudent {
   final String? motherName;
   final String? fatherPhone;
   final String? motherPhone;
+  final String? fatherDob;
+  final String? fatherBusiness;
+  final String? motherDob;
+  final String? motherBusiness;
+  final String? anniversary;
+  final String? city;
+  final String? district;
+  final String? state;
   final String? whatsappNumber;
   final String? status;
   final String? bankCode;
@@ -92,6 +100,14 @@ class PhonebookStudent {
     this.motherName,
     this.fatherPhone,
     this.motherPhone,
+    this.fatherDob,
+    this.fatherBusiness,
+    this.motherDob,
+    this.motherBusiness,
+    this.anniversary,
+    this.city,
+    this.district,
+    this.state,
     this.whatsappNumber,
     this.status,
     this.bankCode,
@@ -120,6 +136,14 @@ class PhonebookStudent {
     String? motherName,
     String? fatherPhone,
     String? motherPhone,
+    String? fatherDob,
+    String? fatherBusiness,
+    String? motherDob,
+    String? motherBusiness,
+    String? anniversary,
+    String? city,
+    String? district,
+    String? state,
     String? whatsappNumber,
     String? status,
     String? bankCode,
@@ -151,6 +175,14 @@ class PhonebookStudent {
           : this.motherName,
       fatherPhone: fatherPhone ?? this.fatherPhone,
       motherPhone: motherPhone ?? this.motherPhone,
+      fatherDob: fatherDob ?? this.fatherDob,
+      fatherBusiness: fatherBusiness ?? this.fatherBusiness,
+      motherDob: motherDob ?? this.motherDob,
+      motherBusiness: motherBusiness ?? this.motherBusiness,
+      anniversary: anniversary ?? this.anniversary,
+      city: city ?? this.city,
+      district: district ?? this.district,
+      state: state ?? this.state,
       whatsappNumber: whatsappNumber ?? this.whatsappNumber,
       status: status ?? this.status,
       bankCode: bankCode ?? this.bankCode,
@@ -334,6 +366,74 @@ class PhonebookStudent {
         ? rawPin
         : null;
 
+    final rawFatherDob =
+        json['father_dob']?.toString().trim() ??
+        json['fatherDob']?.toString().trim();
+    final cleanFatherDob =
+        (rawFatherDob != null &&
+            rawFatherDob.isNotEmpty &&
+            rawFatherDob != 'null')
+        ? rawFatherDob
+        : null;
+
+    final rawFatherBiz =
+        json['father_business']?.toString().trim() ??
+        json['fatherBusiness']?.toString().trim() ??
+        json['fatherProfession']?.toString().trim();
+    final cleanFatherBiz =
+        (rawFatherBiz != null &&
+            rawFatherBiz.isNotEmpty &&
+            rawFatherBiz != 'null')
+        ? rawFatherBiz
+        : null;
+
+    final rawMotherDob =
+        json['mother_dob']?.toString().trim() ??
+        json['motherDob']?.toString().trim();
+    final cleanMotherDob =
+        (rawMotherDob != null &&
+            rawMotherDob.isNotEmpty &&
+            rawMotherDob != 'null')
+        ? rawMotherDob
+        : null;
+
+    final rawMotherBiz =
+        json['mother_business']?.toString().trim() ??
+        json['motherBusiness']?.toString().trim();
+    final cleanMotherBiz =
+        (rawMotherBiz != null &&
+            rawMotherBiz.isNotEmpty &&
+            rawMotherBiz != 'null')
+        ? rawMotherBiz
+        : null;
+
+    final rawAnniversary = json['anniversary']?.toString().trim();
+    final cleanAnniversary =
+        (rawAnniversary != null &&
+            rawAnniversary.isNotEmpty &&
+            rawAnniversary != 'null')
+        ? rawAnniversary
+        : null;
+
+    final rawCity =
+        json['city']?.toString().trim() ?? json['city_name']?.toString().trim();
+    final cleanCity =
+        (rawCity != null && rawCity.isNotEmpty && rawCity != 'null')
+        ? rawCity
+        : null;
+
+    final rawDistrict = json['district']?.toString().trim();
+    final cleanDistrict =
+        (rawDistrict != null && rawDistrict.isNotEmpty && rawDistrict != 'null')
+        ? rawDistrict
+        : null;
+
+    final rawState = json['state']?.toString().trim();
+    final cleanState =
+        (rawState != null && rawState.isNotEmpty && rawState != 'null')
+        ? rawState
+        : null;
+
     List<StudentTag> tagsList = [];
     if (json['tags'] != null && json['tags'] is List) {
       tagsList = dedupeTags(
@@ -372,6 +472,14 @@ class PhonebookStudent {
       motherName: formattedMotherName,
       fatherPhone: cleanFatherPhone,
       motherPhone: cleanMotherPhone,
+      fatherDob: cleanFatherDob,
+      fatherBusiness: cleanFatherBiz,
+      motherDob: cleanMotherDob,
+      motherBusiness: cleanMotherBiz,
+      anniversary: cleanAnniversary,
+      city: cleanCity,
+      district: cleanDistrict,
+      state: cleanState,
       whatsappNumber: cleanWhatsApp,
       status: cleanStatus,
       bankCode: cleanBankCode,
@@ -416,8 +524,52 @@ class PhonebookStudent {
       fatherPhone != null && fatherPhone!.trim().isNotEmpty;
   bool get hasMotherPhone =>
       motherPhone != null && motherPhone!.trim().isNotEmpty;
+  bool get hasFatherDob => fatherDob != null && fatherDob!.trim().isNotEmpty;
+  bool get hasFatherBusiness =>
+      fatherBusiness != null && fatherBusiness!.trim().isNotEmpty;
+  bool get hasMotherDob => motherDob != null && motherDob!.trim().isNotEmpty;
+  bool get hasMotherBusiness =>
+      motherBusiness != null && motherBusiness!.trim().isNotEmpty;
+  bool get hasAnniversary =>
+      anniversary != null && anniversary!.trim().isNotEmpty;
+  bool get hasHometown => hometown.isNotEmpty;
   bool get hasWhatsApp =>
       whatsappNumber != null && whatsappNumber!.trim().isNotEmpty;
+
+  /// Formatted Parents' Marriage Anniversary
+  String get anniversaryFormatted {
+    if (anniversary == null || anniversary!.trim().isEmpty) return '';
+    final clean = anniversary!.trim();
+    final ms = int.tryParse(clean);
+    if (ms != null && ms > 0) {
+      try {
+        final dt = DateTime.fromMillisecondsSinceEpoch(ms);
+        return DateFormat('d MMM yyyy').format(dt);
+      } catch (_) {}
+    }
+    try {
+      final dt = DateTime.tryParse(clean);
+      if (dt != null) {
+        return DateFormat('d MMM yyyy').format(dt);
+      }
+    } catch (_) {}
+    return clean;
+  }
+
+  /// Formatted Hometown / Region (City, District, State)
+  String get hometown {
+    final seen = <String>{};
+    final parts = <String>[];
+    for (final s in [city, district, state]) {
+      final trimmed = s?.trim();
+      if (trimmed != null &&
+          trimmed.isNotEmpty &&
+          seen.add(trimmed.toLowerCase())) {
+        parts.add(trimmed);
+      }
+    }
+    return parts.join(', ');
+  }
 
   /// Formatted Date of Birth: e.g. "29 Mar 2007"
   String get formattedDob {
@@ -540,16 +692,23 @@ class PhonebookStudent {
       }
     }
     if (fatherName != null ||
-        (fatherPhone != null && fatherPhone!.isNotEmpty)) {
+        (fatherPhone != null && fatherPhone!.isNotEmpty) ||
+        hasFatherBusiness) {
       final fName = fatherName ?? 'Father';
       final fPhone = fatherPhone != null ? ' (Ph: $fatherPhone)' : '';
-      buffer.writeln('👨 *Father:* $fName$fPhone');
+      final fBiz = hasFatherBusiness ? ' • $fatherBusiness' : '';
+      buffer.writeln('👨 *Father:* $fName$fBiz$fPhone');
     }
     if (motherName != null ||
-        (motherPhone != null && motherPhone!.isNotEmpty)) {
+        (motherPhone != null && motherPhone!.isNotEmpty) ||
+        hasMotherBusiness) {
       final mName = motherName ?? 'Mother';
       final mPhone = motherPhone != null ? ' (Ph: $motherPhone)' : '';
-      buffer.writeln('👩 *Mother:* $mName$mPhone');
+      final mBiz = hasMotherBusiness ? ' • $motherBusiness' : '';
+      buffer.writeln('👩 *Mother:* $mName$mBiz$mPhone');
+    }
+    if (hasAnniversary) {
+      buffer.writeln('💍 *Parents’ Anniversary:* $anniversaryFormatted');
     }
     if (hasDob) {
       final ageStr = ageText.isNotEmpty ? ' ($ageText)' : '';

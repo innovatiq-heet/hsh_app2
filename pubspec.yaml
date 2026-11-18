@@ -2,10 +2,9 @@ name: hsh_app2
 description: "HSH Connect - Hari Saurabh Hostel App"
 publish_to: "none"
 
-version: 1.2.1+27
+version: 1.2.1+29
 environment:
   sdk: ^3.11.4
-
 dependencies:
   flutter:
     sdk: flutter
@@ -23,6 +22,8 @@ dependencies:
 
   # Media / scanning
   image_picker: ^1.1.2
+  image_picker_android: ^0.8.13+23
+  image_picker_platform_interface: ^2.11.1
   mobile_scanner: ^7.4.2
   qr_flutter: ^4.1.0
 

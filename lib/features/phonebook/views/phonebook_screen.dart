@@ -10,6 +10,7 @@ import '../../shared/widgets/staggered_slide_fade.dart';
 import '../../shared/widgets/student_contact_card.dart';
 import '../controllers/phonebook_controller.dart';
 import '../models/phonebook_models.dart';
+import '../services/phonebook_database_service.dart' show PhonebookLocationOption;
 import '../widgets/alpha_scroll_rail.dart';
 import '../widgets/caller_id_card.dart';
 import 'student_detail_screen.dart';
@@ -63,6 +64,11 @@ class PhonebookScreen extends GetView<PhonebookController> {
   }
 
   void _showFilterBottomSheet(BuildContext context) {
+    if (controller.availableStates.isEmpty &&
+        controller.availableDistricts.isEmpty &&
+        controller.availableCities.isEmpty) {
+      controller.loadLocationOptions();
+    }
     showModalBottomSheet(
       context: context,
       backgroundColor: Colors.transparent,
@@ -131,7 +137,7 @@ class PhonebookScreen extends GetView<PhonebookController> {
                               ),
                             ),
                             Text(
-                              'Refine by wings, floors, residence, and records',
+                              'Refine by wings, floors, location, residence, and records',
                               style: TextStyle(
                                 fontSize: 11.5,
                                 color: Color(0xFF64748B),
@@ -315,6 +321,84 @@ class PhonebookScreen extends GetView<PhonebookController> {
                           ],
                         );
                       }),
+
+                      // 3c. LOCATION (STATE / DISTRICT / CITY)
+                      _filterSectionHeader('LOCATION (STATE, DISTRICT, CITY)', Icons.location_city_rounded),
+                      const SizedBox(height: 10),
+                      Container(
+                        decoration: BoxDecoration(
+                          color: const Color(0xFFF8FAFC),
+                          borderRadius: BorderRadius.circular(16),
+                          border: Border.all(color: const Color(0xFFE2E8F0)),
+                        ),
+                        child: Column(
+                          children: [
+                            _locationPickerRow(
+                              icon: Icons.public_rounded,
+                              iconColor: const Color(0xFF0284C7),
+                              title: 'State',
+                              selectedValue: controller.selectedState.value,
+                              allLabel: 'All states',
+                              optionCount: controller.availableStates.length,
+                              onTap: () => _showLocationPickerSheet(
+                                context: ctx,
+                                title: 'Select State',
+                                allLabel: 'All States',
+                                searchHint: 'Search state...',
+                                selectedValue: controller.selectedState.value,
+                                options: controller.availableStates.toList(),
+                                onSelected: (val) => controller.selectState(val),
+                              ),
+                              onClear: () => controller.selectState('All'),
+                            ),
+                            const Divider(height: 1, indent: 52, color: Color(0xFFE2E8F0)),
+                            _locationPickerRow(
+                              icon: Icons.map_outlined,
+                              iconColor: const Color(0xFF0D9488),
+                              title: 'District',
+                              selectedValue: controller.selectedDistrict.value,
+                              allLabel: controller.selectedState.value == 'All'
+                                  ? 'All districts'
+                                  : 'All districts in ${controller.selectedState.value}',
+                              optionCount: controller.availableDistricts.length,
+                              onTap: () => _showLocationPickerSheet(
+                                context: ctx,
+                                title: 'Select District',
+                                allLabel: 'All Districts',
+                                searchHint: 'Search district...',
+                                selectedValue: controller.selectedDistrict.value,
+                                options: controller.availableDistricts.toList(),
+                                onSelected: (val) => controller.selectDistrict(val),
+                              ),
+                              onClear: () => controller.selectDistrict('All'),
+                            ),
+                            const Divider(height: 1, indent: 52, color: Color(0xFFE2E8F0)),
+                            _locationPickerRow(
+                              icon: Icons.location_on_outlined,
+                              iconColor: const Color(0xFFEA580C),
+                              title: 'City / Town',
+                              selectedValue: controller.selectedCity.value,
+                              allLabel: controller.selectedDistrict.value != 'All'
+                                  ? 'All cities in ${controller.selectedDistrict.value}'
+                                  : (controller.selectedState.value != 'All'
+                                      ? 'All cities in ${controller.selectedState.value}'
+                                      : 'All cities'),
+                              optionCount: controller.availableCities.length,
+                              onTap: () => _showLocationPickerSheet(
+                                context: ctx,
+                                title: 'Select City / Town',
+                                allLabel: 'All Cities',
+                                searchHint: 'Search city or town...',
+                                selectedValue: controller.selectedCity.value,
+                                options: controller.availableCities.toList(),
+                                onSelected: (val) => controller.selectCity(val),
+                              ),
+                              onClear: () => controller.selectCity('All'),
+                            ),
+                          ],
+                        ),
+                      ),
+                      const SizedBox(height: 20),
 
                       // 4. ATTRIBUTES & PROFILE DATA
                       _filterSectionHeader('PROFILE ATTRIBUTES & RECORDS', Icons.check_circle_outline_rounded),
@@ -537,6 +621,198 @@ class PhonebookScreen extends GetView<PhonebookController> {
     );
   }
 
+  Widget _locationPickerRow({
+    required IconData icon,
+    required Color iconColor,
+    required String title,
+    required String selectedValue,
+    required String allLabel,
+    required int optionCount,
+    required VoidCallback onTap,
+    required VoidCallback onClear,
+  }) {
+    final isSelected = selectedValue != 'All';
+    final subtitleText = isSelected
+        ? selectedValue
+        : (optionCount > 0 ? '$allLabel ($optionCount available)' : '$allLabel (sync to load)');
+    return InkWell(
+      onTap: onTap,
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 11),
+        child: Row(
+          children: [
+            Container(
+              width: 34,
+              height: 34,
+              decoration: BoxDecoration(
+                color: iconColor.withValues(alpha: 0.12),
+                borderRadius: BorderRadius.circular(9),
+              ),
+              child: Icon(icon, color: iconColor, size: 18),
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    title,
+                    style: const TextStyle(
+                      fontSize: 13.5,
+                      fontWeight: FontWeight.w700,
+                      color: Color(0xFF0F172A),
+                    ),
+                  ),
+                  const SizedBox(height: 2),
+                  Text(
+                    subtitleText,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: TextStyle(
+                      fontSize: isSelected ? 12 : 11,
+                      fontWeight: isSelected ? FontWeight.w700 : FontWeight.w500,
+                      color: isSelected
+                          ? const Color(0xFF0284C7)
+                          : const Color(0xFF64748B),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            if (isSelected)
+              IconButton(
+                icon: const Icon(
+                  Icons.close_rounded,
+                  size: 18,
+                  color: Color(0xFF64748B),
+                ),
+                tooltip: 'Clear $title',
+                visualDensity: VisualDensity.compact,
+                onPressed: onClear,
+              ),
+            const Icon(
+              Icons.chevron_right_rounded,
+              size: 20,
+              color: Color(0xFF94A3B8),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  void _showLocationPickerSheet({
+    required BuildContext context,
+    required String title,
+    required String allLabel,
+    required String searchHint,
+    required String selectedValue,
+    required List<PhonebookLocationOption> options,
+    required ValueChanged<String> onSelected,
+  }) {
+    showModalBottomSheet<void>(
+      context: context,
+      backgroundColor: Colors.transparent,
+      isScrollControlled: true,
+      builder: (ctx) => _LocationPickerSheet(
+        title: title,
+        allLabel: allLabel,
+        searchHint: searchHint,
+        selectedValue: selectedValue,
+        options: options,
+        onSelected: (val) {
+          onSelected(val);
+          Navigator.pop(ctx);
+        },
+      ),
+    );
+  }
+
+  Widget _buildActiveLocationChips(BuildContext context) {
+    final state = controller.selectedState.value;
+    final district = controller.selectedDistrict.value;
+    final city = controller.selectedCity.value;
+    if (state == 'All' && district == 'All' && city == 'All') {
+      return const SizedBox.shrink();
+    }
+
+    Widget chip({
+      required String label,
+      required IconData icon,
+      required Color color,
+      required VoidCallback onClear,
+    }) {
+      return Padding(
+        padding: const EdgeInsets.only(right: 8),
+        child: Container(
+          padding: const EdgeInsets.fromLTRB(10, 5, 6, 5),
+          decoration: BoxDecoration(
+            color: color.withValues(alpha: 0.1),
+            borderRadius: BorderRadius.circular(18),
+            border: Border.all(color: color.withValues(alpha: 0.35)),
+          ),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Icon(icon, size: 13, color: color),
+              const SizedBox(width: 5),
+              Text(
+                label,
+                style: TextStyle(
+                  fontSize: 12,
+                  fontWeight: FontWeight.w700,
+                  color: color,
+                ),
+              ),
+              const SizedBox(width: 4),
+              InkWell(
+                onTap: onClear,
+                borderRadius: BorderRadius.circular(10),
+                child: Padding(
+                  padding: const EdgeInsets.all(2),
+                  child: Icon(Icons.close_rounded, size: 14, color: color),
+                ),
+              ),
+            ],
+          ),
+        ),
+      );
+    }
+
+    return Padding(
+      padding: const EdgeInsets.only(top: 10),
+      child: SingleChildScrollView(
+        scrollDirection: Axis.horizontal,
+        physics: const BouncingScrollPhysics(),
+        child: Row(
+          children: [
+            if (state != 'All')
+              chip(
+                label: 'State: $state',
+                icon: Icons.public_rounded,
+                color: const Color(0xFF0284C7),
+                onClear: () => controller.selectState('All'),
+              ),
+            if (district != 'All')
+              chip(
+                label: 'District: $district',
+                icon: Icons.map_outlined,
+                color: const Color(0xFF0D9488),
+                onClear: () => controller.selectDistrict('All'),
+              ),
+            if (city != 'All')
+              chip(
+                label: 'City: $city',
+                icon: Icons.location_on_outlined,
+                color: const Color(0xFFEA580C),
+                onClear: () => controller.selectCity('All'),
+              ),
+          ],
+        ),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     WidgetsBinding.instance.addPostFrameCallback((_) {
@@ -722,7 +998,7 @@ class PhonebookScreen extends GetView<PhonebookController> {
                                   fontWeight: FontWeight.w600,
                                 ),
                                 decoration: InputDecoration(
-                                  hintText: 'Search student, room, parent, aadhar...',
+                                  hintText: 'Search student, room, city, parent...',
                                   hintStyle: const TextStyle(
                                     color: Color(0xFF94A3B8),
                                     fontSize: 13.5,
@@ -913,6 +1189,7 @@ class PhonebookScreen extends GetView<PhonebookController> {
                           );
                         }),
                       ),
+                      Obx(() => _buildActiveLocationChips(context)),
                       const SizedBox(height: 16),
                       // Favourites: the students this admin dials most
                       Obx(() {
@@ -1882,6 +2159,263 @@ class _FavouriteTile extends StatelessWidget {
               ],
             ),
           ),
+        ),
+      ),
+    );
+  }
+}
+
+/// Searchable bottom sheet picker for State / District / City location filters.
+class _LocationPickerSheet extends StatefulWidget {
+  final String title;
+  final String allLabel;
+  final String searchHint;
+  final String selectedValue;
+  final List<PhonebookLocationOption> options;
+  final ValueChanged<String> onSelected;
+
+  const _LocationPickerSheet({
+    required this.title,
+    required this.allLabel,
+    required this.searchHint,
+    required this.selectedValue,
+    required this.options,
+    required this.onSelected,
+  });
+
+  @override
+  State<_LocationPickerSheet> createState() => _LocationPickerSheetState();
+}
+
+class _LocationPickerSheetState extends State<_LocationPickerSheet> {
+  final _searchCtrl = TextEditingController();
+  String _query = '';
+
+  @override
+  void dispose() {
+    _searchCtrl.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final q = _query.trim().toLowerCase();
+    final filtered = q.isEmpty
+        ? widget.options
+        : widget.options
+            .where((o) => o.name.toLowerCase().contains(q))
+            .toList();
+
+    return DraggableScrollableSheet(
+      expand: false,
+      initialChildSize: 0.72,
+      minChildSize: 0.4,
+      maxChildSize: 0.9,
+      builder: (ctx, scrollController) => Container(
+        decoration: const BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+        ),
+        child: Column(
+          children: [
+            Padding(
+              padding: const EdgeInsets.fromLTRB(20, 12, 12, 8),
+              child: Column(
+                children: [
+                  Center(
+                    child: Container(
+                      width: 40,
+                      height: 4,
+                      decoration: BoxDecoration(
+                        color: const Color(0xFFCBD5E1),
+                        borderRadius: BorderRadius.circular(2),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 12),
+                  Row(
+                    children: [
+                      Expanded(
+                        child: Text(
+                          widget.title,
+                          style: const TextStyle(
+                            fontSize: 17,
+                            fontWeight: FontWeight.w800,
+                            color: Color(0xFF0F172A),
+                          ),
+                        ),
+                      ),
+                      IconButton(
+                        icon: const Icon(
+                          Icons.close_rounded,
+                          color: Color(0xFF64748B),
+                        ),
+                        onPressed: () => Navigator.pop(ctx),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 8),
+                  TextField(
+                    controller: _searchCtrl,
+                    onChanged: (v) => setState(() => _query = v),
+                    decoration: InputDecoration(
+                      hintText: widget.searchHint,
+                      hintStyle: const TextStyle(
+                        fontSize: 13.5,
+                        color: Color(0xFF94A3B8),
+                      ),
+                      prefixIcon: const Icon(
+                        Icons.search_rounded,
+                        size: 20,
+                        color: Color(0xFF64748B),
+                      ),
+                      suffixIcon: _query.isNotEmpty
+                          ? IconButton(
+                              icon: const Icon(
+                                Icons.close_rounded,
+                                size: 18,
+                                color: Color(0xFF64748B),
+                              ),
+                              onPressed: () {
+                                _searchCtrl.clear();
+                                setState(() => _query = '');
+                              },
+                            )
+                          : null,
+                      filled: true,
+                      fillColor: const Color(0xFFF1F5F9),
+                      contentPadding: const EdgeInsets.symmetric(
+                        horizontal: 14,
+                        vertical: 10,
+                      ),
+                      border: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(14),
+                        borderSide: BorderSide.none,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            const Divider(height: 1, color: Color(0xFFE2E8F0)),
+            Expanded(
+              child: widget.options.isEmpty
+                  ? const Center(
+                      child: Padding(
+                        padding: EdgeInsets.all(24),
+                        child: Text(
+                          'No location records found yet.\nPull to refresh or tap Sync in the Phonebook.',
+                          textAlign: TextAlign.center,
+                          style: TextStyle(
+                            fontSize: 13.5,
+                            color: Color(0xFF64748B),
+                          ),
+                        ),
+                      ),
+                    )
+                  : ListView.separated(
+                      controller: scrollController,
+                      padding: const EdgeInsets.symmetric(vertical: 8),
+                      itemCount: (q.isEmpty ? 1 : 0) + filtered.length,
+                      separatorBuilder: (_, _) => const Divider(
+                        height: 1,
+                        indent: 20,
+                        endIndent: 20,
+                        color: Color(0xFFF1F5F9),
+                      ),
+                      itemBuilder: (context, index) {
+                        if (q.isEmpty && index == 0) {
+                          final isAllSelected = widget.selectedValue == 'All';
+                          return ListTile(
+                            contentPadding: const EdgeInsets.symmetric(
+                              horizontal: 20,
+                              vertical: 2,
+                            ),
+                            title: Text(
+                              widget.allLabel,
+                              style: TextStyle(
+                                fontSize: 14.5,
+                                fontWeight: isAllSelected
+                                    ? FontWeight.w800
+                                    : FontWeight.w600,
+                                color: isAllSelected
+                                    ? const Color(0xFF0284C7)
+                                    : const Color(0xFF0F172A),
+                              ),
+                            ),
+                            trailing: isAllSelected
+                                ? const Icon(
+                                    Icons.check_circle_rounded,
+                                    color: Color(0xFF0284C7),
+                                    size: 20,
+                                  )
+                                : null,
+                            onTap: () => widget.onSelected('All'),
+                          );
+                        }
+
+                        final opt = filtered[q.isEmpty ? index - 1 : index];
+                        final isSelected =
+                            widget.selectedValue.toLowerCase() ==
+                            opt.name.toLowerCase();
+                        return ListTile(
+                          contentPadding: const EdgeInsets.symmetric(
+                            horizontal: 20,
+                            vertical: 2,
+                          ),
+                          title: Text(
+                            opt.name,
+                            style: TextStyle(
+                              fontSize: 14.5,
+                              fontWeight: isSelected
+                                  ? FontWeight.w800
+                                  : FontWeight.w600,
+                              color: isSelected
+                                  ? const Color(0xFF0284C7)
+                                  : const Color(0xFF0F172A),
+                            ),
+                          ),
+                          trailing: Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Container(
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: 8,
+                                  vertical: 3,
+                                ),
+                                decoration: BoxDecoration(
+                                  color: isSelected
+                                      ? const Color(0xFFE0F2FE)
+                                      : const Color(0xFFF1F5F9),
+                                  borderRadius: BorderRadius.circular(10),
+                                ),
+                                child: Text(
+                                  '${opt.count}',
+                                  style: TextStyle(
+                                    fontSize: 11.5,
+                                    fontWeight: FontWeight.w700,
+                                    color: isSelected
+                                        ? const Color(0xFF0284C7)
+                                        : const Color(0xFF64748B),
+                                  ),
+                                ),
+                              ),
+                              if (isSelected) ...[
+                                const SizedBox(width: 8),
+                                const Icon(
+                                  Icons.check_circle_rounded,
+                                  color: Color(0xFF0284C7),
+                                  size: 20,
+                                ),
+                              ],
+                            ],
+                          ),
+                          onTap: () => widget.onSelected(opt.name),
+                        );
+                      },
+                    ),
+            ),
+          ],
         ),
       ),
     );

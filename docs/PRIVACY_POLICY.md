@@ -2,14 +2,14 @@
 
 **App Name:** HSH Connect  
 **Package ID:** `com.avd_hsh.app`  
-**Organization:** Hari Saurabh Hostel / Hari Smruti Hostel (AVD VVN), Vallabh Vidyanagar, Gujarat, India  
+**Organization:** Hari Saurabh Hostel (AVD VVN), Vallabh Vidyanagar, Gujarat, India  
 **Hosted Policy URL:** https://lightcoral-eel-306042.hostingersite.com/privacy-policy  
 **Last Updated:** November 18, 2026
 
 ---
 
 ## 1. Overview & Scope
-**HSH Connect** (`com.avd_hsh.app`) is the official institutional hostel management application operated for **Hari Saurabh Hostel / Hari Smruti Hostel (AVD VVN)**. It is intended exclusively for authorized hostel residents (students), student group leaders, alumni, wardens, hostel administrators, and support staff (complaint solvers and laundry staff).
+**HSH Connect** (`com.avd_hsh.app`) is the official institutional hostel management application operated for **Hari Saurabh Hostel (AVD VVN)**. It is intended exclusively for authorized hostel residents (students), student group leaders, alumni, wardens, hostel administrators, and support staff (complaint solvers and laundry staff).
 
 This Privacy Policy explains what information HSH Connect collects, why specific Android and iOS permissions are requested, how your data is used and protected, and how you can request account or data deletion.
 
@@ -87,6 +87,6 @@ Verified requests are processed within **15 business days**. App authentication 
 ## 7. Contact Us
 **Hari Saurabh Hostel (HSH) — Administration & Privacy Contact**  
 - **App:** HSH Connect (`com.avd_hsh.app`)  
-- **Location:** Hari Saurabh Hostel / Hari Smruti Hostel (AVD VVN), Vallabh Vidyanagar, Gujarat, India  
+- **Location:** Hari Saurabh Hostel (AVD VVN), Vallabh Vidyanagar, Gujarat, India  
 - **Email:** krutarthsolanki9@gmail.com  
 - **Live Privacy Policy URL:** https://lightcoral-eel-306042.hostingersite.com/privacy-policy

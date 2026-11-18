@@ -218,7 +218,6 @@ class PhonebookSyncService {
         final address = (rawExternalAddr != null &&
                 rawExternalAddr.isNotEmpty &&
                 rawExternalAddr != 'null' &&
-                !rawExternalAddr.contains('Hari Smruti Hostel') &&
                 !rawExternalAddr.contains('Hari Saurabh Hostel'))
             ? rawExternalAddr
             : null;

@@ -350,7 +350,6 @@ class PhonebookStudent {
         (rawAddress != null &&
             rawAddress.isNotEmpty &&
             rawAddress != 'null' &&
-            !rawAddress.contains('Hari Smruti Hostel') &&
             !rawAddress.contains('Hari Saurabh Hostel'))
         ? rawAddress
         : null;
@@ -639,7 +638,6 @@ class PhonebookStudent {
       address != null &&
       address!.trim().isNotEmpty &&
       address != 'null' &&
-      !address!.contains('Hari Smruti Hostel') &&
       !address!.contains('Hari Saurabh Hostel');
 
   /// Complete Display Address (permanent home address or 'Not Provided')
@@ -659,7 +657,7 @@ class PhonebookStudent {
   /// Formats all complete student details into a clean, shareable card for WhatsApp / SMS / Email
   String toShareText() {
     final buffer = StringBuffer();
-    buffer.writeln('🎓 *Student Profile - Hari Smruti Hostel (HSH)*');
+    buffer.writeln('🎓 *Student Profile - Hari Saurabh Hostel (HSH)*');
     buffer.writeln('👤 *Name:* $name');
     final w = groupName != null
         ? (groupName!.toLowerCase().endsWith('wing')

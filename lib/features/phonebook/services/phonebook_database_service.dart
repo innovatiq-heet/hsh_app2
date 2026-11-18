@@ -357,7 +357,7 @@ class PhonebookDatabaseService {
 
     // Has Permanent Address
     if (hasAddress == true) {
-      whereClauses.add('(address IS NOT NULL AND address != "" AND address != "null" AND address NOT LIKE "%Hari Smruti Hostel%" AND address NOT LIKE "%Hari Saurabh Hostel%")');
+      whereClauses.add('(address IS NOT NULL AND address != "" AND address != "null" AND address NOT LIKE "%Hari Saurabh Hostel%")');
     }
 
     // Has Aadhar Card

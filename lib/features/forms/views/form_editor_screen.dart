@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:get/get.dart';
 import '../../../core/constants/app_colors.dart';
 import '../../../core/constants/app_dimens.dart';
@@ -7,14 +8,11 @@ import '../../../core/models/forms/form_models.dart';
 import '../../../core/utils/app_snackbar.dart';
 import '../../../core/utils/date_formatting.dart';
 import '../../../core/utils/string_formatting.dart';
-import '../../shared/widgets/app_button.dart';
-import '../../shared/widgets/app_card.dart';
 import '../../shared/widgets/date_time_picker_field.dart';
 import '../../shared/widgets/empty_state.dart';
-import '../../shared/widgets/gradient_header.dart';
 import '../../shared/widgets/icon_badge.dart';
 import '../../shared/widgets/notice_banner.dart';
-import '../../shared/widgets/section_header.dart';
+import '../../shared/widgets/phonebook_style_widgets.dart';
 import '../../shared/widgets/student_picker_sheet.dart';
 import '../../shared/widgets/tag_choice_chip.dart';
 import '../controllers/form_editor_controller.dart';
@@ -47,151 +45,279 @@ class FormEditorScreen extends GetView<FormEditorController> {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: AppColors.mainBackground,
-      bottomNavigationBar: SafeArea(
-        top: false,
-        child: Padding(
-          padding: const EdgeInsets.fromLTRB(AppDimens.screenPadding, AppDimens.gapSm, AppDimens.screenPadding, AppDimens.gapMd),
-          child: Obx(() => AppButton(
-                label: controller.isEditing ? 'Save changes' : 'Create',
-                icon: Icons.check_rounded,
-                isLoading: controller.isSaving.value,
-                onPressed: controller.isLoadingForm.value ? null : () => _save(context),
-              )),
-        ),
-      ),
-      body: Obx(() {
-        if (controller.loadError.value != null) {
-          return Center(
-            child: EmptyState(
-              icon: Icons.cloud_off_rounded,
-              title: 'Could not load this form',
-              message: controller.loadError.value,
-            ),
-          );
-        }
-        return CustomScrollView(
-          physics: const BouncingScrollPhysics(),
-          slivers: [
-            SliverGradientHeader(
-              overline: 'Forms & Polls',
-              title: controller.isEditing ? 'Edit' : 'New poll or form',
-              leading: HeaderIconButton(
-                icon: Icons.close_rounded,
-                tooltip: 'Close',
-                onPressed: () => Navigator.of(context).maybePop(),
+    return AnnotatedRegion<SystemUiOverlayStyle>(
+      value: SystemUiOverlayStyle.light,
+      child: Scaffold(
+        backgroundColor: PhonebookTheme.bg,
+        bottomNavigationBar: Container(
+          decoration: BoxDecoration(
+            color: Colors.white,
+            boxShadow: [
+              BoxShadow(
+                color: PhonebookTheme.ink.withValues(alpha: 0.06),
+                blurRadius: 16,
+                offset: const Offset(0, -4),
+              ),
+            ],
+          ),
+          child: SafeArea(
+            top: false,
+            child: Padding(
+              padding: const EdgeInsets.fromLTRB(20, 12, 20, 14),
+              child: Obx(
+                () => SizedBox(
+                  height: 50,
+                  child: ElevatedButton.icon(
+                    onPressed: (controller.isLoadingForm.value || controller.isSaving.value)
+                        ? null
+                        : () => _save(context),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: PhonebookTheme.blue,
+                      foregroundColor: Colors.white,
+                      disabledBackgroundColor: const Color(0xFFCBD5E1),
+                      disabledForegroundColor: Colors.white,
+                      elevation: 0,
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+                    ),
+                    icon: controller.isSaving.value
+                        ? const SizedBox(
+                            width: 18,
+                            height: 18,
+                            child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
+                          )
+                        : const Icon(Icons.check_rounded, size: 20),
+                    label: Text(
+                      controller.isEditing ? 'Save changes' : 'Create',
+                      style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w700),
+                    ),
+                  ),
+                ),
               ),
             ),
-            if (controller.isLoadingForm.value && !controller.isEditing)
-              const SliverFillRemaining(hasScrollBody: false, child: Center(child: CircularProgressIndicator()))
-            else
-              SliverPadding(
-                padding: const EdgeInsets.fromLTRB(AppDimens.screenPadding, AppDimens.gapXl, AppDimens.screenPadding, AppDimens.gapXl),
-                sliver: SliverList.list(children: [
-                  if (controller.isEditing && (controller.original.value?.totalResponded ?? 0) > 0)
-                    Padding(
-                      padding: const EdgeInsets.only(bottom: AppDimens.gapLg),
-                      child: NoticeBanner(
-                        icon: Icons.warning_amber_rounded,
-                        color: AppColors.warningOrange,
-                        message: '${controller.original.value!.totalResponded} students already answered. '
-                            'Changing questions or options can make their answers no longer match.',
+          ),
+        ),
+        body: Obx(() {
+          if (controller.loadError.value != null) {
+            return Center(
+              child: EmptyState(
+                icon: Icons.cloud_off_rounded,
+                title: 'Could not load this form',
+                message: controller.loadError.value,
+              ),
+            );
+          }
+          return CustomScrollView(
+            physics: const BouncingScrollPhysics(),
+            slivers: [
+              SliverPersistentHeader(
+                pinned: true,
+                delegate: PhonebookHeaderDelegate(
+                  overline: 'Forms & Polls',
+                  title: controller.isEditing ? 'Edit' : 'New poll or form',
+                  topPadding: MediaQuery.of(context).padding.top,
+                  leadingIcon: Icons.close_rounded,
+                  leadingTooltip: 'Close',
+                  onLeadingTap: () => Navigator.of(context).maybePop(),
+                ),
+              ),
+              if (controller.isLoadingForm.value && !controller.isEditing)
+                const SliverFillRemaining(
+                  hasScrollBody: false,
+                  child: Center(child: CircularProgressIndicator(color: PhonebookTheme.blue)),
+                )
+              else
+                SliverPadding(
+                  padding: const EdgeInsets.fromLTRB(20, 18, 20, 28),
+                  sliver: SliverList.list(
+                    children: [
+                      if (controller.isEditing && (controller.original.value?.totalResponded ?? 0) > 0)
+                        Padding(
+                          padding: const EdgeInsets.only(bottom: 14),
+                          child: NoticeBanner(
+                            icon: Icons.warning_amber_rounded,
+                            color: AppColors.warningOrange,
+                            message:
+                                '${controller.original.value!.totalResponded} students already answered. '
+                                'Changing questions or options can make their answers no longer match.',
+                          ),
+                        ),
+                      _KindToggle(
+                        selected: controller.kind.value,
+                        onSelect: controller.setKind,
                       ),
-                    ),
-                  SegmentedButton<FormKind>(
-                    segments: const [
-                      ButtonSegment(value: FormKind.poll, icon: Icon(Icons.how_to_vote_rounded), label: Text('Poll')),
-                      ButtonSegment(value: FormKind.form, icon: Icon(Icons.assignment_rounded), label: Text('Form')),
-                    ],
-                    selected: {controller.kind.value},
-                    onSelectionChanged: (s) => controller.setKind(s.first),
-                  ),
-                  const SizedBox(height: AppDimens.gapLg),
-                  AppCard(
-                    child: Column(children: [
-                      TextField(
-                        controller: controller.titleController,
-                        maxLength: 200,
-                        textCapitalization: TextCapitalization.sentences,
-                        decoration: const InputDecoration(labelText: 'Title', hintText: 'e.g. Dinner Poll'),
+                      const SizedBox(height: 16),
+                      PhonebookCard(
+                        child: Column(
+                          children: [
+                            TextField(
+                              controller: controller.titleController,
+                              maxLength: 200,
+                              textCapitalization: TextCapitalization.sentences,
+                              decoration: const InputDecoration(labelText: 'Title', hintText: 'e.g. Dinner Poll'),
+                            ),
+                            const SizedBox(height: AppDimens.gapSm),
+                            TextField(
+                              controller: controller.descriptionController,
+                              minLines: 1,
+                              maxLines: 4,
+                              textCapitalization: TextCapitalization.sentences,
+                              decoration: const InputDecoration(
+                                labelText: 'Description (optional)',
+                                hintText: 'e.g. Vote before 7 PM',
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                      const SizedBox(height: 18),
+                      PhonebookSectionHeader(
+                        title: controller.kind.value == FormKind.poll ? 'Question' : 'Questions',
+                        actionLabel: 'Add question',
+                        actionIcon: Icons.add_rounded,
+                        onAction: controller.addQuestion,
+                      ),
+                      for (var i = 0; i < controller.questions.length; i++)
+                        Padding(
+                          padding: const EdgeInsets.only(bottom: 12),
+                          child: _QuestionCard(
+                            key: ValueKey(controller.questions[i].id),
+                            index: i,
+                            count: controller.questions.length,
+                            draft: controller.questions[i],
+                            controller: controller,
+                          ),
+                        ),
+                      const SizedBox(height: 10),
+                      const PhonebookSectionHeader(title: 'Who can answer'),
+                      _AudiencePicker(controller: controller),
+                      const SizedBox(height: 18),
+                      const PhonebookSectionHeader(title: 'Open from – until'),
+                      DateTimePickerField(
+                        label: 'Opens',
+                        icon: Icons.play_circle_outline_rounded,
+                        displayValue: DateFormatting.dateTime(controller.startTime.value.toUtc()),
+                        onTap: () => _pick(context, controller.startTime),
                       ),
                       const SizedBox(height: AppDimens.gapSm),
-                      TextField(
-                        controller: controller.descriptionController,
-                        minLines: 1,
-                        maxLines: 4,
-                        textCapitalization: TextCapitalization.sentences,
-                        decoration: const InputDecoration(labelText: 'Description (optional)', hintText: 'e.g. Vote before 7 PM'),
+                      DateTimePickerField(
+                        label: 'Closes',
+                        icon: Icons.stop_circle_outlined,
+                        displayValue: DateFormatting.dateTime(controller.endTime.value.toUtc()),
+                        onTap: () => _pick(context, controller.endTime),
                       ),
-                    ]),
-                  ),
-                  const SizedBox(height: AppDimens.gapXl),
-                  SectionHeader(
-                    title: controller.kind.value == FormKind.poll ? 'Question' : 'Questions',
-                    actionLabel: 'Add question',
-                    onAction: controller.addQuestion,
-                  ),
-                  for (var i = 0; i < controller.questions.length; i++)
-                    Padding(
-                      padding: const EdgeInsets.only(bottom: AppDimens.gapMd),
-                      child: _QuestionCard(
-                        key: ValueKey(controller.questions[i].id),
-                        index: i,
-                        count: controller.questions.length,
-                        draft: controller.questions[i],
-                        controller: controller,
+                      const SizedBox(height: 18),
+                      const PhonebookSectionHeader(title: 'Settings'),
+                      PhonebookCard(
+                        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+                        child: Column(
+                          children: [
+                            _SwitchRow(
+                              icon: Icons.play_circle_outline_rounded,
+                              title: 'Active',
+                              subtitle: 'Off = paused, students can’t answer',
+                              value: controller.isActive.value,
+                              onChanged: (v) => controller.isActive.value = v,
+                            ),
+                            const Divider(height: 1, color: PhonebookTheme.border),
+                            _SwitchRow(
+                              icon: Icons.priority_high_rounded,
+                              title: 'Required',
+                              subtitle: 'Shown first and marked required for students',
+                              value: controller.isMandatory.value,
+                              onChanged: (v) => controller.isMandatory.value = v,
+                            ),
+                          ],
+                        ),
                       ),
-                    ),
-                  const SizedBox(height: AppDimens.gapLg),
-                  const SectionHeader(title: 'Who can answer'),
-                  _AudiencePicker(controller: controller),
-                  const SizedBox(height: AppDimens.gapXl),
-                  const SectionHeader(title: 'Open from – until'),
-                  DateTimePickerField(
-                    label: 'Opens',
-                    icon: Icons.play_circle_outline_rounded,
-                    displayValue: DateFormatting.dateTime(controller.startTime.value.toUtc()),
-                    onTap: () => _pick(context, controller.startTime),
+                      if (controller.validationError case final problem?) ...[
+                        const SizedBox(height: 14),
+                        NoticeBanner(icon: Icons.info_outline_rounded, color: AppColors.textSecondary, message: problem),
+                      ],
+                    ],
                   ),
-                  const SizedBox(height: AppDimens.gapSm),
-                  DateTimePickerField(
-                    label: 'Closes',
-                    icon: Icons.stop_circle_outlined,
-                    displayValue: DateFormatting.dateTime(controller.endTime.value.toUtc()),
-                    onTap: () => _pick(context, controller.endTime),
-                  ),
-                  const SizedBox(height: AppDimens.gapXl),
-                  const SectionHeader(title: 'Settings'),
-                  AppCard(
-                    padding: const EdgeInsets.symmetric(horizontal: AppDimens.cardPadding, vertical: AppDimens.gapXs),
-                    child: Column(children: [
-                      _SwitchRow(
-                        icon: Icons.play_circle_outline_rounded,
-                        title: 'Active',
-                        subtitle: 'Off = paused, students can’t answer',
-                        value: controller.isActive.value,
-                        onChanged: (v) => controller.isActive.value = v,
-                      ),
-                      const Divider(color: AppColors.borderLight),
-                      _SwitchRow(
-                        icon: Icons.priority_high_rounded,
-                        title: 'Required',
-                        subtitle: 'Shown first and marked required for students',
-                        value: controller.isMandatory.value,
-                        onChanged: (v) => controller.isMandatory.value = v,
-                      ),
-                    ]),
-                  ),
-                  if (controller.validationError case final problem?) ...[
-                    const SizedBox(height: AppDimens.gapLg),
-                    NoticeBanner(icon: Icons.info_outline_rounded, color: AppColors.textSecondary, message: problem),
-                  ],
-                ]),
+                ),
+            ],
+          );
+        }),
+      ),
+    );
+  }
+}
+
+class _KindToggle extends StatelessWidget {
+  final FormKind selected;
+  final ValueChanged<FormKind> onSelect;
+
+  const _KindToggle({required this.selected, required this.onSelect});
+
+  @override
+  Widget build(BuildContext context) {
+    Widget tab(FormKind kind, IconData icon, String label) {
+      final isSel = selected == kind;
+      return Expanded(
+        child: Material(
+          color: Colors.transparent,
+          child: InkWell(
+            borderRadius: BorderRadius.circular(12),
+            onTap: () => onSelect(kind),
+            child: AnimatedContainer(
+              duration: const Duration(milliseconds: 200),
+              padding: const EdgeInsets.symmetric(vertical: 11),
+              decoration: BoxDecoration(
+                color: isSel ? PhonebookTheme.blue : Colors.transparent,
+                borderRadius: BorderRadius.circular(12),
+                boxShadow: isSel
+                    ? [
+                        BoxShadow(
+                          color: PhonebookTheme.blue.withValues(alpha: 0.25),
+                          blurRadius: 8,
+                          offset: const Offset(0, 2),
+                        ),
+                      ]
+                    : null,
               ),
-          ],
-        );
-      }),
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Icon(icon, size: 18, color: isSel ? Colors.white : PhonebookTheme.slate),
+                  const SizedBox(width: 6),
+                  Text(
+                    label,
+                    style: TextStyle(
+                      fontSize: 13.5,
+                      fontWeight: FontWeight.w700,
+                      color: isSel ? Colors.white : PhonebookTheme.slate,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ),
+      );
+    }
+
+    return Container(
+      padding: const EdgeInsets.all(4),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: PhonebookTheme.border),
+        boxShadow: [
+          BoxShadow(
+            color: PhonebookTheme.ink.withValues(alpha: 0.04),
+            blurRadius: 12,
+            offset: const Offset(0, 3),
+          ),
+        ],
+      ),
+      child: Row(
+        children: [
+          tab(FormKind.poll, Icons.how_to_vote_rounded, 'Poll'),
+          const SizedBox(width: 4),
+          tab(FormKind.form, Icons.assignment_rounded, 'Form'),
+        ],
+      ),
     );
   }
 }
@@ -249,7 +375,7 @@ class _QuestionCardState extends State<_QuestionCard> {
   Widget build(BuildContext context) {
     final isFirst = widget.index == 0;
     final isLast = widget.index == widget.count - 1;
-    return AppCard(
+    return PhonebookCard(
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
@@ -259,10 +385,13 @@ class _QuestionCardState extends State<_QuestionCard> {
               height: 26,
               alignment: Alignment.center,
               decoration: BoxDecoration(
-                color: AppColors.primarySoft,
-                borderRadius: BorderRadius.circular(AppDimens.radiusSm),
+                color: PhonebookTheme.blueSoft,
+                borderRadius: BorderRadius.circular(8),
               ),
-              child: Text('${widget.index + 1}', style: AppTextStyles.label.copyWith(color: AppColors.primaryLight)),
+              child: Text(
+                '${widget.index + 1}',
+                style: const TextStyle(fontSize: 12.5, fontWeight: FontWeight.w800, color: PhonebookTheme.blue),
+              ),
             ),
             const SizedBox(width: AppDimens.gapSm),
             Expanded(
@@ -434,17 +563,24 @@ class _AudiencePicker extends StatelessWidget {
       return Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          Wrap(spacing: AppDimens.gapSm, runSpacing: AppDimens.gapSm, children: [
-            for (final option in FormAudience.values)
-              ChoiceChip(
-                label: Text(option.label),
-                selected: a == option,
-                onSelected: (_) => controller.audience.value = option,
-              ),
-          ]),
+          SingleChildScrollView(
+            scrollDirection: Axis.horizontal,
+            physics: const BouncingScrollPhysics(),
+            child: Row(
+              children: [
+                for (final option in FormAudience.values)
+                  PhonebookPillTab(
+                    label: option.label,
+                    selected: a == option,
+                    color: PhonebookTheme.blue,
+                    onTap: () => controller.audience.value = option,
+                  ),
+              ],
+            ),
+          ),
           if (a == FormAudience.selected) ...[
-            const SizedBox(height: AppDimens.gapMd),
-            AppCard(
+            const SizedBox(height: 12),
+            PhonebookCard(
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [

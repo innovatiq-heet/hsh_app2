@@ -1,5 +1,6 @@
 import 'dart:async';
 
+import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import '../../../core/abstracts/mixins/load_state_mixin.dart';
 import '../../../core/models/broadcasts/broadcast_models.dart';
@@ -25,9 +26,54 @@ class BroadcastHistoryController extends GetxController
   final total = 0.obs;
   final isLoadingMore = false.obs;
 
+  final search = ''.obs;
+  final searchController = TextEditingController();
+  final channelFilter = Rxn<BroadcastChannel>();
+  final statusFilter = Rxn<BroadcastStatus>();
+
   Timer? _pollTimer;
 
   bool get hasMore => broadcasts.length < total.value;
+
+  void onSearchChanged(String value) => search.value = value;
+
+  void clearSearch() {
+    searchController.clear();
+    search.value = '';
+  }
+
+  int get activeFilterCount {
+    var count = 0;
+    if (channelFilter.value != null) count++;
+    if (statusFilter.value != null) count++;
+    return count;
+  }
+
+  void resetFilters() {
+    channelFilter.value = null;
+    statusFilter.value = null;
+  }
+
+  List<Broadcast> get visibleBroadcasts {
+    final q = search.value.trim().toLowerCase();
+    final ch = channelFilter.value;
+    final st = statusFilter.value;
+    return broadcasts.where((b) {
+      if (ch != null && b.channels != ch) return false;
+      if (st != null && b.status != st) return false;
+      if (q.isEmpty) return true;
+      return b.displayTitle.toLowerCase().contains(q) ||
+          b.message.toLowerCase().contains(q) ||
+          b.senderName.toLowerCase().contains(q) ||
+          b.tags.any((t) => t.name.toLowerCase().contains(q));
+    }).toList();
+  }
+
+  int countByChannel(BroadcastChannel? ch) =>
+      ch == null ? broadcasts.length : broadcasts.where((b) => b.channels == ch).length;
+
+  int get totalReached => broadcasts.fold<int>(0, (sum, b) => sum + b.recipientCount);
+  int get totalRead => broadcasts.fold<int>(0, (sum, b) => sum + b.readCount);
 
   @override
   void onInit() {
@@ -46,6 +92,7 @@ class BroadcastHistoryController extends GetxController
   @override
   void onClose() {
     _pollTimer?.cancel();
+    searchController.dispose();
     super.onClose();
   }
 

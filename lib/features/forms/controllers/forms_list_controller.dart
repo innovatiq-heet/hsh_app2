@@ -1,3 +1,4 @@
+import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import '../../../core/abstracts/mixins/load_state_mixin.dart';
 import '../../../core/models/forms/form_models.dart';
@@ -17,19 +18,64 @@ class FormsListController extends GetxController with LoadStateMixin, FormsManag
 
   /// `null` = all statuses.
   final filter = Rxn<FormStatus>();
+  final search = ''.obs;
+  final searchController = TextEditingController();
+  final kindFilter = Rxn<FormKind>();
+  final onlyMandatory = false.obs;
 
   /// Forms with a toggle/delete in flight.
   final busyIds = <int>{}.obs;
 
-  List<HostelForm> get visible =>
-      filter.value == null ? forms : forms.where((f) => f.status == filter.value).toList();
+  void onSearchChanged(String value) => search.value = value;
+
+  void clearSearch() {
+    searchController.clear();
+    search.value = '';
+  }
+
+  int get activeFilterCount {
+    var count = 0;
+    if (filter.value != null) count++;
+    if (kindFilter.value != null) count++;
+    if (onlyMandatory.value) count++;
+    return count;
+  }
+
+  void resetFilters() {
+    filter.value = null;
+    kindFilter.value = null;
+    onlyMandatory.value = false;
+  }
+
+  List<HostelForm> get visible {
+    final q = search.value.trim().toLowerCase();
+    final st = filter.value;
+    final kind = kindFilter.value;
+    final mandatory = onlyMandatory.value;
+    return forms.where((f) {
+      if (st != null && f.status != st) return false;
+      if (kind != null && f.kind != kind) return false;
+      if (mandatory && !f.isMandatory) return false;
+      if (q.isEmpty) return true;
+      return f.title.toLowerCase().contains(q) ||
+          (f.description ?? '').toLowerCase().contains(q);
+    }).toList();
+  }
 
   int countOf(FormStatus status) => forms.where((f) => f.status == status).length;
+
+  int get totalResponses => forms.fold<int>(0, (sum, f) => sum + f.totalResponded);
 
   @override
   void onInit() {
     super.onInit();
     _start();
+  }
+
+  @override
+  void onClose() {
+    searchController.dispose();
+    super.onClose();
   }
 
   Future<void> _start() async {

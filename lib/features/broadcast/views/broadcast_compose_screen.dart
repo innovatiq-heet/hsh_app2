@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:get/get.dart';
 import '../../../core/constants/app_colors.dart';
 import '../../../core/constants/app_dimens.dart';
@@ -7,10 +8,8 @@ import '../../../core/models/broadcasts/broadcast_models.dart';
 import '../../../core/utils/app_snackbar.dart';
 import '../../../core/utils/string_formatting.dart';
 import '../../shared/widgets/app_button.dart';
-import '../../shared/widgets/app_card.dart';
-import '../../shared/widgets/gradient_header.dart';
 import '../../shared/widgets/notice_banner.dart';
-import '../../shared/widgets/section_header.dart';
+import '../../shared/widgets/phonebook_style_widgets.dart';
 import '../../shared/widgets/student_picker_sheet.dart';
 import '../../shared/widgets/tag_choice_chip.dart';
 import '../controllers/broadcast_compose_controller.dart';
@@ -82,88 +81,118 @@ class BroadcastComposeScreen extends GetView<BroadcastComposeController> {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: AppColors.mainBackground,
-      bottomNavigationBar: SafeArea(
-        top: false,
-        child: Padding(
-          padding: const EdgeInsets.fromLTRB(
-            AppDimens.screenPadding,
-            AppDimens.gapSm,
-            AppDimens.screenPadding,
-            AppDimens.gapMd,
+    return AnnotatedRegion<SystemUiOverlayStyle>(
+      value: SystemUiOverlayStyle.light,
+      child: Scaffold(
+        backgroundColor: PhonebookTheme.bg,
+        bottomNavigationBar: Container(
+          decoration: BoxDecoration(
+            color: Colors.white,
+            boxShadow: [
+              BoxShadow(
+                color: PhonebookTheme.ink.withValues(alpha: 0.06),
+                blurRadius: 16,
+                offset: const Offset(0, -4),
+              ),
+            ],
           ),
-          child: Obx(() => AppButton(
-                label: 'Send',
-                icon: Icons.send_rounded,
-                isLoading: controller.isSending.value,
-                onPressed: controller.canSend ? () => _confirmAndSend(context) : null,
-              )),
-        ),
-      ),
-      body: CustomScrollView(
-        physics: const BouncingScrollPhysics(),
-        slivers: [
-          SliverGradientHeader(
-            overline: 'Broadcast',
-            title: 'New message',
-            subtitle: 'Push, WhatsApp & inbox for the students you pick',
-            leading: HeaderIconButton(
-              icon: Icons.close_rounded,
-              tooltip: 'Close',
-              onPressed: () => Navigator.of(context).maybePop(),
-            ),
-          ),
-          SliverPadding(
-            padding: const EdgeInsets.fromLTRB(
-              AppDimens.screenPadding,
-              AppDimens.gapXl,
-              AppDimens.screenPadding,
-              AppDimens.gapXl,
-            ),
-            sliver: SliverList.list(
-              children: [
-                const SectionHeader(title: 'Delivery Channel'),
-                _ChannelSelector(controller: controller),
-                const SizedBox(height: AppDimens.gapXl),
-                const SectionHeader(title: 'Message'),
-                AppCard(
-                  child: Column(
-                    children: [
-                      TextField(
-                        controller: controller.titleController,
-                        maxLength: BroadcastComposeController.maxTitle,
-                        textCapitalization: TextCapitalization.sentences,
-                        decoration: const InputDecoration(
-                          labelText: 'Title (Optional)',
-                          hintText: 'e.g. Water supply (leave blank for quick notice)',
-                        ),
-                      ),
-                      const SizedBox(height: AppDimens.gapSm),
-                      TextField(
-                        controller: controller.messageController,
-                        maxLength: BroadcastComposeController.maxMessage,
-                        minLines: 4,
-                        maxLines: 10,
-                        textCapitalization: TextCapitalization.sentences,
-                        decoration: const InputDecoration(
-                          labelText: 'Message',
-                          hintText: 'What do students need to know?',
-                          alignLabelWithHint: true,
-                        ),
-                      ),
-                    ],
+          child: SafeArea(
+            top: false,
+            child: Padding(
+              padding: const EdgeInsets.fromLTRB(20, 12, 20, 14),
+              child: Obx(
+                () => SizedBox(
+                  height: 50,
+                  child: ElevatedButton.icon(
+                    onPressed: (controller.canSend && !controller.isSending.value)
+                        ? () => _confirmAndSend(context)
+                        : null,
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: PhonebookTheme.blue,
+                      foregroundColor: Colors.white,
+                      disabledBackgroundColor: const Color(0xFFCBD5E1),
+                      disabledForegroundColor: Colors.white,
+                      elevation: 0,
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+                    ),
+                    icon: controller.isSending.value
+                        ? const SizedBox(
+                            width: 18,
+                            height: 18,
+                            child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
+                          )
+                        : const Icon(Icons.send_rounded, size: 19),
+                    label: const Text(
+                      'Send',
+                      style: TextStyle(fontSize: 15, fontWeight: FontWeight.w700),
+                    ),
                   ),
                 ),
-                const SizedBox(height: AppDimens.gapXl),
-                const SectionHeader(title: 'Audience'),
-                _AudienceCard(controller: controller),
-                const SizedBox(height: AppDimens.gapXl),
-                _ReachBanner(controller: controller),
-              ],
+              ),
             ),
           ),
-        ],
+        ),
+        body: CustomScrollView(
+          physics: const BouncingScrollPhysics(),
+          slivers: [
+            SliverPersistentHeader(
+              pinned: true,
+              delegate: PhonebookHeaderDelegate(
+                overline: 'Broadcast',
+                title: 'New message',
+                subtitle: 'Push, WhatsApp & inbox for the students you pick',
+                topPadding: MediaQuery.of(context).padding.top,
+                leadingIcon: Icons.close_rounded,
+                leadingTooltip: 'Close',
+                onLeadingTap: () => Navigator.of(context).maybePop(),
+              ),
+            ),
+            SliverPadding(
+              padding: const EdgeInsets.fromLTRB(20, 18, 20, 28),
+              sliver: SliverList.list(
+                children: [
+                  const PhonebookSectionHeader(title: 'Delivery Channel'),
+                  _ChannelSelector(controller: controller),
+                  const SizedBox(height: 18),
+                  const PhonebookSectionHeader(title: 'Message'),
+                  PhonebookCard(
+                    child: Column(
+                      children: [
+                        TextField(
+                          controller: controller.titleController,
+                          maxLength: BroadcastComposeController.maxTitle,
+                          textCapitalization: TextCapitalization.sentences,
+                          decoration: const InputDecoration(
+                            labelText: 'Title (Optional)',
+                            hintText: 'e.g. Water supply (leave blank for quick notice)',
+                          ),
+                        ),
+                        const SizedBox(height: AppDimens.gapSm),
+                        TextField(
+                          controller: controller.messageController,
+                          maxLength: BroadcastComposeController.maxMessage,
+                          minLines: 4,
+                          maxLines: 10,
+                          textCapitalization: TextCapitalization.sentences,
+                          decoration: const InputDecoration(
+                            labelText: 'Message',
+                            hintText: 'What do students need to know?',
+                            alignLabelWithHint: true,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  const SizedBox(height: 18),
+                  const PhonebookSectionHeader(title: 'Audience'),
+                  _AudienceCard(controller: controller),
+                  const SizedBox(height: 18),
+                  _ReachBanner(controller: controller),
+                ],
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }
@@ -301,7 +330,7 @@ class _AudienceCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return AppCard(
+    return PhonebookCard(
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [

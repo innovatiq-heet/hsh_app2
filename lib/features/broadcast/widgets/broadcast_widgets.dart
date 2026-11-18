@@ -4,8 +4,8 @@ import '../../../core/constants/app_dimens.dart';
 import '../../../core/constants/app_text_styles.dart';
 import '../../../core/models/broadcasts/broadcast_models.dart';
 import '../../../core/utils/date_formatting.dart';
-import '../../shared/widgets/app_card.dart';
 import '../../shared/widgets/meta_text.dart';
+import '../../shared/widgets/phonebook_style_widgets.dart';
 import '../../shared/widgets/status_badge.dart';
 
 /// Sending… / Sent / Failed.
@@ -130,8 +130,9 @@ class BroadcastCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final b = broadcast;
-    return AppCard(
+    return PhonebookCard(
       onTap: onTap,
+      padding: const EdgeInsets.all(15),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -143,7 +144,12 @@ class BroadcastCard extends StatelessWidget {
                   b.displayTitle,
                   maxLines: 2,
                   overflow: TextOverflow.ellipsis,
-                  style: AppTextStyles.title,
+                  style: const TextStyle(
+                    fontSize: 15.5,
+                    fontWeight: FontWeight.w800,
+                    color: PhonebookTheme.ink,
+                    letterSpacing: -0.2,
+                  ),
                 ),
               ),
               const SizedBox(width: AppDimens.gapSm),
@@ -152,16 +158,24 @@ class BroadcastCard extends StatelessWidget {
               BroadcastStatusBadge(status: b.status),
             ],
           ),
-          const SizedBox(height: AppDimens.gapXs),
+          const SizedBox(height: 6),
           Text(
             b.message,
             maxLines: 2,
             overflow: TextOverflow.ellipsis,
-            style: AppTextStyles.bodyMd.copyWith(color: AppColors.textSecondary),
+            style: const TextStyle(
+              fontSize: 13.5,
+              color: PhonebookTheme.slate,
+              height: 1.4,
+            ),
           ),
-          const SizedBox(height: AppDimens.gapMd),
-          BroadcastAudience(broadcast: b),
-          const SizedBox(height: AppDimens.gapMd),
+          if (b.tags.isNotEmpty || b.studentIds.isNotEmpty) ...[
+            const SizedBox(height: 10),
+            BroadcastAudience(broadcast: b),
+          ],
+          const SizedBox(height: 10),
+          const Divider(height: 1, color: PhonebookTheme.border),
+          const SizedBox(height: 10),
           Row(
             children: [
               Expanded(
@@ -175,21 +189,21 @@ class BroadcastCard extends StatelessWidget {
                         icon: Icons.notifications_active_rounded,
                         value: b.pushSent,
                         label: 'pushed',
-                        color: AppColors.pendingBlue,
+                        color: PhonebookTheme.blue,
                       ),
                     if (b.channels != BroadcastChannel.app)
                       BroadcastCount(
                         icon: Icons.chat_rounded,
                         value: b.whatsappSent,
                         label: 'WA',
-                        color: AppColors.successGreen,
+                        color: PhonebookTheme.green,
                       ),
                     if (b.channels != BroadcastChannel.whatsapp)
                       BroadcastCount(
                         icon: Icons.done_all_rounded,
                         value: b.readCount,
                         label: 'read',
-                        color: AppColors.primaryLight,
+                        color: PhonebookTheme.blue,
                       ),
                   ],
                 ),

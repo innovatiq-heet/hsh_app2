@@ -5,7 +5,6 @@ import '../../../core/constants/app_colors.dart';
 import '../../../core/constants/app_dimens.dart';
 import '../../../core/constants/app_routes.dart';
 import '../../../core/constants/app_text_styles.dart';
-import '../../phonebook/services/phone_number_normalizer.dart';
 import '../../shared/widgets/app_card.dart';
 import '../../shared/widgets/app_refresh_indicator.dart';
 import '../../shared/widgets/async_state_view.dart';
@@ -54,138 +53,6 @@ class StudentProfileScreen extends GetView<StudentProfileController> {
                         crossAxisAlignment: CrossAxisAlignment.stretch,
                         children: [
                           const _CampusHubSection(),
-                          const SizedBox(height: AppDimens.gapXl),
-                          const SectionHeader(title: 'Personal details'),
-                          _DetailsCard(
-                            rows: [
-                              if (profile.whatsappNumber.isNotEmpty &&
-                                  profile.phone.isNotEmpty &&
-                                  PhoneNumberNormalizer.isSame(
-                                      profile.phone, profile.whatsappNumber))
-                                InfoRow(
-                                  icon: Icons.phone_android_rounded,
-                                  label: 'Phone & WhatsApp',
-                                  value: profile.phone,
-                                )
-                              else ...[
-                                if (profile.phone.isNotEmpty)
-                                  InfoRow(
-                                    icon: Icons.phone_outlined,
-                                    label: 'Phone',
-                                    value: profile.phone,
-                                  ),
-                                if (profile.whatsappNumber.isNotEmpty)
-                                  InfoRow(
-                                    icon: Icons.chat_outlined,
-                                    label: 'WhatsApp',
-                                    value: profile.whatsappNumber,
-                                  ),
-                              ],
-                              InfoRow(
-                                icon: Icons.alternate_email_rounded,
-                                label: 'Email',
-                                value: profile.email,
-                                locked: true,
-                              ),
-                              if (profile.dob.isNotEmpty)
-                                InfoRow(
-                                  icon: Icons.cake_outlined,
-                                  label: 'Date of birth',
-                                  value: profile.dob,
-                                  locked: true,
-                                ),
-                              InfoRow(
-                                icon: Icons.bloodtype_outlined,
-                                label: 'Blood group',
-                                value: profile.bloodGroup,
-                              ),
-                              InfoRow(
-                                icon: Icons.two_wheeler_outlined,
-                                label: 'Vehicle',
-                                value: profile.vehicleNumber,
-                              ),
-                            ],
-                          ),
-                          // Family Details Section
-                          if (profile.fatherFullName.isNotEmpty ||
-                              profile.fatherPhone.isNotEmpty ||
-                              profile.fatherProfession.isNotEmpty ||
-                              profile.fatherBusiness.isNotEmpty ||
-                              profile.fatherDob.isNotEmpty ||
-                              profile.motherFullName.isNotEmpty ||
-                              profile.motherPhone.isNotEmpty ||
-                              profile.motherBusiness.isNotEmpty ||
-                              profile.motherDob.isNotEmpty ||
-                              profile.anniversaryFormatted.isNotEmpty) ...[
-                            const SizedBox(height: AppDimens.gapXl),
-                            const SectionHeader(title: 'Family details'),
-                            _DetailsCard(
-                              rows: [
-                                if (profile.fatherFullName.isNotEmpty)
-                                  InfoRow(
-                                    icon: Icons.man_rounded,
-                                    label: "Father's name",
-                                    value: profile.fatherFullName,
-                                    locked: true,
-                                  ),
-                                if (profile.fatherPhone.isNotEmpty)
-                                  InfoRow(
-                                    icon: Icons.phone_outlined,
-                                    label: "Father's phone",
-                                    value: profile.fatherPhone,
-                                  ),
-                                if (profile.fatherProfession.isNotEmpty ||
-                                    profile.fatherBusiness.isNotEmpty)
-                                  InfoRow(
-                                    icon: Icons.work_outline_rounded,
-                                    label: "Father's profession",
-                                    value: profile.fatherProfession.isNotEmpty
-                                        ? profile.fatherProfession
-                                        : profile.fatherBusiness,
-                                  ),
-                                if (profile.fatherDob.isNotEmpty)
-                                  InfoRow(
-                                    icon: Icons.cake_outlined,
-                                    label: "Father's date of birth",
-                                    value: profile.fatherDob,
-                                    locked: true,
-                                  ),
-                                if (profile.motherFullName.isNotEmpty)
-                                  InfoRow(
-                                    icon: Icons.woman_rounded,
-                                    label: "Mother's name",
-                                    value: profile.motherFullName,
-                                    locked: true,
-                                  ),
-                                if (profile.motherPhone.isNotEmpty)
-                                  InfoRow(
-                                    icon: Icons.phone_outlined,
-                                    label: "Mother's phone",
-                                    value: profile.motherPhone,
-                                  ),
-                                if (profile.motherBusiness.isNotEmpty)
-                                  InfoRow(
-                                    icon: Icons.work_outline_rounded,
-                                    label: "Mother's profession",
-                                    value: profile.motherBusiness,
-                                  ),
-                                if (profile.motherDob.isNotEmpty)
-                                  InfoRow(
-                                    icon: Icons.cake_outlined,
-                                    label: "Mother's date of birth",
-                                    value: profile.motherDob,
-                                    locked: true,
-                                  ),
-                                if (profile.anniversaryFormatted.isNotEmpty)
-                                  InfoRow(
-                                    icon: Icons.favorite_border_rounded,
-                                    label: "Parents' anniversary",
-                                    value: profile.anniversaryFormatted,
-                                    locked: true,
-                                  ),
-                              ],
-                            ),
-                          ],
                           // Address & Hometown Section
                           if (profile.address.isNotEmpty ||
                               profile.hometown.isNotEmpty ||
@@ -610,39 +477,6 @@ class _ProfileSkeleton extends StatelessWidget {
                       ),
                     ],
                   ],
-                ),
-                const SizedBox(height: AppDimens.gapXl),
-                const SectionHeader(title: 'Personal details'),
-                AppCard(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: AppDimens.cardPadding,
-                    vertical: AppDimens.gapSm,
-                  ),
-                  child: Column(
-                    children: [
-                      for (int i = 0; i < 6; i++) ...[
-                        if (i > 0) const Divider(),
-                        Padding(
-                          padding: const EdgeInsets.symmetric(vertical: 12),
-                          child: Row(
-                            children: const [
-                              SkeletonLoader(
-                                width: 20,
-                                height: 20,
-                                borderRadius: BorderRadius.all(
-                                  Radius.circular(6),
-                                ),
-                              ),
-                              SizedBox(width: AppDimens.gapMd),
-                              SkeletonLoader(width: 70, height: 14),
-                              Spacer(),
-                              SkeletonLoader(width: 120, height: 14),
-                            ],
-                          ),
-                        ),
-                      ],
-                    ],
-                  ),
                 ),
               ],
             ),

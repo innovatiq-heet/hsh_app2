@@ -1,8 +1,8 @@
 # Room Keys
 
-> **Last updated:** 2026-11-16 · **Repos:** `hsh_app2` (Flutter) and `hsh_api` (Node/Express/MySQL)
+> **Last updated:** 2026-11-18 · **Repos:** `hsh_app2` (Flutter) and `HAMS_WEB` / `hsh_api` (Node/Express/MySQL)
 >
-> **Backend status:** the `/room-keys` endpoints are not in `hsh_api` yet. The app side is built and tested against the contract in [ROOM_KEYS_BACKEND_PROMPT.md](ROOM_KEYS_BACKEND_PROMPT.md); until the backend ships, the screen shows "Could not load room keys".
+> **Backend status:** Implemented and live in `HAMS_WEB` (`src/modules/roomKeys/`, mounted at `/room-keys` and `/api/room-keys`, e2e tested in `tests/e2e/room-keys.e2e.test.ts`).
 
 ## 1. What it does
 

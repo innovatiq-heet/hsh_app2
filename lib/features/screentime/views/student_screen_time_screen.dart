@@ -141,8 +141,9 @@ class _ScreenTimeHeaderDelegate extends SliverPersistentHeaderDelegate {
 
   @override
   double get maxExtent {
-    // The all-students header has no subtitle line, so it needs less height.
-    return topPadding + (controller.selectedStudent.value != null ? 176.0 : 108.0);
+    if (controller.selectedStudent.value != null) return topPadding + 176.0;
+    // Leave room below the pinned back button when opened as its own route (leader side).
+    return topPadding + (showBackButton ? 142.0 : 108.0);
   }
 
   @override
@@ -307,10 +308,15 @@ class _ScreenTimeHeaderDelegate extends SliverPersistentHeaderDelegate {
               // Expanded content (Amber dash, Overline, Large Title, Subtitle, Frosted pills)
               if (expandedOpacity > 0.05)
                 Positioned(
-                  top: topPadding + (selected != null ? 54 : 20),
+                  top: topPadding +
+                      (selected != null
+                          ? 54
+                          : (showBackButton && Navigator.canPop(context) ? 56 : 20)),
                   left: 20,
                   right: 20,
-                  bottom: selected != null ? 12 : 24,
+                  bottom: selected != null
+                      ? 12
+                      : (showBackButton && Navigator.canPop(context) ? 18 : 24),
                   child: Opacity(
                     opacity: expandedOpacity,
                     child: Row(

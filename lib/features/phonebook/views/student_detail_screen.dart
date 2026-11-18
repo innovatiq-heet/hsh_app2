@@ -61,10 +61,13 @@ class _StudentDetailScreenState extends State<StudentDetailScreen> {
     }
   }
 
-  Future<void> _openAddContactNumber() async {
+  Future<void> _openAddContactNumber({
+    ContactOwner initialOwner = ContactOwner.student,
+  }) async {
     final res = await AddContactNumberSheet.show(
       context,
       student: _student,
+      initialOwner: initialOwner,
       onSaved: _refreshStudent,
     );
     if (res == true) {
@@ -120,8 +123,14 @@ class _StudentDetailScreenState extends State<StudentDetailScreen> {
     'tags',
     'hostel',
     'personal',
-    if (_has(student.fatherName) || _has(student.motherName)) 'family',
-    if (_familyContacts().isNotEmpty) 'family_contacts',
+    if (_has(student.fatherName) ||
+        _has(student.motherName) ||
+        student.hasFatherBusiness ||
+        student.hasMotherBusiness ||
+        student.hasAnniversary ||
+        student.hasHometown)
+      'family',
+    'family_contacts',
   ];
 
   bool get _allExpanded => _availableSections.every(_expandedSections.contains);
@@ -270,14 +279,17 @@ class _StudentDetailScreenState extends State<StudentDetailScreen> {
                   _hostelCard(),
                   const SizedBox(height: AppDimens.gapMd),
                   _personalCard(),
-                  if (_has(student.fatherName) || _has(student.motherName)) ...[
+                  if (_has(student.fatherName) ||
+                      _has(student.motherName) ||
+                      student.hasFatherBusiness ||
+                      student.hasMotherBusiness ||
+                      student.hasAnniversary ||
+                      student.hasHometown) ...[
                     const SizedBox(height: AppDimens.gapMd),
                     _familyCard(),
                   ],
-                  if (_familyContacts().isNotEmpty) ...[
-                    const SizedBox(height: AppDimens.gapMd),
-                    _familyContactsSection(),
-                  ],
+                  const SizedBox(height: AppDimens.gapMd),
+                  _familyContactsSection(),
                   const SizedBox(height: AppDimens.gapLg),
                   AppButton(
                     label: 'Add Contact Number',
@@ -659,60 +671,89 @@ class _StudentDetailScreenState extends State<StudentDetailScreen> {
 
   Widget _familyContactsSection() {
     final contacts = _familyContacts();
-    if (contacts.isEmpty) return const SizedBox.shrink();
     final isExpanded = _expandedSections.contains('family_contacts');
-    final summary = '${contacts.length} ${contacts.length == 1 ? 'contact' : 'contacts'}';
+    final summary = contacts.isEmpty
+        ? 'None'
+        : '${contacts.length} ${contacts.length == 1 ? 'contact' : 'contacts'}';
 
     return AppCard(
       padding: const EdgeInsets.fromLTRB(
         AppDimens.cardPadding,
         AppDimens.gapSm,
         AppDimens.cardPadding,
-        AppDimens.gapSm,
+        AppDimens.gapMd,
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          InkWell(
-            onTap: () => _toggleSection('family_contacts'),
-            borderRadius: BorderRadius.circular(AppDimens.radiusSm),
-            child: Padding(
-              padding: const EdgeInsets.symmetric(vertical: AppDimens.gapSm),
-              child: Row(
-                children: [
-                  Expanded(
-                    child: Text('FAMILY CONTACTS', style: AppTextStyles.overline),
+          Row(
+            children: [
+              Expanded(
+                child: InkWell(
+                  onTap: () => _toggleSection('family_contacts'),
+                  borderRadius: BorderRadius.circular(AppDimens.radiusSm),
+                  child: Padding(
+                    padding: const EdgeInsets.symmetric(vertical: AppDimens.gapSm),
+                    child: Row(
+                      children: [
+                        Expanded(
+                          child: Text('FAMILY CONTACTS', style: AppTextStyles.overline),
+                        ),
+                        if (!isExpanded)
+                          Container(
+                            margin: const EdgeInsets.only(right: 8),
+                            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                            decoration: BoxDecoration(
+                              color: AppColors.surface,
+                              borderRadius: BorderRadius.circular(10),
+                              border: Border.all(color: AppColors.borderLight),
+                            ),
+                            child: Text(
+                              summary,
+                              style: AppTextStyles.caption.copyWith(
+                                fontWeight: FontWeight.w600,
+                                color: AppColors.textSecondary,
+                                fontSize: 11,
+                              ),
+                            ),
+                          ),
+                        AnimatedRotation(
+                          turns: isExpanded ? 0.5 : 0,
+                          duration: const Duration(milliseconds: 240),
+                          curve: Curves.easeInOutCubic,
+                          child: const Icon(
+                            Icons.keyboard_arrow_down_rounded,
+                            color: AppColors.textSecondary,
+                          ),
+                        ),
+                      ],
+                    ),
                   ),
-                  if (!isExpanded)
-                    Container(
-                      margin: const EdgeInsets.only(right: 8),
-                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
-                      decoration: BoxDecoration(
-                        color: AppColors.surface,
-                        borderRadius: BorderRadius.circular(10),
-                        border: Border.all(color: AppColors.borderLight),
-                      ),
-                      child: Text(
-                        summary,
+                ),
+              ),
+              const SizedBox(width: 6),
+              InkWell(
+                onTap: _openManageContacts,
+                borderRadius: BorderRadius.circular(AppDimens.radiusSm),
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      const Icon(Icons.edit_outlined, size: 13, color: Color(0xFF64748B)),
+                      const SizedBox(width: 3),
+                      Text(
+                        'Manage',
                         style: AppTextStyles.caption.copyWith(
+                          color: const Color(0xFF64748B),
                           fontWeight: FontWeight.w600,
-                          color: AppColors.textSecondary,
-                          fontSize: 11,
                         ),
                       ),
-                    ),
-                  AnimatedRotation(
-                    turns: isExpanded ? 0.5 : 0,
-                    duration: const Duration(milliseconds: 240),
-                    curve: Curves.easeInOutCubic,
-                    child: const Icon(
-                      Icons.keyboard_arrow_down_rounded,
-                      color: AppColors.textSecondary,
-                    ),
+                    ],
                   ),
-                ],
+                ),
               ),
-            ),
+            ],
           ),
           AnimatedSize(
             duration: const Duration(milliseconds: 240),
@@ -722,10 +763,87 @@ class _StudentDetailScreenState extends State<StudentDetailScreen> {
                 ? Column(
                     children: [
                       const SizedBox(height: AppDimens.gapXs),
-                      for (var i = 0; i < contacts.length; i++) ...[
-                        if (i > 0) const SizedBox(height: AppDimens.gapSm),
-                        contacts[i],
-                      ],
+                      if (contacts.isEmpty)
+                        Padding(
+                          padding: const EdgeInsets.symmetric(vertical: 8),
+                          child: Text(
+                            'No parent contact numbers added yet.',
+                            style: AppTextStyles.bodySm.copyWith(
+                              color: AppColors.textMuted,
+                            ),
+                          ),
+                        )
+                      else
+                        for (var i = 0; i < contacts.length; i++) ...[
+                          if (i > 0) const SizedBox(height: AppDimens.gapSm),
+                          contacts[i],
+                        ],
+                      const SizedBox(height: AppDimens.gapSm),
+                      Row(
+                        children: [
+                          Expanded(
+                            child: OutlinedButton.icon(
+                              onPressed: () => _openAddContactNumber(
+                                initialOwner: ContactOwner.father,
+                              ),
+                              icon: const Icon(
+                                Icons.man_rounded,
+                                size: 16,
+                                color: AppColors.secondaryDark,
+                              ),
+                              label: const Text(
+                                '+ Father No.',
+                                style: TextStyle(
+                                  fontSize: 12,
+                                  fontWeight: FontWeight.w700,
+                                  color: AppColors.secondaryDark,
+                                ),
+                              ),
+                              style: OutlinedButton.styleFrom(
+                                padding: const EdgeInsets.symmetric(vertical: 9),
+                                side: BorderSide(
+                                  color: AppColors.secondaryDark.withValues(alpha: 0.35),
+                                ),
+                                backgroundColor: AppColors.secondaryDark.withValues(alpha: 0.05),
+                                shape: RoundedRectangleBorder(
+                                  borderRadius: BorderRadius.circular(10),
+                                ),
+                              ),
+                            ),
+                          ),
+                          const SizedBox(width: 8),
+                          Expanded(
+                            child: OutlinedButton.icon(
+                              onPressed: () => _openAddContactNumber(
+                                initialOwner: ContactOwner.mother,
+                              ),
+                              icon: const Icon(
+                                Icons.woman_rounded,
+                                size: 16,
+                                color: Color(0xFFDB2777),
+                              ),
+                              label: const Text(
+                                '+ Mother No.',
+                                style: TextStyle(
+                                  fontSize: 12,
+                                  fontWeight: FontWeight.w700,
+                                  color: Color(0xFFDB2777),
+                                ),
+                              ),
+                              style: OutlinedButton.styleFrom(
+                                padding: const EdgeInsets.symmetric(vertical: 9),
+                                side: BorderSide(
+                                  color: const Color(0xFFDB2777).withValues(alpha: 0.35),
+                                ),
+                                backgroundColor: const Color(0xFFDB2777).withValues(alpha: 0.05),
+                                shape: RoundedRectangleBorder(
+                                  borderRadius: BorderRadius.circular(10),
+                                ),
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
                     ],
                   )
                 : const SizedBox(width: double.infinity),
@@ -737,10 +855,13 @@ class _StudentDetailScreenState extends State<StudentDetailScreen> {
 
   // --------------------------------------------------------------- contacts
 
-  /// Father / mother numbers. When both are the same number it is one card
-  /// for both parents instead of two identical ones.
+  /// Father / mother numbers (including extra India & Abroad numbers).
+  /// When both base numbers are identical it renders one shared card.
   List<Widget> _familyContacts() {
     final cards = <Widget>[];
+    final seenFatherDigits = <String>{};
+    final seenMotherDigits = <String>{};
+
     final hasFather = _has(student.fatherPhone);
     final hasMother = _has(student.motherPhone);
     String parentLabel(String role, String? name) =>
@@ -749,6 +870,11 @@ class _StudentDetailScreenState extends State<StudentDetailScreen> {
     if (hasFather &&
         hasMother &&
         _digitsOf(student.fatherPhone) == _digitsOf(student.motherPhone)) {
+      final d = _digitsOf(student.fatherPhone);
+      if (d.isNotEmpty) {
+        seenFatherDigits.add(d);
+        seenMotherDigits.add(d);
+      }
       final names = [student.fatherName, student.motherName].where(_has).join(' & ');
       cards.add(_phoneCard(
         phone: student.fatherPhone!,
@@ -758,6 +884,8 @@ class _StudentDetailScreenState extends State<StudentDetailScreen> {
       ));
     } else {
       if (hasFather) {
+        final d = _digitsOf(student.fatherPhone);
+        if (d.isNotEmpty) seenFatherDigits.add(d);
         cards.add(_phoneCard(
           phone: student.fatherPhone!,
           label: parentLabel('Father', student.fatherName),
@@ -766,6 +894,8 @@ class _StudentDetailScreenState extends State<StudentDetailScreen> {
         ));
       }
       if (hasMother) {
+        final d = _digitsOf(student.motherPhone);
+        if (d.isNotEmpty) seenMotherDigits.add(d);
         cards.add(_phoneCard(
           phone: student.motherPhone!,
           label: parentLabel('Mother', student.motherName),
@@ -774,6 +904,47 @@ class _StudentDetailScreenState extends State<StudentDetailScreen> {
         ));
       }
     }
+
+    // Extra Father numbers (e.g. "Father - USA", "Father - India", "Father - Abroad")
+    for (final p in student.phones) {
+      final lower = p.label.trim().toLowerCase();
+      if (!lower.contains('father')) continue;
+      final d = _digitsOf(p.phone);
+      if (d.isEmpty || seenFatherDigits.contains(d)) continue;
+      seenFatherDigits.add(d);
+      final cleanLabel = p.label.trim();
+      final subtitle = _has(student.fatherName) &&
+              !cleanLabel.toLowerCase().contains(student.fatherName!.toLowerCase())
+          ? '$cleanLabel · ${student.fatherName}'
+          : cleanLabel;
+      cards.add(_phoneCard(
+        phone: p.phone,
+        label: subtitle,
+        icon: const Icon(Icons.man_rounded, size: 22),
+        color: AppColors.secondaryDark,
+      ));
+    }
+
+    // Extra Mother numbers (e.g. "Mother - USA", "Mother - India", "Mother - Abroad")
+    for (final p in student.phones) {
+      final lower = p.label.trim().toLowerCase();
+      if (!lower.contains('mother')) continue;
+      final d = _digitsOf(p.phone);
+      if (d.isEmpty || seenMotherDigits.contains(d)) continue;
+      seenMotherDigits.add(d);
+      final cleanLabel = p.label.trim();
+      final subtitle = _has(student.motherName) &&
+              !cleanLabel.toLowerCase().contains(student.motherName!.toLowerCase())
+          ? '$cleanLabel · ${student.motherName}'
+          : cleanLabel;
+      cards.add(_phoneCard(
+        phone: p.phone,
+        label: subtitle,
+        icon: const Icon(Icons.woman_rounded, size: 22),
+        color: const Color(0xFFDB2777),
+      ));
+    }
+
     return cards;
   }
 

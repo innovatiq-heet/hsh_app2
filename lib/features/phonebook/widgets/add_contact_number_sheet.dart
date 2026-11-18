@@ -11,17 +11,23 @@ import '../controllers/phonebook_controller.dart';
 import '../models/phonebook_models.dart';
 import '../services/phonebook_database_service.dart';
 
-/// Modal bottom sheet providing a dedicated UI to add or edit a student's contact number
-/// with support for international numbers (USA, UK, Canada, etc.), labels, primary WhatsApp, and SIM status.
+/// Who an additional phone number belongs to (Student, Father, or Mother).
+enum ContactOwner { student, father, mother }
+
+/// Modal bottom sheet providing a dedicated UI to add or edit a student's or parent's
+/// contact number with support for international numbers (India, USA, UK, Canada, etc.),
+/// labels, WhatsApp, and SIM status.
 class AddContactNumberSheet extends StatefulWidget {
   final PhonebookStudent student;
   final StudentAdditionalPhone? existingContact;
+  final ContactOwner initialOwner;
   final VoidCallback? onSaved;
 
   const AddContactNumberSheet({
     super.key,
     required this.student,
     this.existingContact,
+    this.initialOwner = ContactOwner.student,
     this.onSaved,
   });
 
@@ -30,6 +36,7 @@ class AddContactNumberSheet extends StatefulWidget {
     BuildContext context, {
     required PhonebookStudent student,
     StudentAdditionalPhone? existingContact,
+    ContactOwner initialOwner = ContactOwner.student,
     VoidCallback? onSaved,
   }) {
     return showModalBottomSheet<bool>(
@@ -39,6 +46,7 @@ class AddContactNumberSheet extends StatefulWidget {
       builder: (ctx) => AddContactNumberSheet(
         student: student,
         existingContact: existingContact,
+        initialOwner: initialOwner,
         onSaved: onSaved,
       ),
     );
@@ -61,9 +69,10 @@ class _AddContactNumberSheetState extends State<AddContactNumberSheet> {
   bool _isPrimaryWhatsApp = false;
   bool _isPrimary = false;
   bool _isCustomLabel = false;
+  ContactOwner _owner = ContactOwner.student;
   String _selectedLabel = 'USA Mobile';
 
-  static const List<({String label, String iconText})> _presetLabels = [
+  static const List<({String label, String iconText})> _studentPresetLabels = [
     (label: 'USA Mobile', iconText: '🇺🇸'),
     (label: 'UK Mobile', iconText: '🇬🇧'),
     (label: 'Canada Mobile', iconText: '🇨🇦'),
@@ -74,30 +83,110 @@ class _AddContactNumberSheetState extends State<AddContactNumberSheet> {
     (label: 'Other', iconText: '✏️'),
   ];
 
+  static const List<({String label, String iconText})> _parentPresetLabels = [
+    (label: 'India', iconText: '🇮🇳'),
+    (label: 'Abroad', iconText: '🌍'),
+    (label: 'USA', iconText: '🇺🇸'),
+    (label: 'UK', iconText: '🇬🇧'),
+    (label: 'Canada', iconText: '🇨🇦'),
+    (label: 'Australia', iconText: '🇦🇺'),
+    (label: 'Work', iconText: '💼'),
+    (label: 'Other', iconText: '✏️'),
+  ];
+
+  List<({String label, String iconText})> get _activePresets =>
+      _owner == ContactOwner.student ? _studentPresetLabels : _parentPresetLabels;
+
+  Color get _ownerAccentColor {
+    switch (_owner) {
+      case ContactOwner.student:
+        return AppColors.primary;
+      case ContactOwner.father:
+        return AppColors.secondaryDark;
+      case ContactOwner.mother:
+        return const Color(0xFFDB2777);
+    }
+  }
+
+  String _defaultLabelFor(ContactOwner owner) {
+    switch (owner) {
+      case ContactOwner.student:
+        return 'USA Mobile';
+      case ContactOwner.father:
+        return widget.student.hasFatherPhone ? 'Abroad' : 'India';
+      case ContactOwner.mother:
+        return widget.student.hasMotherPhone ? 'Abroad' : 'India';
+    }
+  }
+
+  String _buildEffectiveLabel() {
+    final base = _isCustomLabel
+        ? _customLabelController.text.trim()
+        : _selectedLabel;
+    if (_owner == ContactOwner.student) return base;
+    final prefix = _owner == ContactOwner.father ? 'Father' : 'Mother';
+    if (base.toLowerCase().startsWith(prefix.toLowerCase())) {
+      return base;
+    }
+    return '$prefix - $base';
+  }
+
   @override
   void initState() {
     super.initState();
     _repo = Get.find<StudentContactsRepository>();
     _isEditing = widget.existingContact != null;
+    _owner = widget.initialOwner;
+    _selectedLabel = _defaultLabelFor(_owner);
 
     if (_isEditing) {
       final c = widget.existingContact!;
       _phoneController.text = c.phone;
       _isWhatsApp = c.isWhatsApp;
-      _isPrimary = c.isPrimary;
-      _isPrimaryWhatsApp = c.isPrimaryWhatsApp ||
-          (widget.student.whatsappNumber != null &&
-              widget.student.whatsappNumber!.isNotEmpty &&
-              widget.student.whatsappNumber == c.phone);
 
-      final isKnown = _presetLabels.any((p) => p.label == c.label);
-      if (isKnown) {
-        _selectedLabel = c.label;
+      final lowerLabel = c.label.trim().toLowerCase();
+      String strippedLabel = c.label.trim();
+      if (lowerLabel.startsWith('father')) {
+        _owner = ContactOwner.father;
+        strippedLabel = c.label
+            .trim()
+            .replaceFirst(RegExp(r'^father\s*[-–·:(]?\s*', caseSensitive: false), '')
+            .replaceFirst(RegExp(r'\)$'), '')
+            .trim();
+      } else if (lowerLabel.startsWith('mother')) {
+        _owner = ContactOwner.mother;
+        strippedLabel = c.label
+            .trim()
+            .replaceFirst(RegExp(r'^mother\s*[-–·:(]?\s*', caseSensitive: false), '')
+            .replaceFirst(RegExp(r'\)$'), '')
+            .trim();
+      } else {
+        _owner = ContactOwner.student;
+      }
+
+      if (_owner == ContactOwner.student) {
+        _isPrimary = c.isPrimary;
+        _isPrimaryWhatsApp = c.isPrimaryWhatsApp ||
+            (widget.student.whatsappNumber != null &&
+                widget.student.whatsappNumber!.isNotEmpty &&
+                widget.student.whatsappNumber == c.phone);
+      } else {
+        _isPrimary = false;
+        _isPrimaryWhatsApp = false;
+      }
+
+      final presets = _activePresets;
+      final match = presets.where(
+        (p) => p.label.toLowerCase() == strippedLabel.toLowerCase(),
+      );
+      if (match.isNotEmpty) {
+        _selectedLabel = match.first.label;
         _isCustomLabel = false;
       } else {
         _selectedLabel = 'Other';
         _isCustomLabel = true;
-        _customLabelController.text = c.label;
+        _customLabelController.text =
+            strippedLabel.isNotEmpty ? strippedLabel : c.label;
       }
     }
   }
@@ -125,9 +214,11 @@ class _AddContactNumberSheetState extends State<AddContactNumberSheet> {
     if (!_formKey.currentState!.validate()) return;
 
     final phone = _phoneController.text.trim();
-    final effectiveLabel = _isCustomLabel
-        ? _customLabelController.text.trim()
-        : _selectedLabel;
+    final effectiveLabel = _buildEffectiveLabel();
+    final isStudentOwner = _owner == ContactOwner.student;
+    final effectivePrimary = isStudentOwner && _isPrimary;
+    final effectivePrimaryWa = isStudentOwner && _isPrimaryWhatsApp;
+    final effectiveWa = _isWhatsApp || effectivePrimaryWa;
 
     setState(() => _isSaving = true);
 
@@ -140,39 +231,48 @@ class _AddContactNumberSheetState extends State<AddContactNumberSheet> {
           contactId: widget.existingContact!.id,
           phone: phone,
           label: effectiveLabel,
-          isWhatsApp: _isWhatsApp || _isPrimaryWhatsApp,
-          isPrimary: _isPrimary,
-          isPrimaryWhatsApp: _isPrimaryWhatsApp,
+          isWhatsApp: effectiveWa,
+          isPrimary: effectivePrimary,
+          isPrimaryWhatsApp: effectivePrimaryWa,
         );
+        // Remove stale cache row if phone or label changed
+        if (widget.existingContact!.phone != phone ||
+            widget.existingContact!.label != effectiveLabel) {
+          await PhonebookDatabaseService.instance.deleteAdditionalPhone(
+            studentId: widget.student.studentId,
+            phone: widget.existingContact!.phone,
+          );
+        }
       } else {
         await _repo.addAdditionalPhone(
           studentIdentifier: identifier,
           phone: phone,
           label: effectiveLabel,
-          isWhatsApp: _isWhatsApp || _isPrimaryWhatsApp,
-          isPrimary: _isPrimary,
-          isPrimaryWhatsApp: _isPrimaryWhatsApp,
+          isWhatsApp: effectiveWa,
+          isPrimary: effectivePrimary,
+          isPrimaryWhatsApp: effectivePrimaryWa,
         );
       }
 
       // Update local SQLite phonebook cache
       await PhonebookDatabaseService.instance.insertAdditionalPhone(
         studentId: widget.student.studentId,
+        studentCode: widget.student.bankCode,
         phone: phone,
         label: effectiveLabel,
-        isPrimary: _isPrimary,
+        isPrimary: effectivePrimary,
       );
 
-      // If set as primary WhatsApp, update base contacts in local SQLite cache
-      if (_isPrimaryWhatsApp) {
+      // If set as primary WhatsApp (student only), update base contacts in local SQLite cache
+      if (effectivePrimaryWa) {
         await PhonebookDatabaseService.instance.updateBaseContacts(
           studentId: widget.student.studentId,
           whatsappNumber: phone,
         );
       }
 
-      // If set as primary mobile, update base contacts in local SQLite cache
-      if (_isPrimary) {
+      // If set as primary mobile (student only), update base contacts in local SQLite cache
+      if (effectivePrimary) {
         await PhonebookDatabaseService.instance.updateBaseContacts(
           studentId: widget.student.studentId,
           primaryPhone: phone,
@@ -439,6 +539,42 @@ class _AddContactNumberSheetState extends State<AddContactNumberSheet> {
               ),
               const SizedBox(height: 18),
 
+              // Contact Owner Selector (Student / Father / Mother)
+              const Text(
+                'Add Number For',
+                style: TextStyle(
+                  fontSize: 13,
+                  fontWeight: FontWeight.w700,
+                  color: AppColors.textPrimary,
+                ),
+              ),
+              const SizedBox(height: 8),
+              Row(
+                children: [
+                  _ownerOptionTile(
+                    owner: ContactOwner.student,
+                    label: 'Student',
+                    icon: Icons.person_rounded,
+                    color: AppColors.primary,
+                  ),
+                  const SizedBox(width: 8),
+                  _ownerOptionTile(
+                    owner: ContactOwner.father,
+                    label: 'Father',
+                    icon: Icons.man_rounded,
+                    color: AppColors.secondaryDark,
+                  ),
+                  const SizedBox(width: 8),
+                  _ownerOptionTile(
+                    owner: ContactOwner.mother,
+                    label: 'Mother',
+                    icon: Icons.woman_rounded,
+                    color: const Color(0xFFDB2777),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 18),
+
               // Phone Number Input
               const Text(
                 'Phone Number',
@@ -510,9 +646,11 @@ class _AddContactNumberSheetState extends State<AddContactNumberSheet> {
               const SizedBox(height: 18),
 
               // Label / Type Selector
-              const Text(
-                'Label / Country',
-                style: TextStyle(
+              Text(
+                _owner == ContactOwner.student
+                    ? 'Label / Country'
+                    : '${_owner == ContactOwner.father ? "Father's" : "Mother's"} Number Type (India / Abroad)',
+                style: const TextStyle(
                   fontSize: 13,
                   fontWeight: FontWeight.w700,
                   color: AppColors.textPrimary,
@@ -522,7 +660,7 @@ class _AddContactNumberSheetState extends State<AddContactNumberSheet> {
               Wrap(
                 spacing: 8,
                 runSpacing: 8,
-                children: _presetLabels.map((preset) {
+                children: _activePresets.map((preset) {
                   final isSelected = _selectedLabel == preset.label;
                   return ChoiceChip(
                     label: Row(
@@ -546,12 +684,12 @@ class _AddContactNumberSheetState extends State<AddContactNumberSheet> {
                       ],
                     ),
                     selected: isSelected,
-                    selectedColor: AppColors.primary,
+                    selectedColor: _ownerAccentColor,
                     backgroundColor: const Color(0xFFF1F5F9),
                     elevation: isSelected ? 1 : 0,
                     side: BorderSide(
                       color: isSelected
-                          ? AppColors.primary
+                          ? _ownerAccentColor
                           : const Color(0xFFE2E8F0),
                     ),
                     shape: RoundedRectangleBorder(
@@ -664,118 +802,122 @@ class _AddContactNumberSheetState extends State<AddContactNumberSheet> {
                         ),
                       ],
                     ),
-                    const Divider(height: 18, thickness: 1, color: Color(0xFFE2E8F0)),
-                    // Primary WhatsApp for Calls toggle
-                    Row(
-                      children: [
-                        Container(
-                          padding: const EdgeInsets.all(7),
-                          decoration: BoxDecoration(
-                            color: const Color(0xFF16A34A).withValues(alpha: 0.12),
-                            borderRadius: BorderRadius.circular(9),
-                          ),
-                          child: const Icon(
-                            Icons.phone_in_talk_rounded,
-                            size: 18,
-                            color: Color(0xFF16A34A),
-                          ),
-                        ),
-                        const SizedBox(width: 12),
-                        const Expanded(
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Text(
-                                'Primary for WhatsApp Calls',
-                                style: TextStyle(
-                                  fontSize: 13,
-                                  fontWeight: FontWeight.w700,
-                                  color: AppColors.textPrimary,
-                                ),
-                              ),
-                              SizedBox(height: 1.5),
-                              Text(
-                                'Main WhatsApp number for direct WhatsApp calls',
-                                style: TextStyle(
-                                  fontSize: 11.5,
-                                  color: Color(0xFF64748B),
-                                ),
-                              ),
-                            ],
-                          ),
-                        ),
-                        Switch(
-                          value: _isPrimaryWhatsApp,
-                          activeThumbColor: const Color(0xFF16A34A),
-                          onChanged: (val) {
-                            setState(() {
-                              _isPrimaryWhatsApp = val;
-                              if (val) _isWhatsApp = true;
-                            });
-                          },
-                        ),
-                      ],
-                    ),
-                  ],
-                ),
-              ),
-              const SizedBox(height: 12),
-
-              // Set as Primary Student Mobile SIM Card
-              Container(
-                padding:
-                    const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
-                decoration: BoxDecoration(
-                  color: const Color(0xFFF8FAFC),
-                  borderRadius: BorderRadius.circular(14),
-                  border: Border.all(color: const Color(0xFFE2E8F0)),
-                ),
-                child: Row(
-                  children: [
-                    Container(
-                      padding: const EdgeInsets.all(7),
-                      decoration: BoxDecoration(
-                        color: AppColors.primary.withValues(alpha: 0.12),
-                        borderRadius: BorderRadius.circular(9),
-                      ),
-                      child: const Icon(
-                        Icons.sim_card_outlined,
-                        size: 18,
-                        color: AppColors.primary,
-                      ),
-                    ),
-                    const SizedBox(width: 12),
-                    const Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
+                    if (_owner == ContactOwner.student) ...[
+                      const Divider(height: 18, thickness: 1, color: Color(0xFFE2E8F0)),
+                      // Primary WhatsApp for Calls toggle (student only)
+                      Row(
                         children: [
-                          Text(
-                            'Set as Primary Student Mobile',
-                            style: TextStyle(
-                              fontSize: 13,
-                              fontWeight: FontWeight.w700,
-                              color: AppColors.textPrimary,
+                          Container(
+                            padding: const EdgeInsets.all(7),
+                            decoration: BoxDecoration(
+                              color: const Color(0xFF16A34A).withValues(alpha: 0.12),
+                              borderRadius: BorderRadius.circular(9),
+                            ),
+                            child: const Icon(
+                              Icons.phone_in_talk_rounded,
+                              size: 18,
+                              color: Color(0xFF16A34A),
                             ),
                           ),
-                          SizedBox(height: 1.5),
-                          Text(
-                            'Main SIM phone number for normal calling',
-                            style: TextStyle(
-                              fontSize: 11.5,
-                              color: Color(0xFF64748B),
+                          const SizedBox(width: 12),
+                          const Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(
+                                  'Primary for WhatsApp Calls',
+                                  style: TextStyle(
+                                    fontSize: 13,
+                                    fontWeight: FontWeight.w700,
+                                    color: AppColors.textPrimary,
+                                  ),
+                                ),
+                                SizedBox(height: 1.5),
+                                Text(
+                                  'Main WhatsApp number for direct WhatsApp calls',
+                                  style: TextStyle(
+                                    fontSize: 11.5,
+                                    color: Color(0xFF64748B),
+                                  ),
+                                ),
+                              ],
                             ),
+                          ),
+                          Switch(
+                            value: _isPrimaryWhatsApp,
+                            activeThumbColor: const Color(0xFF16A34A),
+                            onChanged: (val) {
+                              setState(() {
+                                _isPrimaryWhatsApp = val;
+                                if (val) _isWhatsApp = true;
+                              });
+                            },
                           ),
                         ],
                       ),
-                    ),
-                    Switch(
-                      value: _isPrimary,
-                      activeThumbColor: AppColors.primary,
-                      onChanged: (val) => setState(() => _isPrimary = val),
-                    ),
+                    ],
                   ],
                 ),
               ),
+              if (_owner == ContactOwner.student) ...[
+                const SizedBox(height: 12),
+
+                // Set as Primary Student Mobile SIM Card (student only)
+                Container(
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFFF8FAFC),
+                    borderRadius: BorderRadius.circular(14),
+                    border: Border.all(color: const Color(0xFFE2E8F0)),
+                  ),
+                  child: Row(
+                    children: [
+                      Container(
+                        padding: const EdgeInsets.all(7),
+                        decoration: BoxDecoration(
+                          color: AppColors.primary.withValues(alpha: 0.12),
+                          borderRadius: BorderRadius.circular(9),
+                        ),
+                        child: const Icon(
+                          Icons.sim_card_outlined,
+                          size: 18,
+                          color: AppColors.primary,
+                        ),
+                      ),
+                      const SizedBox(width: 12),
+                      const Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              'Set as Primary Student Mobile',
+                              style: TextStyle(
+                                fontSize: 13,
+                                fontWeight: FontWeight.w700,
+                                color: AppColors.textPrimary,
+                              ),
+                            ),
+                            SizedBox(height: 1.5),
+                            Text(
+                              'Main SIM phone number for normal calling',
+                              style: TextStyle(
+                                fontSize: 11.5,
+                                color: Color(0xFF64748B),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                      Switch(
+                        value: _isPrimary,
+                        activeThumbColor: AppColors.primary,
+                        onChanged: (val) => setState(() => _isPrimary = val),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
               const SizedBox(height: 20),
 
               // Action Buttons
@@ -861,6 +1003,65 @@ class _AddContactNumberSheetState extends State<AddContactNumberSheet> {
                   ),
                 ),
               ],
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _ownerOptionTile({
+    required ContactOwner owner,
+    required String label,
+    required IconData icon,
+    required Color color,
+  }) {
+    final isSelected = _owner == owner;
+    return Expanded(
+      child: InkWell(
+        onTap: () {
+          if (_owner == owner) return;
+          setState(() {
+            _owner = owner;
+            _selectedLabel = _defaultLabelFor(owner);
+            _isCustomLabel = false;
+            if (owner != ContactOwner.student) {
+              _isPrimary = false;
+              _isPrimaryWhatsApp = false;
+            }
+          });
+        },
+        borderRadius: BorderRadius.circular(12),
+        child: AnimatedContainer(
+          duration: const Duration(milliseconds: 180),
+          padding: const EdgeInsets.symmetric(vertical: 10, horizontal: 8),
+          decoration: BoxDecoration(
+            color: isSelected
+                ? color.withValues(alpha: 0.12)
+                : const Color(0xFFF8FAFC),
+            borderRadius: BorderRadius.circular(12),
+            border: Border.all(
+              color: isSelected ? color : const Color(0xFFE2E8F0),
+              width: isSelected ? 1.5 : 1,
+            ),
+          ),
+          child: Row(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Icon(
+                icon,
+                size: 16,
+                color: isSelected ? color : const Color(0xFF64748B),
+              ),
+              const SizedBox(width: 5),
+              Text(
+                label,
+                style: TextStyle(
+                  fontSize: 12.5,
+                  fontWeight: isSelected ? FontWeight.w800 : FontWeight.w600,
+                  color: isSelected ? color : const Color(0xFF475569),
+                ),
+              ),
             ],
           ),
         ),

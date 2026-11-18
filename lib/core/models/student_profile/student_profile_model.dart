@@ -117,7 +117,8 @@ class StudentProfileModel {
     final ms = int.tryParse(anniversary.trim());
     if (ms != null && ms > 0) {
       try {
-        final dt = DateTime.fromMillisecondsSinceEpoch(ms);
+        final dt = DateTime.fromMillisecondsSinceEpoch(ms, isUtc: true)
+            .add(const Duration(hours: 5, minutes: 30));
         final y = dt.year.toString().padLeft(4, '0');
         final m = dt.month.toString().padLeft(2, '0');
         final d = dt.day.toString().padLeft(2, '0');

@@ -1,6 +1,7 @@
 class StudentAdditionalPhone {
   final int id;
   final int studentId;
+  final String? studentCode;
   final String phone;
   final String phoneNormalized;
   final String label;
@@ -13,6 +14,7 @@ class StudentAdditionalPhone {
   const StudentAdditionalPhone({
     required this.id,
     required this.studentId,
+    this.studentCode,
     required this.phone,
     required this.phoneNormalized,
     required this.label,
@@ -23,10 +25,14 @@ class StudentAdditionalPhone {
     this.updatedAt,
   });
 
+  bool get isFatherContact => label.toLowerCase().contains('father');
+  bool get isMotherContact => label.toLowerCase().contains('mother');
+
   factory StudentAdditionalPhone.fromJson(Map<String, dynamic> json) {
     return StudentAdditionalPhone(
       id: int.tryParse(json['id']?.toString() ?? '0') ?? 0,
       studentId: int.tryParse(json['student_id']?.toString() ?? '0') ?? 0,
+      studentCode: json['student_code']?.toString().trim(),
       phone: json['phone']?.toString() ?? '',
       phoneNormalized: json['phone_normalized']?.toString() ??
           json['phone']?.toString() ??
@@ -44,6 +50,7 @@ class StudentAdditionalPhone {
   Map<String, dynamic> toJson() => {
         'id': id,
         'student_id': studentId,
+        if (studentCode != null) 'student_code': studentCode,
         'phone': phone,
         'phone_normalized': phoneNormalized,
         'label': label,

@@ -483,6 +483,7 @@ class PhonebookSyncService {
           for (final addPhone in additionalList) {
             await PhonebookDatabaseService.instance.insertAdditionalPhone(
               studentId: addPhone.studentId.toString(),
+              studentCode: addPhone.studentCode,
               phone: addPhone.phone,
               label: addPhone.label,
               isPrimary: addPhone.isPrimary,

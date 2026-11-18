@@ -681,15 +681,38 @@ class PhonebookDatabaseService {
   /// Inserts or replaces an additional contact phone record in local cache
   Future<void> insertAdditionalPhone({
     required String studentId,
+    String? studentCode,
     required String phone,
     required String label,
     bool isPrimary = false,
   }) async {
     final db = await database;
+    final cleanCode = (studentCode ?? '').trim();
+    final normCode = cleanCode.isNotEmpty ? normalizeBankCode(cleanCode) : '';
+    final hshCode = cleanCode.isNotEmpty ? 'HSH-$cleanCode' : '';
+
+    final whereParts = <String>[
+      'student_id = ?',
+      'id = ?',
+      'bank_code = ?',
+    ];
+    final whereArgs = <dynamic>[studentId, studentId, studentId];
+
+    if (cleanCode.isNotEmpty) {
+      whereParts.add('bank_code = ?');
+      whereArgs.add(cleanCode);
+      whereParts.add('student_id = ?');
+      whereArgs.add(hshCode);
+      if (normCode.isNotEmpty) {
+        whereParts.add("LTRIM(bank_code, '0') = ?");
+        whereArgs.add(normCode);
+      }
+    }
+
     final rows = await db.query(
       'student_cache',
-      where: 'student_id = ? OR id = ? OR bank_code = ?',
-      whereArgs: [studentId, studentId, studentId],
+      where: whereParts.join(' OR '),
+      whereArgs: whereArgs,
       limit: 1,
     );
     if (rows.isEmpty) return;

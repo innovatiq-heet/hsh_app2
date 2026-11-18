@@ -1,4 +1,5 @@
 import 'package:flutter_test/flutter_test.dart';
+import 'package:hsh_app2/core/models/students/student_contacts_model.dart';
 import 'package:hsh_app2/features/phonebook/models/phonebook_models.dart';
 import 'package:hsh_app2/features/phonebook/services/phonebook_database_service.dart';
 
@@ -268,6 +269,81 @@ void main() {
         expect(options[1].count, 3);
         expect(options[2].name, 'Surat');
         expect(options[2].count, 15);
+      },
+    );
+
+    test(
+      'Supports extra Father & Mother international/India numbers in StudentAdditionalPhone and toShareText',
+      () {
+        final fAbroad = StudentAdditionalPhone.fromJson({
+          'id': 1,
+          'student_id': 269,
+          'student_code': '0353',
+          'phone': '+1 415 555 2671',
+          'label': 'Father - USA',
+          'is_whatsapp': true,
+        });
+        expect(fAbroad.studentCode, '0353');
+        expect(fAbroad.isFatherContact, isTrue);
+        expect(fAbroad.isMotherContact, isFalse);
+
+        final mAbroad = StudentAdditionalPhone.fromJson({
+          'id': 2,
+          'student_id': 269,
+          'student_code': '0353',
+          'phone': '+44 7700 900077',
+          'label': 'Mother - UK',
+          'is_whatsapp': false,
+        });
+        expect(mAbroad.isFatherContact, isFalse);
+        expect(mAbroad.isMotherContact, isTrue);
+
+        final student = const PhonebookStudent(
+          id: '269',
+          studentId: 'HSH-0353',
+          name: 'Anand Kamleshbhai Patel',
+          enrollmentNumber: '0353',
+          department: 'Pavitra • Room 904',
+          batch: 'ACTIVE',
+          room: '904',
+          groupName: 'Pavitra',
+          fatherName: 'Kamleshbhai Patel',
+          fatherPhone: '9825116403',
+          motherName: 'Ranjanben Patel',
+          motherPhone: '6355026686',
+          phones: [
+            PhonebookContact(
+              phone: '7046228548',
+              phoneNormalized: '7046228548',
+              label: 'Student Mobile',
+              isPrimary: true,
+            ),
+            PhonebookContact(
+              phone: '9825116403',
+              phoneNormalized: '9825116403',
+              label: 'Father (Kamleshbhai Patel)',
+              isPrimary: false,
+            ),
+            PhonebookContact(
+              phone: '+1 415 555 2671',
+              phoneNormalized: '14155552671',
+              label: 'Father - USA',
+              isPrimary: false,
+            ),
+            PhonebookContact(
+              phone: '+44 7700 900077',
+              phoneNormalized: '447700900077',
+              label: 'Mother - UK',
+              isPrimary: false,
+            ),
+          ],
+        );
+
+        final shareText = student.toShareText();
+        expect(shareText, contains('Father - USA'));
+        expect(shareText, contains('+1 415 555 2671'));
+        expect(shareText, contains('Mother - UK'));
+        expect(shareText, contains('+44 7700 900077'));
       },
     );
   });

@@ -501,11 +501,13 @@ class _ManageContactsSheetState extends State<ManageContactsSheet> {
   // ===========================================================================
   Future<void> _showAddOrEditAdditionalPhoneDialog({
     StudentAdditionalPhone? existing,
+    ContactOwner initialOwner = ContactOwner.student,
   }) async {
     final updated = await AddContactNumberSheet.show(
       context,
       student: widget.student,
       existingContact: existing,
+      initialOwner: initialOwner,
       onSaved: () async {
         await _loadContacts();
         _notifyUpdated();
@@ -879,6 +881,31 @@ class _ManageContactsSheetState extends State<ManageContactsSheet> {
                       icon: Icons.man_rounded,
                       color: AppColors.secondaryDark,
                       fieldKey: 'father',
+                      badge: InkWell(
+                        onTap: () => _showAddOrEditAdditionalPhoneDialog(
+                          initialOwner: ContactOwner.father,
+                        ),
+                        borderRadius: BorderRadius.circular(4),
+                        child: Container(
+                          padding: const EdgeInsets.symmetric(
+                              horizontal: 6, vertical: 2),
+                          decoration: BoxDecoration(
+                            color: AppColors.secondaryDark.withValues(alpha: 0.08),
+                            borderRadius: BorderRadius.circular(4),
+                            border: Border.all(
+                              color: AppColors.secondaryDark.withValues(alpha: 0.3),
+                            ),
+                          ),
+                          child: const Text(
+                            '+ Extra',
+                            style: TextStyle(
+                              fontSize: 9.5,
+                              fontWeight: FontWeight.w700,
+                              color: AppColors.secondaryDark,
+                            ),
+                          ),
+                        ),
+                      ),
                       onEdit: () => _editBaseContact(
                         title: "Edit Father's Phone",
                         fieldKey: 'father',
@@ -899,6 +926,31 @@ class _ManageContactsSheetState extends State<ManageContactsSheet> {
                       icon: Icons.woman_rounded,
                       color: const Color(0xFFDB2777),
                       fieldKey: 'mother',
+                      badge: InkWell(
+                        onTap: () => _showAddOrEditAdditionalPhoneDialog(
+                          initialOwner: ContactOwner.mother,
+                        ),
+                        borderRadius: BorderRadius.circular(4),
+                        child: Container(
+                          padding: const EdgeInsets.symmetric(
+                              horizontal: 6, vertical: 2),
+                          decoration: BoxDecoration(
+                            color: const Color(0xFFDB2777).withValues(alpha: 0.08),
+                            borderRadius: BorderRadius.circular(4),
+                            border: Border.all(
+                              color: const Color(0xFFDB2777).withValues(alpha: 0.3),
+                            ),
+                          ),
+                          child: const Text(
+                            '+ Extra',
+                            style: TextStyle(
+                              fontSize: 9.5,
+                              fontWeight: FontWeight.w700,
+                              color: Color(0xFFDB2777),
+                            ),
+                          ),
+                        ),
+                      ),
                       onEdit: () => _editBaseContact(
                         title: "Edit Mother's Phone",
                         fieldKey: 'mother',
@@ -1154,10 +1206,26 @@ class _ManageContactsSheetState extends State<ManageContactsSheet> {
   }
 
   Widget _buildAdditionalPhoneTile(StudentAdditionalPhone phone) {
-    final isPrimaryWA = phone.isPrimaryWhatsApp ||
-        (_whatsappNumber != null &&
-            _whatsappNumber!.isNotEmpty &&
-            PhoneNumberNormalizer.isSame(_whatsappNumber, phone.phone));
+    final isParentContact = phone.isFatherContact || phone.isMotherContact;
+    final isPrimaryWA = !isParentContact &&
+        (phone.isPrimaryWhatsApp ||
+            (_whatsappNumber != null &&
+                _whatsappNumber!.isNotEmpty &&
+                PhoneNumberNormalizer.isSame(_whatsappNumber, phone.phone)));
+    final Color accentColor = phone.isFatherContact
+        ? AppColors.secondaryDark
+        : phone.isMotherContact
+            ? const Color(0xFFDB2777)
+            : ((phone.isWhatsApp || isPrimaryWA)
+                ? AppColors.successGreen
+                : AppColors.primary);
+    final IconData leadingIcon = phone.isFatherContact
+        ? Icons.man_rounded
+        : phone.isMotherContact
+            ? Icons.woman_rounded
+            : ((phone.isWhatsApp || isPrimaryWA)
+                ? Icons.chat_rounded
+                : Icons.public_rounded);
 
     return Container(
       margin: const EdgeInsets.only(bottom: 8),
@@ -1183,19 +1251,13 @@ class _ManageContactsSheetState extends State<ManageContactsSheet> {
             width: 34,
             height: 34,
             decoration: BoxDecoration(
-              color: (phone.isWhatsApp || isPrimaryWA)
-                  ? AppColors.successGreen.withValues(alpha: 0.12)
-                  : AppColors.primary.withValues(alpha: 0.12),
+              color: accentColor.withValues(alpha: 0.12),
               borderRadius: BorderRadius.circular(8),
             ),
             alignment: Alignment.center,
             child: Icon(
-              (phone.isWhatsApp || isPrimaryWA)
-                  ? Icons.chat_rounded
-                  : Icons.public_rounded,
-              color: (phone.isWhatsApp || isPrimaryWA)
-                  ? AppColors.successGreen
-                  : AppColors.primary,
+              leadingIcon,
+              color: accentColor,
               size: 17,
             ),
           ),
@@ -1214,15 +1276,19 @@ class _ManageContactsSheetState extends State<ManageContactsSheet> {
                       padding: const EdgeInsets.symmetric(
                           horizontal: 6, vertical: 1.5),
                       decoration: BoxDecoration(
-                        color: const Color(0xFFEEF2FF),
+                        color: isParentContact
+                            ? accentColor.withValues(alpha: 0.1)
+                            : const Color(0xFFEEF2FF),
                         borderRadius: BorderRadius.circular(4),
                       ),
                       child: Text(
                         phone.label,
-                        style: const TextStyle(
+                        style: TextStyle(
                           fontSize: 10.5,
                           fontWeight: FontWeight.w700,
-                          color: Color(0xFF4F46E5),
+                          color: isParentContact
+                              ? accentColor
+                              : const Color(0xFF4F46E5),
                         ),
                       ),
                     ),
@@ -1270,35 +1336,36 @@ class _ManageContactsSheetState extends State<ManageContactsSheet> {
                             ),
                           ),
                         ),
-                      InkWell(
-                        onTap: () => _setAdditionalPhoneAsPrimaryWhatsApp(phone),
-                        borderRadius: BorderRadius.circular(4),
-                        child: Container(
-                          padding: const EdgeInsets.symmetric(
-                              horizontal: 6, vertical: 1.5),
-                          decoration: BoxDecoration(
-                            color: const Color(0xFFF1F5F9),
-                            borderRadius: BorderRadius.circular(4),
-                            border: Border.all(color: const Color(0xFFCBD5E1)),
-                          ),
-                          child: const Row(
-                            mainAxisSize: MainAxisSize.min,
-                            children: [
-                              FaIcon(FontAwesomeIcons.whatsapp,
-                                  size: 10, color: Color(0xFF475569)),
-                              SizedBox(width: 3),
-                              Text(
-                                'Set as Primary WA',
-                                style: TextStyle(
-                                  fontSize: 9.5,
-                                  fontWeight: FontWeight.w600,
-                                  color: Color(0xFF475569),
+                      if (!isParentContact)
+                        InkWell(
+                          onTap: () => _setAdditionalPhoneAsPrimaryWhatsApp(phone),
+                          borderRadius: BorderRadius.circular(4),
+                          child: Container(
+                            padding: const EdgeInsets.symmetric(
+                                horizontal: 6, vertical: 1.5),
+                            decoration: BoxDecoration(
+                              color: const Color(0xFFF1F5F9),
+                              borderRadius: BorderRadius.circular(4),
+                              border: Border.all(color: const Color(0xFFCBD5E1)),
+                            ),
+                            child: const Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                FaIcon(FontAwesomeIcons.whatsapp,
+                                    size: 10, color: Color(0xFF475569)),
+                                SizedBox(width: 3),
+                                Text(
+                                  'Set as Primary WA',
+                                  style: TextStyle(
+                                    fontSize: 9.5,
+                                    fontWeight: FontWeight.w600,
+                                    color: Color(0xFF475569),
+                                  ),
                                 ),
-                              ),
-                            ],
+                              ],
+                            ),
                           ),
                         ),
-                      ),
                     ],
                   ],
                 ),

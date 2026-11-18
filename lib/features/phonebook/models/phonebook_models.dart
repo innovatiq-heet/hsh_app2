@@ -543,7 +543,8 @@ class PhonebookStudent {
     final ms = int.tryParse(clean);
     if (ms != null && ms > 0) {
       try {
-        final dt = DateTime.fromMillisecondsSinceEpoch(ms);
+        final dt = DateTime.fromMillisecondsSinceEpoch(ms, isUtc: true)
+            .add(const Duration(hours: 5, minutes: 30));
         return DateFormat('d MMM yyyy').format(dt);
       } catch (_) {}
     }
@@ -699,6 +700,15 @@ class PhonebookStudent {
       final fBiz = hasFatherBusiness ? ' • $fatherBusiness' : '';
       buffer.writeln('👨 *Father:* $fName$fBiz$fPhone');
     }
+    for (final p in phones) {
+      if (!p.label.toLowerCase().contains('father')) continue;
+      if (fatherPhone != null &&
+          fatherPhone!.isNotEmpty &&
+          PhoneNumberNormalizer.isSame(p.phone, fatherPhone)) {
+        continue;
+      }
+      buffer.writeln('📞 *${p.label}:* ${p.phone}');
+    }
     if (motherName != null ||
         (motherPhone != null && motherPhone!.isNotEmpty) ||
         hasMotherBusiness) {
@@ -706,6 +716,15 @@ class PhonebookStudent {
       final mPhone = motherPhone != null ? ' (Ph: $motherPhone)' : '';
       final mBiz = hasMotherBusiness ? ' • $motherBusiness' : '';
       buffer.writeln('👩 *Mother:* $mName$mBiz$mPhone');
+    }
+    for (final p in phones) {
+      if (!p.label.toLowerCase().contains('mother')) continue;
+      if (motherPhone != null &&
+          motherPhone!.isNotEmpty &&
+          PhoneNumberNormalizer.isSame(p.phone, motherPhone)) {
+        continue;
+      }
+      buffer.writeln('📞 *${p.label}:* ${p.phone}');
     }
     if (hasAnniversary) {
       buffer.writeln('💍 *Parents’ Anniversary:* $anniversaryFormatted');

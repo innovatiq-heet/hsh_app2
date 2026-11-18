@@ -821,6 +821,16 @@ class _OperatorHomeDashboard extends StatelessWidget {
         waveColor: Color(0xFFFDE68A),
         route: Routes.operatorRoomKeys,
       ),
+      _OperatorAction(
+        title: 'Daily Alumni Connect',
+        subtitle: 'Daily alumni greetings\n& outreach history',
+        icon: Icons.connect_without_contact_rounded,
+        iconColor: Color(0xFF059669),
+        bgTint: Color(0xFFD1FAE5),
+        arrowBgTint: Color(0xFFECFDF5),
+        waveColor: Color(0xFFA7F3D0),
+        route: Routes.operatorDailyAlumniOutreach,
+      ),
     ]),
   ];
 

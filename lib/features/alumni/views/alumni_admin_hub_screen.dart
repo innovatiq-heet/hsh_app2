@@ -74,6 +74,12 @@ class _AlumniAdminHubScreenState extends State<AlumniAdminHubScreen>
               ),
               actions: [
                 HeaderIconButton(
+                  icon: Icons.connect_without_contact_rounded,
+                  tooltip: 'Daily Alumni Connect',
+                  onPressed: () => Get.toNamed(Routes.operatorDailyAlumniOutreach),
+                ),
+                const SizedBox(width: 6),
+                HeaderIconButton(
                   icon: Icons.visibility_outlined,
                   tooltip: 'Student Hub View',
                   onPressed: () => Get.toNamed(Routes.alumniHub),

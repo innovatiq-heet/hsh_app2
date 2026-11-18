@@ -37,12 +37,15 @@ class _StudentFormFillScreenState extends State<StudentFormFillScreen> {
     super.initState();
     final form = _form;
     if (form == null) return;
-    controller.markViewed(form);
-    if (form.hasSubmitted) {
-      controller.responseFor(form).then((r) {
-        if (mounted) setState(() => _response = r);
-      });
-    }
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      controller.markViewed(form);
+      if (form.hasSubmitted) {
+        controller.responseFor(form).then((r) {
+          if (mounted) setState(() => _response = r);
+        });
+      }
+    });
   }
 
   @override

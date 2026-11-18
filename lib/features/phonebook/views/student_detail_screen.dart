@@ -114,22 +114,17 @@ class _StudentDetailScreenState extends State<StudentDetailScreen> {
     'tags',
     'hostel',
     'personal',
-    'family',
     'family_contacts',
   };
 
-  List<String> get _availableSections => [
+  /// Tracks which parent cards ('father', 'mother') have their full details expanded.
+  final Set<String> _expandedParents = {};
+
+  List<String> get _availableSections => const [
     'contacts',
     'tags',
     'hostel',
     'personal',
-    if (_has(student.fatherName) ||
-        _has(student.motherName) ||
-        student.hasFatherBusiness ||
-        student.hasMotherBusiness ||
-        student.hasAnniversary ||
-        student.hasHometown)
-      'family',
     'family_contacts',
   ];
 
@@ -151,6 +146,16 @@ class _StudentDetailScreenState extends State<StudentDetailScreen> {
         _expandedSections.remove(section);
       } else {
         _expandedSections.add(section);
+      }
+    });
+  }
+
+  void _toggleParent(String parentKey) {
+    setState(() {
+      if (_expandedParents.contains(parentKey)) {
+        _expandedParents.remove(parentKey);
+      } else {
+        _expandedParents.add(parentKey);
       }
     });
   }
@@ -279,15 +284,6 @@ class _StudentDetailScreenState extends State<StudentDetailScreen> {
                   _hostelCard(),
                   const SizedBox(height: AppDimens.gapMd),
                   _personalCard(),
-                  if (_has(student.fatherName) ||
-                      _has(student.motherName) ||
-                      student.hasFatherBusiness ||
-                      student.hasMotherBusiness ||
-                      student.hasAnniversary ||
-                      student.hasHometown) ...[
-                    const SizedBox(height: AppDimens.gapMd),
-                    _familyCard(),
-                  ],
                   const SizedBox(height: AppDimens.gapMd),
                   _familyContactsSection(),
                   const SizedBox(height: AppDimens.gapLg),
@@ -585,78 +581,6 @@ class _StudentDetailScreenState extends State<StudentDetailScreen> {
               ? () => _c.copyToClipboard(student.displayAddress, 'Address')
               : null,
         ),
-      ],
-    );
-  }
-
-  Widget _familyCard() {
-    final familySummary = _has(student.fatherName) && _has(student.motherName)
-        ? '${student.fatherName} & ${student.motherName}'
-        : (_has(student.fatherName)
-            ? 'Father: ${student.fatherName}'
-            : (_has(student.motherName)
-                ? 'Mother: ${student.motherName}'
-                : (student.hasHometown ? student.hometown : null)));
-
-    return _DetailCard(
-      title: 'Family',
-      isExpanded: _expandedSections.contains('family'),
-      onToggle: () => _toggleSection('family'),
-      summary: familySummary,
-      children: [
-        if (_has(student.fatherName))
-          _DetailRow(
-            icon: Icons.man_rounded,
-            label: 'Father',
-            value: student.fatherName!,
-            onCopy: () => _c.copyToClipboard(student.fatherName!, 'Father name'),
-          ),
-        if (student.hasFatherBusiness)
-          _DetailRow(
-            icon: Icons.work_outline_rounded,
-            label: "Father's profession",
-            value: student.fatherBusiness!,
-            iconColor: AppColors.secondaryDark,
-            onCopy: () => _c.copyToClipboard(student.fatherBusiness!, "Father's profession"),
-          ),
-        if (student.hasFatherDob)
-          _DetailRow(
-            icon: Icons.cake_outlined,
-            label: "Father's DOB",
-            value: student.fatherDob!,
-            iconColor: AppColors.secondaryDark,
-          ),
-        if (_has(student.motherName))
-          _DetailRow(
-            icon: Icons.woman_rounded,
-            label: 'Mother',
-            value: student.motherName!,
-            iconColor: const Color(0xFFDB2777),
-            onCopy: () => _c.copyToClipboard(student.motherName!, 'Mother name'),
-          ),
-        if (student.hasMotherBusiness)
-          _DetailRow(
-            icon: Icons.work_outline_rounded,
-            label: "Mother's profession",
-            value: student.motherBusiness!,
-            iconColor: const Color(0xFFDB2777),
-            onCopy: () => _c.copyToClipboard(student.motherBusiness!, "Mother's profession"),
-          ),
-        if (student.hasMotherDob)
-          _DetailRow(
-            icon: Icons.cake_outlined,
-            label: "Mother's DOB",
-            value: student.motherDob!,
-            iconColor: const Color(0xFFDB2777),
-          ),
-        if (student.hasAnniversary)
-          _DetailRow(
-            icon: Icons.favorite_border_rounded,
-            label: "Parents' anniversary",
-            value: student.anniversaryFormatted,
-            iconColor: const Color(0xFFE11D48),
-            onCopy: () => _c.copyToClipboard(student.anniversaryFormatted, "Parents' anniversary"),
-          ),
         if (student.hasHometown)
           _DetailRow(
             icon: Icons.location_city_rounded,
@@ -855,115 +779,108 @@ class _StudentDetailScreenState extends State<StudentDetailScreen> {
 
   // --------------------------------------------------------------- contacts
 
-  /// Father / mother numbers (including extra India & Abroad numbers).
-  /// When both base numbers are identical it renders one shared card.
+  /// Builds up to two parent cards (Father and Mother), each grouping that
+  /// parent's primary + extra India/Abroad numbers and expanding on tap to
+  /// reveal full parent details (name, profession, DOB, marriage anniversary).
   List<Widget> _familyContacts() {
     final cards = <Widget>[];
+
+    final fatherPhones = <_ParentPhoneEntry>[];
     final seenFatherDigits = <String>{};
-    final seenMotherDigits = <String>{};
-
-    final hasFather = _has(student.fatherPhone);
-    final hasMother = _has(student.motherPhone);
-    String parentLabel(String role, String? name) =>
-        _has(name) ? '$role · $name' : role;
-
-    if (hasFather &&
-        hasMother &&
-        _digitsOf(student.fatherPhone) == _digitsOf(student.motherPhone)) {
+    if (_has(student.fatherPhone)) {
       final d = _digitsOf(student.fatherPhone);
-      if (d.isNotEmpty) {
-        seenFatherDigits.add(d);
-        seenMotherDigits.add(d);
-      }
-      final names = [student.fatherName, student.motherName].where(_has).join(' & ');
-      cards.add(_phoneCard(
+      if (d.isNotEmpty) seenFatherDigits.add(d);
+      fatherPhones.add(_ParentPhoneEntry(
         phone: student.fatherPhone!,
-        label: names.isEmpty ? 'Father & Mother' : 'Father & Mother · $names',
-        icon: const Icon(Icons.family_restroom_rounded, size: 22),
-        color: AppColors.secondaryDark,
+        label: 'Primary',
       ));
-    } else {
-      if (hasFather) {
-        final d = _digitsOf(student.fatherPhone);
-        if (d.isNotEmpty) seenFatherDigits.add(d);
-        cards.add(_phoneCard(
-          phone: student.fatherPhone!,
-          label: parentLabel('Father', student.fatherName),
-          icon: const Icon(Icons.man_rounded, size: 22),
-          color: AppColors.secondaryDark,
-        ));
-      }
-      if (hasMother) {
-        final d = _digitsOf(student.motherPhone);
-        if (d.isNotEmpty) seenMotherDigits.add(d);
-        cards.add(_phoneCard(
-          phone: student.motherPhone!,
-          label: parentLabel('Mother', student.motherName),
-          icon: const Icon(Icons.woman_rounded, size: 22),
-          color: const Color(0xFFDB2777),
-        ));
-      }
     }
-
-    // Extra Father numbers (e.g. "Father - USA", "Father - India", "Father - Abroad")
     for (final p in student.phones) {
       final lower = p.label.trim().toLowerCase();
       if (!lower.contains('father')) continue;
       final d = _digitsOf(p.phone);
       if (d.isEmpty || seenFatherDigits.contains(d)) continue;
       seenFatherDigits.add(d);
-      final cleanLabel = p.label.trim();
-      final subtitle = _has(student.fatherName) &&
-              !cleanLabel.toLowerCase().contains(student.fatherName!.toLowerCase())
-          ? '$cleanLabel · ${student.fatherName}'
-          : cleanLabel;
-      cards.add(_phoneCard(
+      fatherPhones.add(_ParentPhoneEntry(
         phone: p.phone,
-        label: subtitle,
-        icon: const Icon(Icons.man_rounded, size: 22),
-        color: AppColors.secondaryDark,
+        label: p.label.trim(),
       ));
     }
 
-    // Extra Mother numbers (e.g. "Mother - USA", "Mother - India", "Mother - Abroad")
+    final motherPhones = <_ParentPhoneEntry>[];
+    final seenMotherDigits = <String>{};
+    if (_has(student.motherPhone)) {
+      final d = _digitsOf(student.motherPhone);
+      if (d.isNotEmpty) seenMotherDigits.add(d);
+      motherPhones.add(_ParentPhoneEntry(
+        phone: student.motherPhone!,
+        label: 'Primary',
+      ));
+    }
     for (final p in student.phones) {
       final lower = p.label.trim().toLowerCase();
       if (!lower.contains('mother')) continue;
       final d = _digitsOf(p.phone);
       if (d.isEmpty || seenMotherDigits.contains(d)) continue;
       seenMotherDigits.add(d);
-      final cleanLabel = p.label.trim();
-      final subtitle = _has(student.motherName) &&
-              !cleanLabel.toLowerCase().contains(student.motherName!.toLowerCase())
-          ? '$cleanLabel · ${student.motherName}'
-          : cleanLabel;
-      cards.add(_phoneCard(
+      motherPhones.add(_ParentPhoneEntry(
         phone: p.phone,
-        label: subtitle,
+        label: p.label.trim(),
+      ));
+    }
+
+    final hasFatherSection = fatherPhones.isNotEmpty ||
+        _has(student.fatherName) ||
+        student.hasFatherBusiness ||
+        student.hasFatherDob;
+    final hasMotherSection = motherPhones.isNotEmpty ||
+        _has(student.motherName) ||
+        student.hasMotherBusiness ||
+        student.hasMotherDob;
+
+    final sharedPrimary = _has(student.fatherPhone) &&
+        _has(student.motherPhone) &&
+        _digitsOf(student.fatherPhone) == _digitsOf(student.motherPhone);
+
+    if (hasFatherSection) {
+      cards.add(_buildParentCard(
+        parentKey: 'father',
+        role: 'Father',
+        owner: ContactOwner.father,
+        name: student.fatherName,
+        business: student.fatherBusiness,
+        dob: student.fatherDob,
+        phones: fatherPhones,
+        icon: const Icon(Icons.man_rounded, size: 22),
+        color: AppColors.secondaryDark,
+        isSharedNumber: sharedPrimary,
+      ));
+    }
+
+    if (hasMotherSection) {
+      cards.add(_buildParentCard(
+        parentKey: 'mother',
+        role: 'Mother',
+        owner: ContactOwner.mother,
+        name: student.motherName,
+        business: student.motherBusiness,
+        dob: student.motherDob,
+        phones: motherPhones,
         icon: const Icon(Icons.woman_rounded, size: 22),
         color: const Color(0xFFDB2777),
+        isSharedNumber: sharedPrimary,
       ));
     }
 
     return cards;
   }
 
-  Widget _phoneCard({
-    required String phone,
-    required String label,
-    required Widget icon,
-    required Color color,
-  }) {
-    return _ContactCard(
-      leading: _TintedIcon(icon: icon, color: color),
-      title: phone,
-      subtitle: label,
-      actions: [
+  List<_CardAction> _actionsForPhone(String phone, String copyLabel) => [
         _CardAction(
           icon: const Icon(Icons.content_copy_rounded, size: 19),
           label: 'Copy',
           color: AppColors.textSecondary,
-          onTap: () => _c.copyToClipboard(phone, label),
+          onTap: () => _c.copyToClipboard(phone, copyLabel),
         ),
         _CardAction(
           icon: const FaIcon(FontAwesomeIcons.whatsapp, size: 19),
@@ -983,7 +900,109 @@ class _StudentDetailScreenState extends State<StudentDetailScreen> {
           color: AppColors.primary,
           onTap: () => _c.makeCall(phone, student: student),
         ),
-      ],
+      ];
+
+  Widget _buildParentCard({
+    required String parentKey,
+    required String role,
+    required ContactOwner owner,
+    required String? name,
+    required String? business,
+    required String? dob,
+    required List<_ParentPhoneEntry> phones,
+    required Widget icon,
+    required Color color,
+    bool isSharedNumber = false,
+  }) {
+    final primaryPhone = phones.isNotEmpty ? phones.first : null;
+    final extraPhones = phones.length > 1 ? phones.sublist(1) : const <_ParentPhoneEntry>[];
+    final cleanName = _has(name) ? name!.trim() : null;
+    final cleanBusiness = _has(business) ? business!.trim() : null;
+    final cleanDob = _has(dob) ? dob!.trim() : null;
+
+    final title = primaryPhone != null
+        ? primaryPhone.phone
+        : (cleanName ?? role);
+    final subtitleParts = <String>[
+      if (primaryPhone != null)
+        (cleanName != null ? '$role · $cleanName' : role)
+      else
+        '$role · No phone added',
+      if (isSharedNumber && primaryPhone != null) 'Shared',
+    ];
+
+    final detailRows = <Widget>[
+      _DetailRow(
+        icon: Icons.badge_outlined,
+        label: 'Full name',
+        value: cleanName ?? 'Not provided',
+        muted: cleanName == null,
+        iconColor: color,
+        onCopy: cleanName != null
+            ? () => _c.copyToClipboard(cleanName, '$role name')
+            : null,
+      ),
+      _DetailRow(
+        icon: Icons.work_outline_rounded,
+        label: 'Profession',
+        value: cleanBusiness ?? 'Not provided',
+        muted: cleanBusiness == null,
+        iconColor: color,
+        onCopy: cleanBusiness != null
+            ? () => _c.copyToClipboard(cleanBusiness, "$role's profession")
+            : null,
+      ),
+      _DetailRow(
+        icon: Icons.cake_outlined,
+        label: 'Date of birth',
+        value: cleanDob ?? 'Not provided',
+        muted: cleanDob == null,
+        iconColor: color,
+      ),
+      if (student.hasAnniversary)
+        _DetailRow(
+          icon: Icons.favorite_border_rounded,
+          label: "Parents' anniversary",
+          value: student.anniversaryFormatted,
+          iconColor: const Color(0xFFE11D48),
+          onCopy: () => _c.copyToClipboard(
+            student.anniversaryFormatted,
+            "Parents' anniversary",
+          ),
+        ),
+      if (student.hasHometown)
+        _DetailRow(
+          icon: Icons.location_city_rounded,
+          label: 'Hometown',
+          value: student.hometown,
+          iconColor: AppColors.pendingBlue,
+          onCopy: () => _c.copyToClipboard(student.hometown, 'Hometown'),
+        ),
+    ];
+
+    return _ParentContactCard(
+      leading: _TintedIcon(icon: icon, color: color),
+      title: title,
+      subtitle: subtitleParts.join(' · '),
+      accentColor: color,
+      isExpanded: _expandedParents.contains(parentKey),
+      onToggleDetails: () => _toggleParent(parentKey),
+      detailRows: detailRows,
+      primaryActions: primaryPhone != null
+          ? _actionsForPhone(
+              primaryPhone.phone,
+              cleanName != null ? '$role · $cleanName' : role,
+            )
+          : const [],
+      extraPhones: extraPhones,
+      buildExtraActions: (entry) => _actionsForPhone(
+        entry.phone,
+        cleanName != null ? '${entry.label} · $cleanName' : entry.label,
+      ),
+      onAddNumber: primaryPhone == null
+          ? () => _openAddContactNumber(initialOwner: owner)
+          : null,
+      addNumberLabel: 'Add $role number',
     );
   }
 }
@@ -1420,19 +1439,78 @@ class _CardAction {
   });
 }
 
-/// A number / email with a row of labelled actions underneath.
-class _ContactCard extends StatelessWidget {
+class _ParentPhoneEntry {
+  final String phone;
+  final String label;
+  const _ParentPhoneEntry({required this.phone, required this.label});
+}
+
+/// Interactive parent card (Father or Mother): shows primary phone + quick
+/// actions (and any extra India/Abroad numbers) and expands smoothly on tap
+/// to reveal the parent's full details without a separate duplicate Family card.
+class _ParentContactCard extends StatelessWidget {
   final Widget leading;
   final String title;
   final String subtitle;
-  final List<_CardAction> actions;
+  final Color accentColor;
+  final bool isExpanded;
+  final VoidCallback onToggleDetails;
+  final List<Widget> detailRows;
+  final List<_CardAction> primaryActions;
+  final List<_ParentPhoneEntry> extraPhones;
+  final List<_CardAction> Function(_ParentPhoneEntry entry) buildExtraActions;
+  final VoidCallback? onAddNumber;
+  final String addNumberLabel;
 
-  const _ContactCard({
+  const _ParentContactCard({
     required this.leading,
     required this.title,
     required this.subtitle,
-    required this.actions,
+    required this.accentColor,
+    required this.isExpanded,
+    required this.onToggleDetails,
+    required this.detailRows,
+    required this.primaryActions,
+    this.extraPhones = const [],
+    required this.buildExtraActions,
+    this.onAddNumber,
+    this.addNumberLabel = 'Add number',
   });
+
+  Widget _actionStrip(List<_CardAction> actions) {
+    return Row(
+      children: [
+        for (final a in actions)
+          Expanded(
+            child: InkWell(
+              onTap: a.onTap,
+              borderRadius: BorderRadius.circular(AppDimens.radiusSm),
+              child: Padding(
+                padding: const EdgeInsets.symmetric(vertical: 9),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    IconTheme(
+                      data: IconThemeData(color: a.color),
+                      child: a.icon,
+                    ),
+                    const SizedBox(height: 3),
+                    Text(
+                      a.label,
+                      style: AppTextStyles.caption.copyWith(
+                        color: a.color,
+                        fontWeight: FontWeight.w700,
+                        fontSize: 10.5,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ),
+      ],
+    );
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -1441,7 +1519,11 @@ class _ContactCard extends StatelessWidget {
       decoration: BoxDecoration(
         color: AppColors.surface,
         borderRadius: BorderRadius.circular(AppDimens.radiusMd),
-        border: Border.all(color: AppColors.borderLight),
+        border: Border.all(
+          color: isExpanded
+              ? accentColor.withValues(alpha: 0.45)
+              : AppColors.borderLight,
+        ),
       ),
       padding: const EdgeInsets.fromLTRB(
         AppDimens.cardPadding,
@@ -1450,57 +1532,158 @@ class _ContactCard extends StatelessWidget {
         AppDimens.gapXs,
       ),
       child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Row(
-            children: [
-              leading,
-              const SizedBox(width: AppDimens.gapMd),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
+          InkWell(
+            onTap: onToggleDetails,
+            borderRadius: BorderRadius.circular(AppDimens.radiusSm),
+            child: Padding(
+              padding: const EdgeInsets.symmetric(vertical: 2),
+              child: Row(
+                children: [
+                  leading,
+                  const SizedBox(width: AppDimens.gapMd),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(title, style: titleStyle),
+                        const SizedBox(height: 1),
+                        Text(subtitle, style: AppTextStyles.bodySm),
+                      ],
+                    ),
+                  ),
+                  const SizedBox(width: 6),
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                    decoration: BoxDecoration(
+                      color: accentColor.withValues(alpha: isExpanded ? 0.14 : 0.08),
+                      borderRadius: BorderRadius.circular(999),
+                    ),
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Text(
+                          isExpanded ? 'Hide' : 'Details',
+                          style: AppTextStyles.caption.copyWith(
+                            color: accentColor,
+                            fontWeight: FontWeight.w700,
+                            fontSize: 10.5,
+                          ),
+                        ),
+                        const SizedBox(width: 2),
+                        AnimatedRotation(
+                          turns: isExpanded ? 0.5 : 0,
+                          duration: const Duration(milliseconds: 220),
+                          curve: Curves.easeInOutCubic,
+                          child: Icon(
+                            Icons.keyboard_arrow_down_rounded,
+                            size: 16,
+                            color: accentColor,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+          AnimatedSize(
+            duration: const Duration(milliseconds: 240),
+            curve: Curves.easeInOutCubic,
+            alignment: Alignment.topCenter,
+            child: isExpanded
+                ? Container(
+                    margin: const EdgeInsets.only(top: AppDimens.gapSm),
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 10,
+                      vertical: 2,
+                    ),
+                    decoration: BoxDecoration(
+                      color: accentColor.withValues(alpha: 0.04),
+                      borderRadius: BorderRadius.circular(AppDimens.radiusSm),
+                      border: Border.all(
+                        color: accentColor.withValues(alpha: 0.16),
+                      ),
+                    ),
+                    child: Column(
+                      children: [
+                        for (var i = 0; i < detailRows.length; i++) ...[
+                          if (i > 0)
+                            const Divider(height: 1, color: AppColors.borderLight),
+                          detailRows[i],
+                        ],
+                      ],
+                    ),
+                  )
+                : const SizedBox(width: double.infinity),
+          ),
+          if (primaryActions.isNotEmpty) ...[
+            const SizedBox(height: AppDimens.gapSm),
+            const Divider(height: 1, color: AppColors.borderLight),
+            _actionStrip(primaryActions),
+          ] else if (onAddNumber != null) ...[
+            const SizedBox(height: AppDimens.gapSm),
+            const Divider(height: 1, color: AppColors.borderLight),
+            InkWell(
+              onTap: onAddNumber,
+              borderRadius: BorderRadius.circular(AppDimens.radiusSm),
+              child: Padding(
+                padding: const EdgeInsets.symmetric(vertical: 10),
+                child: Row(
+                  mainAxisAlignment: MainAxisAlignment.center,
                   children: [
-                    Text(title, style: titleStyle),
-                    const SizedBox(height: 1),
-                    Text(subtitle, style: AppTextStyles.bodySm),
+                    Icon(Icons.add_call, size: 16, color: accentColor),
+                    const SizedBox(width: 6),
+                    Text(
+                      addNumberLabel,
+                      style: AppTextStyles.caption.copyWith(
+                        color: accentColor,
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
                   ],
                 ),
               ),
-            ],
-          ),
-          const SizedBox(height: AppDimens.gapSm),
-          const Divider(height: 1, color: AppColors.borderLight),
-          Row(
-            children: [
-              for (final a in actions)
-                Expanded(
-                  child: InkWell(
-                    onTap: a.onTap,
-                    borderRadius: BorderRadius.circular(AppDimens.radiusSm),
-                    child: Padding(
-                      padding: const EdgeInsets.symmetric(vertical: 9),
-                      child: Column(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          IconTheme(
-                            data: IconThemeData(color: a.color),
-                            child: a.icon,
-                          ),
-                          const SizedBox(height: 3),
-                          Text(
-                            a.label,
-                            style: AppTextStyles.caption.copyWith(
-                              color: a.color,
-                              fontWeight: FontWeight.w700,
-                              fontSize: 10.5,
-                            ),
-                          ),
-                        ],
+            ),
+          ],
+          for (final extra in extraPhones) ...[
+            const Divider(height: 1, color: AppColors.borderLight),
+            Padding(
+              padding: const EdgeInsets.only(top: 8, bottom: 2),
+              child: Row(
+                children: [
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2),
+                    decoration: BoxDecoration(
+                      color: accentColor.withValues(alpha: 0.1),
+                      borderRadius: BorderRadius.circular(6),
+                    ),
+                    child: Text(
+                      extra.label,
+                      style: AppTextStyles.caption.copyWith(
+                        color: accentColor,
+                        fontWeight: FontWeight.w700,
+                        fontSize: 10.5,
                       ),
                     ),
                   ),
-                ),
-            ],
-          ),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: Text(
+                      extra.phone,
+                      style: AppTextStyles.bodyMd.copyWith(
+                        fontWeight: FontWeight.w700,
+                      ),
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            _actionStrip(buildExtraActions(extra)),
+          ],
         ],
       ),
     );

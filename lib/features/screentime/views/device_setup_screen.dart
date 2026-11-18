@@ -86,6 +86,17 @@ class _DeviceSetupScreenState extends State<DeviceSetupScreen> with WidgetsBindi
     if (Get.currentRoute.contains('device-setup')) Get.back();
   }
 
+  Future<void> _promptAccessibilityDisclosure() async {
+    final agreed = await showDialog<bool>(
+      context: context,
+      barrierDismissible: false,
+      builder: (ctx) => const _AccessibilityProminentDisclosureDialog(),
+    );
+    if (agreed == true) {
+      await ScreenTimeService.openAccessibilitySettings();
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final done = [_usage, _accessibility, _location, _battery || _batterySkipped].where((b) => b).length;
@@ -164,7 +175,7 @@ class _DeviceSetupScreenState extends State<DeviceSetupScreen> with WidgetsBindi
                         done: _accessibility,
                         checking: _checking,
                         actionLabel: 'Open settings',
-                        onAction: ScreenTimeService.openAccessibilitySettings,
+                        onAction: _promptAccessibilityDisclosure,
                         enabled: _usage,
                       ),
                       const SizedBox(height: AppDimens.gapMd),
@@ -335,6 +346,241 @@ class _Step extends StatelessWidget {
               ],
             ),
           ],
+        ],
+      ),
+    );
+  }
+}
+
+/// Prominent in-app disclosure modal required by Google Play User Data & Accessibility API Policy.
+/// Must be presented before the user is directed to the Android Accessibility settings screen.
+class _AccessibilityProminentDisclosureDialog extends StatelessWidget {
+  const _AccessibilityProminentDisclosureDialog();
+
+  @override
+  Widget build(BuildContext context) {
+    return AlertDialog(
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+      backgroundColor: Colors.white,
+      titlePadding: const EdgeInsets.fromLTRB(20, 20, 20, 0),
+      contentPadding: const EdgeInsets.fromLTRB(20, 14, 20, 0),
+      actionsPadding: const EdgeInsets.fromLTRB(16, 12, 16, 16),
+      title: Row(
+        children: [
+          Container(
+            width: 40,
+            height: 40,
+            decoration: BoxDecoration(
+              color: const Color(0xFFE0F2FE),
+              borderRadius: BorderRadius.circular(12),
+            ),
+            child: const Icon(
+              Icons.shield_rounded,
+              color: Color(0xFF0284C7),
+              size: 22,
+            ),
+          ),
+          const SizedBox(width: 12),
+          const Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  'ACCESSIBILITY API',
+                  style: TextStyle(
+                    fontSize: 10.5,
+                    fontWeight: FontWeight.w800,
+                    color: Color(0xFFD97706),
+                    letterSpacing: 0.8,
+                  ),
+                ),
+                SizedBox(height: 2),
+                Text(
+                  'Prominent Disclosure',
+                  style: TextStyle(
+                    fontSize: 17,
+                    fontWeight: FontWeight.w800,
+                    color: Color(0xFF0F172A),
+                    letterSpacing: -0.3,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+      content: SizedBox(
+        width: double.maxFinite,
+        child: SingleChildScrollView(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const Text(
+                'HSH Connect uses the Android AccessibilityService API strictly for hostel parental control, student focus, and curfew enforcement.',
+                style: TextStyle(
+                  fontSize: 13,
+                  fontWeight: FontWeight.w600,
+                  color: Color(0xFF334155),
+                  height: 1.4,
+                ),
+              ),
+              const SizedBox(height: 14),
+              const _DisclosureSectionHeader(
+                icon: Icons.check_circle_outline_rounded,
+                iconColor: Color(0xFF0284C7),
+                title: 'How It Is Used',
+              ),
+              const SizedBox(height: 6),
+              const _DisclosureBullet(
+                bold: 'Restricted App Blocking: ',
+                text: 'Detects when prohibited or non-academic apps are opened during active study and curfew hours, and displays a blocking screen.',
+              ),
+              const _DisclosureBullet(
+                bold: 'Foreground App Detection: ',
+                text: 'Only inspects the package name of the active foreground application to verify if it is restricted under hostel policy.',
+              ),
+              const SizedBox(height: 14),
+              const _DisclosureSectionHeader(
+                icon: Icons.lock_outline_rounded,
+                iconColor: Color(0xFF059669),
+                title: 'Privacy & Data Protection Guarantee',
+              ),
+              const SizedBox(height: 6),
+              const _DisclosureBullet(
+                bold: 'NO Personal Content: ',
+                text: 'Does NOT read, collect, or store any personal messages, emails, photos, passwords, or on-screen text.',
+              ),
+              const _DisclosureBullet(
+                bold: 'NO Keystroke Logging: ',
+                text: 'Does NOT track keystrokes, typing, or user input.',
+              ),
+              const _DisclosureBullet(
+                bold: 'NO Audio Recording: ',
+                text: 'Does NOT access or monitor the microphone or audio.',
+              ),
+              const _DisclosureBullet(
+                bold: 'Zero Third-Party Sharing: ',
+                text: 'Accessibility data is never shared with third parties, advertisers, or analytics trackers.',
+              ),
+              const SizedBox(height: 12),
+              Container(
+                padding: const EdgeInsets.all(10),
+                decoration: BoxDecoration(
+                  color: const Color(0xFFF1F5F9),
+                  borderRadius: BorderRadius.circular(10),
+                  border: Border.all(color: const Color(0xFFCBD5E1)),
+                ),
+                child: const Text(
+                  'Next: In Settings > Installed apps / Downloaded services, enable "HSH Connect Blocker".',
+                  style: TextStyle(
+                    fontSize: 11.5,
+                    color: Color(0xFF475569),
+                    fontWeight: FontWeight.w500,
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.of(context).pop(false),
+          child: const Text(
+            'Not Now',
+            style: TextStyle(
+              color: Color(0xFF64748B),
+              fontWeight: FontWeight.w600,
+            ),
+          ),
+        ),
+        ElevatedButton(
+          onPressed: () => Navigator.of(context).pop(true),
+          style: ElevatedButton.styleFrom(
+            backgroundColor: const Color(0xFF0284C7),
+            foregroundColor: Colors.white,
+            elevation: 1,
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(12),
+            ),
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+          ),
+          child: const Text(
+            'Agree & Continue',
+            style: TextStyle(fontWeight: FontWeight.w700),
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+class _DisclosureSectionHeader extends StatelessWidget {
+  final IconData icon;
+  final Color iconColor;
+  final String title;
+
+  const _DisclosureSectionHeader({
+    required this.icon,
+    required this.iconColor,
+    required this.title,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      children: [
+        Icon(icon, size: 16, color: iconColor),
+        const SizedBox(width: 6),
+        Text(
+          title,
+          style: const TextStyle(
+            fontSize: 12.5,
+            fontWeight: FontWeight.w800,
+            color: Color(0xFF0F172A),
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+class _DisclosureBullet extends StatelessWidget {
+  final String bold;
+  final String text;
+
+  const _DisclosureBullet({required this.bold, required this.text});
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 5),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Text('• ', style: TextStyle(color: Color(0xFF64748B), fontWeight: FontWeight.w700)),
+          Expanded(
+            child: RichText(
+              text: TextSpan(
+                style: const TextStyle(
+                  fontSize: 11.5,
+                  color: Color(0xFF475569),
+                  height: 1.35,
+                ),
+                children: [
+                  TextSpan(
+                    text: bold,
+                    style: const TextStyle(
+                      fontWeight: FontWeight.w700,
+                      color: Color(0xFF1E293B),
+                    ),
+                  ),
+                  TextSpan(text: text),
+                ],
+              ),
+            ),
+          ),
         ],
       ),
     );

@@ -50,6 +50,8 @@ List<PickableStudent> pickableStudentsFromRows(
   for (final m in rows) {
     final id = studentIdOf(m);
     if (id == null || !seen.add(id)) continue;
+    final status = (m['student_status'] ?? m['studentStatus'] ?? '').toString().trim().toLowerCase();
+    if (status == 'cancel-admission' || status == 'rejected-admission') continue;
     final room = (m['room_number'] ?? m['room'] ?? '').toString().trim();
     final alumni = isAlumniRoom(room);
     if (alumni && !includeAlumni) continue;

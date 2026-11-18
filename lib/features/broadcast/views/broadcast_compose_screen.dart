@@ -525,7 +525,7 @@ class _ReachBanner extends StatelessWidget {
             ],
             if (!reach) ...[
               const SizedBox(height: 2),
-              Text('No active students match this audience.', style: AppTextStyles.bodySm),
+              Text('No active students or alumni match this audience.', style: AppTextStyles.bodySm),
             ],
           ],
         ),

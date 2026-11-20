@@ -4,6 +4,8 @@ import 'package:get/get.dart';
 import 'package:intl/intl.dart';
 import '../../../core/models/alumni/alumni_models.dart';
 import '../../../core/utils/date_formatting.dart';
+import '../../phonebook/controllers/phonebook_controller.dart';
+import '../../phonebook/views/student_detail_screen.dart';
 import '../../shared/widgets/navy_sliver_header.dart';
 import '../../shared/widgets/sheet_scaffold.dart';
 import '../../shared/widgets/skeleton_loader.dart';
@@ -23,8 +25,6 @@ class _C {
   static const done = Color(0xFF16A34A);
   static const doneSoft = Color(0xFFDCFCE7);
   static const doneBorder = Color(0xFFBBF7D0);
-  static const pending = Color(0xFFD97706);
-  static const pendingSoft = Color(0xFFFEF3C7);
   static const danger = Color(0xFFE11D48);
   static const whatsapp = Color(0xFF25D366);
 }
@@ -143,9 +143,13 @@ class AlumniDailyOutreachScreen extends GetView<AlumniDailyOutreachController> {
         _DoneBanner(target: data.targetDailyCount),
         const SizedBox(height: 12),
       ],
+      if (!controller.isLeader.value) ...[
+        _SendAllRow(controller: controller, data: data),
+        const SizedBox(height: 12),
+      ],
       for (final s in controller.orderedStudents) ...[
         _AlumnusCard(controller: controller, student: s),
-        const SizedBox(height: 12),
+        const SizedBox(height: 8),
       ],
     ];
   }
@@ -489,8 +493,53 @@ class _TabPills extends StatelessWidget {
 // One alumnus
 // ======================================================================
 
-enum _MoreAction { copy, markDone, skip }
+enum _MoreAction { editMessage, copy, markDone, skip }
 
+/// Title row of today's list with the admin-only Send All button, placed like
+/// the one in Birthday Wishes.
+class _SendAllRow extends StatelessWidget {
+  final AlumniDailyOutreachController controller;
+  final AlumniDailyOutreachDataModel data;
+
+  const _SendAllRow({required this.controller, required this.data});
+
+  @override
+  Widget build(BuildContext context) {
+    final sending = controller.isSendingAll.value;
+    final allDone = controller.pendingCount == 0;
+    return Row(
+      children: [
+        Expanded(
+          child: Text(
+            "Today's alumni (${data.students.length})",
+            style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w800, color: _C.ink),
+          ),
+        ),
+        ElevatedButton(
+          onPressed: sending || allDone ? null : controller.sendAllToday,
+          style: ElevatedButton.styleFrom(
+            backgroundColor: _C.accent,
+            foregroundColor: Colors.white,
+            disabledBackgroundColor: _C.soft,
+            disabledForegroundColor: _C.muted,
+            elevation: 0,
+            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+          ),
+          child: sending
+              ? const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2, color: _C.accent))
+              : Text(
+                  allDone ? 'Sent Today ✓' : 'Send All',
+                  style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 12.5),
+                ),
+        ),
+      ],
+    );
+  }
+}
+
+/// One alumnus of today's list, kept small: who they are, whether they are
+/// messaged, and the quick actions. Tapping it opens their details.
 class _AlumnusCard extends StatelessWidget {
   final AlumniDailyOutreachController controller;
   final AlumniOutreachStudentModel student;
@@ -504,7 +553,7 @@ class _AlumnusCard extends StatelessWidget {
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
         title: Text('Skip ${student.name}?'),
         content: Text(
-          'Use this when the number is wrong or they can\'t be reached. Another alumnus of the '
+          "Use this when the number is wrong or they can't be reached. Another alumnus of the "
           '${controller.currentGroup.value} group takes their place today.',
           style: const TextStyle(fontSize: 13.5, color: _C.body, height: 1.4),
         ),
@@ -521,8 +570,26 @@ class _AlumnusCard extends StatelessWidget {
     if (ok == true) await controller.skipAlumnus(student);
   }
 
-  /// Own [Obx]: the busy state and the alumnus's own message change without
-  /// the list being rebuilt.
+  /// The phonebook's student screen when the alumnus is in the synced
+  /// phonebook, otherwise a short details sheet.
+  Future<void> _openDetails(BuildContext context) async {
+    final match = await controller.findInPhonebook(student);
+    if (!context.mounted) return;
+    if (match == null) {
+      await _AlumnusDetailsSheet.show(controller, student);
+      return;
+    }
+    // The phonebook screen needs its controller; drop it again afterwards.
+    final created = !Get.isRegistered<PhonebookController>();
+    if (created) Get.put(PhonebookController());
+    try {
+      await Navigator.of(context).push(MaterialPageRoute<void>(builder: (_) => StudentDetailScreen(student: match)));
+    } finally {
+      if (created && Get.isRegistered<PhonebookController>()) Get.delete<PhonebookController>();
+    }
+  }
+
+  /// Own [Obx]: the busy state changes without the list being rebuilt.
   @override
   Widget build(BuildContext context) => Obx(() => _card(context));
 
@@ -531,29 +598,31 @@ class _AlumnusCard extends StatelessWidget {
     final done = s.isMessaged;
     final busy = controller.busyIds.contains(s.studentId);
     final hasPhone = s.targetWhatsAppPhone.isNotEmpty || s.phone.trim().isNotEmpty;
-    final edited = controller.hasCustomMessage(s.studentId);
     final sentAt = _timeOf(s.contactedAt);
 
-    return Container(
-      decoration: _cardDecoration(border: done ? _C.doneBorder : _C.border),
-      padding: const EdgeInsets.all(14),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          Row(
-            crossAxisAlignment: CrossAxisAlignment.start,
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        borderRadius: BorderRadius.circular(16),
+        onTap: () => _openDetails(context),
+        child: Container(
+          decoration: _cardDecoration(border: done ? _C.doneBorder : _C.border).copyWith(
+            borderRadius: BorderRadius.circular(16),
+          ),
+          padding: const EdgeInsets.fromLTRB(10, 8, 2, 8),
+          child: Row(
             children: [
               CircleAvatar(
-                radius: 22,
+                radius: 18,
                 backgroundColor: done ? _C.doneSoft : _C.accentSoft,
                 child: done
-                    ? const Icon(Icons.check_rounded, color: _C.done)
+                    ? const Icon(Icons.check_rounded, size: 18, color: _C.done)
                     : Text(
                         s.initials,
-                        style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w800, color: _C.accent),
+                        style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w800, color: _C.accent),
                       ),
               ),
-              const SizedBox(width: 12),
+              const SizedBox(width: 10),
               Expanded(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
@@ -562,128 +631,49 @@ class _AlumnusCard extends StatelessWidget {
                       s.name,
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
-                      style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w700, color: _C.ink),
+                      style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w700, color: _C.ink),
                     ),
-                    const SizedBox(height: 2),
+                    const SizedBox(height: 1),
                     Text(
-                      'Room ${s.pastRoom} · ${s.batchLabel}',
-                      style: const TextStyle(fontSize: 12, color: _C.muted, fontWeight: FontWeight.w500),
-                    ),
-                    if (s.hasWorkInfo) ...[
-                      const SizedBox(height: 3),
-                      Row(
-                        children: [
-                          const Icon(Icons.work_outline_rounded, size: 13, color: _C.muted),
-                          const SizedBox(width: 4),
-                          Expanded(
-                            child: Text(
-                              s.currentRoleLine,
-                              maxLines: 1,
-                              overflow: TextOverflow.ellipsis,
-                              style: const TextStyle(fontSize: 12, color: Color(0xFF475569)),
-                            ),
-                          ),
-                        ],
+                      done && sentAt != null ? 'Messaged at $sentAt' : 'Room ${s.pastRoom} · ${s.batchLabel}',
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: TextStyle(
+                        fontSize: 11.5,
+                        color: done ? _C.done : _C.muted,
+                        fontWeight: done ? FontWeight.w600 : FontWeight.w500,
                       ),
-                    ],
-                  ],
-                ),
-              ),
-              const SizedBox(width: 8),
-              _StatusPill(done: done),
-            ],
-          ),
-          const SizedBox(height: 12),
-          // The message they get.
-          Container(
-            padding: const EdgeInsets.fromLTRB(12, 6, 6, 10),
-            decoration: BoxDecoration(
-              color: _C.bg,
-              borderRadius: BorderRadius.circular(12),
-              border: Border.all(color: _C.border),
-            ),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Row(
-                  children: [
-                    const Icon(Icons.chat_bubble_outline_rounded, size: 14, color: _C.accent),
-                    const SizedBox(width: 6),
-                    Text(
-                      edited ? 'Your message' : 'Message',
-                      style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w700, color: _C.accent),
                     ),
-                    const Spacer(),
-                    if (!done)
-                      TextButton.icon(
-                        onPressed: busy ? null : () => _EditMessageSheet.show(controller, s),
-                        style: TextButton.styleFrom(
-                          visualDensity: VisualDensity.compact,
-                          foregroundColor: _C.accent,
-                          textStyle: const TextStyle(fontSize: 12, fontWeight: FontWeight.w700),
-                        ),
-                        icon: const Icon(Icons.edit_outlined, size: 15),
-                        label: const Text('Edit'),
-                      )
-                    else
-                      const SizedBox(height: 36),
                   ],
-                ),
-                Text(
-                  done && (s.message ?? '').isNotEmpty ? s.message! : controller.getFormattedMessage(s),
-                  maxLines: 3,
-                  overflow: TextOverflow.ellipsis,
-                  style: const TextStyle(fontSize: 12.5, color: _C.body, height: 1.4),
-                ),
-              ],
-            ),
-          ),
-          if (done && sentAt != null) ...[
-            const SizedBox(height: 8),
-            Row(
-              children: [
-                const Icon(Icons.done_all_rounded, size: 15, color: _C.done),
-                const SizedBox(width: 6),
-                Text('Messaged at $sentAt', style: const TextStyle(fontSize: 12, color: _C.done, fontWeight: FontWeight.w600)),
-              ],
-            ),
-          ],
-          const SizedBox(height: 12),
-          Row(
-            children: [
-              _RoundIconButton(
-                icon: Icons.call_rounded,
-                tooltip: 'Call',
-                onTap: busy || !hasPhone ? null : () => controller.callPhone(s.phone.isNotEmpty ? s.phone : s.targetWhatsAppPhone),
-              ),
-              const SizedBox(width: 10),
-              Expanded(
-                child: SizedBox(
-                  height: 44,
-                  child: FilledButton.icon(
-                    style: FilledButton.styleFrom(
-                      backgroundColor: done ? Colors.white : _C.whatsapp,
-                      foregroundColor: done ? _C.done : Colors.white,
-                      side: done ? const BorderSide(color: _C.doneBorder) : null,
-                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                      textStyle: const TextStyle(fontSize: 13.5, fontWeight: FontWeight.w700),
-                    ),
-                    onPressed: busy ? null : () => controller.openWhatsApp(s),
-                    icon: busy
-                        ? const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2))
-                        : const Icon(Icons.send_rounded, size: 17),
-                    label: Text(done ? 'Send again' : 'Send on WhatsApp', maxLines: 1, overflow: TextOverflow.ellipsis),
-                  ),
                 ),
               ),
               const SizedBox(width: 6),
+              _RoundIconButton(
+                icon: Icons.call_rounded,
+                tooltip: 'Call',
+                size: 36,
+                onTap: busy || !hasPhone ? null : () => controller.callPhone(s.phone.isNotEmpty ? s.phone : s.targetWhatsAppPhone),
+              ),
+              const SizedBox(width: 6),
+              _RoundIconButton(
+                icon: Icons.send_rounded,
+                tooltip: done ? 'Send again' : 'Send on WhatsApp',
+                size: 36,
+                background: done ? _C.doneSoft : _C.whatsapp,
+                foreground: done ? _C.done : Colors.white,
+                busy: busy,
+                onTap: busy ? null : () => controller.openWhatsApp(s),
+              ),
               PopupMenuButton<_MoreAction>(
                 tooltip: 'More',
                 enabled: !busy,
+                padding: EdgeInsets.zero,
                 icon: const Icon(Icons.more_vert_rounded, color: _C.muted),
                 shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
                 onSelected: (a) {
                   switch (a) {
+                    case _MoreAction.editMessage:
+                      _EditMessageSheet.show(controller, s);
                     case _MoreAction.copy:
                       controller.copyMessage(s);
                     case _MoreAction.markDone:
@@ -693,6 +683,15 @@ class _AlumnusCard extends StatelessWidget {
                   }
                 },
                 itemBuilder: (_) => [
+                  if (!done)
+                    const PopupMenuItem(
+                      value: _MoreAction.editMessage,
+                      child: ListTile(
+                        leading: Icon(Icons.edit_outlined),
+                        title: Text('Edit message'),
+                        contentPadding: EdgeInsets.zero,
+                      ),
+                    ),
                   const PopupMenuItem(
                     value: _MoreAction.copy,
                     child: ListTile(leading: Icon(Icons.copy_rounded), title: Text('Copy message'), contentPadding: EdgeInsets.zero),
@@ -720,36 +719,75 @@ class _AlumnusCard extends StatelessWidget {
               ),
             ],
           ),
-        ],
+        ),
       ),
     );
   }
 }
 
-class _StatusPill extends StatelessWidget {
-  final bool done;
-  const _StatusPill({required this.done});
+/// Fallback details of an alumnus who isn't in the synced phonebook, from
+/// what today's list already carries.
+class _AlumnusDetailsSheet extends StatelessWidget {
+  final AlumniDailyOutreachController controller;
+  final AlumniOutreachStudentModel student;
+
+  const _AlumnusDetailsSheet({required this.controller, required this.student});
+
+  static Future<void> show(AlumniDailyOutreachController controller, AlumniOutreachStudentModel student) =>
+      Get.bottomSheet(
+        _AlumnusDetailsSheet(controller: controller, student: student),
+        isScrollControlled: true,
+        backgroundColor: Colors.transparent,
+      );
 
   @override
   Widget build(BuildContext context) {
-    final color = done ? _C.done : _C.pending;
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-      decoration: BoxDecoration(
-        color: done ? _C.doneSoft : _C.pendingSoft,
-        borderRadius: BorderRadius.circular(12),
-      ),
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Icon(done ? Icons.check_circle_rounded : Icons.schedule_rounded, size: 12, color: color),
-          const SizedBox(width: 4),
-          Text(
-            done ? 'Messaged' : 'Pending',
-            style: TextStyle(fontSize: 11, fontWeight: FontWeight.w700, color: color),
+    final s = student;
+    final phone = s.phone.trim().isNotEmpty ? s.phone.trim() : s.targetWhatsAppPhone;
+    final rows = <(IconData, String, String)>[
+      (Icons.meeting_room_outlined, 'Past room', s.pastRoom),
+      (Icons.school_outlined, 'Batch', s.batchLabel),
+      if (s.groupName.isNotEmpty) (Icons.groups_2_outlined, 'Group', s.groupName),
+      if ((s.currentCompany ?? '').isNotEmpty || (s.currentDesignation ?? '').isNotEmpty)
+        (Icons.work_outline_rounded, 'Work', s.currentRoleLine),
+      if ((s.currentCity ?? '').isNotEmpty) (Icons.location_city_rounded, 'City', s.currentCity!),
+      if (phone.isNotEmpty) (Icons.phone_outlined, 'Phone', phone),
+    ];
+    return SheetScaffold(
+      title: s.name,
+      subtitle: 'Not in the phonebook on this phone',
+      children: [
+        for (final r in rows)
+          Padding(
+            padding: const EdgeInsets.symmetric(vertical: 6),
+            child: Row(
+              children: [
+                Icon(r.$1, size: 18, color: _C.accent),
+                const SizedBox(width: 10),
+                SizedBox(
+                  width: 78,
+                  child: Text(r.$2, style: const TextStyle(fontSize: 12.5, color: _C.muted, fontWeight: FontWeight.w600)),
+                ),
+                Expanded(
+                  child: Text(r.$3, style: const TextStyle(fontSize: 13.5, color: _C.ink, fontWeight: FontWeight.w600)),
+                ),
+              ],
+            ),
+          ),
+        if (phone.isNotEmpty) ...[
+          const SizedBox(height: 12),
+          FilledButton.icon(
+            style: FilledButton.styleFrom(
+              backgroundColor: _C.accent,
+              minimumSize: const Size.fromHeight(46),
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+            ),
+            onPressed: () => controller.callPhone(phone),
+            icon: const Icon(Icons.call_rounded, size: 18),
+            label: const Text('Call'),
           ),
         ],
-      ),
+      ],
     );
   }
 }
@@ -758,23 +796,42 @@ class _RoundIconButton extends StatelessWidget {
   final IconData icon;
   final String tooltip;
   final VoidCallback? onTap;
+  final double size;
+  final Color? background;
+  final Color? foreground;
+  final bool busy;
 
-  const _RoundIconButton({required this.icon, required this.tooltip, required this.onTap});
+  const _RoundIconButton({
+    required this.icon,
+    required this.tooltip,
+    required this.onTap,
+    this.size = 44,
+    this.background,
+    this.foreground,
+    this.busy = false,
+  });
 
   @override
   Widget build(BuildContext context) {
+    final enabled = onTap != null;
+    final fg = foreground ?? (enabled ? _C.accent : _C.muted);
     return Tooltip(
       message: tooltip,
       child: Material(
-        color: onTap == null ? _C.soft : _C.accentSoft,
+        color: (busy || enabled) ? (background ?? _C.accentSoft) : _C.soft,
         shape: const CircleBorder(),
         child: InkWell(
           customBorder: const CircleBorder(),
           onTap: onTap,
           child: SizedBox(
-            width: 44,
-            height: 44,
-            child: Icon(icon, size: 20, color: onTap == null ? _C.muted : _C.accent),
+            width: size,
+            height: size,
+            child: busy
+                ? Padding(
+                    padding: EdgeInsets.all(size * 0.3),
+                    child: CircularProgressIndicator(strokeWidth: 2, color: fg),
+                  )
+                : Icon(icon, size: size * 0.46, color: fg),
           ),
         ),
       ),

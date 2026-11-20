@@ -1,13 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:get/get.dart';
-import '../../../core/constants/app_colors.dart';
 import '../../../core/constants/app_dimens.dart';
 import '../../../core/constants/app_text_styles.dart';
 import '../../../core/models/broadcasts/broadcast_models.dart';
 import '../../../core/utils/app_snackbar.dart';
 import '../../../core/utils/string_formatting.dart';
-import '../../shared/widgets/app_button.dart';
 import '../../shared/widgets/notice_banner.dart';
 import '../../shared/widgets/phonebook_style_widgets.dart';
 import '../../shared/widgets/student_picker_sheet.dart';
@@ -30,28 +28,39 @@ class BroadcastComposeScreen extends GetView<BroadcastComposeController> {
     final ok = await showDialog<bool>(
       context: context,
       builder: (dialogContext) => AlertDialog(
-        title: const Text('Send broadcast?'),
+        backgroundColor: Colors.white,
+        surfaceTintColor: Colors.transparent,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+        title: const Text(
+          'Send broadcast?',
+          style: TextStyle(
+            color: PhonebookTheme.ink,
+            fontSize: 18,
+            fontWeight: FontWeight.w800,
+            letterSpacing: -0.3,
+          ),
+        ),
         content: Column(
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Text(
               "Send $titleText to $n ${n == 1 ? 'student' : 'students'} via $channelDesc?",
-              style: AppTextStyles.bodyMd.copyWith(color: AppColors.textSecondary),
+              style: AppTextStyles.bodyMd.copyWith(color: PhonebookTheme.slate),
             ),
             if (channel != BroadcastChannel.whatsapp && preview.noDeviceCount > 0) ...[
               const SizedBox(height: AppDimens.gapSm),
               Text(
                 "${preview.noDeviceCount} ${preview.noDeviceCount == 1 ? 'has' : 'have'} no app installed; "
                 "they'll see it in their inbox upon login.",
-                style: AppTextStyles.bodySm.copyWith(color: AppColors.textSecondary),
+                style: AppTextStyles.bodySm.copyWith(color: PhonebookTheme.muted),
               ),
             ],
             if (channel != BroadcastChannel.app && preview.noWhatsappCount > 0) ...[
               const SizedBox(height: AppDimens.gapSm),
               Text(
                 "${preview.noWhatsappCount} ${preview.noWhatsappCount == 1 ? 'has' : 'have'} no phone number recorded.",
-                style: AppTextStyles.bodySm.copyWith(color: AppColors.textSecondary),
+                style: AppTextStyles.bodySm.copyWith(color: PhonebookTheme.muted),
               ),
             ],
           ],
@@ -59,13 +68,20 @@ class BroadcastComposeScreen extends GetView<BroadcastComposeController> {
         actions: [
           TextButton(
             onPressed: () => Navigator.of(dialogContext).pop(false),
+            style: TextButton.styleFrom(foregroundColor: PhonebookTheme.slate),
             child: const Text('Cancel'),
           ),
-          AppButton(
-            label: 'Send',
-            icon: Icons.send_rounded,
-            expand: false,
+          ElevatedButton.icon(
             onPressed: () => Navigator.of(dialogContext).pop(true),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: PhonebookTheme.blue,
+              foregroundColor: Colors.white,
+              elevation: 0,
+              minimumSize: const Size(0, 44),
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+            ),
+            icon: const Icon(Icons.send_rounded, size: 18),
+            label: const Text('Send', style: TextStyle(fontWeight: FontWeight.w700)),
           ),
         ],
       ),
@@ -110,8 +126,8 @@ class BroadcastComposeScreen extends GetView<BroadcastComposeController> {
                     style: ElevatedButton.styleFrom(
                       backgroundColor: PhonebookTheme.blue,
                       foregroundColor: Colors.white,
-                      disabledBackgroundColor: const Color(0xFFCBD5E1),
-                      disabledForegroundColor: Colors.white,
+                      disabledBackgroundColor: PhonebookTheme.border,
+                      disabledForegroundColor: PhonebookTheme.muted,
                       elevation: 0,
                       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
                     ),
@@ -162,21 +178,23 @@ class BroadcastComposeScreen extends GetView<BroadcastComposeController> {
                           controller: controller.titleController,
                           maxLength: BroadcastComposeController.maxTitle,
                           textCapitalization: TextCapitalization.sentences,
-                          decoration: const InputDecoration(
-                            labelText: 'Title (Optional)',
-                            hintText: 'e.g. Water supply (leave blank for quick notice)',
+                          style: _fieldTextStyle,
+                          decoration: _fieldDecoration(
+                            label: 'Title (Optional)',
+                            hint: 'e.g. Water supply (leave blank for quick notice)',
                           ),
                         ),
-                        const SizedBox(height: AppDimens.gapSm),
+                        const SizedBox(height: 14),
                         TextField(
                           controller: controller.messageController,
                           maxLength: BroadcastComposeController.maxMessage,
                           minLines: 4,
                           maxLines: 10,
                           textCapitalization: TextCapitalization.sentences,
-                          decoration: const InputDecoration(
-                            labelText: 'Message',
-                            hintText: 'What do students need to know?',
+                          style: _fieldTextStyle,
+                          decoration: _fieldDecoration(
+                            label: 'Message',
+                            hint: 'What do students need to know?',
                             alignLabelWithHint: true,
                           ),
                         ),
@@ -198,6 +216,34 @@ class BroadcastComposeScreen extends GetView<BroadcastComposeController> {
   }
 }
 
+const _fieldTextStyle = TextStyle(color: PhonebookTheme.ink, fontSize: 14);
+
+/// Phonebook-style outlined field, as in the complaint form.
+InputDecoration _fieldDecoration({
+  required String label,
+  required String hint,
+  bool alignLabelWithHint = false,
+}) {
+  OutlineInputBorder border(Color color, [double width = 1]) => OutlineInputBorder(
+        borderRadius: BorderRadius.circular(14),
+        borderSide: BorderSide(color: color, width: width),
+      );
+  return InputDecoration(
+    labelText: label,
+    hintText: hint,
+    alignLabelWithHint: alignLabelWithHint,
+    filled: true,
+    fillColor: PhonebookTheme.bg,
+    labelStyle: const TextStyle(color: PhonebookTheme.muted),
+    floatingLabelStyle: const TextStyle(color: PhonebookTheme.blue, fontWeight: FontWeight.w600),
+    hintStyle: TextStyle(color: PhonebookTheme.muted.withValues(alpha: 0.7)),
+    counterStyle: const TextStyle(color: PhonebookTheme.muted, fontSize: 11),
+    border: border(PhonebookTheme.border),
+    enabledBorder: border(PhonebookTheme.border),
+    focusedBorder: border(PhonebookTheme.blue, 1.6),
+  );
+}
+
 /// Segmented delivery channel picker: Both (App & WhatsApp), In-App, or WhatsApp.
 class _ChannelSelector extends StatelessWidget {
   final BroadcastComposeController controller;
@@ -212,11 +258,11 @@ class _ChannelSelector extends StatelessWidget {
         decoration: BoxDecoration(
           color: Colors.white,
           borderRadius: BorderRadius.circular(16),
-          border: Border.all(color: const Color(0xFFE2E8F0)),
+          border: Border.all(color: PhonebookTheme.border),
           boxShadow: [
             BoxShadow(
-              color: Colors.black.withValues(alpha: 0.03),
-              blurRadius: 8,
+              color: PhonebookTheme.ink.withValues(alpha: 0.04),
+              blurRadius: 12,
               offset: const Offset(0, 3),
             ),
           ],
@@ -271,13 +317,7 @@ class _ChannelSelector extends StatelessWidget {
             curve: Curves.easeInOut,
             padding: const EdgeInsets.symmetric(vertical: 10, horizontal: 4),
             decoration: BoxDecoration(
-              gradient: isSelected
-                  ? const LinearGradient(
-                      colors: [Color(0xFF0F172A), Color(0xFF1E293B)],
-                      begin: Alignment.topLeft,
-                      end: Alignment.bottomRight,
-                    )
-                  : null,
+              color: isSelected ? PhonebookTheme.blue : Colors.transparent,
               borderRadius: BorderRadius.circular(12),
             ),
             child: Column(
@@ -286,9 +326,7 @@ class _ChannelSelector extends StatelessWidget {
                 Icon(
                   icon,
                   size: 20,
-                  color: isSelected
-                      ? const Color(0xFF38BDF8)
-                      : const Color(0xFF64748B),
+                  color: isSelected ? Colors.white : PhonebookTheme.muted,
                 ),
                 const SizedBox(height: 4),
                 Text(
@@ -298,7 +336,7 @@ class _ChannelSelector extends StatelessWidget {
                   style: TextStyle(
                     fontSize: 12.5,
                     fontWeight: isSelected ? FontWeight.w700 : FontWeight.w600,
-                    color: isSelected ? Colors.white : const Color(0xFF334155),
+                    color: isSelected ? Colors.white : PhonebookTheme.ink,
                   ),
                 ),
                 Text(
@@ -309,8 +347,8 @@ class _ChannelSelector extends StatelessWidget {
                     fontSize: 10,
                     fontWeight: FontWeight.w500,
                     color: isSelected
-                        ? const Color(0xFF94A3B8)
-                        : const Color(0xFF94A3B8),
+                        ? Colors.white.withValues(alpha: 0.8)
+                        : PhonebookTheme.muted,
                   ),
                 ),
               ],
@@ -339,7 +377,7 @@ class _AudienceCard extends StatelessWidget {
           _TagChips(controller: controller),
           const Padding(
             padding: EdgeInsets.symmetric(vertical: AppDimens.gapLg),
-            child: Divider(),
+            child: Divider(height: 1, color: PhonebookTheme.border),
           ),
           _SubHeading(
             icon: Icons.person_rounded,
@@ -348,7 +386,8 @@ class _AudienceCard extends StatelessWidget {
               onPressed: () => StudentPickerSheet.show(context, controller),
               style: TextButton.styleFrom(
                 visualDensity: VisualDensity.compact,
-                textStyle: AppTextStyles.label,
+                foregroundColor: PhonebookTheme.blue,
+                textStyle: const TextStyle(fontSize: 13, fontWeight: FontWeight.w700),
               ),
               icon: const Icon(Icons.person_add_alt_1_rounded, size: 18),
               label: const Text('Add'),
@@ -376,9 +415,26 @@ class _SubHeading extends StatelessWidget {
       height: 32,
       child: Row(
         children: [
-          Icon(icon, size: 18, color: AppColors.primaryLight),
-          const SizedBox(width: AppDimens.gapSm),
-          Expanded(child: Text(title, style: AppTextStyles.subtitle)),
+          Container(
+            width: 28,
+            height: 28,
+            decoration: BoxDecoration(
+              color: PhonebookTheme.blueSoft,
+              borderRadius: BorderRadius.circular(9),
+            ),
+            child: Icon(icon, size: 16, color: PhonebookTheme.blue),
+          ),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Text(
+              title,
+              style: const TextStyle(
+                color: PhonebookTheme.ink,
+                fontSize: 14,
+                fontWeight: FontWeight.w700,
+              ),
+            ),
+          ),
           ?action,
         ],
       ),
@@ -403,7 +459,7 @@ class _TagChips extends StatelessWidget {
       if (controller.tags.isEmpty) {
         return Text(
           'No tags yet. Create them in Manage User → Student Tags, or add students individually.',
-          style: AppTextStyles.bodySm,
+          style: AppTextStyles.bodySm.copyWith(color: PhonebookTheme.muted),
         );
       }
       return Wrap(
@@ -434,7 +490,7 @@ class _SelectedStudents extends StatelessWidget {
       if (picked.isEmpty) {
         return Text(
           'None picked. Students with a selected tag are included automatically.',
-          style: AppTextStyles.bodySm,
+          style: AppTextStyles.bodySm.copyWith(color: PhonebookTheme.muted),
         );
       }
       return Wrap(
@@ -444,9 +500,16 @@ class _SelectedStudents extends StatelessWidget {
           for (final s in picked)
             InputChip(
               label: Text(s.room.isEmpty ? formatPersonName(s.name) : '${formatPersonName(s.name)} · ${s.room}'),
+              labelStyle: const TextStyle(
+                color: PhonebookTheme.ink,
+                fontSize: 12.5,
+                fontWeight: FontWeight.w600,
+              ),
+              backgroundColor: PhonebookTheme.blueSoft,
+              side: BorderSide.none,
               onDeleted: () => controller.removeStudent(s),
               deleteIcon: const Icon(Icons.close_rounded, size: 16),
-              deleteIconColor: AppColors.textMuted,
+              deleteIconColor: PhonebookTheme.muted,
             ),
         ],
       );
@@ -465,13 +528,14 @@ class _ReachBanner extends StatelessWidget {
       if (!controller.hasAudience) {
         return const NoticeBanner(
           icon: Icons.info_outline_rounded,
-          color: AppColors.textSecondary,
+          color: PhonebookTheme.slate,
           message: 'Pick at least one tag or student.',
         );
       }
       if (controller.isPreviewLoading.value) {
         return const NoticeBanner(
           icon: Icons.groups_rounded,
+          color: PhonebookTheme.blue,
           action: SizedBox(width: 18, height: 18, child: CircularProgressIndicator(strokeWidth: 2)),
           child: Text('Counting recipients…'),
         );
@@ -479,7 +543,7 @@ class _ReachBanner extends StatelessWidget {
       if (controller.previewError.value != null) {
         return NoticeBanner(
           icon: Icons.error_outline_rounded,
-          color: AppColors.errorRed,
+          color: PhonebookTheme.red,
           message: "Couldn't count recipients",
           action: TextButton(
             onPressed: controller.refreshPreview,
@@ -494,7 +558,7 @@ class _ReachBanner extends StatelessWidget {
       final channel = controller.selectedChannel.value;
       return NoticeBanner(
         icon: reach ? Icons.groups_rounded : Icons.person_off_rounded,
-        color: reach ? AppColors.successGreen : AppColors.warningOrange,
+        color: reach ? PhonebookTheme.green : PhonebookTheme.amber,
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
@@ -520,7 +584,7 @@ class _ReachBanner extends StatelessWidget {
                 p.recipientCount > p.sample.length ? '$names…' : names,
                 maxLines: 2,
                 overflow: TextOverflow.ellipsis,
-                style: AppTextStyles.bodySm.copyWith(color: AppColors.textMuted),
+                style: AppTextStyles.bodySm.copyWith(color: PhonebookTheme.muted),
               ),
             ],
             if (!reach) ...[

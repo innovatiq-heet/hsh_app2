@@ -6,8 +6,11 @@ import 'package:url_launcher/url_launcher.dart';
 import '../../../core/enums/user_role.dart';
 import '../../../core/models/alumni/alumni_models.dart';
 import '../../../core/network/repository/alumni/alumni_repository.dart';
+import '../../../core/network/repository/birthday/birthday_repository.dart';
 import '../../../core/storage/session_store.dart';
 import '../../../core/utils/app_snackbar.dart';
+import '../../phonebook/models/phonebook_models.dart';
+import '../../phonebook/services/phonebook_database_service.dart';
 
 /// Tabs of the Daily Alumni Connect screen.
 enum OutreachTab { today, history, message }
@@ -48,6 +51,12 @@ class AlumniDailyOutreachController extends GetxController {
 
   /// Alumni with a send, mark or skip in flight.
   final RxSet<int> busyIds = <int>{}.obs;
+
+  /// True while Send All is going through today's pending alumni.
+  final RxBool isSendingAll = false.obs;
+
+  /// Pause between two sends of Send All, so WhatsApp isn't flooded.
+  static const sendAllGap = Duration(milliseconds: 700);
 
   @override
   void onInit() {
@@ -290,6 +299,102 @@ class AlumniDailyOutreachController extends GetxController {
       AppSnackbar.error('Skip Failed', _message(e));
     } finally {
       busyIds.remove(student.studentId);
+    }
+  }
+
+  /// Sends today's message to every pending alumnus through the office's
+  /// linked WhatsApp session (admin only, like Birthday Wishes). Stops at the
+  /// first alumnus the gateway did not send to, e.g. when WhatsApp went offline.
+  Future<void> sendAllToday() async {
+    if (isLeader.value || isSendingAll.value) return;
+    final pending = (outreachData.value?.students ?? const <AlumniOutreachStudentModel>[])
+        .where((s) => s.isPending)
+        .toList();
+    if (pending.isEmpty) {
+      AppSnackbar.info('Nothing to Send', "Every alumnus of today's list is already messaged.");
+      return;
+    }
+    isSendingAll.value = true;
+    try {
+      if (!await _isWhatsAppLinked()) {
+        AppSnackbar.warning(
+          'WhatsApp Not Connected',
+          'Link the WhatsApp device in Birthday Wishes first, then try Send All again.',
+        );
+        return;
+      }
+      var sent = 0;
+      var skippedNoNumber = 0;
+      String? stoppedAt;
+      for (var i = 0; i < pending.length; i++) {
+        final s = pending[i];
+        if (s.targetWhatsAppPhone.isEmpty) {
+          skippedNoNumber++;
+          continue;
+        }
+        busyIds.add(s.studentId);
+        try {
+          final result = await _repository.sendOutreachViaGateway(s.studentId, message: getFormattedMessage(s));
+          if (result['gatewaySent'] != true) {
+            stoppedAt = s.name;
+            break;
+          }
+          sent++;
+        } catch (e) {
+          developer.log('sendAllToday error: $e', name: 'AlumniOutreach');
+          stoppedAt = s.name;
+          break;
+        } finally {
+          busyIds.remove(s.studentId);
+        }
+        if (i < pending.length - 1) await Future<void>.delayed(sendAllGap);
+      }
+      await loadDailyOutreach();
+      historyLoaded.value = false;
+
+      final extra = skippedNoNumber > 0 ? ' $skippedNoNumber had no number.' : '';
+      if (stoppedAt != null) {
+        AppSnackbar.warning(
+          'Send All Stopped',
+          'Sent to $sent. Could not send to $stoppedAt, so the rest were left for later.$extra',
+        );
+      } else if (sent > 0) {
+        AppSnackbar.success('Messages Sent', 'Sent to $sent ${sent == 1 ? 'alumnus' : 'alumni'}.$extra');
+      } else {
+        AppSnackbar.warning('Nothing Sent', 'No pending alumnus has a WhatsApp number.');
+      }
+    } finally {
+      isSendingAll.value = false;
+    }
+  }
+
+  /// Whether the office's WhatsApp session is online, as Birthday Wishes
+  /// decides it: the status call reports the linked phone.
+  Future<bool> _isWhatsAppLinked() async {
+    try {
+      final repo = Get.isRegistered<BirthdayRepository>() ? Get.find<BirthdayRepository>() : BirthdayRepository();
+      final res = await repo.getWhatsAppStatus();
+      final user = res['user'];
+      return user is Map && (user['phone']?.toString() ?? '').isNotEmpty;
+    } catch (e) {
+      developer.log('whatsapp status error: $e', name: 'AlumniOutreach');
+      return false;
+    }
+  }
+
+  /// This alumnus's entry in the synced phonebook, found by student (bank)
+  /// code. Display only: a code that is missing, or shared by several rows,
+  /// finds nothing rather than guessing. Never use it to act on a student.
+  Future<PhonebookStudent?> findInPhonebook(AlumniOutreachStudentModel student) async {
+    final code = PhonebookDatabaseService.normalizeBankCode(student.studentCode);
+    if (code.isEmpty) return null;
+    try {
+      final rows = await PhonebookDatabaseService.instance.searchStudents(query: student.studentCode.trim());
+      final matches = rows.where((r) => PhonebookDatabaseService.normalizeBankCode(r.bankCode ?? '') == code).toList();
+      return matches.length == 1 ? matches.first : null;
+    } catch (e) {
+      developer.log('findInPhonebook error: $e', name: 'AlumniOutreach');
+      return null;
     }
   }
 

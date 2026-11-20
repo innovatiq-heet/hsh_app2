@@ -9,9 +9,12 @@ class StudentContactCard extends StatelessWidget {
   final String? room;
   final String? groupName;
   final String? bankCode;
+
+  /// Photo for the avatar; the first letter shows while it loads or when it
+  /// can't be loaded.
+  final String? photoUrl;
   final String? dobText;
   final String primaryPhone;
-  final int alternatePhonesCount;
   final String? whatsappNumber;
   final bool isAlumni;
   final bool isSelected;
@@ -34,9 +37,9 @@ class StudentContactCard extends StatelessWidget {
     this.room,
     this.groupName,
     this.bankCode,
+    this.photoUrl,
     this.dobText,
     required this.primaryPhone,
-    this.alternatePhonesCount = 0,
     this.whatsappNumber,
     this.isAlumni = false,
     this.isSelected = false,
@@ -53,6 +56,24 @@ class StudentContactCard extends StatelessWidget {
     this.extraChips,
     this.margin,
   });
+
+  /// The photo when there is one, else the student's first letter.
+  Widget _avatarContent(String displayName, Color color) {
+    final letter = Text(
+      displayName.isNotEmpty
+          ? displayName[0].toUpperCase()
+          : (name.isNotEmpty ? name[0].toUpperCase() : 'S'),
+      style: TextStyle(color: color, fontWeight: FontWeight.w800, fontSize: 21),
+    );
+    final url = photoUrl;
+    if (url == null) return letter;
+    return StudentPhoto(
+      url: url,
+      name: displayName.isNotEmpty ? displayName : name,
+      letter: letter,
+      onFallbackTap: onTap,
+    );
+  }
 
   /// Group accent color
   static Color groupColor(String? group) {
@@ -200,18 +221,7 @@ class StudentContactCard extends StatelessWidget {
                                           : const Color(0xFF94A3B8),
                                       size: 22,
                                     )
-                                  : Text(
-                                      displayName.isNotEmpty
-                                          ? displayName[0].toUpperCase()
-                                          : (name.isNotEmpty
-                                                ? name[0].toUpperCase()
-                                                : 'S'),
-                                      style: TextStyle(
-                                        color: gColor,
-                                        fontWeight: FontWeight.w800,
-                                        fontSize: 21,
-                                      ),
-                                    ),
+                                  : _avatarContent(displayName, gColor),
                             ),
                             if (!isSelectionMode)
                               Positioned(
@@ -241,42 +251,33 @@ class StudentContactCard extends StatelessWidget {
 
                         const SizedBox(width: 12),
 
-                        // Name + Subtitle inline
+                        // Name. Room and group are shown by the chips and the
+                        // pill, so they are not repeated here.
                         Expanded(
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Text(
-                                displayName.isNotEmpty ? displayName : name,
-                                style: const TextStyle(
-                                  fontWeight: FontWeight.w700,
-                                  fontSize: 15.5,
-                                  color: Color(0xFF0F172A),
-                                  letterSpacing: -0.2,
-                                  height: 1.2,
-                                ),
-                                maxLines: 2,
-                                overflow: TextOverflow.ellipsis,
-                              ),
-                              const SizedBox(height: 3),
-                              customSubtitle ??
-                                  Text(
-                                    isAlumni
-                                        ? (room != null && room!.isNotEmpty
-                                              ? 'Alumni • Room $room'
-                                              : 'Alumni Student')
-                                        : (room != null && room!.isNotEmpty
-                                              ? 'Room $room • ${groupName ?? "Resident"}'
-                                              : (groupName ??
-                                                    'Registered Student')),
-                                    style: TextStyle(
-                                      fontSize: 11.5,
-                                      fontWeight: FontWeight.w600,
-                                      color: gColor,
-                                      height: 1.25,
-                                    ),
+                          child: ConstrainedBox(
+                            constraints: const BoxConstraints(minHeight: 48),
+                            child: Column(
+                              mainAxisAlignment: MainAxisAlignment.center,
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(
+                                  displayName.isNotEmpty ? displayName : name,
+                                  style: const TextStyle(
+                                    fontWeight: FontWeight.w700,
+                                    fontSize: 15.5,
+                                    color: Color(0xFF0F172A),
+                                    letterSpacing: -0.2,
+                                    height: 1.2,
                                   ),
-                            ],
+                                  maxLines: 2,
+                                  overflow: TextOverflow.ellipsis,
+                                ),
+                                if (customSubtitle != null) ...[
+                                  const SizedBox(height: 3),
+                                  customSubtitle!,
+                                ],
+                              ],
+                            ),
                           ),
                         ),
 
@@ -391,68 +392,16 @@ class StudentContactCard extends StatelessWidget {
                     const Divider(height: 1, color: Color(0xFFF1F5F9)),
                     const SizedBox(height: 10),
 
-                    // 3. Primary phone & quick communication action row
-                    IntrinsicHeight(
-                      child: Row(
-                        crossAxisAlignment: CrossAxisAlignment.stretch,
+                    // 3. Quick communication buttons. The number itself is not
+                    // listed: the buttons use it, and the detail screen shows it.
+                    if (primaryPhone != 'No Phone' && primaryPhone.isNotEmpty)
+                      Row(
                         children: [
-                          // Primary phone block
-                          Expanded(
-                            child: Row(
-                              children: [
-                                Container(
-                                  padding: const EdgeInsets.all(7.5),
-                                  decoration: BoxDecoration(
-                                    color: const Color(0xFFE0F2FE),
-                                    borderRadius: BorderRadius.circular(10),
-                                  ),
-                                  child: const Icon(
-                                    Icons.phone_rounded,
-                                    size: 14,
-                                    color: Color(0xFF0284C7),
-                                  ),
-                                ),
-                                const SizedBox(width: 8),
-                                Expanded(
-                                  child: Column(
-                                    crossAxisAlignment:
-                                        CrossAxisAlignment.start,
-                                    mainAxisAlignment: MainAxisAlignment.center,
-                                    children: [
-                                      Text(
-                                        primaryPhone,
-                                        style: const TextStyle(
-                                          fontSize: 13.5,
-                                          fontWeight: FontWeight.w700,
-                                          color: Color(0xFF0F172A),
-                                          letterSpacing: 0.2,
-                                        ),
-                                        maxLines: 1,
-                                        overflow: TextOverflow.ellipsis,
-                                      ),
-                                      if (alternatePhonesCount > 0)
-                                        Text(
-                                          '+$alternatePhonesCount more contact${alternatePhonesCount > 1 ? 's' : ''}',
-                                          style: const TextStyle(
-                                            fontSize: 10.5,
-                                            fontWeight: FontWeight.w600,
-                                            color: Color(0xFF64748B),
-                                          ),
-                                        ),
-                                    ],
-                                  ),
-                                ),
-                              ],
-                            ),
-                          ),
-                          const SizedBox(width: 8),
-
-                          // Quick action buttons: WhatsApp + Call
-                          if (primaryPhone != 'No Phone' &&
-                              primaryPhone.isNotEmpty) ...[
-                            if (onWhatsApp != null)
-                              _CardActionButton(
+                          if (onWhatsApp != null)
+                            Expanded(
+                              child: _CardActionButton(
                                 icon: Icons.chat_rounded,
+                                label: 'WhatsApp',
                                 iconColor: const Color(0xFF059669),
                                 bgColor: const Color(0xFFECFDF5),
                                 border: Border.all(
@@ -467,10 +416,14 @@ class StudentContactCard extends StatelessWidget {
                                             : primaryPhone,
                                       ),
                               ),
-                            if (onCall != null) ...[
-                              const SizedBox(width: 6),
-                              _CardActionButton(
+                            ),
+                          if (onWhatsApp != null && onCall != null)
+                            const SizedBox(width: 8),
+                          if (onCall != null)
+                            Expanded(
+                              child: _CardActionButton(
                                 icon: Icons.phone_rounded,
+                                label: 'Call',
                                 iconColor: const Color(0xFF0284C7),
                                 bgColor: const Color(0xFFE0F2FE),
                                 border: Border.all(
@@ -481,34 +434,29 @@ class StudentContactCard extends StatelessWidget {
                                     ? onTap
                                     : () => onCall!(primaryPhone),
                               ),
-                            ],
-                          ] else ...[
-                            Container(
-                              padding: const EdgeInsets.symmetric(
-                                horizontal: 10,
-                                vertical: 8,
-                              ),
-                              decoration: BoxDecoration(
-                                color: const Color(0xFFF8FAFC),
-                                borderRadius: BorderRadius.circular(12),
-                                border: Border.all(
-                                  color: const Color(0xFFE2E8F0),
-                                ),
-                              ),
-                              alignment: Alignment.center,
-                              child: const Text(
-                                'No Phone',
-                                style: TextStyle(
-                                  color: Color(0xFF94A3B8),
-                                  fontSize: 11,
-                                  fontWeight: FontWeight.w600,
-                                ),
-                              ),
                             ),
-                          ],
                         ],
+                      )
+                    else
+                      Container(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 10,
+                          vertical: 8,
+                        ),
+                        decoration: BoxDecoration(
+                          color: const Color(0xFFF8FAFC),
+                          borderRadius: BorderRadius.circular(12),
+                          border: Border.all(color: const Color(0xFFE2E8F0)),
+                        ),
+                        child: const Text(
+                          'No Phone',
+                          style: TextStyle(
+                            color: Color(0xFF94A3B8),
+                            fontSize: 11,
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
                       ),
-                    ),
                   ],
                 ),
               ),
@@ -572,10 +520,12 @@ class _CardActionButton extends StatelessWidget {
   final Color bgColor;
   final Border? border;
   final String tooltip;
+  final String label;
   final VoidCallback onTap;
 
   const _CardActionButton({
     required this.icon,
+    required this.label,
     required this.iconColor,
     required this.bgColor,
     this.border,
@@ -593,15 +543,28 @@ class _CardActionButton extends StatelessWidget {
           onTap: onTap,
           borderRadius: BorderRadius.circular(12),
           child: Container(
-            width: 44,
-            height: 38,
+            height: 40,
             decoration: BoxDecoration(
               color: bgColor,
               borderRadius: BorderRadius.circular(12),
               border: border,
             ),
             alignment: Alignment.center,
-            child: Icon(icon, size: 17, color: iconColor),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Icon(icon, size: 17, color: iconColor),
+                const SizedBox(width: 6),
+                Text(
+                  label,
+                  style: TextStyle(
+                    color: iconColor,
+                    fontSize: 12.5,
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+              ],
+            ),
           ),
         ),
       ),
@@ -644,4 +607,140 @@ class CornerWavePainter extends CustomPainter {
   @override
   bool shouldRepaint(covariant CornerWavePainter oldDelegate) =>
       oldDelegate.color != color;
+}
+
+/// A student's photo. The letter shows while it loads and if it can't be
+/// loaded (no photo on the server answers 403). Tapping a loaded photo opens it
+/// full size; this tap wins over the surrounding card's own tap.
+class StudentPhoto extends StatefulWidget {
+  final String url;
+  final String name;
+  final Widget letter;
+  final double size;
+  final double radius;
+
+  /// What a tap does while there is no photo to show: the card's own tap.
+  final VoidCallback? onFallbackTap;
+
+  const StudentPhoto({
+    super.key,
+    required this.url,
+    required this.name,
+    required this.letter,
+    this.size = 48,
+    this.radius = 14,
+    this.onFallbackTap,
+  });
+
+  @override
+  State<StudentPhoto> createState() => _StudentPhotoState();
+}
+
+class _StudentPhotoState extends State<StudentPhoto> {
+  bool _loaded = false;
+
+  /// Remembers whether the photo is showing, and rebuilds so the tap handler
+  /// follows (this runs while the image is building).
+  void _setLoaded(bool value) {
+    if (value == _loaded) return;
+    _loaded = value;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) setState(() {});
+    });
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      behavior: HitTestBehavior.opaque,
+      // Decided at tap time: whether the photo loaded is only known after
+      // this widget was built.
+      // No handler (null) lets the surrounding card take the tap.
+      onTap: (_loaded || widget.onFallbackTap != null)
+          ? () {
+              if (_loaded) {
+                showStudentPhotoDialog(context, url: widget.url, name: widget.name);
+              } else {
+                widget.onFallbackTap?.call();
+              }
+            }
+          : null,
+      child: ClipRRect(
+        borderRadius: BorderRadius.circular(widget.radius),
+        child: Image.network(
+          widget.url,
+          width: widget.size,
+          height: widget.size,
+          fit: BoxFit.cover,
+          // The files are large; decode them at avatar size.
+          cacheWidth: (widget.size * 3).round(),
+          gaplessPlayback: true,
+          frameBuilder: (context, child, frame, wasSynchronouslyLoaded) {
+            _setLoaded(frame != null || wasSynchronouslyLoaded);
+            return _loaded ? child : Center(child: widget.letter);
+          },
+          errorBuilder: (context, error, stack) {
+            _setLoaded(false);
+            return Center(child: widget.letter);
+          },
+        ),
+      ),
+    );
+  }
+}
+
+/// A student's photo in a popup: pinch to zoom, tap outside or the close
+/// button to dismiss.
+Future<void> showStudentPhotoDialog(BuildContext context, {required String url, required String name}) {
+  return showDialog<void>(
+    context: context,
+    barrierColor: Colors.black87,
+    builder: (dialogContext) => Dialog(
+      backgroundColor: Colors.transparent,
+      insetPadding: const EdgeInsets.all(16),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Align(
+            alignment: Alignment.centerRight,
+            child: IconButton(
+              tooltip: 'Close',
+              onPressed: () => Navigator.of(dialogContext).pop(),
+              icon: const Icon(Icons.close_rounded, color: Colors.white),
+            ),
+          ),
+          Flexible(
+            child: ClipRRect(
+              borderRadius: BorderRadius.circular(18),
+              child: InteractiveViewer(
+                maxScale: 4,
+                child: Image.network(
+                  url,
+                  fit: BoxFit.contain,
+                  loadingBuilder: (context, child, progress) => progress == null
+                      ? child
+                      : const SizedBox(
+                          height: 240,
+                          child: Center(child: CircularProgressIndicator(color: Colors.white)),
+                        ),
+                  errorBuilder: (context, error, stack) => const SizedBox(
+                    height: 200,
+                    child: Center(
+                      child: Text('Photo not available', style: TextStyle(color: Colors.white70)),
+                    ),
+                  ),
+                ),
+              ),
+            ),
+          ),
+          const SizedBox(height: 10),
+          Text(
+            name,
+            textAlign: TextAlign.center,
+            style: const TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.w700),
+          ),
+        ],
+      ),
+    ),
+  );
 }

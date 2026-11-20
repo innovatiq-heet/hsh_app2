@@ -10,6 +10,7 @@ import '../../shared/widgets/navy_sliver_header.dart';
 import '../../shared/widgets/sheet_scaffold.dart';
 import '../../shared/widgets/skeleton_loader.dart';
 import '../controllers/alumni_daily_outreach_controller.dart';
+import '../../shared/widgets/student_avatar.dart';
 
 /// Colours of the leader tools (Birthday Wishes, Screen Time): slate text and
 /// cards, sky-blue accent, green for done, amber for still to do.
@@ -612,9 +613,11 @@ class _AlumnusCard extends StatelessWidget {
           padding: const EdgeInsets.fromLTRB(10, 8, 2, 8),
           child: Row(
             children: [
-              CircleAvatar(
-                radius: 18,
-                backgroundColor: done ? _C.doneSoft : _C.accentSoft,
+              StudentAvatar(
+                name: s.name,
+                bankCode: s.studentCode,
+                size: 36,
+                background: done ? _C.doneSoft : _C.accentSoft,
                 child: done
                     ? const Icon(Icons.check_rounded, size: 18, color: _C.done)
                     : Text(

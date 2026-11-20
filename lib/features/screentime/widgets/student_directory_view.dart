@@ -12,6 +12,7 @@ import '../controllers/screen_time_utils.dart';
 import '../../../core/utils/string_formatting.dart';
 import 'app_brand_icon.dart';
 import 'app_requests_banner.dart';
+import '../../shared/widgets/student_avatar.dart';
 
 /// Warden's directory: search, quick filters and one row per student that
 /// answers "is this phone online, is it compliant, how much was it used?"
@@ -1222,15 +1223,16 @@ class _StudentRow extends GetView<ScreenTimeDirectoryController> {
                 Stack(
                   clipBehavior: Clip.none,
                   children: [
-                    Container(
-                      width: 44,
-                      height: 44,
-                      decoration: BoxDecoration(
-                        color: avatarBg,
-                        borderRadius: BorderRadius.circular(14),
-                        border: Border.all(color: avatarBorder),
-                      ),
-                      alignment: Alignment.center,
+                    // The list's `aadhar` is the bank code (0768) for most
+                    // students; only a full 12-digit one is used directly.
+                    StudentAvatar(
+                      name: name,
+                      aadhar: student['aadhar']?.toString(),
+                      bankCode: student['aadhar']?.toString(),
+                      size: 44,
+                      circle: false,
+                      background: avatarBg,
+                      borderColor: avatarBorder,
                       child: Text(
                         initials,
                         style: TextStyle(

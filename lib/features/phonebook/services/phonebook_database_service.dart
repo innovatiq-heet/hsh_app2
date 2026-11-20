@@ -561,6 +561,38 @@ class PhonebookDatabaseService {
     return buildGroupIndex(rows);
   }
 
+  /// 12-digit Aadhar per bank code, to find a student's photo elsewhere.
+  /// Display only: never use this to identify a student for an action.
+  Future<Map<String, String>> aadharByBankCode() async {
+    final db = await database;
+    final rows = await db.query(
+      'student_cache',
+      columns: ['bank_code', 'aadhar'],
+      where: "bank_code IS NOT NULL AND bank_code != '' AND aadhar IS NOT NULL AND aadhar != ''",
+    );
+    return buildAadharIndex(rows);
+  }
+
+  /// Indexes Aadhar numbers by normalized bank code. A code whose rows give
+  /// different Aadhar numbers is left out rather than guessed.
+  static Map<String, String> buildAadharIndex(List<Map<String, Object?>> rows) {
+    final index = <String, String>{};
+    final ambiguous = <String>{};
+    for (final row in rows) {
+      final key = normalizeBankCode('${row['bank_code'] ?? ''}');
+      final digits = '${row['aadhar'] ?? ''}'.replaceAll(RegExp(r'\D'), '');
+      if (key.isEmpty || digits.length != 12 || ambiguous.contains(key)) continue;
+      final existing = index[key];
+      if (existing != null && existing != digits) {
+        index.remove(key);
+        ambiguous.add(key);
+        continue;
+      }
+      index[key] = digits;
+    }
+    return index;
+  }
+
   /// Bank code without leading zeros ("0873" and "873" are the same student).
   static String normalizeBankCode(String code) => code.trim().replaceFirst(RegExp(r'^0+(?=.)'), '');
 

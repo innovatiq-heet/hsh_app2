@@ -3,7 +3,6 @@ import 'package:flutter/services.dart';
 import 'package:get/get.dart';
 import 'package:intl/intl.dart';
 import 'package:super_sliver_list/super_sliver_list.dart';
-import '../../../core/models/tags/student_tag_model.dart';
 import '../../../core/utils/string_formatting.dart';
 import '../../shared/widgets/empty_state.dart';
 import '../../shared/widgets/staggered_slide_fade.dart';
@@ -2063,12 +2062,11 @@ class _StudentPhonebookCard extends StatelessWidget {
       room: student.room,
       groupName: student.groupName,
       bankCode: student.bankCode,
+      photoUrl: student.photoUrl,
       dobText: student.hasDob
           ? '${student.formattedDob}${student.ageText.isNotEmpty ? " (${student.ageText})" : ""}'
           : null,
       primaryPhone: student.primaryPhone,
-      alternatePhonesCount:
-          student.phones.length > 1 ? student.phones.length - 1 : 0,
       whatsappNumber: student.whatsappNumber,
       isAlumni: student.isAlumni,
       isSelected: isSelected,
@@ -2080,17 +2078,6 @@ class _StudentPhonebookCard extends StatelessWidget {
       onCall: onCall,
       onWhatsApp: onWhatsApp,
       onShare: onShare,
-      extraChips: student.tags.isEmpty
-          ? null
-          : dedupeTags(student.tags).map((t) {
-              return CelebrantLightChip(
-                icon: Icons.label_rounded,
-                text: t.name,
-                bgColor: t.backgroundColor,
-                borderColor: t.borderColor,
-                textColor: t.color,
-              );
-            }).toList(),
       margin: EdgeInsets.zero,
     );
   }

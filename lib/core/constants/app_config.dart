@@ -28,6 +28,11 @@ class AppConfig {
       ? baseUrl.substring(0, baseUrl.length - 4)
       : baseUrl;
 
+  /// Public student photos: `<base>/<12-digit Aadhar>.jpg`. A student with
+  /// no photo answers 403, so callers must fall back to initials.
+  static const String studentPhotoBaseUrl =
+      'https://storage.googleapis.com/hari-saurabh-hostel-78d58.appspot.com/student/personal';
+
   /// Artificial delay used in repositories that serve mock/local data.
   static const Duration mockNetworkDelay = Duration(milliseconds: 600);
 

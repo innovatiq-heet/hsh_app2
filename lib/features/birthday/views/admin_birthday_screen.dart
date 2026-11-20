@@ -9,6 +9,7 @@ import '../../shared/widgets/student_contact_card.dart';
 import '../controllers/admin_birthday_controller.dart';
 import '../widgets/template_library.dart';
 import '../widgets/template_preview.dart';
+import '../../shared/widgets/student_avatar.dart';
 
 /// Modern, executive view of Hostel Birthday Greetings & Automation,
 /// styled with the signature deep navy header, sky-blue accents, amber section dashes,
@@ -842,14 +843,12 @@ class AdminBirthdayScreen extends GetView<AdminBirthdayController> {
                     Stack(
                       clipBehavior: Clip.none,
                       children: [
-                        Container(
-                          width: 46,
-                          height: 46,
-                          decoration: BoxDecoration(
-                            color: bgTint,
-                            borderRadius: BorderRadius.circular(14),
-                          ),
-                          alignment: Alignment.center,
+                        StudentAvatar(
+                          name: s.name,
+                          bankCode: s.studentCode,
+                          size: 46,
+                          circle: false,
+                          background: bgTint,
                           child: Text(
                             s.name.isNotEmpty ? s.name[0].toUpperCase() : '?',
                             style: TextStyle(
@@ -2964,14 +2963,11 @@ class AdminBirthdayScreen extends GetView<AdminBirthdayController> {
       ),
       child: Row(
         children: [
-          Container(
-            width: 38,
-            height: 38,
-            decoration: BoxDecoration(
-              color: avatarBgColor,
-              shape: BoxShape.circle,
-            ),
-            alignment: Alignment.center,
+          StudentAvatar(
+            name: s.name,
+            bankCode: s.studentCode,
+            size: 38,
+            background: avatarBgColor,
             child: Text(
               s.name.isNotEmpty ? s.name[0].toUpperCase() : '?',
               style: TextStyle(

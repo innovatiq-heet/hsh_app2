@@ -1,6 +1,7 @@
 import 'package:intl/intl.dart';
 import '../../../core/models/tags/student_tag_model.dart';
 import '../../../core/utils/string_formatting.dart';
+import '../../../core/utils/student_photo.dart';
 import '../services/phone_number_normalizer.dart';
 
 class PhonebookContact {
@@ -621,6 +622,9 @@ class PhonebookStudent {
     } catch (_) {}
     return '';
   }
+
+  /// The student's photo, named after the 12-digit Aadhar; null without one.
+  String? get photoUrl => studentPhotoUrl(aadhar);
 
   /// Masked Aadhar: e.g. "•••• •••• 4074"
   String get maskedAadhar {

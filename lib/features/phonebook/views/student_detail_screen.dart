@@ -2,14 +2,15 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:font_awesome_flutter/font_awesome_flutter.dart';
 import 'package:get/get.dart';
+import 'package:intl/intl.dart' show DateFormat;
 import '../../../core/constants/app_colors.dart';
 import '../../../core/constants/app_dimens.dart';
 import '../../../core/constants/app_routes.dart';
 import '../../../core/constants/app_text_styles.dart';
 import '../../../core/models/tags/student_tag_model.dart';
 import '../../shared/widgets/app_button.dart';
-import '../../shared/widgets/app_card.dart';
 import '../../shared/widgets/icon_badge.dart';
+import '../../shared/widgets/phonebook_style_widgets.dart';
 import '../../shared/widgets/status_badge.dart';
 import '../../shared/widgets/student_contact_card.dart';
 import '../controllers/phonebook_controller.dart';
@@ -249,7 +250,7 @@ class _StudentDetailScreenState extends State<StudentDetailScreen> {
     return AnnotatedRegion<SystemUiOverlayStyle>(
       value: SystemUiOverlayStyle.light,
       child: Scaffold(
-        backgroundColor: AppColors.mainBackground,
+        backgroundColor: PhonebookTheme.bg,
         body: CustomScrollView(
           slivers: [
             SliverPersistentHeader(
@@ -287,29 +288,23 @@ class _StudentDetailScreenState extends State<StudentDetailScreen> {
                   const SizedBox(height: AppDimens.gapMd),
                   _familyContactsSection(),
                   const SizedBox(height: AppDimens.gapLg),
-                  AppButton(
-                    label: 'Add Contact Number',
-                    icon: Icons.add_call,
-                    onPressed: _openAddContactNumber,
+                  // Side by side. Alumni have no hostel phone to monitor (Screen
+                  // Time lists residents only), so they only get Share.
+                  Row(
+                    children: [
+                      Expanded(
+                        child: AppButton(
+                          label: 'Share details',
+                          icon: Icons.ios_share_rounded,
+                          onPressed: () => _c.shareStudent(student),
+                        ),
+                      ),
+                      if (!student.isAlumni) ...[
+                        const SizedBox(width: AppDimens.gapSm),
+                        Expanded(child: _ScreenTimeButton(student: student)),
+                      ],
+                    ],
                   ),
-                  const SizedBox(height: AppDimens.gapSm),
-                  AppButton(
-                    label: 'Manage All Contacts',
-                    icon: Icons.contact_phone_outlined,
-                    variant: AppButtonVariant.outline,
-                    onPressed: _openManageContacts,
-                  ),
-                  const SizedBox(height: AppDimens.gapSm),
-                  AppButton(
-                    label: 'Share complete details',
-                    icon: Icons.ios_share_rounded,
-                    onPressed: () => _c.shareStudent(student),
-                  ),
-                  // Alumni have no hostel phone to monitor (Screen Time lists residents only).
-                  if (!student.isAlumni) ...[
-                    const SizedBox(height: AppDimens.gapSm),
-                    _ScreenTimeButton(student: student),
-                  ],
                 ],
               ),
             ),
@@ -358,7 +353,7 @@ class _StudentDetailScreenState extends State<StudentDetailScreen> {
   /// round Call / WhatsApp / Message / Gmail actions.
   Widget _studentContactCard() {
     if (_studentNumbers.isEmpty && !_hasPhone && !_has(student.email)) {
-      return AppCard(
+      return _SectionCard(
         padding: const EdgeInsets.all(AppDimens.cardPadding),
         child: Row(
           children: [
@@ -501,23 +496,20 @@ class _StudentDetailScreenState extends State<StudentDetailScreen> {
       onToggle: () => _toggleSection('hostel'),
       summary: roomSummary,
       children: [
-        _DetailRow(
-          icon: Icons.meeting_room_rounded,
-          label: 'Room',
-          value: _has(student.room) ? student.room! : 'Not allotted',
-          muted: !_has(student.room),
-        ),
+        // The header already shows a resident's room and group.
+        if (isAlumni || !_has(student.room))
+          _DetailRow(
+            icon: Icons.meeting_room_rounded,
+            label: isAlumni ? 'Past room' : 'Room',
+            value: _has(student.room) ? student.room! : 'Not allotted',
+            muted: !_has(student.room),
+          ),
         if (floor != null)
           _DetailRow(
             icon: Icons.stairs_rounded,
             label: 'Floor',
             value: floor == 0 ? 'Ground floor' : 'Floor $floor',
           ),
-        _DetailRow(
-          icon: Icons.apartment_rounded,
-          label: 'Wing / group',
-          value: student.groupName ?? 'Hostel',
-        ),
         _DetailRow(
           icon: Icons.verified_user_rounded,
           label: 'Status',
@@ -600,7 +592,7 @@ class _StudentDetailScreenState extends State<StudentDetailScreen> {
         ? 'None'
         : '${contacts.length} ${contacts.length == 1 ? 'contact' : 'contacts'}';
 
-    return AppCard(
+    return _SectionCard(
       padding: const EdgeInsets.fromLTRB(
         AppDimens.cardPadding,
         AppDimens.gapSm,
@@ -621,7 +613,7 @@ class _StudentDetailScreenState extends State<StudentDetailScreen> {
                     child: Row(
                       children: [
                         Expanded(
-                          child: Text('FAMILY CONTACTS', style: AppTextStyles.overline),
+                          child: const _SectionTitle('FAMILY CONTACTS'),
                         ),
                         if (!isExpanded)
                           Container(
@@ -853,7 +845,6 @@ class _StudentDetailScreenState extends State<StudentDetailScreen> {
         phones: fatherPhones,
         icon: const Icon(Icons.man_rounded, size: 22),
         color: AppColors.secondaryDark,
-        isSharedNumber: sharedPrimary,
       ));
     }
 
@@ -868,11 +859,22 @@ class _StudentDetailScreenState extends State<StudentDetailScreen> {
         phones: motherPhones,
         icon: const Icon(Icons.woman_rounded, size: 22),
         color: const Color(0xFFDB2777),
-        isSharedNumber: sharedPrimary,
+        sharesNumberWithFather: sharedPrimary,
+        // The parents' anniversary is listed once, on the father's card.
+        showAnniversary: !hasFatherSection,
       ));
     }
 
     return cards;
+  }
+
+  /// "19 Mar 1971" from an ISO date or epoch milliseconds; anything else as is.
+  static String _formatDate(String raw) {
+    final ms = int.tryParse(raw);
+    final dt = (ms != null && ms > 0)
+        ? DateTime.fromMillisecondsSinceEpoch(ms, isUtc: true).add(const Duration(hours: 5, minutes: 30))
+        : DateTime.tryParse(raw);
+    return dt == null ? raw : DateFormat('d MMM yyyy').format(dt);
   }
 
   List<_CardAction> _actionsForPhone(String phone, String copyLabel) => [
@@ -912,7 +914,8 @@ class _StudentDetailScreenState extends State<StudentDetailScreen> {
     required List<_ParentPhoneEntry> phones,
     required Widget icon,
     required Color color,
-    bool isSharedNumber = false,
+    bool sharesNumberWithFather = false,
+    bool showAnniversary = true,
   }) {
     final primaryPhone = phones.isNotEmpty ? phones.first : null;
     final extraPhones = phones.length > 1 ? phones.sublist(1) : const <_ParentPhoneEntry>[];
@@ -920,75 +923,49 @@ class _StudentDetailScreenState extends State<StudentDetailScreen> {
     final cleanBusiness = _has(business) ? business!.trim() : null;
     final cleanDob = _has(dob) ? dob!.trim() : null;
 
-    final title = primaryPhone != null
-        ? primaryPhone.phone
-        : (cleanName ?? role);
-    final subtitleParts = <String>[
-      if (primaryPhone != null)
-        (cleanName != null ? '$role · $cleanName' : role)
-      else
-        '$role · No phone added',
-      if (isSharedNumber && primaryPhone != null) 'Shared',
-    ];
+    // The parent's name leads the card; the number is its subtitle.
+    final title = cleanName ?? role;
+    final subtitle = primaryPhone == null
+        ? '$role · No phone added'
+        : (sharesNumberWithFather
+            ? '$role · Same number as father'
+            : '$role · ${primaryPhone.phone}');
 
+    // Only what is known: the name is the title, so it is not repeated here.
     final detailRows = <Widget>[
-      _DetailRow(
-        icon: Icons.badge_outlined,
-        label: 'Full name',
-        value: cleanName ?? 'Not provided',
-        muted: cleanName == null,
-        iconColor: color,
-        onCopy: cleanName != null
-            ? () => _c.copyToClipboard(cleanName, '$role name')
-            : null,
-      ),
-      _DetailRow(
-        icon: Icons.work_outline_rounded,
-        label: 'Profession',
-        value: cleanBusiness ?? 'Not provided',
-        muted: cleanBusiness == null,
-        iconColor: color,
-        onCopy: cleanBusiness != null
-            ? () => _c.copyToClipboard(cleanBusiness, "$role's profession")
-            : null,
-      ),
-      _DetailRow(
-        icon: Icons.cake_outlined,
-        label: 'Date of birth',
-        value: cleanDob ?? 'Not provided',
-        muted: cleanDob == null,
-        iconColor: color,
-      ),
-      if (student.hasAnniversary)
+      if (cleanBusiness != null)
+        _DetailRow(
+          icon: Icons.work_outline_rounded,
+          label: 'Profession',
+          value: cleanBusiness,
+          iconColor: color,
+          onCopy: () => _c.copyToClipboard(cleanBusiness, "$role's profession"),
+        ),
+      if (cleanDob != null)
+        _DetailRow(
+          icon: Icons.cake_outlined,
+          label: 'Date of birth',
+          value: _formatDate(cleanDob),
+          iconColor: color,
+        ),
+      if (student.hasAnniversary && showAnniversary)
         _DetailRow(
           icon: Icons.favorite_border_rounded,
-          label: "Parents' anniversary",
+          label: 'Anniversary',
           value: student.anniversaryFormatted,
           iconColor: const Color(0xFFE11D48),
-          onCopy: () => _c.copyToClipboard(
-            student.anniversaryFormatted,
-            "Parents' anniversary",
-          ),
-        ),
-      if (student.hasHometown)
-        _DetailRow(
-          icon: Icons.location_city_rounded,
-          label: 'Hometown',
-          value: student.hometown,
-          iconColor: AppColors.pendingBlue,
-          onCopy: () => _c.copyToClipboard(student.hometown, 'Hometown'),
         ),
     ];
 
     return _ParentContactCard(
       leading: _TintedIcon(icon: icon, color: color),
       title: title,
-      subtitle: subtitleParts.join(' · '),
+      subtitle: subtitle,
       accentColor: color,
       isExpanded: _expandedParents.contains(parentKey),
       onToggleDetails: () => _toggleParent(parentKey),
       detailRows: detailRows,
-      primaryActions: primaryPhone != null
+      primaryActions: primaryPhone != null && !sharesNumberWithFather
           ? _actionsForPhone(
               primaryPhone.phone,
               cleanName != null ? '$role · $cleanName' : role,
@@ -1071,7 +1048,7 @@ class _StudentDetailTagsCardState extends State<_StudentDetailTagsCard> {
 
   @override
   Widget build(BuildContext context) {
-    return AppCard(
+    return _SectionCard(
       padding: const EdgeInsets.fromLTRB(
         AppDimens.cardPadding,
         AppDimens.gapSm,
@@ -1092,7 +1069,7 @@ class _StudentDetailTagsCardState extends State<_StudentDetailTagsCard> {
                     child: Row(
                       children: [
                         Expanded(
-                          child: Text('TAGS & ROLES', style: AppTextStyles.overline),
+                          child: const _SectionTitle('TAGS & ROLES'),
                         ),
                         if (!widget.isExpanded)
                           Container(
@@ -1233,7 +1210,7 @@ class _DetailCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return AppCard(
+    return _SectionCard(
       padding: const EdgeInsets.fromLTRB(
         AppDimens.cardPadding,
         AppDimens.gapSm,
@@ -1251,7 +1228,7 @@ class _DetailCard extends StatelessWidget {
               child: Row(
                 children: [
                   Expanded(
-                    child: Text(title.toUpperCase(), style: AppTextStyles.overline),
+                    child: _SectionTitle(title.toUpperCase()),
                   ),
                   if (!isExpanded && summary != null && summary!.isNotEmpty)
                     Container(
@@ -1515,14 +1492,16 @@ class _ParentContactCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final titleStyle = AppTextStyles.subtitle.copyWith(fontSize: 14.5);
+    final canExpand = detailRows.isNotEmpty;
+    final isExpanded = this.isExpanded && canExpand;
     return Container(
       decoration: BoxDecoration(
-        color: AppColors.surface,
+        color: const Color(0xFFF8FAFC),
         borderRadius: BorderRadius.circular(AppDimens.radiusMd),
         border: Border.all(
           color: isExpanded
               ? accentColor.withValues(alpha: 0.45)
-              : AppColors.borderLight,
+              : PhonebookTheme.border,
         ),
       ),
       padding: const EdgeInsets.fromLTRB(
@@ -1535,7 +1514,7 @@ class _ParentContactCard extends StatelessWidget {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           InkWell(
-            onTap: onToggleDetails,
+            onTap: canExpand ? onToggleDetails : null,
             borderRadius: BorderRadius.circular(AppDimens.radiusSm),
             child: Padding(
               padding: const EdgeInsets.symmetric(vertical: 2),
@@ -1554,6 +1533,7 @@ class _ParentContactCard extends StatelessWidget {
                     ),
                   ),
                   const SizedBox(width: 6),
+                  if (canExpand)
                   Container(
                     padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
                     decoration: BoxDecoration(
@@ -1786,13 +1766,23 @@ class _StudentDetailHeaderDelegate extends SliverPersistentHeaderDelegate {
       text: TextSpan(text: student.name, style: _nameStyle),
       maxLines: 2,
       textDirection: TextDirection.ltr,
-    )..layout(maxWidth: contentWidth);
+    )..layout(maxWidth: contentWidth - _photoSpace);
     return painter.height;
   }
 
-  // top bar (52) + gap (6) + name + gap (12) + pills (26) + bottom (18)
+  static const _photoSize = 72.0;
+
+  /// Width the photo takes from the name and pills (photo + gap); 0 without one.
+  double get _photoSpace => student.photoUrl == null ? 0 : _photoSize + 12;
+
+  // top bar (52) + gap (6) + the taller of [name + gap (12) + pills (26)] and
+  // the photo + bottom (18)
   @override
-  double get maxExtent => topPadding + 52 + 6 + _nameHeight + 12 + 26 + 18;
+  double get maxExtent {
+    final text = _nameHeight + 12 + 26;
+    final content = student.photoUrl == null ? text : (text > _photoSize ? text : _photoSize);
+    return topPadding + 52 + 6 + content + 18;
+  }
 
   Widget _roundButton(IconData icon, String tooltip, VoidCallback onTap, {Color iconColor = Colors.white}) {
     return Tooltip(
@@ -1956,7 +1946,45 @@ class _StudentDetailHeaderDelegate extends SliverPersistentHeaderDelegate {
                 bottom: 18,
                 child: Opacity(
                   opacity: expandedOpacity,
-                  child: Column(
+                  child: Row(
+                    crossAxisAlignment: CrossAxisAlignment.end,
+                    children: [
+                      Expanded(child: _nameAndPills(isAlumni, hasRoom, hasCode)),
+                      if (student.photoUrl != null) ...[
+                        const SizedBox(width: 12),
+                        _photo(),
+                      ],
+                    ],
+                  ),
+                ),
+              ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _photo() {
+    return Container(
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(color: Colors.white.withValues(alpha: 0.4), width: 1.5),
+      ),
+      child: StudentPhoto(
+        url: student.photoUrl!,
+        name: student.name,
+        size: _photoSize,
+        radius: 18,
+        letter: Text(
+          student.name.isNotEmpty ? student.name[0].toUpperCase() : 'S',
+          style: const TextStyle(color: Colors.white, fontSize: 28, fontWeight: FontWeight.w800),
+        ),
+      ),
+    );
+  }
+
+  Widget _nameAndPills(bool isAlumni, bool hasRoom, bool hasCode) {
+    return Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     mainAxisSize: MainAxisSize.min,
                     children: [
@@ -1985,12 +2013,6 @@ class _StudentDetailHeaderDelegate extends SliverPersistentHeaderDelegate {
                         ],
                       ),
                     ],
-                  ),
-                ),
-              ),
-          ],
-        ),
-      ),
     );
   }
 
@@ -2052,7 +2074,7 @@ class _ScreenTimeButtonState extends State<_ScreenTimeButton> {
   @override
   Widget build(BuildContext context) {
     return AppButton(
-      label: 'View screen time',
+      label: 'Screen time',
       icon: Icons.timelapse_rounded,
       variant: AppButtonVariant.outline,
       isLoading: _loading,
@@ -2193,7 +2215,7 @@ class _CollapsibleContactCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return AppCard(
+    return _SectionCard(
       padding: const EdgeInsets.fromLTRB(
         AppDimens.cardPadding,
         AppDimens.gapSm,
@@ -2203,6 +2225,9 @@ class _CollapsibleContactCard extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
+          // One row: title with what the card holds, then Add / Manage as
+          // round icon buttons and the chevron. Icons keep it on one line
+          // on a phone, where the labelled links did not fit.
           Row(
             children: [
               Expanded(
@@ -2211,91 +2236,60 @@ class _CollapsibleContactCard extends StatelessWidget {
                   borderRadius: BorderRadius.circular(AppDimens.radiusSm),
                   child: Padding(
                     padding: const EdgeInsets.symmetric(vertical: AppDimens.gapSm),
-                    child: Row(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        Expanded(
-                          child: Text('STUDENT CONTACT', style: AppTextStyles.overline),
-                        ),
-                        if (!isExpanded && summary != null && summary!.isNotEmpty)
-                          Container(
-                            margin: const EdgeInsets.only(right: 8),
-                            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
-                            decoration: BoxDecoration(
-                              color: AppColors.surface,
-                              borderRadius: BorderRadius.circular(10),
-                              border: Border.all(color: AppColors.borderLight),
-                            ),
-                            child: Text(
-                              summary!,
-                              style: AppTextStyles.caption.copyWith(
-                                fontWeight: FontWeight.w600,
-                                color: AppColors.textSecondary,
-                                fontSize: 11,
-                              ),
+                        const _SectionTitle('STUDENT CONTACT'),
+                        if (summary != null && summary!.isNotEmpty) ...[
+                          const SizedBox(height: 2),
+                          Text(
+                            summary!,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: AppTextStyles.caption.copyWith(
+                              fontWeight: FontWeight.w600,
+                              color: AppColors.textSecondary,
                             ),
                           ),
-                        AnimatedRotation(
-                          turns: isExpanded ? 0.5 : 0,
-                          duration: const Duration(milliseconds: 240),
-                          curve: Curves.easeInOutCubic,
-                          child: const Icon(
-                            Icons.keyboard_arrow_down_rounded,
-                            color: AppColors.textSecondary,
-                          ),
-                        ),
+                        ],
                       ],
                     ),
                   ),
                 ),
               ),
-              if (onAdd != null) ...[
-                const SizedBox(width: 8),
-                InkWell(
-                  onTap: onAdd,
-                  borderRadius: BorderRadius.circular(AppDimens.radiusSm),
-                  child: Padding(
-                    padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                    child: Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        const Icon(Icons.add_call, size: 14, color: AppColors.primary),
-                        const SizedBox(width: 4),
-                        Text(
-                          'Add Number',
-                          style: AppTextStyles.caption.copyWith(
-                            color: AppColors.primary,
-                            fontWeight: FontWeight.w700,
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
+              if (onAdd != null)
+                _HeaderIconButton(
+                  icon: Icons.add_call,
+                  tooltip: 'Add number',
+                  color: AppColors.primary,
+                  onTap: onAdd!,
                 ),
-              ],
               if (onManage != null) ...[
                 const SizedBox(width: 6),
-                InkWell(
-                  onTap: onManage,
-                  borderRadius: BorderRadius.circular(AppDimens.radiusSm),
-                  child: Padding(
-                    padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                    child: Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        const Icon(Icons.edit_outlined, size: 13, color: Color(0xFF64748B)),
-                        const SizedBox(width: 3),
-                        Text(
-                          'Manage',
-                          style: AppTextStyles.caption.copyWith(
-                            color: const Color(0xFF64748B),
-                            fontWeight: FontWeight.w600,
-                          ),
-                        ),
-                      ],
+                _HeaderIconButton(
+                  icon: Icons.edit_outlined,
+                  tooltip: 'Manage contacts',
+                  color: const Color(0xFF64748B),
+                  onTap: onManage!,
+                ),
+              ],
+              const SizedBox(width: 2),
+              InkResponse(
+                onTap: onToggle,
+                radius: 22,
+                child: Padding(
+                  padding: const EdgeInsets.all(6),
+                  child: AnimatedRotation(
+                    turns: isExpanded ? 0.5 : 0,
+                    duration: const Duration(milliseconds: 240),
+                    curve: Curves.easeInOutCubic,
+                    child: const Icon(
+                      Icons.keyboard_arrow_down_rounded,
+                      color: AppColors.textSecondary,
                     ),
                   ),
                 ),
-              ],
+              ),
             ],
           ),
           AnimatedSize(
@@ -2312,6 +2306,91 @@ class _CollapsibleContactCard extends StatelessWidget {
           actions,
         ],
       ),
+    );
+  }
+}
+
+/// Small round tinted icon button for a card header.
+class _HeaderIconButton extends StatelessWidget {
+  final IconData icon;
+  final String tooltip;
+  final Color color;
+  final VoidCallback onTap;
+
+  const _HeaderIconButton({
+    required this.icon,
+    required this.tooltip,
+    required this.color,
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Tooltip(
+      message: tooltip,
+      child: Material(
+        color: color.withValues(alpha: 0.1),
+        shape: const CircleBorder(),
+        child: InkWell(
+          onTap: onTap,
+          customBorder: const CircleBorder(),
+          child: SizedBox(
+            width: 34,
+            height: 34,
+            child: Icon(icon, size: 17, color: color),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+/// Surface of every section on the student screen: white, thin border, soft
+/// shadow, matching the other Phonebook screens.
+class _SectionCard extends StatelessWidget {
+  final Widget child;
+  final EdgeInsetsGeometry padding;
+
+  const _SectionCard({
+    required this.child,
+    this.padding = const EdgeInsets.all(AppDimens.cardPadding),
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: double.infinity,
+      padding: padding,
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(18),
+        border: Border.all(color: PhonebookTheme.border),
+        boxShadow: [
+          BoxShadow(
+            color: PhonebookTheme.ink.withValues(alpha: 0.04),
+            blurRadius: 12,
+            offset: const Offset(0, 3),
+          ),
+        ],
+      ),
+      child: child,
+    );
+  }
+}
+
+/// Section heading: the overline title in the Phonebook ink colour.
+class _SectionTitle extends StatelessWidget {
+  final String text;
+
+  const _SectionTitle(this.text);
+
+  @override
+  Widget build(BuildContext context) {
+    return Text(
+      text,
+      maxLines: 1,
+      overflow: TextOverflow.ellipsis,
+      style: AppTextStyles.overline.copyWith(color: PhonebookTheme.ink),
     );
   }
 }

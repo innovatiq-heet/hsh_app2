@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
+import 'package:intl/intl.dart';
 import '../../../core/constants/app_dimens.dart';
 import '../../../core/enums/user_role.dart';
 import '../../../core/models/geofence/geofence_policy_model.dart';
@@ -1152,11 +1153,12 @@ class _StudentRow extends GetView<ScreenTimeDirectoryController> {
         toInt(passUntil) > DateTime.now().millisecondsSinceEpoch;
 
     final lowBattery = isStudentLowBattery(student);
+    final isDisconnected = isStudentDisconnected(student);
     final extendedOffline = isStudentExtendedOffline(student);
 
     final statusColor = isOnline
         ? (isScreenOn ? const Color(0xFF16A34A) : const Color(0xFFD97706))
-        : const Color(0xFF94A3B8);
+        : (isDisconnected ? const Color(0xFFEA580C) : const Color(0xFF94A3B8));
     final statusText = isOnline
         ? (isScreenOn
               ? (currentApp.isNotEmpty && currentApp != 'Idle'
@@ -1164,7 +1166,9 @@ class _StudentRow extends GetView<ScreenTimeDirectoryController> {
                     : 'Screen on')
               : 'Standby')
         : (lastSeen != null
-              ? 'Seen ${relativeTime(lastSeen)}'
+              ? (isDisconnected
+                    ? 'Offline since ${DateFormat('h:mm a').format(lastSeen)}'
+                    : 'Seen ${relativeTime(lastSeen)}')
               : 'Offline');
 
     final initials = name.trim().isNotEmpty
@@ -1333,12 +1337,21 @@ class _StudentRow extends GetView<ScreenTimeDirectoryController> {
                           ],
                         ],
                       ),
-                      if (locked || restricted > 0 || tampered || hasInstallPass || lowBattery || extendedOffline) ...[
+                      if (locked || restricted > 0 || tampered || hasInstallPass || lowBattery || isDisconnected || extendedOffline) ...[
                         const SizedBox(height: 6),
                         Wrap(
                           spacing: 6,
                           runSpacing: 4,
                           children: [
+                            if (isDisconnected)
+                              _Tag(
+                                icon: Icons.wifi_off_rounded,
+                                label: lastSeen != null
+                                    ? 'Disconnected (${DateFormat('h:mm a').format(lastSeen)})'
+                                    : 'Disconnected (>15m)',
+                                color: const Color(0xFFDC2626),
+                                bg: const Color(0xFFFEF2F2),
+                              ),
                             if (lowBattery)
                               _Tag(
                                 icon: Icons.battery_alert_rounded,
@@ -1346,7 +1359,7 @@ class _StudentRow extends GetView<ScreenTimeDirectoryController> {
                                 color: const Color(0xFFDC2626),
                                 bg: const Color(0xFFFEF2F2),
                               ),
-                            if (extendedOffline)
+                            if (extendedOffline && !isDisconnected)
                               _Tag(
                                 icon: Icons.cloud_off_rounded,
                                 label: lastSeen != null

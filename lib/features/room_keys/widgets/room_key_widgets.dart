@@ -106,12 +106,47 @@ class RoomKeyTile extends StatelessWidget {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text(
-                    k.label == null ? k.title : '${k.title} · ${k.label}',
-                    style: AppTextStyles.title,
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                  ),
+                  if (k.cupboardSlot != null)
+                    Row(
+                      children: [
+                        Flexible(
+                          child: Text(
+                            k.title,
+                            style: AppTextStyles.title,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                        ),
+                        const SizedBox(width: 8),
+                        Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 1.5),
+                          decoration: BoxDecoration(
+                            color: k.cupboardSlot == 'A' ? const Color(0xFFE0F2FE) : const Color(0xFFF3E8FF),
+                            borderRadius: BorderRadius.circular(6),
+                            border: Border.all(
+                              color: k.cupboardSlot == 'A' ? const Color(0xFF0284C7) : const Color(0xFF9333EA),
+                              width: 0.8,
+                            ),
+                          ),
+                          child: Text(
+                            'CUPBOARD ${k.cupboardSlot}',
+                            style: TextStyle(
+                              color: k.cupboardSlot == 'A' ? const Color(0xFF0284C7) : const Color(0xFF9333EA),
+                              fontSize: 10,
+                              fontWeight: FontWeight.w800,
+                              letterSpacing: 0.3,
+                            ),
+                          ),
+                        ),
+                      ],
+                    )
+                  else
+                    Text(
+                      k.displayTitle,
+                      style: AppTextStyles.title,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                    ),
                   const SizedBox(height: 2),
                   Text(keyHolderLine(k), style: AppTextStyles.bodySm, maxLines: 1, overflow: TextOverflow.ellipsis),
                   if (warning != null) ...[
@@ -141,6 +176,47 @@ class RoomKeyTile extends StatelessWidget {
 
 // ---------------------------------------------------------------- set up
 
+Widget _slotChoiceChip({
+  required String label,
+  required bool selected,
+  required Color color,
+  required VoidCallback onTap,
+}) => InkWell(
+  onTap: onTap,
+  borderRadius: BorderRadius.circular(8),
+  child: AnimatedContainer(
+    duration: const Duration(milliseconds: 150),
+    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+    decoration: BoxDecoration(
+      color: selected ? color.withValues(alpha: 0.14) : Colors.transparent,
+      borderRadius: BorderRadius.circular(8),
+      border: Border.all(
+        color: selected ? color : const Color(0xFFCBD5E1),
+        width: selected ? 1.5 : 1,
+      ),
+    ),
+    child: Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Icon(
+          selected ? Icons.check_circle_rounded : Icons.radio_button_unchecked_rounded,
+          size: 14,
+          color: selected ? color : const Color(0xFF94A3B8),
+        ),
+        const SizedBox(width: 5),
+        Text(
+          label,
+          style: TextStyle(
+            fontSize: 12,
+            fontWeight: selected ? FontWeight.w700 : FontWeight.w500,
+            color: selected ? color : const Color(0xFF475569),
+          ),
+        ),
+      ],
+    ),
+  ),
+);
+
 /// Adds a room's keys in one go: the door key number with a copy per chosen
 /// student and spares for the office, a cupboard key number per student, and
 /// spare cupboard keys. Keys a student already has are shown, not asked for.
@@ -164,9 +240,11 @@ class _RoomKeysSetupSheetState extends State<RoomKeysSetupSheet> {
   late final KeyRoom _room = widget.controller.room(widget.room);
   late final _door = TextEditingController(text: _room.doorNumber ?? '');
   final _cupboards = <int, TextEditingController>{};
+  final _studentCupboardSlots = <int, String>{};
   final _doorCopyFor = <int>{};
   late int _spareDoorKeys = _room.doorKeys.isEmpty ? 1 : 0;
   final _spareCupboards = <TextEditingController>[];
+  final _spareCupboardSlots = <String>[];
   String? _error;
 
   bool get _doorFixed => _room.doorKeys.isNotEmpty;
@@ -174,8 +252,22 @@ class _RoomKeysSetupSheetState extends State<RoomKeysSetupSheet> {
   @override
   void initState() {
     super.initState();
+    final takenSlots = _room.cupboardKeys
+        .map((k) => k.cupboardSlot)
+        .whereType<String>()
+        .toSet();
+
+    var nextSlot = takenSlots.contains('A') ? 'B' : 'A';
     for (final s in _room.students) {
-      if (_room.cupboardOf(s) == null) _cupboards[s.id] = TextEditingController();
+      if (_room.cupboardOf(s) == null) {
+        _cupboards[s.id] = TextEditingController();
+        _studentCupboardSlots[s.id] = nextSlot;
+        if (nextSlot == 'A' && !takenSlots.contains('B')) {
+          nextSlot = 'B';
+        } else if (nextSlot == 'B' && !takenSlots.contains('A')) {
+          nextSlot = 'A';
+        }
+      }
     }
   }
 
@@ -205,21 +297,22 @@ class _RoomKeysSetupSheetState extends State<RoomKeysSetupSheet> {
       }
     }
     final typed = <String>{};
-    void cupboard(String number, int? studentId) {
+    void cupboard(String number, int? studentId, String? slot) {
       if (number.isEmpty) return;
       if (!typed.add(number.toLowerCase())) {
         _error = 'Cupboard key $number is typed twice.';
         return;
       }
-      out.add(NewRoomKey(type: KeyType.cupboard, keyNumber: number, studentId: studentId));
+      final label = slot == null || slot == 'Other' ? null : 'Cupboard $slot';
+      out.add(NewRoomKey(type: KeyType.cupboard, keyNumber: number, label: label, studentId: studentId));
     }
 
     _error = null;
     for (final e in _cupboards.entries) {
-      cupboard(e.value.text.trim(), e.key);
+      cupboard(e.value.text.trim(), e.key, _studentCupboardSlots[e.key]);
     }
-    for (final c in _spareCupboards) {
-      cupboard(c.text.trim(), null);
+    for (var i = 0; i < _spareCupboards.length; i++) {
+      cupboard(_spareCupboards[i].text.trim(), null, _spareCupboardSlots[i]);
     }
     if (_error != null) {
       setState(() {});
@@ -309,21 +402,63 @@ class _RoomKeysSetupSheetState extends State<RoomKeysSetupSheet> {
         for (var i = 0; i < _spareCupboards.length; i++)
           Padding(
             padding: const EdgeInsets.only(bottom: AppDimens.gapSm),
-            child: AppTextField(
-              controller: _spareCupboards[i],
-              label: 'Cupboard key number',
-              prefixIcon: Icons.inventory_2_outlined,
-              suffix: IconButton(
-                tooltip: 'Remove',
-                icon: const Icon(Icons.close_rounded),
-                onPressed: () => setState(() => _spareCupboards.removeAt(i).dispose()),
-              ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  children: [
+                    Text('Key ${i + 1}:', style: AppTextStyles.caption.copyWith(fontWeight: FontWeight.w700)),
+                    const SizedBox(width: 8),
+                    _slotChoiceChip(
+                      label: 'Cupboard A',
+                      selected: _spareCupboardSlots[i] == 'A',
+                      color: const Color(0xFF0284C7),
+                      onTap: () => setState(() => _spareCupboardSlots[i] = 'A'),
+                    ),
+                    const SizedBox(width: 6),
+                    _slotChoiceChip(
+                      label: 'Cupboard B',
+                      selected: _spareCupboardSlots[i] == 'B',
+                      color: const Color(0xFF9333EA),
+                      onTap: () => setState(() => _spareCupboardSlots[i] = 'B'),
+                    ),
+                    const SizedBox(width: 6),
+                    _slotChoiceChip(
+                      label: 'Other',
+                      selected: _spareCupboardSlots[i] == 'Other',
+                      color: const Color(0xFF475569),
+                      onTap: () => setState(() => _spareCupboardSlots[i] = 'Other'),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 6),
+                AppTextField(
+                  controller: _spareCupboards[i],
+                  label: _spareCupboardSlots[i] == 'Other'
+                      ? 'Cupboard key number'
+                      : 'Cupboard ${_spareCupboardSlots[i]} key number',
+                  hint: 'e.g. 101',
+                  prefixIcon: Icons.inventory_2_outlined,
+                  suffix: IconButton(
+                    tooltip: 'Remove',
+                    icon: const Icon(Icons.close_rounded),
+                    onPressed: () => setState(() {
+                      _spareCupboards.removeAt(i).dispose();
+                      _spareCupboardSlots.removeAt(i);
+                    }),
+                  ),
+                ),
+              ],
             ),
           ),
         Align(
           alignment: Alignment.centerLeft,
           child: TextButton.icon(
-            onPressed: () => setState(() => _spareCupboards.add(TextEditingController())),
+            onPressed: () => setState(() {
+              _spareCupboards.add(TextEditingController());
+              final nextSpare = _spareCupboardSlots.contains('A') ? 'B' : 'A';
+              _spareCupboardSlots.add(nextSpare);
+            }),
             icon: const Icon(Icons.add_rounded),
             label: const Text('Add a spare cupboard key'),
           ),
@@ -353,6 +488,7 @@ class _RoomKeysSetupSheetState extends State<RoomKeysSetupSheet> {
   Widget _studentRow(KeyRoom room, PickableStudent s) {
     final cupboard = room.cupboardOf(s);
     final door = room.doorKeyOf(s);
+    final selectedSlot = _studentCupboardSlots[s.id] ?? 'A';
     // A Material (not a coloured Container) so the checkbox row's ripple shows.
     return Padding(
       padding: const EdgeInsets.only(bottom: AppDimens.gapSm),
@@ -367,17 +503,39 @@ class _RoomKeysSetupSheetState extends State<RoomKeysSetupSheet> {
               Text(s.name, style: AppTextStyles.title),
               const SizedBox(height: AppDimens.gapSm),
               if (cupboard != null)
-                Text('Has ${cupboard.title}', style: AppTextStyles.bodySm)
-              else
+                Text('Has ${cupboard.displayTitle}', style: AppTextStyles.bodySm)
+              else ...[
+                Row(
+                  children: [
+                    Text('Cupboard:', style: AppTextStyles.caption.copyWith(fontWeight: FontWeight.w700)),
+                    const SizedBox(width: 8),
+                    _slotChoiceChip(
+                      label: 'Cupboard A',
+                      selected: selectedSlot == 'A',
+                      color: const Color(0xFF0284C7),
+                      onTap: () => setState(() => _studentCupboardSlots[s.id] = 'A'),
+                    ),
+                    const SizedBox(width: 6),
+                    _slotChoiceChip(
+                      label: 'Cupboard B',
+                      selected: selectedSlot == 'B',
+                      color: const Color(0xFF9333EA),
+                      onTap: () => setState(() => _studentCupboardSlots[s.id] = 'B'),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 8),
                 AppTextField(
                   controller: _cupboards[s.id],
                   label: 'Cupboard key number',
+                  hint: 'Cupboard $selectedSlot (e.g. 101)',
                   prefixIcon: Icons.inventory_2_outlined,
                 ),
+              ],
               if (door != null)
                 Padding(
                   padding: const EdgeInsets.only(top: 6),
-                  child: Text('Has ${door.title}', style: AppTextStyles.bodySm),
+                  child: Text('Has ${door.displayTitle}', style: AppTextStyles.bodySm),
                 )
               else
                 CheckboxListTile(
@@ -428,10 +586,10 @@ class KeyActionsSheet extends StatelessWidget {
     );
 
     return SheetScaffold(
-      title: k.title,
+      title: k.displayTitle,
       subtitle: [
         'Room ${k.roomNumber}',
-        if (k.label != null) k.label!,
+        if (k.label != null && k.cupboardSlot == null) k.label!,
         if (k.updatedAt != null) 'Updated ${DateFormatting.dateTime(k.updatedAt!)}',
       ].join(' · '),
       children: [
@@ -566,7 +724,7 @@ class _AssignKeySheetState extends State<AssignKeySheet> {
     );
 
     return SheetScaffold(
-      title: 'Give ${k.title} to',
+      title: 'Give ${k.displayTitle} to',
       subtitle: 'Room ${k.roomNumber}',
       children: [
         if (roommates.isNotEmpty) ...[
@@ -664,7 +822,7 @@ class _KeyEditSheetState extends State<KeyEditSheet> {
   @override
   Widget build(BuildContext context) {
     return SheetScaffold(
-      title: 'Edit ${widget.roomKey.title}',
+      title: 'Edit ${widget.roomKey.displayTitle}',
       subtitle: 'Room ${widget.roomKey.roomNumber}',
       children: [
         SegmentedButton<KeyType>(
@@ -676,6 +834,28 @@ class _KeyEditSheetState extends State<KeyEditSheet> {
         AppTextField(controller: _number, label: 'Key number', prefixIcon: Icons.tag_rounded),
         const SizedBox(height: AppDimens.gapMd),
         AppTextField(controller: _label, label: 'Name (optional)', hint: 'e.g. Main door, Cupboard A'),
+        if (_type == KeyType.cupboard) ...[
+          const SizedBox(height: 8),
+          Row(
+            children: [
+              Text('Quick label:', style: AppTextStyles.caption.copyWith(fontWeight: FontWeight.w700)),
+              const SizedBox(width: 8),
+              _slotChoiceChip(
+                label: 'Cupboard A',
+                selected: _label.text.trim().toUpperCase() == 'CUPBOARD A',
+                color: const Color(0xFF0284C7),
+                onTap: () => setState(() => _label.text = 'Cupboard A'),
+              ),
+              const SizedBox(width: 6),
+              _slotChoiceChip(
+                label: 'Cupboard B',
+                selected: _label.text.trim().toUpperCase() == 'CUPBOARD B',
+                color: const Color(0xFF9333EA),
+                onTap: () => setState(() => _label.text = 'Cupboard B'),
+              ),
+            ],
+          ),
+        ],
         const SizedBox(height: AppDimens.gapMd),
         AppTextField(controller: _notes, label: 'Notes (optional)', maxLines: 3),
         if (_error != null) ...[
@@ -705,7 +885,7 @@ class KeyHistorySheet extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return SheetScaffold(
-      title: 'History of ${roomKey.title}',
+      title: 'History of ${roomKey.displayTitle}',
       subtitle: 'Room ${roomKey.roomNumber}',
       children: [
         FutureBuilder<List<RoomKeyLog>>(

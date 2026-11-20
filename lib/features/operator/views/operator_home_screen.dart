@@ -767,6 +767,16 @@ class _OperatorHomeDashboard extends StatelessWidget {
         waveColor: Color(0xFFFDE68A),
         route: Routes.operatorBirthdayWishes,
       ),
+      _OperatorAction(
+        title: "Parents' Anniversary",
+        subtitle: 'Greetings for Father &\nMother celebrations',
+        icon: Icons.volunteer_activism_rounded,
+        iconColor: Color(0xFFE11D48),
+        bgTint: Color(0xFFFFF1F2),
+        arrowBgTint: Color(0xFFFFF1F2),
+        waveColor: Color(0xFFFECDD3),
+        route: Routes.operatorAnniversaryWishes,
+      ),
     ]),
     _OperatorGroup('Hostel Services & Staff', [
       _OperatorAction(

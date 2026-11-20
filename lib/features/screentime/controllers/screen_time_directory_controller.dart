@@ -7,6 +7,7 @@ import '../../../core/network/repository/geofence/geofence_repository.dart';
 import '../../../core/network/repository/screentime/screen_time_repository.dart';
 import '../../../core/network/responses/screentime/students_page.dart';
 import '../../../core/storage/session_store.dart';
+import '../../../core/utils/apple_search_utils.dart';
 import '../../../core/utils/app_snackbar.dart';
 import '../../phonebook/models/phonebook_models.dart';
 import '../../phonebook/services/phonebook_database_service.dart';
@@ -1407,28 +1408,48 @@ class ScreenTimeDirectoryController extends GetxController with WidgetsBindingOb
         if (onlyWithAadhar.value && aadhar.isEmpty) return false;
       }
 
-      // Search query
+      // Search query (Apple Contacts-style multi-token search)
       if (q.isEmpty) return true;
-      final name = (student is Map ? (student['name'] ?? '') : '').toString().toLowerCase();
-      final room = (student is Map ? (student['room'] ?? student['room_number'] ??
-          student['roomNumber'] ?? '') : '').toString().toLowerCase();
-      final aadhar = (student is Map ? (student['aadhar'] ?? student['student_code'] ??
-          student['studentCode'] ?? '') : '').toString().toLowerCase();
-      final phone = (student is Map ? (student['phone'] ?? student['phone_number'] ??
-          student['phoneNumber'] ?? '') : '').toString().toLowerCase();
+      final name = (student is Map ? (student['name'] ?? student['fullName'] ?? '') : '').toString();
+      final room = (student is Map ? (student['room'] ?? student['room_number'] ?? student['roomNumber'] ?? '') : '').toString();
+      final aadhar = (student is Map ? (student['aadhar'] ?? student['student_code'] ?? student['studentCode'] ?? '') : '').toString();
+      final phone = (student is Map ? (student['phone'] ?? student['phone_number'] ?? student['phoneNumber'] ?? '') : '').toString();
 
-      final qTrimmed = q.replaceFirst(RegExp(r'^0+'), '');
-      final aadharTrimmed = aadhar.replaceFirst(RegExp(r'^0+'), '');
-
-      return name.contains(q) ||
-          room.contains(q) ||
-          aadhar.contains(q) ||
-          (qTrimmed.isNotEmpty && aadharTrimmed.contains(qTrimmed)) ||
-          phone.contains(q);
+      return AppleSearchUtils.matches(
+        query: q,
+        name: name,
+        room: room,
+        code: aadhar,
+        phone: phone,
+      );
     }).toList();
 
-    // Sorting according to selectedSort
-    matched.sort((a, b) {
+    // Apple Contacts relevance ranking if user typed a search query
+    final searchTokens = AppleSearchUtils.tokenize(q);
+    if (searchTokens.isNotEmpty && selectedSort.value == 'Default (Attn First)') {
+      matched.sort((a, b) {
+        final nameA = (a is Map ? (a['name'] ?? a['fullName'] ?? '') : '').toString();
+        final nameB = (b is Map ? (b['name'] ?? b['fullName'] ?? '') : '').toString();
+        final scoreA = AppleSearchUtils.computeScore(
+          tokens: searchTokens,
+          name: nameA,
+          room: (a is Map ? (a['room'] ?? a['room_number'] ?? '') : '').toString(),
+          code: (a is Map ? (a['student_code'] ?? a['studentCode'] ?? '') : '').toString(),
+        );
+        final scoreB = AppleSearchUtils.computeScore(
+          tokens: searchTokens,
+          name: nameB,
+          room: (b is Map ? (b['room'] ?? b['room_number'] ?? '') : '').toString(),
+          code: (b is Map ? (b['student_code'] ?? b['studentCode'] ?? '') : '').toString(),
+        );
+        if (scoreA != scoreB) {
+          return scoreB.compareTo(scoreA); // Higher relevance score first
+        }
+        return nameA.toLowerCase().compareTo(nameB.toLowerCase());
+      });
+    } else {
+      // Sorting according to selectedSort
+      matched.sort((a, b) {
       switch (selectedSort.value) {
         case 'Usage (Low-High)': {
           final minsA = toInt(a['totalScreenTimeMinutes'] ?? a['todayScreenTimeMinutes'] ?? a['total_screen_time_minutes']);
@@ -1516,6 +1537,7 @@ class ScreenTimeDirectoryController extends GetxController with WidgetsBindingOb
         }
       }
     });
+    }
 
     final seen = <String>{};
     final seenIds = <String>{};

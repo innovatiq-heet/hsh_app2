@@ -102,7 +102,7 @@ class _DeviceSetupScreenState extends State<DeviceSetupScreen> with WidgetsBindi
     final done = [_usage, _accessibility, _location, _battery || _batterySkipped].where((b) => b).length;
 
     return PopScope(
-      canPop: false,
+      canPop: true,
       child: Scaffold(
         backgroundColor: AppColors.mainBackground,
         body: SafeArea(
@@ -223,7 +223,19 @@ class _DeviceSetupScreenState extends State<DeviceSetupScreen> with WidgetsBindi
                   icon: _allDone ? Icons.check_rounded : null,
                   onPressed: _allDone ? _finish : null,
                 ),
-                const SizedBox(height: AppDimens.gapSm),
+                const SizedBox(height: 6),
+                TextButton(
+                  onPressed: () => Get.back(),
+                  child: const Text(
+                    'Set up later',
+                    style: TextStyle(
+                      color: AppColors.textSecondary,
+                      fontSize: 13,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 2),
                 Text(
                   'Having trouble? Ask your warden for help.',
                   textAlign: TextAlign.center,

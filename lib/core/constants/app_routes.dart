@@ -59,6 +59,7 @@ class Routes {
   static const operatorAlumni = '/operator/alumni';
   static const operatorDailyAlumniOutreach = '/operator/alumni/daily-outreach';
   static const operatorBirthdayWishes = '/operator/birthday-wishes';
+  static const operatorAnniversaryWishes = '/operator/anniversary-wishes';
   static const operatorManageUsers = '/operator/manage-users';
   static const operatorBroadcasts = '/operator/broadcasts';
   static const operatorBroadcastCompose = '/operator/broadcasts/new';

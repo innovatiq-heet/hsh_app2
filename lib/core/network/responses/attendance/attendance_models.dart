@@ -90,6 +90,15 @@ class AttendanceScheduleItem {
   final bool isForAllStudents;
   final bool isActive;
   final bool isScheduledToday;
+  final bool hasMultipleAttendance;
+  final String? phase2StartTime;
+  final String? phase2EndTime;
+  final String? phase2LateTime;
+  final int? activePhase;
+  final bool? canMark;
+  final String? overallStatus;
+  final Map<String, dynamic>? firstAttendance;
+  final Map<String, dynamic>? secondAttendance;
 
   const AttendanceScheduleItem({
     this.id,
@@ -102,6 +111,15 @@ class AttendanceScheduleItem {
     this.isForAllStudents = true,
     this.isActive = true,
     this.isScheduledToday = true,
+    this.hasMultipleAttendance = false,
+    this.phase2StartTime,
+    this.phase2EndTime,
+    this.phase2LateTime,
+    this.activePhase,
+    this.canMark,
+    this.overallStatus,
+    this.firstAttendance,
+    this.secondAttendance,
   });
 
   AttendanceType get attendanceType => AttendanceTypeX.fromApi(sessionKey);
@@ -169,6 +187,10 @@ class AttendanceScheduleItem {
       }
     }
 
+    final rawP2Start = json['phase2_start_time']?.toString();
+    final rawP2End = json['phase2_end_time']?.toString();
+    final rawP2Late = json['phase2_late_time']?.toString();
+
     return AttendanceScheduleItem(
       id: json['id'] is int
           ? json['id'] as int
@@ -184,6 +206,15 @@ class AttendanceScheduleItem {
       isForAllStudents: json['is_for_all_students'] as bool? ?? true,
       isActive: json['is_active'] as bool? ?? true,
       isScheduledToday: isScheduledToday,
+      hasMultipleAttendance: json['has_multiple_attendance'] == true || json['has_multiple_attendance'] == 1,
+      phase2StartTime: rawP2Start != null && rawP2Start.length >= 5 ? rawP2Start.substring(0, 5) : rawP2Start,
+      phase2EndTime: rawP2End != null && rawP2End.length >= 5 ? rawP2End.substring(0, 5) : rawP2End,
+      phase2LateTime: rawP2Late != null && rawP2Late.length >= 5 && rawP2Late != 'null' ? rawP2Late.substring(0, 5) : null,
+      activePhase: json['active_phase'] as int?,
+      canMark: json['can_mark'] as bool?,
+      overallStatus: json['overall_status']?.toString(),
+      firstAttendance: json['first_attendance'] is Map ? Map<String, dynamic>.from(json['first_attendance'] as Map) : null,
+      secondAttendance: json['second_attendance'] is Map ? Map<String, dynamic>.from(json['second_attendance'] as Map) : null,
     );
   }
 
@@ -197,6 +228,15 @@ class AttendanceScheduleItem {
     if (lateTime != null) 'late_time': lateTime,
     'is_for_all_students': isForAllStudents,
     'is_active': isActive,
+    'has_multiple_attendance': hasMultipleAttendance,
+    if (phase2StartTime != null) 'phase2_start_time': phase2StartTime,
+    if (phase2EndTime != null) 'phase2_end_time': phase2EndTime,
+    if (phase2LateTime != null) 'phase2_late_time': phase2LateTime,
+    if (activePhase != null) 'active_phase': activePhase,
+    if (canMark != null) 'can_mark': canMark,
+    if (overallStatus != null) 'overall_status': overallStatus,
+    if (firstAttendance != null) 'first_attendance': firstAttendance,
+    if (secondAttendance != null) 'second_attendance': secondAttendance,
   };
 }
 

@@ -25,6 +25,7 @@ extension UserRoleX on UserRole {
       case 'admin':
         return UserRole.admin;
       case 'warden':
+      case 'operator':
         return UserRole.warden;
       case 'staff':
         return UserRole.staff;

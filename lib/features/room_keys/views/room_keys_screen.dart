@@ -828,13 +828,29 @@ class _RoomCard extends StatelessWidget {
     final students = room.students.length;
     final withCupboard = students - room.studentsWithoutCupboard.length;
     final door = room.doorNumber;
+    String cupboardSummary;
+    final hasA = room.cupboardA != null;
+    final hasB = room.cupboardB != null;
+    if (students == 2 && (hasA || hasB)) {
+      if (hasA && hasB) {
+        cupboardSummary = 'Cupboards A & B';
+      } else if (hasA) {
+        cupboardSummary = 'Cupboard A (B missing)';
+      } else {
+        cupboardSummary = 'Cupboard B (A missing)';
+      }
+    } else if (students > 0) {
+      cupboardSummary = 'Cupboards $withCupboard/$students';
+    } else if (room.cupboardKeys.isNotEmpty) {
+      cupboardSummary = '${room.cupboardKeys.length} cupboard ${room.cupboardKeys.length == 1 ? 'key' : 'keys'}';
+    } else {
+      cupboardSummary = 'No cupboards';
+    }
+
     final lines = <String>[
       '$students ${students == 1 ? 'student' : 'students'}',
       door == null ? 'No door key' : 'Door $door (${room.doorKeys.length})',
-      if (students > 0)
-        'Cupboards $withCupboard/$students'
-      else if (room.cupboardKeys.isNotEmpty)
-        '${room.cupboardKeys.length} cupboard ${room.cupboardKeys.length == 1 ? 'key' : 'keys'}',
+      cupboardSummary,
     ];
     final warnings = <(String, Color, Color)>[
       if (!room.hasDoorKey) ('No door key', const Color(0xFFD97706), const Color(0xFFFEF3C7)),

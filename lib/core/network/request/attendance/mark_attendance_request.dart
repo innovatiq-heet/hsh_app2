@@ -12,6 +12,7 @@ class MarkAttendanceRequest {
   final String? sessionKey; // Per-session key (e.g. 'aarti', 'night')
   final int? floorId; // Student's assigned floor ID
   final String? serviceUuid; // Verified floor string / 'GLOBAL_ALL_FLOORS'
+  final int? targetPhase; // 1 or 2 for two-phase attendance
 
   const MarkAttendanceRequest({
     required this.type,
@@ -21,6 +22,7 @@ class MarkAttendanceRequest {
     this.sessionKey,
     this.floorId,
     this.serviceUuid,
+    this.targetPhase,
   });
 
   Map<String, dynamic> toJson() => {
@@ -31,6 +33,7 @@ class MarkAttendanceRequest {
     if (rssi != null) 'rssi': rssi,
     if (floorId != null) 'floor_id': floorId,
     if (serviceUuid != null && serviceUuid!.isNotEmpty) 'service_uuid': serviceUuid,
+    if (targetPhase != null) 'target_phase': targetPhase,
     'viaCode': viaCode,
   };
 }
@@ -44,6 +47,7 @@ class MarkAttendanceOnBehalfRequest {
   final AttendanceType type;
   final DateTime date;
   final bool viaCode;
+  final int? targetPhase;
 
   const MarkAttendanceOnBehalfRequest({
     this.studentAadhar,
@@ -51,6 +55,7 @@ class MarkAttendanceOnBehalfRequest {
     required this.type,
     required this.date,
     this.viaCode = false,
+    this.targetPhase,
   });
 
   Map<String, dynamic> toJson() {
@@ -63,6 +68,7 @@ class MarkAttendanceOnBehalfRequest {
         'aadhar': studentAadhar,
       'date': dateStr,
       'viaCode': viaCode,
+      if (targetPhase != null) 'target_phase': targetPhase,
     };
   }
 }

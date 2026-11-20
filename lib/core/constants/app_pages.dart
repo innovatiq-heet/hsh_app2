@@ -70,6 +70,8 @@ import '../../features/geofence/bindings/student_locations_binding.dart';
 import '../../features/geofence/views/student_locations_screen.dart';
 import '../../features/birthday/bindings/admin_birthday_binding.dart';
 import '../../features/birthday/views/admin_birthday_screen.dart';
+import '../../features/anniversary/bindings/admin_anniversary_binding.dart';
+import '../../features/anniversary/views/admin_anniversary_screen.dart';
 import '../../features/manage_users/bindings/manage_users_binding.dart';
 import '../../features/manage_users/views/manage_users_screen.dart';
 import '../../features/broadcast/bindings/broadcast_bindings.dart';
@@ -356,6 +358,11 @@ class AppPages {
       name: Routes.operatorBirthdayWishes,
       page: () => const AdminBirthdayScreen(),
       binding: AdminBirthdayBinding(),
+    ),
+    GetPage(
+      name: Routes.operatorAnniversaryWishes,
+      page: () => const AdminAnniversaryScreen(),
+      binding: AdminAnniversaryBinding(),
     ),
     GetPage(
       name: Routes.operatorManageUsers,

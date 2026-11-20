@@ -227,11 +227,11 @@ class StudentDetailController extends GetxController
   /// True if the student's phone is currently plugged in and charging.
   final RxBool isCharging = false.obs;
 
-  /// True if the student's phone has been unreachable for >30 minutes while off.
+  /// True if the student's phone has been unreachable for >=15 minutes while off.
   bool get isOfflineSuspected {
-    if (lastSeenAt.value == null) return false;
-    return !isOnline.value &&
-        DateTime.now().difference(lastSeenAt.value!).inMinutes > 30;
+    if (isOnline.value) return false;
+    if (lastSeenAt.value == null) return true;
+    return DateTime.now().difference(lastSeenAt.value!).inMinutes >= 15;
   }
 
   /// Expiry timestamp (epoch milliseconds) of a temporary install window (0 = none).

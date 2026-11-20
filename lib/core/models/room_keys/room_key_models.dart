@@ -124,8 +124,40 @@ class RoomKey {
     updatedBy: _text(j['updated_by'] ?? j['updatedBy']),
   );
 
-  /// "Door 204" / "Cupboard 1123".
-  String get title => '${type.label} $keyNumber';
+  /// Cupboard slot letter ('A' or 'B') if labeled as such, else null.
+  String? get cupboardSlot {
+    if (type != KeyType.cupboard || label == null) return null;
+    final l = label!.trim().toUpperCase();
+    if (l == 'A' || l == 'CUPBOARD A' || l.startsWith('CUPBOARD A') || l.startsWith('CUPBOARD-A') || l == 'CUPBOARD-A') {
+      return 'A';
+    }
+    if (l == 'B' || l == 'CUPBOARD B' || l.startsWith('CUPBOARD B') || l.startsWith('CUPBOARD-B') || l == 'CUPBOARD-B') {
+      return 'B';
+    }
+    return null;
+  }
+
+  /// "Door 204" / "Cupboard 1123" / "Cupboard A · Key 1123".
+  String get title {
+    if (type == KeyType.cupboard && cupboardSlot != null) {
+      return keyNumber.isNotEmpty ? 'Cupboard $cupboardSlot · Key $keyNumber' : 'Cupboard $cupboardSlot';
+    }
+    return '${type.label} $keyNumber';
+  }
+
+  /// User-facing descriptive title including custom labels.
+  String get displayTitle {
+    if (type == KeyType.cupboard) {
+      if (cupboardSlot != null) {
+        return keyNumber.isNotEmpty ? 'Cupboard $cupboardSlot · Key $keyNumber' : 'Cupboard $cupboardSlot';
+      }
+      if (label != null && label!.trim().isNotEmpty) {
+        return '$title · ${label!.trim()}';
+      }
+      return title;
+    }
+    return label != null && label!.trim().isNotEmpty ? '$title · ${label!.trim()}' : title;
+  }
 
   /// A key still marked with a student who has left the hostel or now lives
   /// in another room: the office should collect it.

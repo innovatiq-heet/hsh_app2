@@ -44,6 +44,50 @@ class KeyRoom {
     return cupboardKeys.where((k) => !(k.status == KeyStatus.assigned && residentIds.contains(k.studentId))).toList();
   }
 
+  /// Cupboard A key for this room (if any).
+  RoomKey? get cupboardA {
+    for (final k in cupboardKeys) {
+      if (k.cupboardSlot == 'A') return k;
+    }
+    return null;
+  }
+
+  /// Cupboard B key for this room (if any).
+  RoomKey? get cupboardB {
+    for (final k in cupboardKeys) {
+      if (k.cupboardSlot == 'B') return k;
+    }
+    return null;
+  }
+
+  /// In-office cupboard key for slot 'A' (if any).
+  RoomKey? get officeCupboardA {
+    for (final k in cupboardKeys) {
+      if (k.status == KeyStatus.office && k.cupboardSlot == 'A') return k;
+    }
+    return null;
+  }
+
+  /// In-office cupboard key for slot 'B' (if any).
+  RoomKey? get officeCupboardB {
+    for (final k in cupboardKeys) {
+      if (k.status == KeyStatus.office && k.cupboardSlot == 'B') return k;
+    }
+    return null;
+  }
+
+  /// The cupboard slot ('A' or 'B') expected for [student].
+  String expectedCupboardSlot(PickableStudent student) {
+    final existing = cupboardOf(student);
+    if (existing != null && existing.cupboardSlot != null) return existing.cupboardSlot!;
+    final aHeld = cupboardKeys.any((k) => k.cupboardSlot == 'A' && k.status == KeyStatus.assigned && k.studentId != student.id);
+    final bHeld = cupboardKeys.any((k) => k.cupboardSlot == 'B' && k.status == KeyStatus.assigned && k.studentId != student.id);
+    if (aHeld && !bHeld) return 'B';
+    if (bHeld && !aHeld) return 'A';
+    final idx = students.indexOf(student);
+    return idx == 1 ? 'B' : 'A';
+  }
+
   /// The number on this room's door keys (they share one lock).
   String? get doorNumber => doorKeys.isEmpty ? null : doorKeys.first.keyNumber;
 

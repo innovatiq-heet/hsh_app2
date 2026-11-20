@@ -117,6 +117,14 @@ class PhonebookController extends GetxController {
   /// Filled automatically from call counts kept on this device.
   final favourites = <PhonebookFavourite>[].obs;
 
+  /// Whether the Favourites horizontal carousel is expanded.
+  /// Kept collapsed/hidden by default per user request.
+  final isFavouritesExpanded = false.obs;
+
+  void toggleFavouritesExpanded() {
+    isFavouritesExpanded.value = !isFavouritesExpanded.value;
+  }
+
   /// Explicitly pinned student keys for fast reactive lookups.
   final pinnedStudentKeys = <String>{}.obs;
 

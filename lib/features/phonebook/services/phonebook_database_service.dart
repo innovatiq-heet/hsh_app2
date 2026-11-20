@@ -2,6 +2,7 @@ import 'dart:convert';
 import 'package:sqflite/sqflite.dart';
 import 'package:path/path.dart' as p;
 import '../../../core/models/tags/student_tag_model.dart';
+import '../../../core/utils/apple_search_utils.dart';
 import '../../../core/utils/string_formatting.dart';
 import '../models/phonebook_models.dart';
 import 'phone_number_normalizer.dart';
@@ -262,49 +263,51 @@ class PhonebookDatabaseService {
     final whereClauses = <String>[];
     final whereArgs = <dynamic>[];
 
-    final cleanQuery = query.trim();
-    if (cleanQuery.isNotEmpty) {
-      final cleanedNum = cleanQuery.replaceAll(RegExp(r'\D'), '');
-      if (cleanedNum.isNotEmpty && cleanedNum.length >= 3) {
-        whereClauses.add(
-          '(phone LIKE ? OR phone_normalized LIKE ? OR name LIKE ? OR student_id LIKE ? OR enrollment_number LIKE ? OR aadhar LIKE ? OR bank_code LIKE ? OR father_name LIKE ? OR mother_name LIKE ? OR room_num LIKE ? OR city LIKE ? OR district LIKE ? OR state LIKE ? OR father_business LIKE ? OR mother_business LIKE ?)',
+    final tokens = AppleSearchUtils.tokenize(query);
+    if (tokens.isNotEmpty) {
+      for (final rawToken in tokens) {
+        final token = rawToken.trim();
+        final lower = token.toLowerCase();
+        final cleanedNum = token.replaceAll(RegExp(r'\D'), '');
+        final stem = AppleSearchUtils.getGujaratiNameStem(lower);
+
+        final tokenClauses = <String>[];
+        final tokenArgs = <dynamic>[];
+
+        // 1. Phone matching if token contains 3+ digits
+        if (cleanedNum.isNotEmpty && cleanedNum.length >= 3) {
+          tokenClauses.add('phone LIKE ? OR phone_normalized LIKE ? OR father_phone LIKE ? OR mother_phone LIKE ? OR whatsapp_number LIKE ?');
+          tokenArgs.addAll(['%$cleanedNum%', '%$cleanedNum%', '%$cleanedNum%', '%$cleanedNum%', '%$cleanedNum%']);
+        }
+
+        // 2. Base text matching across student details
+        tokenClauses.add(
+          'name LIKE ? OR student_id LIKE ? OR enrollment_number LIKE ? OR aadhar LIKE ? OR bank_code LIKE ? OR father_name LIKE ? OR mother_name LIKE ? OR room_num LIKE ? OR city LIKE ? OR district LIKE ? OR state LIKE ? OR father_business LIKE ? OR mother_business LIKE ?',
         );
-        whereArgs.addAll([
-          '%$cleanQuery%',
-          '%$cleanedNum%',
-          '%$cleanQuery%',
-          '%$cleanQuery%',
-          '%$cleanQuery%',
-          '%$cleanQuery%',
-          '%$cleanQuery%',
-          '%$cleanQuery%',
-          '%$cleanQuery%',
-          '%$cleanQuery%',
-          '%$cleanQuery%',
-          '%$cleanQuery%',
-          '%$cleanQuery%',
-          '%$cleanQuery%',
-          '%$cleanQuery%',
+        tokenArgs.addAll([
+          '%$token%',
+          '%$token%',
+          '%$token%',
+          '%$token%',
+          '%$token%',
+          '%$token%',
+          '%$token%',
+          '%$token%',
+          '%$token%',
+          '%$token%',
+          '%$token%',
+          '%$token%',
+          '%$token%',
         ]);
-      } else {
-        whereClauses.add(
-          '(name LIKE ? OR student_id LIKE ? OR enrollment_number LIKE ? OR aadhar LIKE ? OR bank_code LIKE ? OR father_name LIKE ? OR mother_name LIKE ? OR room_num LIKE ? OR city LIKE ? OR district LIKE ? OR state LIKE ? OR father_business LIKE ? OR mother_business LIKE ?)',
-        );
-        whereArgs.addAll([
-          '%$cleanQuery%',
-          '%$cleanQuery%',
-          '%$cleanQuery%',
-          '%$cleanQuery%',
-          '%$cleanQuery%',
-          '%$cleanQuery%',
-          '%$cleanQuery%',
-          '%$cleanQuery%',
-          '%$cleanQuery%',
-          '%$cleanQuery%',
-          '%$cleanQuery%',
-          '%$cleanQuery%',
-          '%$cleanQuery%',
-        ]);
+
+        // 3. Stem matching (e.g. searching "krutarthbhai" matches "Krutarth")
+        if (stem != null && stem.length >= 3) {
+          tokenClauses.add('name LIKE ? OR father_name LIKE ? OR mother_name LIKE ?');
+          tokenArgs.addAll(['%$stem%', '%$stem%', '%$stem%']);
+        }
+
+        whereClauses.add('(${tokenClauses.join(' OR ')})');
+        whereArgs.addAll(tokenArgs);
       }
     }
 
@@ -480,9 +483,44 @@ class PhonebookDatabaseService {
       }
     }
 
-    return studentMap.values
+    final studentList = studentMap.values
         .map((data) => PhonebookStudent.fromJson(data))
         .toList();
+
+    // Apple Contacts relevance ranking for default sorting
+    if (tokens.isNotEmpty && (sortBy == 'name_asc' || sortBy.isEmpty)) {
+      studentList.sort((a, b) {
+        final scoreA = AppleSearchUtils.computeScore(
+          tokens: tokens,
+          name: a.name,
+          fatherName: a.fatherName,
+          motherName: a.motherName,
+          room: a.room,
+          code: a.bankCode,
+          isAlumni: a.isAlumni,
+        );
+        final scoreB = AppleSearchUtils.computeScore(
+          tokens: tokens,
+          name: b.name,
+          fatherName: b.fatherName,
+          motherName: b.motherName,
+          room: b.room,
+          code: b.bankCode,
+          isAlumni: b.isAlumni,
+        );
+        if (scoreA != scoreB) {
+          return scoreB.compareTo(scoreA); // Higher relevance score first
+        }
+        final aAlumni = a.isAlumni;
+        final bAlumni = b.isAlumni;
+        if (aAlumni != bAlumni) {
+          return aAlumni ? 1 : -1;
+        }
+        return a.name.toLowerCase().compareTo(b.name.toLowerCase());
+      });
+    }
+
+    return studentList;
   }
 
   static List<dynamic>? _parseTagsJson(dynamic raw) {

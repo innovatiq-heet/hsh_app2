@@ -45,6 +45,12 @@ class ServicesScreen extends StatelessWidget {
             () => Get.toNamed(Routes.operatorBirthdayWishes),
           ),
           _ServiceItem(
+            "Parents' Anniversary",
+            Icons.volunteer_activism_rounded,
+            const Color(0xFFE11D48),
+            () => Get.toNamed(Routes.operatorAnniversaryWishes),
+          ),
+          _ServiceItem(
             'Daily Alumni Connect',
             Icons.connect_without_contact_rounded,
             const Color(0xFF0D9488),

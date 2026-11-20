@@ -134,6 +134,24 @@ void main() {
       });
     });
 
+    test('recognizes Cupboard A and Cupboard B designations and formats titles', () {
+      final keyA = RoomKey.fromJson({'id': 31, 'room_number': '101', 'key_type': 'cupboard', 'key_number': '501', 'label': 'Cupboard A'});
+      final keyB = RoomKey.fromJson({'id': 32, 'room_number': '101', 'key_type': 'cupboard', 'key_number': '502', 'label': 'Cupboard B'});
+      final keyPlain = RoomKey.fromJson({'id': 33, 'room_number': '101', 'key_type': 'cupboard', 'key_number': '503'});
+
+      expect(keyA.cupboardSlot, 'A');
+      expect(keyA.title, 'Cupboard A · Key 501');
+      expect(keyA.displayTitle, 'Cupboard A · Key 501');
+
+      expect(keyB.cupboardSlot, 'B');
+      expect(keyB.title, 'Cupboard B · Key 502');
+      expect(keyB.displayTitle, 'Cupboard B · Key 502');
+
+      expect(keyPlain.cupboardSlot, isNull);
+      expect(keyPlain.title, 'Cupboard 503');
+      expect(keyPlain.displayTitle, 'Cupboard 503');
+    });
+
     test('rooms sort in natural order', () {
       final rooms = ['B-1', '10', '2', '10A', '101']..sort(compareRooms);
       expect(rooms, ['2', '10', '10A', '101', 'B-1']);
@@ -447,7 +465,7 @@ void main() {
       expect(body['room_number'], '204');
       expect(body['keys'], [
         {'key_type': 'door', 'key_number': '204', 'student_id': 12},
-        {'key_type': 'cupboard', 'key_number': '1124', 'student_id': 12},
+        {'key_type': 'cupboard', 'key_number': '1124', 'label': 'Cupboard A', 'student_id': 12},
       ]);
       expect(find.text('Keys for room 204'), findsNothing, reason: 'the sheet closes after saving');
       expect(find.text('No cupboard key'), findsNothing);

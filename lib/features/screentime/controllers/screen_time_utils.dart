@@ -109,6 +109,15 @@ bool isStudentLowBattery(dynamic s) {
   return !isCharging;
 }
 
+bool isStudentDisconnected(dynamic s) {
+  if (s is! Map) return false;
+  if (isStudentOnline(s)) return false;
+  if (s['isDisconnected'] == true || s['is_disconnected'] == true) return true;
+  final lastSeen = lastSeenOf(s);
+  if (lastSeen == null) return true;
+  return DateTime.now().difference(lastSeen).inMinutes >= 15;
+}
+
 bool isStudentExtendedOffline(dynamic s) {
   if (s is! Map) return false;
   if (isStudentOnline(s)) return false;
@@ -121,6 +130,7 @@ bool isStudentNeedsAttention(dynamic s) {
   return isStudentTampered(s) ||
       isStudentLocked(s) ||
       isStudentLowBattery(s) ||
+      isStudentDisconnected(s) ||
       isStudentExtendedOffline(s);
 }
 

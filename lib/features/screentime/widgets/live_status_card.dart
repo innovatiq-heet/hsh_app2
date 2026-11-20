@@ -129,30 +129,32 @@ class LiveStatusCard extends StudentDetailWidget {
               Container(
                 padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
                 decoration: BoxDecoration(
-                  color: AppColors.warningOrange.withValues(alpha: 0.1),
+                  color: const Color(0xFFFEF2F2),
                   borderRadius: BorderRadius.circular(AppDimens.radiusSm),
-                  border: Border.all(color: AppColors.warningOrange.withValues(alpha: 0.35)),
+                  border: Border.all(color: const Color(0xFFFCA5A5)),
                 ),
                 child: Row(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    const Icon(Icons.signal_cellular_connected_no_internet_4_bar_rounded,
-                        color: AppColors.warningOrange, size: 20),
+                    const Icon(Icons.wifi_off_rounded,
+                        color: Color(0xFFDC2626), size: 20),
                     const SizedBox(width: 10),
                     Expanded(
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
                           Text(
-                            'Unreachable for >30 minutes',
+                            lastSeen != null
+                                ? 'Device Disconnected (Offline since ${DateFormat('h:mm a').format(lastSeen)})'
+                                : 'Device Disconnected (No report today)',
                             style: AppTextStyles.bodyMd.copyWith(
                               fontWeight: FontWeight.w700,
-                              color: AppColors.warningOrange,
+                              color: const Color(0xFFDC2626),
                             ),
                           ),
                           const SizedBox(height: 2),
                           Text(
-                            'The phone may be turned off, in Airplane mode, or out of battery.',
+                            'The student may have turned off Wi-Fi/Mobile Data, switched on Airplane mode, or powered off the phone. Cached curfew & app limits remain active locally.',
                             style: AppTextStyles.bodySm.copyWith(color: AppColors.textSecondary),
                           ),
                         ],

@@ -53,7 +53,7 @@ class HomeController extends GetxController with WidgetsBindingObserver {
       return;
     }
     final role = await sessionStore.role;
-    if (!role.isStudentOrLeader) return;
+    if (role != UserRole.student) return;
 
     final usage = await ScreenTimeService.hasUsagePermission();
     final blocker = await ScreenTimeService.hasAccessibilityPermission();

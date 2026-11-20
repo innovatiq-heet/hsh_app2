@@ -83,6 +83,17 @@ object PolicyEvaluator {
         "com.android.permissioncontroller",
         "com.google.android.permissioncontroller",
         "com.google.android.gms",
+        // Standard Indian UPI & Banking apps — essential transactions should never be blocked
+        "com.google.android.apps.nbu.paisa.user", // Google Pay
+        "com.phonepe.app",                       // PhonePe
+        "net.one97.paytm",                       // Paytm
+        "in.org.npci.upiapp",                    // BHIM
+        "com.dreamplug.androidapp",              // CRED
+        "com.sbi.lotusintouch",                  // YONO SBI
+        "com.axis.mobile",                       // Axis Mobile
+        "com.msf.kbank.mobile",                  // Kotak Mobile
+        "com.csam.icici.bank.imobile",           // iMobile Pay (ICICI)
+        "com.snapwork.hdfc",                     // HDFC Bank MobileBanking
     )
 
     @Volatile private var protectedCache: Set<String> = emptySet()

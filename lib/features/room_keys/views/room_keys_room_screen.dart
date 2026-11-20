@@ -107,18 +107,81 @@ class RoomKeysRoomScreen extends GetView<RoomKeysController> {
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.stretch,
                           children: [
-                            Text(
-                              s.name,
-                              style: const TextStyle(
-                                fontSize: 14,
-                                fontWeight: FontWeight.w700,
-                                color: _ink,
-                              ),
+                            Row(
+                              children: [
+                                Expanded(
+                                  child: Text(
+                                    s.name,
+                                    style: const TextStyle(
+                                      fontSize: 14,
+                                      fontWeight: FontWeight.w700,
+                                      color: _ink,
+                                    ),
+                                  ),
+                                ),
+                                if (r.cupboardOf(s)?.cupboardSlot case final slot?)
+                                  Container(
+                                    padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2),
+                                    decoration: BoxDecoration(
+                                      color: slot == 'A' ? const Color(0xFFE0F2FE) : const Color(0xFFF3E8FF),
+                                      borderRadius: BorderRadius.circular(6),
+                                      border: Border.all(
+                                        color: slot == 'A' ? const Color(0xFF0284C7) : const Color(0xFF9333EA),
+                                        width: 0.8,
+                                      ),
+                                    ),
+                                    child: Text(
+                                      'Cupboard $slot',
+                                      style: TextStyle(
+                                        color: slot == 'A' ? const Color(0xFF0284C7) : const Color(0xFF9333EA),
+                                        fontSize: 11,
+                                        fontWeight: FontWeight.w700,
+                                      ),
+                                    ),
+                                  ),
+                              ],
                             ),
                             if (r.cupboardOf(s) case final k?)
                               tile(k)
-                            else
-                              _missing('No cupboard key', () => RoomKeysSetupSheet.show(controller, _number)),
+                            else ...[
+                              Builder(
+                                builder: (context) {
+                                  final expected = r.expectedCupboardSlot(s);
+                                  final officeKey = expected == 'A' ? r.officeCupboardA : r.officeCupboardB;
+                                  if (officeKey != null) {
+                                    return Padding(
+                                      padding: const EdgeInsets.symmetric(vertical: 6),
+                                      child: Row(
+                                        children: [
+                                          const Icon(Icons.vpn_key_outlined, size: 18, color: _blue),
+                                          const SizedBox(width: 8),
+                                          Expanded(
+                                            child: Text(
+                                              'Cupboard $expected (#${officeKey.keyNumber}) in office',
+                                              style: const TextStyle(
+                                                fontSize: 13,
+                                                fontWeight: FontWeight.w600,
+                                                color: _blue,
+                                              ),
+                                            ),
+                                          ),
+                                          TextButton(
+                                            onPressed: () => AssignKeySheet.show(controller, officeKey),
+                                            style: TextButton.styleFrom(foregroundColor: _blue),
+                                            child: const Text('Give key', style: TextStyle(fontWeight: FontWeight.w700)),
+                                          ),
+                                        ],
+                                      ),
+                                    );
+                                  }
+                                  return _missing(
+                                    'No cupboard key',
+                                    () => RoomKeysSetupSheet.show(controller, _number),
+                                    tag: 'Cupboard $expected',
+                                  );
+                                },
+                              ),
+                            ],
                           ],
                         ),
                       ),
@@ -185,20 +248,43 @@ class RoomKeysRoomScreen extends GetView<RoomKeysController> {
     ),
   );
 
-  static Widget _missing(String text, VoidCallback onAdd) => Padding(
+  static Widget _missing(String text, VoidCallback onAdd, {String? tag}) => Padding(
     padding: const EdgeInsets.symmetric(vertical: 6),
     child: Row(
       children: [
         const Icon(Icons.key_off_rounded, size: 18, color: AppColors.warningOrange),
         const SizedBox(width: 8),
         Expanded(
-          child: Text(
-            text,
-            style: const TextStyle(
-              fontSize: 13,
-              fontWeight: FontWeight.w600,
-              color: Color(0xFFD97706),
-            ),
+          child: Row(
+            children: [
+              Text(
+                text,
+                style: const TextStyle(
+                  fontSize: 13,
+                  fontWeight: FontWeight.w600,
+                  color: Color(0xFFD97706),
+                ),
+              ),
+              if (tag != null) ...[
+                const SizedBox(width: 6),
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 1.5),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFFFEF3C7),
+                    borderRadius: BorderRadius.circular(6),
+                    border: Border.all(color: const Color(0xFFD97706).withValues(alpha: 0.4), width: 0.8),
+                  ),
+                  child: Text(
+                    tag,
+                    style: const TextStyle(
+                      fontSize: 10.5,
+                      fontWeight: FontWeight.w700,
+                      color: Color(0xFFD97706),
+                    ),
+                  ),
+                ),
+              ],
+            ],
           ),
         ),
         TextButton(

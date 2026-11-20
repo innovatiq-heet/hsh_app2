@@ -1435,57 +1435,130 @@ class PhonebookScreen extends GetView<PhonebookController> {
     BuildContext context,
     List<PhonebookFavourite> favs,
   ) {
-    return Padding(
-      padding: const EdgeInsets.only(bottom: 18),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            children: [
-              const Icon(Icons.star_rounded, size: 16, color: Color(0xFFF59E0B)),
-              const SizedBox(width: 6),
-              Text(
-                'FAVOURITES (${favs.length})',
-                style: const TextStyle(
-                  fontSize: 11.5,
-                  fontWeight: FontWeight.w800,
-                  color: Color(0xFF475569),
-                  letterSpacing: 0.8,
+    return Obx(() {
+      final isExpanded = controller.isFavouritesExpanded.value;
+      return Padding(
+        padding: EdgeInsets.only(bottom: isExpanded ? 18 : 12),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Material(
+              color: Colors.transparent,
+              child: InkWell(
+                onTap: () {
+                  HapticFeedback.lightImpact();
+                  controller.toggleFavouritesExpanded();
+                },
+                borderRadius: BorderRadius.circular(12),
+                child: Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
+                  decoration: BoxDecoration(
+                    color: isExpanded
+                        ? const Color(0xFFFEF3C7).withValues(alpha: 0.6)
+                        : const Color(0xFFF8FAFC),
+                    borderRadius: BorderRadius.circular(12),
+                    border: Border.all(
+                      color: isExpanded
+                          ? const Color(0xFFFDE68A)
+                          : const Color(0xFFE2E8F0),
+                    ),
+                  ),
+                  child: Row(
+                    children: [
+                      Container(
+                        padding: const EdgeInsets.all(3.5),
+                        decoration: BoxDecoration(
+                          color: isExpanded
+                              ? const Color(0xFFFDE68A)
+                              : const Color(0xFFF1F5F9),
+                          shape: BoxShape.circle,
+                        ),
+                        child: const Icon(
+                          Icons.star_rounded,
+                          size: 14,
+                          color: Color(0xFFF59E0B),
+                        ),
+                      ),
+                      const SizedBox(width: 8),
+                      Text(
+                        'FAVOURITES (${favs.length})',
+                        style: const TextStyle(
+                          fontSize: 11.5,
+                          fontWeight: FontWeight.w800,
+                          color: Color(0xFF334155),
+                          letterSpacing: 0.8,
+                        ),
+                      ),
+                      const SizedBox(width: 8),
+                      Text(
+                        isExpanded ? '· Most dialled' : '· Tap to show',
+                        style: const TextStyle(
+                          fontSize: 11,
+                          fontWeight: FontWeight.w500,
+                          color: Color(0xFF94A3B8),
+                        ),
+                      ),
+                      const Spacer(),
+                      Text(
+                        isExpanded ? 'Hide' : 'Show',
+                        style: TextStyle(
+                          fontSize: 11.5,
+                          fontWeight: FontWeight.w700,
+                          color: isExpanded
+                              ? const Color(0xFFD97706)
+                              : const Color(0xFF64748B),
+                        ),
+                      ),
+                      const SizedBox(width: 2),
+                      AnimatedRotation(
+                        turns: isExpanded ? 0.5 : 0.0,
+                        duration: const Duration(milliseconds: 200),
+                        child: Icon(
+                          Icons.keyboard_arrow_down_rounded,
+                          size: 18,
+                          color: isExpanded
+                              ? const Color(0xFFD97706)
+                              : const Color(0xFF64748B),
+                        ),
+                      ),
+                    ],
+                  ),
                 ),
               ),
-              const SizedBox(width: 8),
-              const Text(
-                'Most dialled',
-                style: TextStyle(
-                  fontSize: 11,
-                  fontWeight: FontWeight.w500,
-                  color: Color(0xFF94A3B8),
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 10),
-          SizedBox(
-            height: 112,
-            child: ListView.separated(
-              scrollDirection: Axis.horizontal,
-              physics: const BouncingScrollPhysics(),
-              itemCount: favs.length,
-              separatorBuilder: (_, _) => const SizedBox(width: 10),
-              itemBuilder: (context, index) {
-                final fav = favs[index];
-                return _FavouriteTile(
-                  favourite: fav,
-                  onTap: () => _showStudentContactDetails(context, fav.student),
-                  onCall: () => controller.makeCall(fav.phone, student: fav.student),
-                  onLongPress: () => _showFavouriteActions(context, fav),
-                );
-              },
             ),
-          ),
-        ],
-      ),
-    );
+            AnimatedCrossFade(
+              firstChild: const SizedBox.shrink(),
+              secondChild: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const SizedBox(height: 10),
+                  SizedBox(
+                    height: 112,
+                    child: ListView.separated(
+                      scrollDirection: Axis.horizontal,
+                      physics: const BouncingScrollPhysics(),
+                      itemCount: favs.length,
+                      separatorBuilder: (_, _) => const SizedBox(width: 10),
+                      itemBuilder: (context, index) {
+                        final fav = favs[index];
+                        return _FavouriteTile(
+                          favourite: fav,
+                          onTap: () => _showStudentContactDetails(context, fav.student),
+                          onCall: () => controller.makeCall(fav.phone, student: fav.student),
+                          onLongPress: () => _showFavouriteActions(context, fav),
+                        );
+                      },
+                    ),
+                  ),
+                ],
+              ),
+              crossFadeState: isExpanded ? CrossFadeState.showSecond : CrossFadeState.showFirst,
+              duration: const Duration(milliseconds: 240),
+            ),
+          ],
+        ),
+      );
+    });
   }
 
   void _showFavouriteActions(BuildContext context, PhonebookFavourite fav) {

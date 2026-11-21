@@ -8,7 +8,6 @@ import '../../../core/constants/app_dimens.dart';
 import '../../../core/constants/app_routes.dart';
 import '../../../core/constants/app_text_styles.dart';
 import '../../../core/models/tags/student_tag_model.dart';
-import '../../shared/widgets/app_button.dart';
 import '../../shared/widgets/icon_badge.dart';
 import '../../shared/widgets/phonebook_style_widgets.dart';
 import '../../shared/widgets/status_badge.dart';
@@ -107,16 +106,10 @@ class _StudentDetailScreenState extends State<StudentDetailScreen> {
       PhoneNumberNormalizer.normalize(raw) ??
       (raw ?? '').replaceAll(RegExp(r'\D'), '');
 
-  /// Active expanded sections. All sections default to expanded so details
-  /// are immediately visible on open, with full interactive expand/collapse
-  /// per card and a master "Collapse all / Expand all" toggle.
-  final Set<String> _expandedSections = {
-    'contacts',
-    'tags',
-    'hostel',
-    'personal',
-    'family_contacts',
-  };
+  /// Active expanded sections. Defaults to empty (collapsed view by default),
+  /// with full interactive expand/collapse per card and a master
+  /// "Collapse all / Expand all" toggle.
+  final Set<String> _expandedSections = {};
 
   /// Tracks which parent cards ('father', 'mother') have their full details expanded.
   final Set<String> _expandedParents = {};
@@ -293,14 +286,37 @@ class _StudentDetailScreenState extends State<StudentDetailScreen> {
                   Row(
                     children: [
                       Expanded(
-                        child: AppButton(
-                          label: 'Share details',
-                          icon: Icons.ios_share_rounded,
-                          onPressed: () => _c.shareStudent(student),
+                        child: SizedBox(
+                          height: 48,
+                          child: ElevatedButton.icon(
+                            onPressed: () => _c.shareStudent(student),
+                            icon: const Icon(Icons.share_rounded, size: 18, color: Colors.white),
+                            label: const Text(
+                              'Share details',
+                              style: TextStyle(
+                                fontSize: 14,
+                                fontWeight: FontWeight.w600,
+                                letterSpacing: -0.1,
+                                color: Colors.white,
+                              ),
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                            style: ElevatedButton.styleFrom(
+                              backgroundColor: const Color(0xFF0284C7),
+                              foregroundColor: Colors.white,
+                              elevation: 1,
+                              shadowColor: const Color(0xFF0284C7).withValues(alpha: 0.3),
+                              padding: const EdgeInsets.symmetric(horizontal: 12),
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(12),
+                              ),
+                            ),
+                          ),
                         ),
                       ),
                       if (!student.isAlumni) ...[
-                        const SizedBox(width: AppDimens.gapSm),
+                        const SizedBox(width: 10),
                         Expanded(child: _ScreenTimeButton(student: student)),
                       ],
                     ],
@@ -492,6 +508,8 @@ class _StudentDetailScreenState extends State<StudentDetailScreen> {
 
     return _DetailCard(
       title: 'Hostel',
+      icon: Icons.apartment_rounded,
+      accentColor: const Color(0xFF0D9488),
       isExpanded: _expandedSections.contains('hostel'),
       onToggle: () => _toggleSection('hostel'),
       summary: roomSummary,
@@ -503,16 +521,19 @@ class _StudentDetailScreenState extends State<StudentDetailScreen> {
             label: isAlumni ? 'Past room' : 'Room',
             value: _has(student.room) ? student.room! : 'Not allotted',
             muted: !_has(student.room),
+            iconColor: const Color(0xFF0D9488),
           ),
         if (floor != null)
           _DetailRow(
             icon: Icons.stairs_rounded,
             label: 'Floor',
             value: floor == 0 ? 'Ground floor' : 'Floor $floor',
+            iconColor: const Color(0xFF6366F1),
           ),
         _DetailRow(
           icon: Icons.verified_user_rounded,
           label: 'Status',
+          iconColor: isAlumni ? const Color(0xFF9333EA) : const Color(0xFF059669),
           valueWidget: StatusBadge(
             label: status,
             color: isAlumni ? const Color(0xFF9333EA) : AppColors.successGreen,
@@ -523,6 +544,7 @@ class _StudentDetailScreenState extends State<StudentDetailScreen> {
             icon: Icons.badge_rounded,
             label: 'Student ID',
             value: student.studentId,
+            iconColor: const Color(0xFF0284C7),
             onCopy: () => _c.copyToClipboard(student.studentId, 'Student ID'),
           ),
         if (_has(student.aadhar))
@@ -530,6 +552,7 @@ class _StudentDetailScreenState extends State<StudentDetailScreen> {
             icon: Icons.fingerprint_rounded,
             label: 'Aadhar',
             value: student.maskedAadhar,
+            iconColor: const Color(0xFF8B5CF6),
             onCopy: () => _c.copyToClipboard(student.aadhar!, 'Aadhar'),
           ),
       ],
@@ -543,6 +566,8 @@ class _StudentDetailScreenState extends State<StudentDetailScreen> {
 
     return _DetailCard(
       title: 'Personal',
+      icon: Icons.person_rounded,
+      accentColor: const Color(0xFFEA580C),
       isExpanded: _expandedSections.contains('personal'),
       onToggle: () => _toggleSection('personal'),
       summary: personalSummary,
@@ -554,14 +579,14 @@ class _StudentDetailScreenState extends State<StudentDetailScreen> {
               ? '${student.formattedDob}${student.ageText.isNotEmpty ? ' (${student.ageText})' : ''}'
               : 'Not registered',
           muted: !student.hasDob,
-          iconColor: AppColors.secondaryDark,
+          iconColor: const Color(0xFFD97706),
         ),
         if (_has(student.bloodGroup))
           _DetailRow(
             icon: Icons.bloodtype_rounded,
             label: 'Blood group',
             value: student.bloodGroup!,
-            iconColor: AppColors.cancelledRed,
+            iconColor: const Color(0xFFDC2626),
           ),
         _DetailRow(
           icon: Icons.home_rounded,
@@ -569,6 +594,7 @@ class _StudentDetailScreenState extends State<StudentDetailScreen> {
           value: student.displayAddress,
           muted: !student.hasAddress,
           stacked: true,
+          iconColor: const Color(0xFF0D9488),
           onCopy: student.hasAddress
               ? () => _c.copyToClipboard(student.displayAddress, 'Address')
               : null,
@@ -578,7 +604,7 @@ class _StudentDetailScreenState extends State<StudentDetailScreen> {
             icon: Icons.location_city_rounded,
             label: 'Hometown / Region',
             value: student.hometown,
-            iconColor: AppColors.pendingBlue,
+            iconColor: const Color(0xFF0284C7),
             onCopy: () => _c.copyToClipboard(student.hometown, 'Hometown'),
           ),
       ],
@@ -613,7 +639,11 @@ class _StudentDetailScreenState extends State<StudentDetailScreen> {
                     child: Row(
                       children: [
                         Expanded(
-                          child: const _SectionTitle('FAMILY CONTACTS'),
+                          child: const _SectionTitle(
+                            'FAMILY CONTACTS',
+                            icon: Icons.family_restroom_rounded,
+                            color: Color(0xFFE11D48),
+                          ),
                         ),
                         if (!isExpanded)
                           Container(
@@ -633,15 +663,6 @@ class _StudentDetailScreenState extends State<StudentDetailScreen> {
                               ),
                             ),
                           ),
-                        AnimatedRotation(
-                          turns: isExpanded ? 0.5 : 0,
-                          duration: const Duration(milliseconds: 240),
-                          curve: Curves.easeInOutCubic,
-                          child: const Icon(
-                            Icons.keyboard_arrow_down_rounded,
-                            color: AppColors.textSecondary,
-                          ),
-                        ),
                       ],
                     ),
                   ),
@@ -650,22 +671,48 @@ class _StudentDetailScreenState extends State<StudentDetailScreen> {
               const SizedBox(width: 6),
               InkWell(
                 onTap: _openManageContacts,
-                borderRadius: BorderRadius.circular(AppDimens.radiusSm),
-                child: Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                borderRadius: BorderRadius.circular(8),
+                child: Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3.5),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFF64748B).withValues(alpha: 0.1),
+                    borderRadius: BorderRadius.circular(8),
+                    border: Border.all(
+                      color: const Color(0xFF64748B).withValues(alpha: 0.25),
+                      width: 0.8,
+                    ),
+                  ),
                   child: Row(
                     mainAxisSize: MainAxisSize.min,
                     children: [
-                      const Icon(Icons.edit_outlined, size: 13, color: Color(0xFF64748B)),
-                      const SizedBox(width: 3),
+                      const Icon(Icons.edit_outlined, size: 12.5, color: Color(0xFF64748B)),
+                      const SizedBox(width: 3.5),
                       Text(
                         'Manage',
-                        style: AppTextStyles.caption.copyWith(
-                          color: const Color(0xFF64748B),
-                          fontWeight: FontWeight.w600,
+                        style: const TextStyle(
+                          color: Color(0xFF64748B),
+                          fontWeight: FontWeight.w700,
+                          fontSize: 11.5,
                         ),
                       ),
                     ],
+                  ),
+                ),
+              ),
+              const SizedBox(width: 4),
+              InkResponse(
+                onTap: () => _toggleSection('family_contacts'),
+                radius: 22,
+                child: Padding(
+                  padding: const EdgeInsets.all(6),
+                  child: AnimatedRotation(
+                    turns: isExpanded ? 0.5 : 0,
+                    duration: const Duration(milliseconds: 240),
+                    curve: Curves.easeInOutCubic,
+                    child: const Icon(
+                      Icons.keyboard_arrow_down_rounded,
+                      color: AppColors.textSecondary,
+                    ),
                   ),
                 ),
               ),
@@ -1069,7 +1116,11 @@ class _StudentDetailTagsCardState extends State<_StudentDetailTagsCard> {
                     child: Row(
                       children: [
                         Expanded(
-                          child: const _SectionTitle('TAGS & ROLES'),
+                          child: const _SectionTitle(
+                            'TAGS & ROLES',
+                            icon: Icons.local_offer_rounded,
+                            color: Color(0xFF8B5CF6),
+                          ),
                         ),
                         if (!widget.isExpanded)
                           Container(
@@ -1091,39 +1142,56 @@ class _StudentDetailTagsCardState extends State<_StudentDetailTagsCard> {
                               ),
                             ),
                           ),
-                        AnimatedRotation(
-                          turns: widget.isExpanded ? 0.5 : 0,
-                          duration: const Duration(milliseconds: 240),
-                          curve: Curves.easeInOutCubic,
-                          child: const Icon(
-                            Icons.keyboard_arrow_down_rounded,
-                            color: AppColors.textSecondary,
-                          ),
-                        ),
                       ],
                     ),
                   ),
                 ),
               ),
-              const SizedBox(width: 8),
+              const SizedBox(width: 6),
               InkWell(
                 onTap: _editTags,
-                borderRadius: BorderRadius.circular(AppDimens.radiusSm),
-                child: Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                borderRadius: BorderRadius.circular(8),
+                child: Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3.5),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFF8B5CF6).withValues(alpha: 0.1),
+                    borderRadius: BorderRadius.circular(8),
+                    border: Border.all(
+                      color: const Color(0xFF8B5CF6).withValues(alpha: 0.25),
+                      width: 0.8,
+                    ),
+                  ),
                   child: Row(
                     mainAxisSize: MainAxisSize.min,
                     children: [
-                      const Icon(Icons.edit_outlined, size: 14, color: AppColors.primary),
-                      const SizedBox(width: 4),
+                      const Icon(Icons.edit_outlined, size: 12.5, color: Color(0xFF8B5CF6)),
+                      const SizedBox(width: 3.5),
                       Text(
                         _tags.isEmpty ? 'Add' : 'Edit',
-                        style: AppTextStyles.caption.copyWith(
-                          color: AppColors.primary,
+                        style: const TextStyle(
+                          color: Color(0xFF8B5CF6),
                           fontWeight: FontWeight.w700,
+                          fontSize: 11.5,
                         ),
                       ),
                     ],
+                  ),
+                ),
+              ),
+              const SizedBox(width: 4),
+              InkResponse(
+                onTap: widget.onToggle,
+                radius: 22,
+                child: Padding(
+                  padding: const EdgeInsets.all(6),
+                  child: AnimatedRotation(
+                    turns: widget.isExpanded ? 0.5 : 0,
+                    duration: const Duration(milliseconds: 240),
+                    curve: Curves.easeInOutCubic,
+                    child: const Icon(
+                      Icons.keyboard_arrow_down_rounded,
+                      color: AppColors.textSecondary,
+                    ),
                   ),
                 ),
               ),
@@ -1195,6 +1263,8 @@ class _StudentDetailTagsCardState extends State<_StudentDetailTagsCard> {
 /// A titled card of [_DetailRow]s separated by hairlines.
 class _DetailCard extends StatelessWidget {
   final String title;
+  final IconData? icon;
+  final Color? accentColor;
   final List<Widget> children;
   final bool isExpanded;
   final VoidCallback onToggle;
@@ -1202,6 +1272,8 @@ class _DetailCard extends StatelessWidget {
 
   const _DetailCard({
     required this.title,
+    this.icon,
+    this.accentColor,
     required this.children,
     required this.isExpanded,
     required this.onToggle,
@@ -1228,7 +1300,11 @@ class _DetailCard extends StatelessWidget {
               child: Row(
                 children: [
                   Expanded(
-                    child: _SectionTitle(title.toUpperCase()),
+                    child: _SectionTitle(
+                      title.toUpperCase(),
+                      icon: icon,
+                      color: accentColor,
+                    ),
                   ),
                   if (!isExpanded && summary != null && summary!.isNotEmpty)
                     Container(
@@ -2073,12 +2149,43 @@ class _ScreenTimeButtonState extends State<_ScreenTimeButton> {
 
   @override
   Widget build(BuildContext context) {
-    return AppButton(
-      label: 'Screen time',
-      icon: Icons.timelapse_rounded,
-      variant: AppButtonVariant.outline,
-      isLoading: _loading,
-      onPressed: _open,
+    return SizedBox(
+      height: 48,
+      child: ElevatedButton.icon(
+        onPressed: _loading ? null : _open,
+        icon: _loading
+            ? const SizedBox(
+                width: 18,
+                height: 18,
+                child: CircularProgressIndicator(
+                  strokeWidth: 2,
+                  color: Colors.white,
+                ),
+              )
+            : const Icon(Icons.timelapse_rounded, size: 18, color: Colors.white),
+        label: Text(
+          _loading ? 'Opening...' : 'Screen time',
+          style: const TextStyle(
+            fontSize: 14,
+            fontWeight: FontWeight.w600,
+            letterSpacing: -0.1,
+            color: Colors.white,
+          ),
+          maxLines: 1,
+          overflow: TextOverflow.ellipsis,
+        ),
+        style: ElevatedButton.styleFrom(
+          backgroundColor: const Color(0xFF6366F1),
+          foregroundColor: Colors.white,
+          disabledBackgroundColor: const Color(0xFF6366F1).withValues(alpha: 0.7),
+          elevation: 1,
+          shadowColor: const Color(0xFF6366F1).withValues(alpha: 0.3),
+          padding: const EdgeInsets.symmetric(horizontal: 12),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(12),
+          ),
+        ),
+      ),
     );
   }
 }
@@ -2239,16 +2346,23 @@ class _CollapsibleContactCard extends StatelessWidget {
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        const _SectionTitle('STUDENT CONTACT'),
+                        const _SectionTitle(
+                          'STUDENT CONTACT',
+                          icon: Icons.contact_phone_rounded,
+                          color: Color(0xFF0284C7),
+                        ),
                         if (summary != null && summary!.isNotEmpty) ...[
                           const SizedBox(height: 2),
-                          Text(
-                            summary!,
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                            style: AppTextStyles.caption.copyWith(
-                              fontWeight: FontWeight.w600,
-                              color: AppColors.textSecondary,
+                          Padding(
+                            padding: const EdgeInsets.only(left: 30),
+                            child: Text(
+                              summary!,
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: AppTextStyles.caption.copyWith(
+                                fontWeight: FontWeight.w600,
+                                color: AppColors.textSecondary,
+                              ),
                             ),
                           ),
                         ],
@@ -2261,7 +2375,7 @@ class _CollapsibleContactCard extends StatelessWidget {
                 _HeaderIconButton(
                   icon: Icons.add_call,
                   tooltip: 'Add number',
-                  color: AppColors.primary,
+                  color: const Color(0xFF0284C7),
                   onTap: onAdd!,
                 ),
               if (onManage != null) ...[
@@ -2378,19 +2492,50 @@ class _SectionCard extends StatelessWidget {
   }
 }
 
-/// Section heading: the overline title in the Phonebook ink colour.
+/// Section heading: overline title with themed leading icon badge.
 class _SectionTitle extends StatelessWidget {
   final String text;
+  final IconData? icon;
+  final Color? color;
 
-  const _SectionTitle(this.text);
+  const _SectionTitle(this.text, {this.icon, this.color});
 
   @override
   Widget build(BuildContext context) {
-    return Text(
-      text,
-      maxLines: 1,
-      overflow: TextOverflow.ellipsis,
-      style: AppTextStyles.overline.copyWith(color: PhonebookTheme.ink),
+    if (icon == null) {
+      return Text(
+        text,
+        maxLines: 1,
+        overflow: TextOverflow.ellipsis,
+        style: AppTextStyles.overline.copyWith(color: color ?? PhonebookTheme.ink),
+      );
+    }
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Container(
+          width: 22,
+          height: 22,
+          decoration: BoxDecoration(
+            color: (color ?? PhonebookTheme.ink).withValues(alpha: 0.12),
+            borderRadius: BorderRadius.circular(6),
+          ),
+          alignment: Alignment.center,
+          child: Icon(icon, size: 13, color: color ?? PhonebookTheme.ink),
+        ),
+        const SizedBox(width: 8),
+        Expanded(
+          child: Text(
+            text,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: AppTextStyles.overline.copyWith(
+              color: PhonebookTheme.ink,
+              fontWeight: FontWeight.w800,
+            ),
+          ),
+        ),
+      ],
     );
   }
 }

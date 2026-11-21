@@ -1943,11 +1943,9 @@ class _StudentPhonebookCard extends StatelessWidget {
       name: student.name,
       room: student.room,
       groupName: student.groupName,
-      bankCode: student.bankCode,
+      bankCode: null,
       photoUrl: student.photoUrl,
-      dobText: student.hasDob
-          ? '${student.formattedDob}${student.ageText.isNotEmpty ? " (${student.ageText})" : ""}'
-          : null,
+      dobText: null,
       primaryPhone: student.primaryPhone,
       whatsappNumber: student.whatsappNumber,
       isAlumni: student.isAlumni,

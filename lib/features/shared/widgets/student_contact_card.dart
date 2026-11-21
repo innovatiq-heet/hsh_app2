@@ -1,5 +1,6 @@
 import 'dart:io';
 import 'package:flutter/material.dart';
+import 'package:font_awesome_flutter/font_awesome_flutter.dart';
 import '../../../core/services/student_photo_cache_service.dart';
 import '../../../core/utils/string_formatting.dart';
 
@@ -138,12 +139,13 @@ class StudentContactCard extends StatelessWidget {
     final gColor = isAlumni ? const Color(0xFF9333EA) : groupColor(groupName);
     final gBg = isAlumni ? const Color(0xFFF3E8FF) : groupBgColor(groupName);
     final wave = waveColor(groupName, isAlumni: isAlumni);
+    final hasPhone = primaryPhone != 'No Phone' && primaryPhone.isNotEmpty;
 
     return Container(
-      margin: margin ?? const EdgeInsets.only(bottom: 12),
+      margin: margin ?? const EdgeInsets.only(bottom: 8),
       decoration: BoxDecoration(
         color: isSelected ? const Color(0xFFF0F9FF) : Colors.white,
-        borderRadius: BorderRadius.circular(22),
+        borderRadius: BorderRadius.circular(16),
         border: Border.all(
           color: isSelected ? const Color(0xFF0284C7) : const Color(0xFFF1F5F9),
           width: isSelected ? 1.6 : 1.2,
@@ -153,8 +155,8 @@ class StudentContactCard extends StatelessWidget {
             color: isSelected
                 ? const Color(0xFF0284C7).withValues(alpha: 0.1)
                 : const Color(0xFF0F172A).withValues(alpha: 0.04),
-            blurRadius: 16,
-            offset: const Offset(0, 5),
+            blurRadius: 10,
+            offset: const Offset(0, 3),
           ),
         ],
       ),
@@ -164,7 +166,7 @@ class StudentContactCard extends StatelessWidget {
         child: InkWell(
           onTap: onTap,
           onLongPress: onLongPress,
-          borderRadius: BorderRadius.circular(22),
+          borderRadius: BorderRadius.circular(16),
           child: Stack(
             children: [
               // Bottom-right organic corner wave (celebrant signature)
@@ -172,293 +174,176 @@ class StudentContactCard extends StatelessWidget {
                 bottom: 0,
                 right: 0,
                 child: CustomPaint(
-                  size: const Size(110, 75),
+                  size: const Size(70, 48),
                   painter: CornerWavePainter(
-                    color: wave.withValues(alpha: 0.55),
+                    color: wave.withValues(alpha: 0.45),
                   ),
                 ),
               ),
 
               // Card content
               Padding(
-                padding: const EdgeInsets.all(16),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
+                padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+                child: Row(
                   children: [
-                    // 1. Identity Row: Squircle Avatar + Name/Subtitle + Status Pill
-                    Row(
-                      crossAxisAlignment: CrossAxisAlignment.start,
+                    // Squircle avatar
+                    Stack(
+                      clipBehavior: Clip.none,
                       children: [
-                        // Squircle avatar
-                        Stack(
-                          clipBehavior: Clip.none,
-                          children: [
-                            Container(
-                              width: 48,
-                              height: 48,
+                        Container(
+                          width: 44,
+                          height: 44,
+                          decoration: BoxDecoration(
+                            color: isSelectionMode
+                                ? (isSelected
+                                      ? const Color(0xFF0284C7)
+                                      : const Color(0xFFF1F5F9))
+                                : gBg,
+                            borderRadius: BorderRadius.circular(13),
+                            border: Border.all(
+                              color: isSelectionMode
+                                  ? (isSelected
+                                        ? const Color(0xFF0284C7)
+                                        : const Color(0xFFCBD5E1))
+                                  : gColor.withValues(alpha: 0.25),
+                              width: isSelectionMode && isSelected ? 2 : 1,
+                            ),
+                          ),
+                          alignment: Alignment.center,
+                          child: isSelectionMode
+                              ? Icon(
+                                  isSelected
+                                      ? Icons.check_rounded
+                                      : Icons.circle_outlined,
+                                  color: isSelected
+                                      ? Colors.white
+                                      : const Color(0xFF94A3B8),
+                                  size: 20,
+                                )
+                              : _avatarContent(displayName, gColor),
+                        ),
+                        if (!isSelectionMode)
+                          Positioned(
+                            bottom: -2,
+                            right: -2,
+                            child: Container(
+                              padding: const EdgeInsets.all(2),
                               decoration: BoxDecoration(
-                                color: isSelectionMode
-                                    ? (isSelected
-                                          ? const Color(0xFF0284C7)
-                                          : const Color(0xFFF1F5F9))
-                                    : gBg,
-                                borderRadius: BorderRadius.circular(15),
+                                color: gColor,
+                                shape: BoxShape.circle,
                                 border: Border.all(
-                                  color: isSelectionMode
-                                      ? (isSelected
-                                            ? const Color(0xFF0284C7)
-                                            : const Color(0xFFCBD5E1))
-                                      : gColor.withValues(alpha: 0.25),
-                                  width: isSelectionMode && isSelected ? 2 : 1,
+                                  color: Colors.white,
+                                  width: 1.5,
                                 ),
                               ),
-                              alignment: Alignment.center,
-                              child: isSelectionMode
-                                  ? Icon(
-                                      isSelected
-                                          ? Icons.check_rounded
-                                          : Icons.circle_outlined,
-                                      color: isSelected
-                                          ? Colors.white
-                                          : const Color(0xFF94A3B8),
-                                      size: 22,
-                                    )
-                                  : _avatarContent(displayName, gColor),
-                            ),
-                            if (!isSelectionMode)
-                              Positioned(
-                                bottom: -2,
-                                right: -2,
-                                child: Container(
-                                  padding: const EdgeInsets.all(2.5),
-                                  decoration: BoxDecoration(
-                                    color: gColor,
-                                    shape: BoxShape.circle,
-                                    border: Border.all(
-                                      color: Colors.white,
-                                      width: 1.5,
-                                    ),
-                                  ),
-                                  child: Icon(
-                                    isAlumni
-                                        ? Icons.school_rounded
-                                        : Icons.person_rounded,
-                                    color: Colors.white,
-                                    size: 9,
-                                  ),
-                                ),
+                              child: Icon(
+                                isAlumni
+                                    ? Icons.school_rounded
+                                    : Icons.person_rounded,
+                                color: Colors.white,
+                                size: 8,
                               ),
-                          ],
-                        ),
-
-                        const SizedBox(width: 12),
-
-                        // Name. Room and group are shown by the chips and the
-                        // pill, so they are not repeated here.
-                        Expanded(
-                          child: ConstrainedBox(
-                            constraints: const BoxConstraints(minHeight: 48),
-                            child: Column(
-                              mainAxisAlignment: MainAxisAlignment.center,
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                Text(
-                                  displayName.isNotEmpty ? displayName : name,
-                                  style: const TextStyle(
-                                    fontWeight: FontWeight.w700,
-                                    fontSize: 15.5,
-                                    color: Color(0xFF0F172A),
-                                    letterSpacing: -0.2,
-                                    height: 1.2,
-                                  ),
-                                  maxLines: 2,
-                                  overflow: TextOverflow.ellipsis,
-                                ),
-                                if (customSubtitle != null) ...[
-                                  const SizedBox(height: 3),
-                                  customSubtitle!,
-                                ],
-                              ],
                             ),
                           ),
-                        ),
-
-                        const SizedBox(width: 8),
-
-                        // Top-right controls: optional favorite star toggle + status pill
-                        Row(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            if (onToggleFavourite != null) ...[
-                              Material(
-                                color: Colors.transparent,
-                                child: InkWell(
-                                  onTap: isSelectionMode ? onTap : onToggleFavourite,
-                                  borderRadius: BorderRadius.circular(20),
-                                  child: Tooltip(
-                                    message: isFavourite ? 'Remove from Favourites' : 'Add to Favourites',
-                                    child: Padding(
-                                      padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 2),
-                                      child: Icon(
-                                        isFavourite ? Icons.star_rounded : Icons.star_outline_rounded,
-                                        size: 20,
-                                        color: isFavourite ? const Color(0xFFF59E0B) : const Color(0xFF94A3B8),
-                                      ),
-                                    ),
-                                  ),
-                                ),
-                              ),
-                              const SizedBox(width: 4),
-                            ],
-                            statusPill ??
-                                Container(
-                                  padding: const EdgeInsets.symmetric(
-                                    horizontal: 9,
-                                    vertical: 4.5,
-                                  ),
-                                  decoration: BoxDecoration(
-                                    color: gBg,
-                                    borderRadius: BorderRadius.circular(20),
-                                    border: Border.all(
-                                      color: gColor.withValues(alpha: 0.3),
-                                      width: 1.1,
-                                    ),
-                                  ),
-                                  child: Row(
-                                    mainAxisSize: MainAxisSize.min,
-                                    children: [
-                                      Container(
-                                        width: 6,
-                                        height: 6,
-                                        decoration: BoxDecoration(
-                                          color: gColor,
-                                          shape: BoxShape.circle,
-                                        ),
-                                      ),
-                                      const SizedBox(width: 5),
-                                      Text(
-                                        isAlumni
-                                            ? 'Alumni'
-                                            : (groupName ?? 'Active'),
-                                        style: TextStyle(
-                                          color: gColor,
-                                          fontSize: 10.5,
-                                          fontWeight: FontWeight.w800,
-                                          letterSpacing: 0.1,
-                                        ),
-                                      ),
-                                    ],
-                                  ),
-                                ),
-                          ],
-                        ),
                       ],
                     ),
 
-                    const SizedBox(height: 10),
+                    const SizedBox(width: 12),
 
-                    // 2. Metadata Light Chips (Celebrant Chip Style)
-                    Wrap(
-                      spacing: 6,
-                      runSpacing: 4.5,
-                      children: [
-                        if (room != null && room!.isNotEmpty)
-                          CelebrantLightChip(
-                            icon: Icons.meeting_room_rounded,
-                            text: 'Room $room',
-                            bgColor: const Color(0xFFF1F5F9),
-                            borderColor: const Color(0xFFE2E8F0),
-                            textColor: const Color(0xFF334155),
-                          ),
-                        if (bankCode != null && bankCode!.isNotEmpty)
-                          CelebrantLightChip(
-                            icon: Icons.tag_rounded,
-                            text: 'ID: $bankCode',
-                            bgColor: const Color(0xFFF8FAFC),
-                            borderColor: const Color(0xFFE2E8F0),
-                            textColor: const Color(0xFF475569),
-                          ),
-                        if (dobText != null && dobText!.isNotEmpty)
-                          CelebrantLightChip(
-                            icon: Icons.cake_outlined,
-                            text: dobText!,
-                            bgColor: const Color(0xFFFFFBEB),
-                            borderColor: const Color(0xFFFDE68A),
-                            textColor: const Color(0xFFD97706),
-                          ),
-                        ...?extraChips,
-                      ],
-                    ),
-
-                    const SizedBox(height: 12),
-                    const Divider(height: 1, color: Color(0xFFF1F5F9)),
-                    const SizedBox(height: 10),
-
-                    // 3. Quick communication buttons. The number itself is not
-                    // listed: the buttons use it, and the detail screen shows it.
-                    if (primaryPhone != 'No Phone' && primaryPhone.isNotEmpty)
-                      Row(
+                    // Name + Room Number
+                    Expanded(
+                      child: Column(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          if (onWhatsApp != null)
-                            Expanded(
-                              child: _CardActionButton(
-                                icon: Icons.chat_rounded,
-                                label: 'WhatsApp',
-                                iconColor: const Color(0xFF059669),
-                                bgColor: const Color(0xFFECFDF5),
-                                border: Border.all(
-                                  color: const Color(0xFFA7F3D0),
-                                ),
-                                tooltip: isSelectionMode ? 'Select' : 'Chat on WhatsApp',
-                                onTap: isSelectionMode
-                                    ? onTap
-                                    : () => onWhatsApp!(
-                                        whatsappNumber?.isNotEmpty == true
-                                            ? whatsappNumber!
-                                            : primaryPhone,
-                                      ),
-                              ),
+                          Text(
+                            displayName.isNotEmpty ? displayName : name,
+                            style: const TextStyle(
+                              fontWeight: FontWeight.w700,
+                              fontSize: 14.5,
+                              color: Color(0xFF0F172A),
+                              letterSpacing: -0.2,
+                              height: 1.2,
                             ),
-                          if (onWhatsApp != null && onCall != null)
-                            const SizedBox(width: 8),
-                          if (onCall != null)
-                            Expanded(
-                              child: _CardActionButton(
-                                icon: Icons.phone_rounded,
-                                label: 'Call',
-                                iconColor: const Color(0xFF0284C7),
-                                bgColor: const Color(0xFFE0F2FE),
-                                border: Border.all(
-                                  color: const Color(0xFFBAE6FD),
-                                ),
-                                tooltip: isSelectionMode ? 'Select' : 'Call Student ($primaryPhone)',
-                                onTap: isSelectionMode
-                                    ? onTap
-                                    : () => onCall!(primaryPhone),
-                              ),
-                            ),
-                        ],
-                      )
-                    else
-                      Container(
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 10,
-                          vertical: 8,
-                        ),
-                        decoration: BoxDecoration(
-                          color: const Color(0xFFF8FAFC),
-                          borderRadius: BorderRadius.circular(12),
-                          border: Border.all(color: const Color(0xFFE2E8F0)),
-                        ),
-                        child: const Text(
-                          'No Phone',
-                          style: TextStyle(
-                            color: Color(0xFF94A3B8),
-                            fontSize: 11,
-                            fontWeight: FontWeight.w600,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
                           ),
-                        ),
+                          const SizedBox(height: 3.5),
+                          if (customSubtitle != null)
+                            customSubtitle!
+                          else
+                            _buildMetadataRow(gColor, gBg, isAlumni),
+                        ],
                       ),
+                    ),
+
+                    const SizedBox(width: 8),
+
+                    // Actions: Favourite Star + Small WhatsApp + Small Call
+                    Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        if (statusPill != null) ...[
+                          statusPill!,
+                          const SizedBox(width: 4),
+                        ],
+                        if (onToggleFavourite != null) ...[
+                          Material(
+                            color: Colors.transparent,
+                            child: InkWell(
+                              onTap: isSelectionMode ? onTap : onToggleFavourite,
+                              borderRadius: BorderRadius.circular(16),
+                              child: Tooltip(
+                                message: isFavourite ? 'Remove from Favourites' : 'Add to Favourites',
+                                child: Padding(
+                                  padding: const EdgeInsets.all(5),
+                                  child: Icon(
+                                    isFavourite ? Icons.star_rounded : Icons.star_outline_rounded,
+                                    size: 20,
+                                    color: isFavourite ? const Color(0xFFF59E0B) : const Color(0xFF94A3B8),
+                                  ),
+                                ),
+                              ),
+                            ),
+                          ),
+                          const SizedBox(width: 2),
+                        ],
+                        if (hasPhone && onWhatsApp != null) ...[
+                          _SmallActionButton(
+                            icon: const FaIcon(
+                              FontAwesomeIcons.whatsapp,
+                              size: 16,
+                              color: Color(0xFF059669),
+                            ),
+                            bgColor: const Color(0xFFECFDF5),
+                            borderColor: const Color(0xFFA7F3D0),
+                            tooltip: isSelectionMode ? 'Select' : 'Chat on WhatsApp',
+                            onTap: isSelectionMode
+                                ? onTap
+                                : () => onWhatsApp!(
+                                    whatsappNumber?.isNotEmpty == true
+                                        ? whatsappNumber!
+                                        : primaryPhone,
+                                  ),
+                          ),
+                        ],
+                        if (hasPhone && onWhatsApp != null && onCall != null)
+                          const SizedBox(width: 6),
+                        if (hasPhone && onCall != null) ...[
+                          _SmallActionButton(
+                            icon: const Icon(
+                              Icons.phone_rounded,
+                              size: 16,
+                              color: Color(0xFF0284C7),
+                            ),
+                            bgColor: const Color(0xFFE0F2FE),
+                            borderColor: const Color(0xFFBAE6FD),
+                            tooltip: isSelectionMode ? 'Select' : 'Call Student ($primaryPhone)',
+                            onTap: isSelectionMode ? onTap : () => onCall!(primaryPhone),
+                          ),
+                        ],
+                      ],
+                    ),
                   ],
                 ),
               ),
@@ -466,6 +351,133 @@ class StudentContactCard extends StatelessWidget {
           ),
         ),
       ),
+    );
+  }
+
+  Widget _buildRoomChip(Color gColor, bool isAlumni) {
+    final r = (room ?? '').trim();
+    final bool hasRoom = r.isNotEmpty &&
+        r.toLowerCase() != 'n/a' &&
+        r.toLowerCase() != 'none' &&
+        r.toLowerCase() != 'null';
+    final String label = hasRoom
+        ? (r.toLowerCase().startsWith('room') ? r : 'Room $r')
+        : (isAlumni ? 'Alumni' : 'No Room');
+    final bool showAlumniStyle = !hasRoom && isAlumni;
+
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 6.5, vertical: 2),
+      decoration: BoxDecoration(
+        color: showAlumniStyle ? const Color(0xFFF3E8FF) : const Color(0xFFF1F5F9),
+        borderRadius: BorderRadius.circular(6),
+        border: Border.all(
+          color: showAlumniStyle ? const Color(0xFFE9D5FF) : const Color(0xFFE2E8F0),
+          width: 0.8,
+        ),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(
+            showAlumniStyle ? Icons.school_rounded : Icons.meeting_room_rounded,
+            size: 11,
+            color: showAlumniStyle ? const Color(0xFF9333EA) : const Color(0xFF475569),
+          ),
+          const SizedBox(width: 3.5),
+          Text(
+            label,
+            style: TextStyle(
+              fontSize: 11,
+              fontWeight: FontWeight.w700,
+              color: showAlumniStyle ? const Color(0xFF9333EA) : const Color(0xFF334155),
+              letterSpacing: -0.1,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildGroupChip(Color gColor, Color gBg) {
+    final group = (groupName ?? '').trim();
+    if (group.isEmpty) return const SizedBox.shrink();
+    if (isAlumni && group.toLowerCase() == 'alumni') return const SizedBox.shrink();
+
+    final label = isAlumni ? 'Alumni' : group;
+    final color = isAlumni ? const Color(0xFF9333EA) : gColor;
+    final bg = isAlumni ? const Color(0xFFF3E8FF) : gBg;
+    final borderColor = isAlumni ? const Color(0xFFE9D5FF) : color.withValues(alpha: 0.25);
+
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 6.5, vertical: 2),
+      decoration: BoxDecoration(
+        color: bg,
+        borderRadius: BorderRadius.circular(6),
+        border: Border.all(
+          color: borderColor,
+          width: 0.8,
+        ),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Container(
+            width: 5.5,
+            height: 5.5,
+            decoration: BoxDecoration(
+              color: color,
+              shape: BoxShape.circle,
+            ),
+          ),
+          const SizedBox(width: 3.5),
+          Text(
+            label,
+            style: TextStyle(
+              fontSize: 11,
+              fontWeight: FontWeight.w700,
+              color: color,
+              letterSpacing: -0.1,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildMetadataRow(Color gColor, Color gBg, bool isAlumni) {
+    final hasGroup = (groupName != null && groupName!.trim().isNotEmpty);
+    final hasExtra = (bankCode != null && bankCode!.isNotEmpty) ||
+        (dobText != null && dobText!.isNotEmpty) ||
+        (extraChips != null && extraChips!.isNotEmpty);
+
+    return Wrap(
+      spacing: 5,
+      runSpacing: 4,
+      crossAxisAlignment: WrapCrossAlignment.center,
+      children: [
+        _buildRoomChip(gColor, isAlumni),
+        if (hasGroup)
+          _buildGroupChip(gColor, gBg),
+        if (hasExtra) ...[
+          if (bankCode != null && bankCode!.isNotEmpty)
+            CelebrantLightChip(
+              icon: Icons.tag_rounded,
+              text: 'ID: $bankCode',
+              bgColor: const Color(0xFFF8FAFC),
+              borderColor: const Color(0xFFE2E8F0),
+              textColor: const Color(0xFF475569),
+            ),
+          if (dobText != null && dobText!.isNotEmpty)
+            CelebrantLightChip(
+              icon: Icons.cake_outlined,
+              text: dobText!,
+              bgColor: const Color(0xFFFFFBEB),
+              borderColor: const Color(0xFFFDE68A),
+              textColor: const Color(0xFFD97706),
+            ),
+          ...?extraChips,
+        ],
+      ],
     );
   }
 }
@@ -516,21 +528,17 @@ class CelebrantLightChip extends StatelessWidget {
   }
 }
 
-class _CardActionButton extends StatelessWidget {
-  final IconData icon;
-  final Color iconColor;
+class _SmallActionButton extends StatelessWidget {
+  final Widget icon;
   final Color bgColor;
-  final Border? border;
+  final Color borderColor;
   final String tooltip;
-  final String label;
   final VoidCallback onTap;
 
-  const _CardActionButton({
+  const _SmallActionButton({
     required this.icon,
-    required this.label,
-    required this.iconColor,
     required this.bgColor,
-    this.border,
+    required this.borderColor,
     required this.tooltip,
     required this.onTap,
   });
@@ -543,30 +551,17 @@ class _CardActionButton extends StatelessWidget {
         message: tooltip,
         child: InkWell(
           onTap: onTap,
-          borderRadius: BorderRadius.circular(12),
+          borderRadius: BorderRadius.circular(10),
           child: Container(
-            height: 40,
+            width: 34,
+            height: 34,
             decoration: BoxDecoration(
               color: bgColor,
-              borderRadius: BorderRadius.circular(12),
-              border: border,
+              borderRadius: BorderRadius.circular(10),
+              border: Border.all(color: borderColor, width: 1),
             ),
             alignment: Alignment.center,
-            child: Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Icon(icon, size: 17, color: iconColor),
-                const SizedBox(width: 6),
-                Text(
-                  label,
-                  style: TextStyle(
-                    color: iconColor,
-                    fontSize: 12.5,
-                    fontWeight: FontWeight.w700,
-                  ),
-                ),
-              ],
-            ),
+            child: icon,
           ),
         ),
       ),

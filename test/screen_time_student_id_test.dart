@@ -421,6 +421,65 @@ void main() {
     expect(controller.currentDayRawApps.length, 1);
     expect(controller.currentDayRawApps.first['appName'], 'Settings Suggestions');
   });
+
+  test('extractStudentMinutes and extractStudentNightMinutes extract time across diverse formats', () {
+    // snake_case MySQL column
+    expect(extractStudentMinutes({'total_minutes': 120}), 120);
+    // camelCase
+    expect(extractStudentMinutes({'totalScreenTimeMinutes': 95}), 95);
+    // usage_minutes
+    expect(extractStudentMinutes({'usage_minutes': 45}), 45);
+    // nested screenTime object
+    expect(extractStudentMinutes({'screenTime': {'total_minutes': 80}}), 80);
+    // nested today object
+    expect(extractStudentMinutes({'today': {'total_screen_time_minutes': 65}}), 65);
+    // nested apps list fallback
+    expect(extractStudentMinutes({
+      'apps': [
+        {'packageName': 'com.whatsapp', 'usage_minutes': 25},
+        {'packageName': 'com.instagram.android', 'minutes': 35},
+      ]
+    }), 60);
+
+    // night minutes
+    expect(extractStudentNightMinutes({'night_screen_time_minutes': 40}), 40);
+    expect(extractStudentNightMinutes({'nightMinutes': 25}), 25);
+    expect(extractStudentNightMinutes({'curfew_minutes': 15}), 15);
+  });
+
+  test('isStudentLocked handles booleans, MySQL 1/0, and unenrolled students', () {
+    // Enrolled student locked with 1
+    expect(isStudentLocked({'id': 101, 'is_locked': 1}), isTrue);
+    // Enrolled student locked via policy map
+    expect(isStudentLocked({'id': 102, 'policy': {'is_locked': true}}), isTrue);
+    expect(isStudentLocked({'id': 103, 'policy': {'is_locked': '1'}}), isTrue);
+
+    // Unlocked student
+    expect(isStudentLocked({'id': 104, 'is_locked': 0}), isFalse);
+    expect(isStudentLocked({'id': 105, 'policy': {'is_locked': 0}}), isFalse);
+    expect(isStudentLocked({'id': 106, 'policy': {'is_locked': false}}), isFalse);
+
+    // Unenrolled student (empty id) should never be marked locked
+    expect(isStudentLocked({'id': '', 'is_locked': 1}), isFalse);
+    expect(isStudentLocked({'id': '', 'policy': {'is_locked': true}}), isFalse);
+  });
+
+  test('updateStudentPolicyState updates directory list and invalidates counts in real-time', () {
+    final controller = ScreenTimeDirectoryController();
+    controller.allStudents.assignAll([
+      {'id': 10, 'name': 'Aadi Pandya', 'room': '717', 'is_locked': 1, 'policy': {'is_locked': 1}},
+      {'id': 11, 'name': 'Kavit Shah', 'room': '718', 'is_locked': 0},
+    ]);
+    controller.serverCounts['Locked'] = 1;
+
+    expect(isStudentLocked(controller.allStudents.first), isTrue);
+
+    // Warden unlocks Aadi Pandya
+    controller.updateStudentPolicyState('10', isLocked: false);
+
+    expect(isStudentLocked(controller.allStudents.first), isFalse);
+    expect(controller.directoryCount('Locked'), 0);
+  });
 }
 
 

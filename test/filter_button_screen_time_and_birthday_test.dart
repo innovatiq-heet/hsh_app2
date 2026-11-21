@@ -369,7 +369,7 @@ void main() {
       expect(find.text('HOSTEL WING / GROUP'), findsOneWidget);
       expect(find.text('HOSTEL FLOOR'), findsOneWidget);
       expect(find.text('RESIDENCE STATUS'), findsOneWidget);
-      expect(find.text('USAGE & POLICY ATTRIBUTES'), findsOneWidget);
+      expect(find.text('USAGE & POLICY ATTRIBUTES'), findsNothing);
       expect(find.text('SORT STUDENTS BY'), findsOneWidget);
 
       Get.delete<ScreenTimeDirectoryController>(force: true);

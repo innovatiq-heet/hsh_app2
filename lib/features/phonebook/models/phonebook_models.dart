@@ -668,21 +668,21 @@ class PhonebookStudent {
   /// Formats all complete student details into a clean, shareable card for WhatsApp / SMS / Email
   String toShareText() {
     final buffer = StringBuffer();
-    buffer.writeln('🎓 *Student Profile - Hari Saurabh Hostel (HSH)*');
-    buffer.writeln('👤 *Name:* $name');
+    buffer.writeln('*Student Profile - Hari Saurabh Hostel (HSH)*');
+    buffer.writeln('*Name:* $name');
     final w = groupName != null
         ? (groupName!.toLowerCase().endsWith('wing')
               ? groupName!
               : '$groupName Wing')
         : 'Hostel';
     if (room != null && room != 'Alumni' && room != 'N/A') {
-      buffer.writeln('🚪 *Room:* $room ($w)');
+      buffer.writeln('*Room:* $room ($w)');
     } else if (groupName != null) {
-      buffer.writeln('🏢 *Wing:* $w');
+      buffer.writeln('*Wing:* $w');
     }
     if (floor != null) {
       buffer.writeln(
-        '📶 *Floor:* ${floor == 0 ? 'Ground Floor' : 'Floor $floor'}',
+        '*Floor:* ${floor == 0 ? 'Ground Floor' : 'Floor $floor'}',
       );
     }
     final hasWa = whatsappNumber != null && whatsappNumber!.isNotEmpty;
@@ -692,63 +692,37 @@ class PhonebookStudent {
         PhoneNumberNormalizer.isSame(primaryPhone, whatsappNumber);
 
     if (isSameWaAndMobile) {
-      buffer.writeln('📱 *Mobile & WhatsApp:* $primaryPhone');
+      buffer.writeln('*Mobile & WhatsApp:* $primaryPhone');
     } else {
       if (hasPrim) {
-        buffer.writeln('📞 *Mobile:* $primaryPhone');
+        buffer.writeln('*Mobile:* $primaryPhone');
       }
       if (hasWa) {
-        buffer.writeln('💬 *WhatsApp:* $whatsappNumber');
+        buffer.writeln('*WhatsApp:* $whatsappNumber');
       }
     }
-    if (fatherName != null ||
-        (fatherPhone != null && fatherPhone!.isNotEmpty) ||
-        hasFatherBusiness) {
+    if (fatherName != null || (fatherPhone != null && fatherPhone!.isNotEmpty)) {
       final fName = fatherName ?? 'Father';
-      final fPhone = fatherPhone != null ? ' (Ph: $fatherPhone)' : '';
-      final fBiz = hasFatherBusiness ? ' • $fatherBusiness' : '';
-      buffer.writeln('👨 *Father:* $fName$fBiz$fPhone');
+      final fPhone = (fatherPhone != null && fatherPhone!.isNotEmpty)
+          ? ' (Ph: $fatherPhone)'
+          : '';
+      buffer.writeln('*Father:* $fName$fPhone');
     }
-    for (final p in phones) {
-      if (!p.label.toLowerCase().contains('father')) continue;
-      if (fatherPhone != null &&
-          fatherPhone!.isNotEmpty &&
-          PhoneNumberNormalizer.isSame(p.phone, fatherPhone)) {
-        continue;
-      }
-      buffer.writeln('📞 *${p.label}:* ${p.phone}');
-    }
-    if (motherName != null ||
-        (motherPhone != null && motherPhone!.isNotEmpty) ||
-        hasMotherBusiness) {
+    if (motherName != null || (motherPhone != null && motherPhone!.isNotEmpty)) {
       final mName = motherName ?? 'Mother';
-      final mPhone = motherPhone != null ? ' (Ph: $motherPhone)' : '';
-      final mBiz = hasMotherBusiness ? ' • $motherBusiness' : '';
-      buffer.writeln('👩 *Mother:* $mName$mBiz$mPhone');
-    }
-    for (final p in phones) {
-      if (!p.label.toLowerCase().contains('mother')) continue;
-      if (motherPhone != null &&
-          motherPhone!.isNotEmpty &&
-          PhoneNumberNormalizer.isSame(p.phone, motherPhone)) {
-        continue;
-      }
-      buffer.writeln('📞 *${p.label}:* ${p.phone}');
+      final mPhone = (motherPhone != null && motherPhone!.isNotEmpty)
+          ? ' (Ph: $motherPhone)'
+          : '';
+      buffer.writeln('*Mother:* $mName$mPhone');
     }
     if (hasAnniversary) {
-      buffer.writeln('💍 *Parents’ Anniversary:* $anniversaryFormatted');
+      buffer.writeln('*Parents’ Anniversary:* $anniversaryFormatted');
     }
     if (hasDob) {
       final ageStr = ageText.isNotEmpty ? ' ($ageText)' : '';
-      buffer.writeln('🎂 *DOB:* $formattedDob$ageStr');
+      buffer.writeln('*DOB:* $formattedDob$ageStr');
     }
-    buffer.writeln('📍 *Address:* $displayAddress');
-    if (aadhar != null && aadhar!.isNotEmpty) {
-      buffer.writeln('🆔 *Aadhar:* $maskedAadhar');
-    }
-    if (studentId.isNotEmpty) {
-      buffer.writeln('🏷️ *Student ID:* $studentId');
-    }
+    buffer.writeln('*Address:* $displayAddress');
     return buffer.toString().trim();
   }
 }

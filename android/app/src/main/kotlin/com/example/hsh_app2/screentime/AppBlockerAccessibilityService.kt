@@ -25,6 +25,9 @@ import java.util.concurrent.Executors
  *    pass lands…) or a time-based rule kicks in → re-check the app that is
  *    *already* on screen. Without this, an app restricted while in use stayed
  *    usable until the student left and reopened it.
+ *
+ * While this service is not connected, [UsageAppBlocker] enforces the same
+ * rules from usage events instead.
  */
 class AppBlockerAccessibilityService : AccessibilityService() {
 
@@ -55,6 +58,13 @@ class AppBlockerAccessibilityService : AccessibilityService() {
             }
             return false
         }
+
+        /**
+         * Whether the service is running in this process now. Unlike [isEnabled]
+         * this is false when Settings lists it as on but Android has not bound
+         * it (crashed, "not working"); [UsageAppBlocker] enforces then.
+         */
+        fun isConnected(): Boolean = instance != null
 
         /** Re-evaluate the app currently on screen. Safe to call from any thread; no-op if the service is off. */
         fun recheckForeground() {
@@ -114,6 +124,8 @@ class AppBlockerAccessibilityService : AccessibilityService() {
         if (instance === this) instance = null
         mainHandler.removeCallbacksAndMessages(null)
         lookupExecutor.shutdownNow()
+        // Switched off: the usage-events blocker takes over at once.
+        PolicyPollService.resumeUsageBlocker()
         super.onDestroy()
     }
 

@@ -1,6 +1,6 @@
 # Parental Control & Screen Time
 
-> **Last updated:** 2026-11-17 · **Repos:** `hsh_app2` (Flutter + native Android) and `hsh_api` (Node/Express/MySQL)
+> **Last updated:** 2026-11-21 · **Repos:** `hsh_app2` (Flutter + native Android) and `hsh_api` (Node/Express/MySQL)
 >
 > Paths starting with `lib/` or `android/` are in this repo; paths starting with `hsh_api/` are in the backend repo. Location tracking and curfew breaches are documented separately in [GEOFENCING_DOCS.md](GEOFENCING_DOCS.md).
 
@@ -19,7 +19,7 @@ Wardens (the operator console / platform admins) control and monitor each studen
 | **Daily limit** | Apps are blocked once today's total screen time reaches the limit. 0 = no limit. |
 | **Usage dashboard** | Today's total, per-app breakdown, 30-day history, online / screen-on / current app. |
 
-All rules are enforced **on the phone**, so they keep working offline and with the app closed. Policy changes reach the phone **within about a second while its screen is on** (see section 4).
+All rules are enforced **on the phone**, so they keep working offline and with the app closed. They are enforced by the Accessibility service, or, while it is off, from usage events (5.6), because some UPI and bank apps refuse to work while a third-party accessibility service is on. Policy changes reach the phone **within about a second while its screen is on** (see section 4).
 
 The curfew geofence **does not lock phones**; remote lock is the only lock wardens have.
 
@@ -55,6 +55,7 @@ graph TD
         PPS["PolicyPollService (sync loop + tick)"]
         PST["PolicyStore (version-ordered apply)"]
         ABS["AppBlockerAccessibilityService"]
+        UAB["UsageAppBlocker (Accessibility off)"]
         PE["PolicyEvaluator"]
         BAA["BlockedAppActivity"]
         STS["ScreenTimeSync (5-min ping)"]
@@ -77,6 +78,9 @@ graph TD
     PST -->|listener: policy changed| ABS
     ABS -->|re-check app on screen| PE
     ABS -->|block| BAA
+    PST -->|listener: policy changed| UAB
+    UAB -->|app in front, every 1 s| PE
+    UAB -->|block| BAA
     BAA -->|auto-close when allowed| PE
 
     STS --> UC
@@ -96,13 +100,13 @@ graph TD
 | File | Role |
 | :--- | :--- |
 | [screen_time_policy.dart](../lib/features/screentime/models/screen_time_policy.dart) | Policy model (`isLocked`, `blockedPackages`, `dailyLimitMinutes`, `bedtimeStart`, `bedtimeEnd`, `version`). `tryParse()` accepts snake_case and camelCase; an explicit `null` bedtime means "off"; `23:00:00` is shown as `23:00`. |
-| [screen_time_service.dart](../lib/core/services/screen_time_service.dart) | `hsh/screen_time` MethodChannel: permissions, start/stop monitoring, `syncNow`, `refreshPolicy`, `getPolicy`, `getCompliance`. |
+| [screen_time_service.dart](../lib/core/services/screen_time_service.dart) | `hsh/screen_time` MethodChannel: permissions (incl. "Display over other apps"; `appBlockerReady`), start/stop monitoring, `syncNow`, `refreshPolicy`, `getPolicy`, `getCompliance`. |
 | [screen_time_directory_controller.dart](../lib/features/screentime/controllers/screen_time_directory_controller.dart) | Warden dashboard: student directory (paging, search, counts), hostel night curfew, pending app requests. |
 | [student_detail_controller.dart](../lib/features/screentime/controllers/student_detail_controller.dart) | One opened student: live status, usage, history, policy and app-rule actions. |
 | [student_screen_time_screen.dart](../lib/features/screentime/views/student_screen_time_screen.dart) | Warden dashboard UI. Route `Routes.studentScreenTime`. |
 | [parental_controls_card.dart](../lib/features/screentime/widgets/parental_controls_card.dart) | Lock/unlock plus one tile into each settings screen (bedtime & daily limit; blocked apps); shows "Off" when neither is set. |
 | [restrict_apps_screen.dart](../lib/features/screentime/views/restrict_apps_screen.dart), [curfew_limit_screen.dart](../lib/features/screentime/views/curfew_limit_screen.dart) | Block an app; set bedtime and daily limit (each its own screen). |
-| [device_setup_screen.dart](../lib/features/screentime/views/device_setup_screen.dart) | Student onboarding: Usage access, App blocker (Accessibility), Location "all the time", Battery exemption. |
+| [device_setup_screen.dart](../lib/features/screentime/views/device_setup_screen.dart) | Student onboarding: Usage access, App blocker ("Display over other apps", or Accessibility via "Use Accessibility instead"), Location "all the time", Battery exemption. |
 | [home_controller.dart](../lib/features/home/controllers/home_controller.dart) | On student login/resume: sends the student to setup if a required permission is missing, then calls `syncNow()` and `refreshPolicy()`. |
 | [session_store.dart](../lib/core/storage/session_store.dart) | Starts monitoring for student/leader sessions; stops it on logout. |
 
@@ -114,10 +118,14 @@ graph TD
 | [ScreenTimeSync.kt](../android/app/src/main/kotlin/com/example/hsh_app2/screentime/ScreenTimeSync.kt) | Usage delta ping every 5 minutes (WorkManager tick + 15-min watchdog); `fetchAndSavePolicy()`, the single native policy fetch. |
 | [PolicyStore.kt](../android/app/src/main/kotlin/com/example/hsh_app2/screentime/PolicyStore.kt) | Encrypted storage of the session token, policy and backend `policy_version`. `applyPolicyJson()` discards responses older than the applied version and notifies listeners on change. |
 | [AppBlockerAccessibilityService.kt](../android/app/src/main/kotlin/com/example/hsh_app2/screentime/AppBlockerAccessibilityService.kt) | Blocks apps when they are opened **and** re-checks the app already on screen whenever the policy changes. |
+| [UsageAppBlocker.kt](../android/app/src/main/kotlin/com/example/hsh_app2/screentime/UsageAppBlocker.kt) | Blocker used while the Accessibility service is not connected: reads the app in front from usage events every second (screen on) and opens the block screen (5.6). Runs inside `PolicyPollService`. |
+| [ForegroundTracking.kt](../android/app/src/main/kotlin/com/example/hsh_app2/screentime/ForegroundTracking.kt) | Pure helpers for it: `ForegroundReplay` (app in front from usage events) and `BlockScreenThrottle` (show and log once per visit, retry every 2 s). |
 | [PolicyEvaluator.kt](../android/app/src/main/kotlin/com/example/hsh_app2/screentime/PolicyEvaluator.kt) | The rule engine (`BlockReason`: device locked, app blocked, bedtime, daily limit) and the always-allowed packages. |
 | [BlockedAppActivity.kt](../android/app/src/main/kotlin/com/example/hsh_app2/screentime/BlockedAppActivity.kt) | Full-screen block screen; closes itself as soon as the app is allowed again. |
 | [UsageCollector.kt](../android/app/src/main/kotlin/com/example/hsh_app2/screentime/UsageCollector.kt) | Per-app foreground time from usage events; current foreground package. |
 | [ScreenTimeWorker.kt](../android/app/src/main/kotlin/com/example/hsh_app2/screentime/ScreenTimeWorker.kt) | WorkManager job: runs the ping and restarts `PolicyPollService` if the OS killed it. |
+| [KeepAliveReceiver.kt](../android/app/src/main/kotlin/com/example/hsh_app2/screentime/KeepAliveReceiver.kt) | Alarm that restarts `PolicyPollService` about 5–10 s after the process is killed by Stop in the Active apps panel (screen on), or about 75 s after a kill with the screen off. The service keeps pushing it back (5.5). |
+| [KeepAliveActivity.kt](../android/app/src/main/kotlin/com/example/hsh_app2/screentime/KeepAliveActivity.kt) | Invisible screen that starts `PolicyPollService` from the foreground when a background start is refused, then closes (5.5). |
 | [BootPolicyReceiver.kt](../android/app/src/main/kotlin/com/example/hsh_app2/screentime/BootPolicyReceiver.kt) | Restarts sync and the poll service after reboot or app update. |
 
 ### Backend (`hsh_api/src/`)
@@ -188,6 +196,8 @@ graph TD
 | Every poll tick (30 s screen on) | The app on screen, so bedtime starting or the daily limit being reached mid-use takes effect |
 | Screen turns on | The app on screen |
 
+With the Accessibility service off, `UsageAppBlocker` runs the same check every second while the screen is on, plus on every policy change, screen on and service tick (5.6).
+
 "App on screen" is the last activity window the accessibility service saw; dialogs, keyboards and the notification shade are ignored. If nothing has been seen yet (service just connected), Android usage events are used. A check that raced an app switch is dropped, so it can never block an app the student has already left.
 
 ### 5.3 Block screen
@@ -212,7 +222,18 @@ On Android 13+ the notification shade has an "N apps are active" button. It open
 - "Stop" is read from SystemUI's own string (`fgs_manager_app_item_stop_button_label`, so it follows the phone's language), plus English. This needs the `<queries><package android:name="com.android.systemui"/></queries>` entry in the manifest.
 - Only for phones with a student session. The list fills in just after the panel opens, so it is checked at 0, 100, 250, 500, 1000 and 1500 ms after any SystemUI window change. Two text searches run first, so a normal pull-down of the shade does not walk the whole tree.
 - Reads every SystemUI window via `flagRetrieveInteractiveWindows` in `accessibility_service_config.xml`, falling back to the active window.
-- Not covered: a student who taps Stop within about 100 ms of the panel opening, and ROMs that draw the panel from a package other than SystemUI. If the app is stopped anyway, its scheduled `ScreenTimeWorker` (WorkManager) still runs and tries to restart the poller; Android 12+ only allows that when battery optimization is off for the app (setup step 4).
+- Not covered: a student who taps Stop within about 100 ms of the panel opening, and ROMs that draw the panel from a package other than SystemUI. If the app is stopped anyway (or the Accessibility service is off, so the panel can't be closed), Stop keeps the app's alarms and jobs, unlike Force stop. `KeepAliveReceiver` is an inexact alarm that `PolicyPollService` keeps pushing back, so it fires only once the process is gone. With the screen on (the only time Stop can be tapped) it is a non-wakeup alarm 5 s out, re-armed every 2 s, and it fires about 5–9 s after the kill; 5 s is about the shortest delay Android allows an alarm. With the screen off it is a wakeup alarm 75 s out, re-armed on every tick. It restarts the poller, which brings back both blockers and curfew location. If Android refuses to start the service from the background (no battery exemption, or Android 15+), `KeepAliveReceiver.restartMonitoring` opens the invisible `KeepAliveActivity` instead. "Display over other apps" allows that launch, and the activity starts the service from the foreground and closes. `ScreenTimeWorker` uses the same fallback. Setup's battery step can no longer be skipped by hand; it is skipped only on phones that have no such setting. Phones whose Stop behaves like Force stop (alarms cleared, some OEM ROMs) stay off until the app is opened again; only Accessibility (closing the panel) or Device Owner prevents that. A truly instant restart is not possible: Stop kills every process of the app, so nothing of ours is left to react. `ScreenTimeWorker` (WorkManager) is the slower backup. Android 12+ allows either restart only when battery optimization is off for the app (setup step 4). Logout cancels the alarm (`ScreenTimeSync.stop`).
+
+### 5.6 Blocking without Accessibility (`UsageAppBlocker`)
+
+Some UPI and bank apps refuse to pay while a third-party accessibility service is on, so students may keep HSH's off. `UsageAppBlocker` enforces the same rules without it:
+
+- **When:** only while `AppBlockerAccessibilityService` is **not connected** (`isConnected()`: off, or listed as on but not bound by Android). It never runs alongside the accessibility service, so a block is never shown or logged twice. When the accessibility service is switched off it hands over at once (`PolicyPollService.resumeUsageBlocker()`).
+- **How:** while the screen is on, once a second it reads the usage events since the last read (re-reading the last 5 s, since Android records them asynchronously) and replays them with `ForegroundReplay` to find the app in front. That app goes through `PolicyEvaluator.evaluate`, the same rules as 5.1, and a restricted app gets `BlockedAppActivity` plus a block event. `BlockScreenThrottle` logs one event per visit and opens the block screen again every 2 s while the app stays in front. It also checks on every policy change, screen on and service tick. It stops with the screen off, without a session, or when a permission is missing, and starts again on the next of those triggers.
+- **Needs:** Usage access (setup step 1) and, on Android 10+, **Display over other apps** (`SYSTEM_ALERT_WINDOW`, setup step 2). Without that permission Android does not let a background app open an activity, so the block screen cannot appear. Below Android 10 no permission is needed.
+- **Setup:** step 2 (App blocker) is done when either Display over other apps or the Accessibility service is on (`ScreenTimeService.appBlockerReady`). Its main button opens Display over other apps. "Use Accessibility instead" shows the Accessibility disclosure first. `HomeController` sends a student back to setup only when neither is on.
+- **Reported:** the ping's `compliance` adds `overlayPermission`, `appBlocker` (`accessibility` / `usage_events` / `off`) and `appBlockerActive`. The warden's "App blocker disabled" warning uses `isAppBlockerOff` (`appBlockerActive == false`, or `accessibilityEnabled == false` from older builds).
+- **Not covered without Accessibility:** self-protection (5.4, 5.5). A Stop from the Active apps panel works, but `KeepAliveReceiver` restarts monitoring about 5–10 s later (5.5). Detection takes up to about a second instead of happening at once, and `PolicyPollService` must be running (there is no accessibility watchdog to revive it; `ScreenTimeWorker` does).
 
 ---
 
@@ -288,12 +309,13 @@ Mounted at both `/api/screen-time/...` and `/screen-time/...`; all require a Bea
 | `refreshPolicy` | Wakes the native sync loop for an immediate policy fetch |
 | `getPolicy` / `getBlockedPackages` / `getCompliance` | Read what the phone currently enforces / reports |
 | `allowAppSettings` | Lets the student open this app's App info page for 2 minutes (see 5.4) |
+| `hasOverlayPermission` / `openOverlaySettings` | "Display over other apps" check (always true below Android 10) / Settings page; lets `UsageAppBlocker` open the block screen (5.6) |
 
 ---
 
 ## 11. Permissions
 
-`PACKAGE_USAGE_STATS` (granted in Settings → Usage access), the Accessibility service `AppBlockerAccessibilityService` (`BIND_ACCESSIBILITY_SERVICE`, listens to `typeWindowStateChanged`, reads window content and the interactive window list to spot the App info page and the Active apps panel), a `<queries>` entry for `com.android.systemui`, `RECEIVE_BOOT_COMPLETED`, `FOREGROUND_SERVICE` + `FOREGROUND_SERVICE_SPECIAL_USE` (+ `_LOCATION`), `REQUEST_IGNORE_BATTERY_OPTIMIZATIONS`, `POST_NOTIFICATIONS`. `BlockedAppActivity` is `singleTask`, excluded from recents, full-screen.
+`PACKAGE_USAGE_STATS` (granted in Settings → Usage access), the Accessibility service `AppBlockerAccessibilityService` (`BIND_ACCESSIBILITY_SERVICE`, listens to `typeWindowStateChanged`, reads window content and the interactive window list to spot the App info page and the Active apps panel), a `<queries>` entry for `com.android.systemui`, `RECEIVE_BOOT_COMPLETED`, `FOREGROUND_SERVICE` + `FOREGROUND_SERVICE_SPECIAL_USE` (+ `_LOCATION`), `REQUEST_IGNORE_BATTERY_OPTIMIZATIONS`, `POST_NOTIFICATIONS`, and `SYSTEM_ALERT_WINDOW` ("Display over other apps": the block screen with Accessibility off, 5.6; also the warden's caller ID popup). `BlockedAppActivity` is `singleTask`, excluded from recents, full-screen.
 
 ---
 
@@ -321,6 +343,10 @@ All checks passed. Native code compiles; `flutter analyze` is clean.
 - [ ] Turn on airplane mode, change rules, reconnect → the latest rules apply and nothing older overrides them.
 - [ ] Reboot → monitoring resumes without opening the app.
 - [ ] Calls, emergency dialer and keyboard still work while locked.
+- [ ] Accessibility off, Usage access and Display over other apps on: opening a blocked app shows the block screen within about a second; blocking the app that is open closes it; lock and unlock apply.
+- [ ] Accessibility off: Google Pay / PhonePe payments go through.
+- [ ] Turning Accessibility on and off while a blocked app is open: one block screen, one block event per open.
+- [ ] Accessibility off, battery optimization off: tap Stop in the Active apps panel → the monitoring notification and app blocking come back within about 10 seconds, without opening the app.
 
 ---
 
@@ -336,4 +362,47 @@ All checks passed. Native code compiles; `flutter analyze` is clean.
 - **Android only:** iOS student phones are not monitored.
 - **Leader scope is enforced by the app, not the server.** `hsh_api` returns every student to a leader unless `group` is sent, and lets a leader read or change any student's rules. The app always sends the group, but the backend should also limit leaders to `leaderGroupName` on `/students`, `/live`, `/history`, `/policies`, `/apps/*`.
 - **Force stop is only guarded on the App info page and the Active apps panel** (5.4, 5.5). A student who force-stops by another route, or uninstalls from the launcher, still stops the lock; the phone then goes offline on the warden's dashboard.
+- **Without Accessibility** (5.6): no self-protection, up to about 1 s before a restricted app is covered, and some ROMs (e.g. MIUI's "Display pop-up windows while running in the background") need an extra permission before Android lets the block screen open from the background.
 - **Update needed on phones:** the accessibility config changed (`canRetrieveWindowContent`, then `flagRetrieveInteractiveWindows` on 2026-11-16). Some devices only pick that up after the student turns the service off and on once. Until then the Active apps guard only sees the active window.
+
+### Accessibility consent
+
+Student setup shows a dedicated App Blocker disclosure before opening Android Accessibility settings. It explains foreground app detection, enforcement and the blocked-app events sent to the hostel server. Agree opens Settings. Decline dismisses the dialog and leaves Accessibility off; App Blocker can still be completed with Display over other apps (5.6). The privacy sheet provides a read-only copy.
+
+### Managed-device payment pilot (debug only)
+
+Use a spare hostel-owned Android phone with YouTube installed and no accounts
+or existing device owner at enrollment. Keep HSH App Blocker off in Android
+Accessibility settings throughout this pilot. Use the debug APK only.
+
+```powershell
+flutter build apk --debug
+adb devices
+adb install -t build/app/outputs/flutter-apk/app-debug.apk
+adb shell dpm set-device-owner --user 0 com.avd_hsh.app/com.example.hsh_app2.pilot.ManagedDevicePilotAdmin
+adb shell am start -n com.avd_hsh.app/com.example.hsh_app2.pilot.ManagedDevicePilotActivity
+```
+
+If Android rejects enrollment because an account or owner is already present,
+use a clean spare phone. Enrollment changes device management state. Never
+enroll a student's personal phone for this test.
+
+1. After enrollment, set up Google Pay and confirm a small payment with HSH
+   Accessibility off and YouTube available.
+2. Open the pilot again and tap **Block YouTube**. Confirm Android refuses to
+   open YouTube from the launcher. Complete a small payment in Google Pay and
+   repeat for other required UPI apps.
+3. Tap **Restore YouTube** and confirm that it opens again.
+4. With a known screen PIN already set, tap **Lock screen now** and verify that
+   Android locks and the PIN unlocks the phone.
+
+The pilot exercises local Android enforcement. Warden policy sync, scheduled
+bedtime, usage-limit expiry, and a persistent remote lock require separate
+implementation and testing.
+
+Restore YouTube before removing the test owner. Then run:
+
+```powershell
+adb shell dpm remove-active-admin --user 0 com.avd_hsh.app/com.example.hsh_app2.pilot.ManagedDevicePilotAdmin
+adb uninstall com.avd_hsh.app
+```

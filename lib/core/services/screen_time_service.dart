@@ -8,8 +8,9 @@ import '../../features/screentime/models/screen_time_policy.dart';
 ///
 /// Android reads real per-app usage from `UsageStatsManager` and syncs it to
 /// `POST /screen-time/ping` from a WorkManager job, enforces the
-/// [ScreenTimePolicy] through an Accessibility service and polls for remote
-/// lock from a foreground service — so everything keeps working while the
+/// [ScreenTimePolicy] through an Accessibility service (or from usage events
+/// while that is off) and polls for remote lock from a foreground service, so
+/// everything keeps working while the
 /// app is closed and after reboots. Every call is a no-op on non-Android.
 class ScreenTimeService {
   ScreenTimeService._();
@@ -31,6 +32,21 @@ class ScreenTimeService {
 
   /// Opens the system Accessibility settings page.
   static Future<void> openAccessibilitySettings() => _invoke('openAccessibilitySettings');
+
+  /// Whether Android lets the app open its block screen over other apps
+  /// ("Display over other apps"). Always true below Android 10, which needs
+  /// no permission for it. Together with Usage access, this lets the phone
+  /// block apps while the Accessibility service is off.
+  static Future<bool> hasOverlayPermission() => _bool('hasOverlayPermission');
+
+  /// Opens the system "Display over other apps" page for this app.
+  static Future<void> openOverlaySettings() => _invoke('openOverlaySettings');
+
+  /// Whether the phone can block restricted apps: through the Accessibility
+  /// service, or from usage events with "Display over other apps" (which also
+  /// needs Usage access; setup checks that separately).
+  static bool appBlockerReady({required bool accessibility, required bool overlay}) =>
+      accessibility || overlay;
 
   /// Whether the OS will leave our background work alone.
   static Future<bool> isBatteryOptimizationIgnored() => _bool('isBatteryOptimizationIgnored');

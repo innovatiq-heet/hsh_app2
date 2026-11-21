@@ -120,16 +120,11 @@ class PrivacyAndDisclosuresSheet extends StatelessWidget {
                     badgeColor: const Color(0xFFD97706),
                     title: 'AccessibilityService API Disclosure',
                     body:
-                        'HSH Connect uses the Android AccessibilityService API strictly to monitor active foreground application package names and window transition events.\n\n'
-                        '• Purpose: Detects and restricts access to prohibited, gaming, and entertainment applications during designated hostel study and curfew hours.\n'
-                        '• Protection: Prevents unauthorized bypassing or stopping of the hostel monitoring service during active residency.\n'
-                        '• Privacy: NO personal messages, keystrokes, emails, passwords, screen text, photos, or microphone audio are EVER collected, recorded, or inspected.\n'
-                        '• Exemption: UPI and banking apps (e.g. Google Pay, PhonePe, Paytm, BHIM) are never blocked.\n'
-                        '• Third-Party Sharing: Zero data is shared with third parties, advertisers, or analytics trackers.',
-                    actionLabel: 'View Accessibility Disclosure Modal',
+                        'HSH Connect uses Android Accessibility to detect which app opens and enforce app restrictions. Blocked-app events are sent to the hostel server.',
+                    actionLabel: 'Read Accessibility disclosure',
                     actionIcon: Icons.open_in_browser_rounded,
                     onAction: () {
-                      AccessibilityProminentDisclosureDialog.show(context);
+                      AccessibilityProminentDisclosureDialog.show(context, preview: true);
                     },
                   ),
                   const SizedBox(height: 14),

@@ -139,6 +139,9 @@ class FormEditorController extends GetxController with FormsManagerGate, Student
   Future<void> _start() async {
     if (!await ensureManager()) return;
     _loadTags();
+    // Picking students is likely, so start the download now; it is shared
+    // with the picker and with other screens.
+    loadStudents();
     final arg = _editingArg ?? Get.arguments;
     if (arg is HostelForm) {
       // The list item may be partial; fetch the full form.
@@ -216,9 +219,35 @@ class FormEditorController extends GetxController with FormsManagerGate, Student
     );
   }
 
+  /// Questions set aside while the editor is on Poll, put back on Form.
+  List<QuestionDraft> _setAside = const [];
+
+  /// Switches between Poll and Form. A poll is exactly one question: the
+  /// first one stays (as a choice question) and the others are kept aside, so
+  /// going back to Form doesn't lose them.
   void setKind(FormKind value) {
+    if (value == kind.value) return;
     kind.value = value;
-    if (value == FormKind.poll && questions.isEmpty) questions.add(_newQuestion(FormFieldType.poll));
+    if (value == FormKind.poll) {
+      if (questions.isEmpty) {
+        questions.add(_newQuestion(FormFieldType.poll));
+        return;
+      }
+      if (questions.length > 1) {
+        _setAside = questions.sublist(1);
+        questions.removeRange(1, questions.length);
+      }
+      final first = questions.first;
+      if (first.type != FormFieldType.poll && first.type != FormFieldType.radio) {
+        questions[0] = first.copyWith(
+          type: FormFieldType.poll,
+          options: first.options.length >= 2 ? first.options : const ['', ''],
+        );
+      }
+    } else if (_setAside.isNotEmpty) {
+      questions.addAll(_setAside);
+      _setAside = const [];
+    }
   }
 
   void addQuestion([FormFieldType type = FormFieldType.radio]) => questions.add(_newQuestion(type));

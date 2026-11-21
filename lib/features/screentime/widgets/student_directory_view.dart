@@ -340,64 +340,6 @@ class _SearchField extends GetView<ScreenTimeDirectoryController> {
     );
   }
 
-  Widget _toggleRow({
-    required IconData icon,
-    required Color iconColor,
-    required String title,
-    required String subtitle,
-    required bool value,
-    required ValueChanged<bool> onChanged,
-  }) {
-    return InkWell(
-      onTap: () => onChanged(!value),
-      child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 11),
-        child: Row(
-          children: [
-            Container(
-              width: 34,
-              height: 34,
-              decoration: BoxDecoration(
-                color: iconColor.withValues(alpha: 0.12),
-                borderRadius: BorderRadius.circular(9),
-              ),
-              child: Icon(icon, color: iconColor, size: 18),
-            ),
-            const SizedBox(width: 12),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    title,
-                    style: const TextStyle(
-                      fontSize: 13.5,
-                      fontWeight: FontWeight.w700,
-                      color: Color(0xFF0F172A),
-                    ),
-                  ),
-                  const SizedBox(height: 2),
-                  Text(
-                    subtitle,
-                    style: const TextStyle(
-                      fontSize: 11,
-                      color: Color(0xFF64748B),
-                    ),
-                  ),
-                ],
-              ),
-            ),
-            Switch(
-              value: value,
-              onChanged: onChanged,
-              activeThumbColor: const Color(0xFF0284C7),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
   void _showFilterBottomSheet(BuildContext context) {
     showModalBottomSheet(
       context: context,
@@ -561,8 +503,7 @@ class _SearchField extends GetView<ScreenTimeDirectoryController> {
                                 runSpacing: 8,
                                 children: ScreenTimeDirectoryController.hshGroups.map((g) {
                                   final sel = controller.selectedGroup.value == g;
-                                  final isAlumni = g.toLowerCase() == 'alumni';
-                                  final color = isAlumni ? const Color(0xFF9333EA) : const Color(0xFF0284C7);
+                                  const color = Color(0xFF0284C7);
                                   return FilterChip(
                                     label: Text(g),
                                     selected: sel,
@@ -649,76 +590,7 @@ class _SearchField extends GetView<ScreenTimeDirectoryController> {
                               ),
                               const SizedBox(height: 20),
 
-                              // 5. USAGE ATTRIBUTES
-                              _filterSectionHeader('USAGE & POLICY ATTRIBUTES', Icons.check_circle_outline_rounded),
-                              const SizedBox(height: 10),
-                              Container(
-                                decoration: BoxDecoration(
-                                  color: const Color(0xFFF8FAFC),
-                                  borderRadius: BorderRadius.circular(16),
-                                  border: Border.all(color: const Color(0xFFE2E8F0)),
-                                ),
-                                child: Column(
-                                  children: [
-                                    _toggleRow(
-                                      icon: Icons.timer_rounded,
-                                      iconColor: const Color(0xFF0284C7),
-                                      title: 'Has Screen Time Today',
-                                      subtitle: 'Show students with recorded usage today (> 0 min)',
-                                      value: controller.onlyWithUsage.value,
-                                      onChanged: controller.toggleOnlyWithUsage,
-                                    ),
-                                    const Divider(height: 1, indent: 52, color: Color(0xFFE2E8F0)),
-                                    _toggleRow(
-                                      icon: Icons.warning_amber_rounded,
-                                      iconColor: const Color(0xFFEA580C),
-                                      title: 'Heavy Screen Time (> 2 Hours)',
-                                      subtitle: 'Show students exceeding 120 minutes of usage',
-                                      value: controller.onlyHeavyUsage.value,
-                                      onChanged: controller.toggleOnlyHeavyUsage,
-                                    ),
-                                    const Divider(height: 1, indent: 52, color: Color(0xFFE2E8F0)),
-                                    _toggleRow(
-                                      icon: Icons.nights_stay_rounded,
-                                      iconColor: const Color(0xFF6366F1),
-                                      title: 'Night Curfew Usage',
-                                      subtitle: 'Show students who used their phone during night curfew',
-                                      value: controller.onlyNightUsage.value,
-                                      onChanged: controller.toggleOnlyNightUsage,
-                                    ),
-                                    const Divider(height: 1, indent: 52, color: Color(0xFFE2E8F0)),
-                                    _toggleRow(
-                                      icon: Icons.lock_clock_rounded,
-                                      iconColor: const Color(0xFFDC2626),
-                                      title: 'Locked or Restricted',
-                                      subtitle: 'Show students with locked devices or restricted apps',
-                                      value: controller.onlyLocked.value,
-                                      onChanged: controller.toggleOnlyLocked,
-                                    ),
-                                    const Divider(height: 1, indent: 52, color: Color(0xFFE2E8F0)),
-                                    _toggleRow(
-                                      icon: Icons.phone_rounded,
-                                      iconColor: const Color(0xFF059669),
-                                      title: 'Has Contact Phone',
-                                      subtitle: 'Show students with registered phone number',
-                                      value: controller.onlyWithPhone.value,
-                                      onChanged: controller.toggleOnlyWithPhone,
-                                    ),
-                                    const Divider(height: 1, indent: 52, color: Color(0xFFE2E8F0)),
-                                    _toggleRow(
-                                      icon: Icons.fingerprint_rounded,
-                                      iconColor: const Color(0xFF0D9488),
-                                      title: 'Has Aadhar / Student Code',
-                                      subtitle: 'Show students with registered Aadhar/code',
-                                      value: controller.onlyWithAadhar.value,
-                                      onChanged: controller.toggleOnlyWithAadhar,
-                                    ),
-                                  ],
-                                ),
-                              ),
-                              const SizedBox(height: 20),
-
-                              // 6. SORT ORDER
+                              // SORT ORDER
                               _filterSectionHeader('SORT STUDENTS BY', Icons.sort_by_alpha_rounded),
                               const SizedBox(height: 10),
                               Wrap(
@@ -1110,17 +982,8 @@ class _StudentRow extends GetView<ScreenTimeDirectoryController> {
             .toString();
     final isOnline = isStudentOnline(student);
     final isScreenOn = isStudentScreenOn(student);
-    final totalMins = toInt(
-      student['totalScreenTimeMinutes'] ??
-          student['todayScreenTimeMinutes'] ??
-          student['today_minutes'] ??
-          student['total_screen_time_minutes'] ??
-          student['minutes'] ??
-          0,
-    );
-    final nightMins = toInt(
-      student['nightScreenTimeMinutes'],
-    );
+    final totalMins = extractStudentMinutes(student);
+    final nightMins = extractStudentNightMinutes(student);
     final locked = isStudentLocked(student);
     final restricted = blockedOf(student).length;
     final tampered = isStudentTampered(student);

@@ -6,6 +6,7 @@ import '../enums/user_role.dart';
 import '../models/auth/user_session.dart';
 import '../models/student_profile/student_profile_model.dart';
 import '../network/api_client.dart';
+import '../network/repository/students/student_picker_source.dart';
 import '../services/aadhar_service.dart';
 import '../services/push_notification_service.dart';
 import '../services/screen_time_service.dart';
@@ -242,6 +243,9 @@ class SessionStore extends GetxService {
     await CallerIdService.setActive(false);
     // Favourites belong to this admin; the server keeps them for next login.
     await PhonebookFavouritesService.instance.clearLocal();
+
+    // The student list an admin downloaded for the pickers is theirs.
+    StudentPickerSource.clearCache();
 
     // 4. Invalidate Aadhar cache
     if (Get.isRegistered<AadharService>()) {

@@ -20,6 +20,18 @@ extension KeyStatusLook on KeyStatus {
   };
 }
 
+/// Each cupboard letter has its own colour (A blue, B purple, C teal ...).
+Color cupboardSlotColor(String? slot) => switch (slot) {
+  'A' => const Color(0xFF0284C7),
+  'B' => const Color(0xFF9333EA),
+  'C' => const Color(0xFF0D9488),
+  'D' => const Color(0xFFEA580C),
+  'E' => const Color(0xFFDB2777),
+  'F' => const Color(0xFF4F46E5),
+  'G' => const Color(0xFF65A30D),
+  _ => const Color(0xFF475569),
+};
+
 extension KeyTypeLook on KeyType {
   IconData get icon => switch (this) {
     KeyType.door => Icons.door_front_door_rounded,
@@ -121,17 +133,17 @@ class RoomKeyTile extends StatelessWidget {
                         Container(
                           padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 1.5),
                           decoration: BoxDecoration(
-                            color: k.cupboardSlot == 'A' ? const Color(0xFFE0F2FE) : const Color(0xFFF3E8FF),
+                            color: cupboardSlotColor(k.cupboardSlot).withValues(alpha: 0.12),
                             borderRadius: BorderRadius.circular(6),
                             border: Border.all(
-                              color: k.cupboardSlot == 'A' ? const Color(0xFF0284C7) : const Color(0xFF9333EA),
+                              color: cupboardSlotColor(k.cupboardSlot),
                               width: 0.8,
                             ),
                           ),
                           child: Text(
                             'CUPBOARD ${k.cupboardSlot}',
                             style: TextStyle(
-                              color: k.cupboardSlot == 'A' ? const Color(0xFF0284C7) : const Color(0xFF9333EA),
+                              color: cupboardSlotColor(k.cupboardSlot),
                               fontSize: 10,
                               fontWeight: FontWeight.w800,
                               letterSpacing: 0.3,
@@ -257,16 +269,14 @@ class _RoomKeysSetupSheetState extends State<RoomKeysSetupSheet> {
         .whereType<String>()
         .toSet();
 
-    var nextSlot = takenSlots.contains('A') ? 'B' : 'A';
+    // Each student without a cupboard key gets the next free letter.
+    final used = {...takenSlots};
     for (final s in _room.students) {
       if (_room.cupboardOf(s) == null) {
         _cupboards[s.id] = TextEditingController();
-        _studentCupboardSlots[s.id] = nextSlot;
-        if (nextSlot == 'A' && !takenSlots.contains('B')) {
-          nextSlot = 'B';
-        } else if (nextSlot == 'B' && !takenSlots.contains('A')) {
-          nextSlot = 'A';
-        }
+        final slot = _room.slotLetters.firstWhere((l) => !used.contains(l), orElse: () => 'Other');
+        _studentCupboardSlots[s.id] = slot;
+        used.add(slot);
       }
     }
   }
@@ -405,24 +415,19 @@ class _RoomKeysSetupSheetState extends State<RoomKeysSetupSheet> {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Row(
+                Wrap(
+                  spacing: 6,
+                  runSpacing: 6,
+                  crossAxisAlignment: WrapCrossAlignment.center,
                   children: [
                     Text('Key ${i + 1}:', style: AppTextStyles.caption.copyWith(fontWeight: FontWeight.w700)),
-                    const SizedBox(width: 8),
-                    _slotChoiceChip(
-                      label: 'Cupboard A',
-                      selected: _spareCupboardSlots[i] == 'A',
-                      color: const Color(0xFF0284C7),
-                      onTap: () => setState(() => _spareCupboardSlots[i] = 'A'),
-                    ),
-                    const SizedBox(width: 6),
-                    _slotChoiceChip(
-                      label: 'Cupboard B',
-                      selected: _spareCupboardSlots[i] == 'B',
-                      color: const Color(0xFF9333EA),
-                      onTap: () => setState(() => _spareCupboardSlots[i] = 'B'),
-                    ),
-                    const SizedBox(width: 6),
+                    for (final slot in _room.slotLetters)
+                      _slotChoiceChip(
+                        label: 'Cupboard $slot',
+                        selected: _spareCupboardSlots[i] == slot,
+                        color: cupboardSlotColor(slot),
+                        onTap: () => setState(() => _spareCupboardSlots[i] = slot),
+                      ),
                     _slotChoiceChip(
                       label: 'Other',
                       selected: _spareCupboardSlots[i] == 'Other',
@@ -456,7 +461,10 @@ class _RoomKeysSetupSheetState extends State<RoomKeysSetupSheet> {
           child: TextButton.icon(
             onPressed: () => setState(() {
               _spareCupboards.add(TextEditingController());
-              final nextSpare = _spareCupboardSlots.contains('A') ? 'B' : 'A';
+              final nextSpare = _room.slotLetters.firstWhere(
+                (l) => !_spareCupboardSlots.contains(l),
+                orElse: () => 'Other',
+              );
               _spareCupboardSlots.add(nextSpare);
             }),
             icon: const Icon(Icons.add_rounded),
@@ -505,23 +513,19 @@ class _RoomKeysSetupSheetState extends State<RoomKeysSetupSheet> {
               if (cupboard != null)
                 Text('Has ${cupboard.displayTitle}', style: AppTextStyles.bodySm)
               else ...[
-                Row(
+                Wrap(
+                  spacing: 6,
+                  runSpacing: 6,
+                  crossAxisAlignment: WrapCrossAlignment.center,
                   children: [
                     Text('Cupboard:', style: AppTextStyles.caption.copyWith(fontWeight: FontWeight.w700)),
-                    const SizedBox(width: 8),
-                    _slotChoiceChip(
-                      label: 'Cupboard A',
-                      selected: selectedSlot == 'A',
-                      color: const Color(0xFF0284C7),
-                      onTap: () => setState(() => _studentCupboardSlots[s.id] = 'A'),
-                    ),
-                    const SizedBox(width: 6),
-                    _slotChoiceChip(
-                      label: 'Cupboard B',
-                      selected: selectedSlot == 'B',
-                      color: const Color(0xFF9333EA),
-                      onTap: () => setState(() => _studentCupboardSlots[s.id] = 'B'),
-                    ),
+                    for (final slot in room.slotLetters)
+                      _slotChoiceChip(
+                        label: 'Cupboard $slot',
+                        selected: selectedSlot == slot,
+                        color: cupboardSlotColor(slot),
+                        onTap: () => setState(() => _studentCupboardSlots[s.id] = slot),
+                      ),
                   ],
                 ),
                 const SizedBox(height: 8),
@@ -836,23 +840,19 @@ class _KeyEditSheetState extends State<KeyEditSheet> {
         AppTextField(controller: _label, label: 'Name (optional)', hint: 'e.g. Main door, Cupboard A'),
         if (_type == KeyType.cupboard) ...[
           const SizedBox(height: 8),
-          Row(
+          Wrap(
+            spacing: 6,
+            runSpacing: 6,
+            crossAxisAlignment: WrapCrossAlignment.center,
             children: [
               Text('Quick label:', style: AppTextStyles.caption.copyWith(fontWeight: FontWeight.w700)),
-              const SizedBox(width: 8),
-              _slotChoiceChip(
-                label: 'Cupboard A',
-                selected: _label.text.trim().toUpperCase() == 'CUPBOARD A',
-                color: const Color(0xFF0284C7),
-                onTap: () => setState(() => _label.text = 'Cupboard A'),
-              ),
-              const SizedBox(width: 6),
-              _slotChoiceChip(
-                label: 'Cupboard B',
-                selected: _label.text.trim().toUpperCase() == 'CUPBOARD B',
-                color: const Color(0xFF9333EA),
-                onTap: () => setState(() => _label.text = 'Cupboard B'),
-              ),
+              for (final slot in cupboardSlotLetters)
+                _slotChoiceChip(
+                  label: 'Cupboard $slot',
+                  selected: _label.text.trim().toUpperCase() == 'CUPBOARD $slot',
+                  color: cupboardSlotColor(slot),
+                  onTap: () => setState(() => _label.text = 'Cupboard $slot'),
+                ),
             ],
           ),
         ],

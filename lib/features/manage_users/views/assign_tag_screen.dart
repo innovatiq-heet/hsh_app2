@@ -17,6 +17,7 @@ import '../../phonebook/widgets/alpha_scroll_rail.dart';
 import '../../phonebook/widgets/student_tag_sheet.dart';
 import '../../../core/network/repository/students/student_picker_source.dart';
 import '../../shared/widgets/empty_state.dart';
+import '../../shared/widgets/phonebook_style_widgets.dart';
 import '../../shared/widgets/staggered_slide_fade.dart';
 import '../../shared/widgets/student_contact_card.dart';
 
@@ -109,6 +110,11 @@ class _AssignTagScreenState extends State<AssignTagScreen> {
   final Set<int> _selectedTagIds = {};
 
   final Set<int> _busyIds = {};
+
+  /// Multi-select: students ticked to get the chosen tags in one go.
+  bool _selecting = false;
+  bool _bulkBusy = false;
+  final Set<int> _pickedIds = {};
   bool _isLoading = true;
   String? _errorMessage;
 
@@ -495,6 +501,123 @@ class _AssignTagScreenState extends State<AssignTagScreen> {
   }
 
   // ===========================================================================
+  // MULTI-SELECT
+  // ===========================================================================
+
+  void _startSelecting([int? firstId]) {
+    HapticFeedback.selectionClick();
+    setState(() {
+      _selecting = true;
+      if (firstId != null) _pickedIds.add(firstId);
+    });
+  }
+
+  void _stopSelecting() {
+    setState(() {
+      _selecting = false;
+      _pickedIds.clear();
+    });
+  }
+
+  void _togglePicked(int id) {
+    setState(() {
+      if (!_pickedIds.remove(id)) _pickedIds.add(id);
+    });
+  }
+
+  /// Ticks everyone currently listed (search and floor filter apply), or
+  /// clears them when they are all ticked already.
+  void _toggleAllShown() {
+    final ids = _displayedStudents.map((s) => s.id);
+    setState(() {
+      if (ids.every(_pickedIds.contains)) {
+        _pickedIds.removeAll(ids);
+      } else {
+        _pickedIds.addAll(ids);
+      }
+    });
+  }
+
+  /// Gives every ticked student the chosen tags they do not have yet.
+  Future<void> _assignToPicked() async {
+    if (_bulkBusy || _pickedIds.isEmpty) return;
+    final tags = _availableTags.where((t) => _selectedTagIds.contains(t.id)).toList();
+    if (tags.isEmpty) return;
+
+    final jobs = <(TagAssignableStudent, List<StudentTag>)>[];
+    for (final st in _allStudents.where((s) => _pickedIds.contains(s.id))) {
+      final missing = tags.where((t) => !st.hasTag(t.id)).toList();
+      if (missing.isNotEmpty) jobs.add((st, missing));
+    }
+    if (jobs.isEmpty) {
+      AppSnackbar.info('Already Assigned', 'The selected students already have these tags.');
+      return;
+    }
+
+    setState(() => _bulkBusy = true);
+    var done = 0;
+    var failed = 0;
+    String? firstError;
+
+    Future<void> run((TagAssignableStudent, List<StudentTag>) job) async {
+      final (st, missing) = job;
+      try {
+        final ids = missing.map((t) => t.id).toList();
+        if (ids.length == 1) {
+          await _tagsRepo.assignTag(studentId: st.id, tagId: ids.first);
+        } else {
+          await _tagsRepo.assignTags(studentId: st.id, tagIds: ids);
+        }
+        final updated = [...st.tags, ...missing];
+        final i = _allStudents.indexWhere((x) => x.id == st.id);
+        if (i != -1) _allStudents[i] = _allStudents[i].copyWith(tags: updated);
+        done++;
+        try {
+          await PhonebookDatabaseService.instance.updateStudentTags(st.id.toString(), updated);
+        } catch (_) {}
+      } on ApiException catch (e) {
+        failed++;
+        firstError ??= e.message;
+      } catch (_) {
+        failed++;
+      }
+    }
+
+    // A few at a time: quick, without flooding the server.
+    for (var i = 0; i < jobs.length; i += 4) {
+      await Future.wait(jobs.skip(i).take(4).map(run));
+      if (!mounted) return;
+    }
+
+    HapticFeedback.mediumImpact();
+    if (done > 0) widget.onAssigned?.call();
+    setState(() {
+      _bulkBusy = false;
+      if (failed == 0) {
+        _selecting = false;
+        _pickedIds.clear();
+      } else {
+        // keep the failed ones ticked so they can be retried
+        _pickedIds.removeWhere((id) {
+          final st = _allStudents.firstWhere((s) => s.id == id);
+          return tags.every((t) => st.hasTag(t.id));
+        });
+      }
+    });
+    _applyFilterAndSort();
+
+    final tagText = tags.length == 1 ? '"${tags.first.name}"' : '${tags.length} tags';
+    if (failed == 0) {
+      AppSnackbar.success('Tags Assigned', '$tagText assigned to $done student${done == 1 ? '' : 's'}.');
+    } else {
+      AppSnackbar.error(
+        'Some Failed',
+        '$done assigned, $failed failed${firstError == null ? '' : ': $firstError'}. Failed students stay selected.',
+      );
+    }
+  }
+
+  // ===========================================================================
   // ASSIGN & UNASSIGN ACTIONS
   // ===========================================================================
 
@@ -691,6 +814,7 @@ class _AssignTagScreenState extends State<AssignTagScreen> {
       value: SystemUiOverlayStyle.light,
       child: Scaffold(
         backgroundColor: const Color(0xFFF8FAFC),
+        bottomNavigationBar: _selecting ? _buildSelectionBar(bottomPad) : null,
         body: Stack(
           children: [
             CustomScrollView(
@@ -943,167 +1067,29 @@ class _AssignTagScreenState extends State<AssignTagScreen> {
 
   Widget _buildSliverHeader(double topPad) {
     final assignedCount = _allStudents.where((s) => s.hasTag(widget.tag.id)).length;
-    return SliverAppBar(
+    final desc = _activeTag.description?.trim() ?? '';
+    return SliverPersistentHeader(
       pinned: true,
-      elevation: 0,
-      expandedHeight: topPad + 130,
-      backgroundColor: const Color(0xFF032B4F),
-      leading: Padding(
-        padding: const EdgeInsets.all(8.0),
-        child: Material(
-          color: Colors.transparent,
-          child: InkWell(
-            onTap: () => Navigator.pop(context),
-            borderRadius: BorderRadius.circular(24),
-            child: Container(
-              decoration: BoxDecoration(
-                color: Colors.white.withValues(alpha: 0.16),
-                shape: BoxShape.circle,
-                border: Border.all(
-                  color: Colors.white.withValues(alpha: 0.25),
-                  width: 1,
-                ),
+      delegate: PhonebookHeaderDelegate(
+        overline: 'Assign tag',
+        title: _activeTag.name,
+        subtitle: desc.isEmpty ? null : desc,
+        topPadding: topPad,
+        onLeadingTap: () => Navigator.pop(context),
+        trailing: _activeTag.isSystem
+            ? null
+            : PhonebookHeaderCircleButton(
+                icon: Icons.edit_rounded,
+                tooltip: 'Edit tag',
+                onTap: _showEditTagDialog,
               ),
-              child: const Icon(
-                Icons.arrow_back_rounded,
-                color: Colors.white,
-                size: 20,
-              ),
-            ),
-          ),
-        ),
-      ),
-      flexibleSpace: FlexibleSpaceBar(
-        background: Container(
-          decoration: const BoxDecoration(
-            gradient: LinearGradient(
-              begin: Alignment.topLeft,
-              end: Alignment.bottomRight,
-              colors: [
-                Color(0xFF03192E),
-                Color(0xFF032B4F),
-                Color(0xFF025A8D),
-                Color(0xFF0369A1),
-              ],
-              stops: [0.0, 0.38, 0.75, 1.0],
-            ),
-          ),
-          child: Stack(
-            fit: StackFit.expand,
-            children: [
-              CustomPaint(painter: _HeaderOrbPainter()),
-              Padding(
-                padding: EdgeInsets.fromLTRB(20, topPad + 48, 20, 16),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  mainAxisAlignment: MainAxisAlignment.end,
-                  children: [
-                    Row(
-                      children: [
-                        Container(
-                          padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 4),
-                          decoration: BoxDecoration(
-                            color: _activeTag.displayColor.withValues(alpha: 0.9),
-                            borderRadius: BorderRadius.circular(8),
-                            boxShadow: [
-                              BoxShadow(
-                                color: _activeTag.displayColor.withValues(alpha: 0.35),
-                                blurRadius: 8,
-                                offset: const Offset(0, 2),
-                              ),
-                            ],
-                          ),
-                          child: Row(
-                            mainAxisSize: MainAxisSize.min,
-                            children: [
-                              const Icon(Icons.label_rounded, size: 14, color: Colors.white),
-                              const SizedBox(width: 5),
-                              Text(
-                                _activeTag.name,
-                                style: const TextStyle(
-                                  fontSize: 13,
-                                  fontWeight: FontWeight.w800,
-                                  color: Colors.white,
-                                ),
-                              ),
-                            ],
-                          ),
-                        ),
-                        const SizedBox(width: 8),
-                        if (!_activeTag.isSystem) ...[
-                          InkWell(
-                            onTap: _showEditTagDialog,
-                            borderRadius: BorderRadius.circular(8),
-                            child: Container(
-                              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                              decoration: BoxDecoration(
-                                color: Colors.white.withValues(alpha: 0.18),
-                                borderRadius: BorderRadius.circular(8),
-                                border: Border.all(color: Colors.white.withValues(alpha: 0.3)),
-                              ),
-                              child: const Row(
-                                mainAxisSize: MainAxisSize.min,
-                                children: [
-                                  Icon(Icons.edit_rounded, size: 12, color: Colors.white),
-                                  SizedBox(width: 4),
-                                  Text(
-                                    'Edit',
-                                    style: TextStyle(
-                                      fontSize: 11.5,
-                                      fontWeight: FontWeight.w700,
-                                      color: Colors.white,
-                                    ),
-                                  ),
-                                ],
-                              ),
-                            ),
-                          ),
-                          const SizedBox(width: 8),
-                        ],
-                        Container(
-                          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                          decoration: BoxDecoration(
-                            color: const Color(0xFF10B981).withValues(alpha: 0.9),
-                            borderRadius: BorderRadius.circular(8),
-                          ),
-                          child: Text(
-                            '$assignedCount Assigned',
-                            style: const TextStyle(
-                              fontSize: 11.5,
-                              fontWeight: FontWeight.w800,
-                              color: Colors.white,
-                            ),
-                          ),
-                        ),
-                      ],
-                    ),
-                    const SizedBox(height: 6),
-                    Text(
-                      'Assign "${_activeTag.name}" Tag',
-                      style: const TextStyle(
-                        fontSize: 20,
-                        fontWeight: FontWeight.w800,
-                        color: Colors.white,
-                        letterSpacing: -0.3,
-                      ),
-                    ),
-                    if (_activeTag.description != null && _activeTag.description!.isNotEmpty) ...[
-                      const SizedBox(height: 2),
-                      Text(
-                        _activeTag.description!,
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style: TextStyle(
-                          fontSize: 12,
-                          color: Colors.white.withValues(alpha: 0.85),
-                        ),
-                      ),
-                    ],
-                  ],
-                ),
-              ),
-            ],
-          ),
+        pills: Wrap(
+          spacing: 8,
+          runSpacing: 6,
+          children: [
+            PhonebookHeaderPill(icon: Icons.check_circle_outline_rounded, label: '$assignedCount assigned'),
+            if (_selecting) PhonebookHeaderPill(icon: Icons.checklist_rounded, label: '${_pickedIds.length} selected'),
+          ],
         ),
       ),
     );
@@ -1112,59 +1098,107 @@ class _AssignTagScreenState extends State<AssignTagScreen> {
   Widget _buildControlsBar() {
     return Container(
       color: Colors.white,
-      padding: const EdgeInsets.fromLTRB(16, 14, 16, 12),
+      padding: const EdgeInsets.fromLTRB(16, 12, 16, 12),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          // Search Input
-          TextField(
-            controller: _searchCtrl,
-            onChanged: _onSearchChanged,
-            decoration: InputDecoration(
-              hintText: 'Search by student name, room (e.g. 204), or ID',
-              prefixIcon: const Icon(Icons.search_rounded, color: Color(0xFF0284C7), size: 21),
-              suffixIcon: _searchCtrl.text.isNotEmpty
-                  ? IconButton(
-                      icon: const Icon(Icons.clear_rounded, size: 18),
-                      onPressed: () {
-                        _searchCtrl.clear();
-                        _applyFilterAndSort();
-                      },
-                    )
-                  : null,
-              filled: true,
-              fillColor: const Color(0xFFF8FAFC),
-              contentPadding: const EdgeInsets.symmetric(vertical: 11, horizontal: 14),
-              border: OutlineInputBorder(
-                borderRadius: BorderRadius.circular(12),
-                borderSide: const BorderSide(color: Color(0xFFE2E8F0)),
+          // Search + sort
+          Row(
+            children: [
+              Expanded(
+                child: TextField(
+                  controller: _searchCtrl,
+                  onChanged: _onSearchChanged,
+                  decoration: InputDecoration(
+                    hintText: 'Search name, room or ID',
+                    prefixIcon: const Icon(Icons.search_rounded, color: Color(0xFF64748B), size: 20),
+                    suffixIcon: _searchCtrl.text.isNotEmpty
+                        ? IconButton(
+                            icon: const Icon(Icons.clear_rounded, size: 18),
+                            onPressed: () {
+                              _searchCtrl.clear();
+                              _applyFilterAndSort();
+                            },
+                          )
+                        : null,
+                    filled: true,
+                    fillColor: const Color(0xFFF8FAFC),
+                    isDense: true,
+                    contentPadding: const EdgeInsets.symmetric(vertical: 11, horizontal: 12),
+                    border: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(12),
+                      borderSide: const BorderSide(color: Color(0xFFE2E8F0)),
+                    ),
+                    enabledBorder: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(12),
+                      borderSide: const BorderSide(color: Color(0xFFE2E8F0)),
+                    ),
+                    focusedBorder: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(12),
+                      borderSide: const BorderSide(color: Color(0xFF0284C7), width: 1.5),
+                    ),
+                  ),
+                ),
               ),
-              enabledBorder: OutlineInputBorder(
-                borderRadius: BorderRadius.circular(12),
-                borderSide: const BorderSide(color: Color(0xFFE2E8F0)),
+              const SizedBox(width: 8),
+              PopupMenuButton<TagSortMode>(
+                tooltip: 'Sort',
+                initialValue: _sortMode,
+                onSelected: (mode) {
+                  if (_sortMode != mode) {
+                    setState(() => _sortMode = mode);
+                    _applyFilterAndSort();
+                  }
+                },
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+                itemBuilder: (_) => const [
+                  PopupMenuItem(value: TagSortMode.roomWise, child: Text('Room-wise')),
+                  PopupMenuItem(value: TagSortMode.nameAZ, child: Text('Name (A-Z)')),
+                  PopupMenuItem(value: TagSortMode.assignedFirst, child: Text('Assigned first')),
+                ],
+                child: Container(
+                  width: 44,
+                  height: 44,
+                  decoration: BoxDecoration(
+                    color: const Color(0xFFF8FAFC),
+                    borderRadius: BorderRadius.circular(12),
+                    border: Border.all(color: const Color(0xFFE2E8F0)),
+                  ),
+                  child: const Icon(Icons.sort_rounded, size: 20, color: Color(0xFF475569)),
+                ),
               ),
-              focusedBorder: OutlineInputBorder(
-                borderRadius: BorderRadius.circular(12),
-                borderSide: const BorderSide(color: Color(0xFF0284C7), width: 1.5),
-              ),
-            ),
+            ],
           ),
-          const SizedBox(height: 10),
+          const SizedBox(height: 12),
 
-          // Multi-Tag Selection Bar (Allows selecting multiple tags to assign simultaneously)
+          // Tags to give (pick one or several)
           if (_availableTags.isNotEmpty) ...[
             Row(
               children: [
-                const Icon(Icons.sell_outlined, size: 14, color: Color(0xFF64748B)),
-                const SizedBox(width: 6),
                 Text(
-                  'Assigning Tag${_selectedTagIds.length > 1 ? 's' : ''} (${_selectedTagIds.length} selected):',
-                  style: const TextStyle(
-                    fontSize: 12,
-                    fontWeight: FontWeight.w700,
-                    color: Color(0xFF334155),
-                  ),
+                  _selectedTagIds.length > 1 ? 'Tags to assign (${_selectedTagIds.length})' : 'Tag to assign',
+                  style: const TextStyle(fontSize: 12.5, fontWeight: FontWeight.w800, color: Color(0xFF334155)),
                 ),
+                const Spacer(),
+                if (!_selecting)
+                  InkWell(
+                    onTap: () => _startSelecting(),
+                    borderRadius: BorderRadius.circular(8),
+                    child: const Padding(
+                      padding: EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Icon(Icons.checklist_rounded, size: 16, color: Color(0xFF0284C7)),
+                          SizedBox(width: 4),
+                          Text(
+                            'Select students',
+                            style: TextStyle(fontSize: 12.5, fontWeight: FontWeight.w800, color: Color(0xFF0284C7)),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
               ],
             ),
             const SizedBox(height: 6),
@@ -1175,15 +1209,14 @@ class _AssignTagScreenState extends State<AssignTagScreen> {
                   final isSelected = _selectedTagIds.contains(t.id);
                   return Padding(
                     padding: const EdgeInsets.only(right: 6),
-                    child: FilterChip(
+                    child: ChoiceChip(
                       selected: isSelected,
-                      showCheckmark: true,
-                      checkmarkColor: Colors.white,
-                      avatar: isSelected ? null : Icon(Icons.label_outline_rounded, size: 14, color: t.color),
+                      showCheckmark: false,
+                      visualDensity: VisualDensity.compact,
                       label: Text(
                         t.name,
                         style: TextStyle(
-                          fontSize: 11.5,
+                          fontSize: 12,
                           fontWeight: FontWeight.w700,
                           color: isSelected ? Colors.white : t.color,
                         ),
@@ -1191,11 +1224,8 @@ class _AssignTagScreenState extends State<AssignTagScreen> {
                       backgroundColor: t.backgroundColor,
                       selectedColor: t.color,
                       shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(10),
-                        side: BorderSide(
-                          color: isSelected ? t.color : t.borderColor,
-                          width: isSelected ? 1.5 : 1,
-                        ),
+                        borderRadius: BorderRadius.circular(20),
+                        side: BorderSide(color: isSelected ? t.color : t.borderColor),
                       ),
                       onSelected: (_) => _toggleTagSelection(t.id),
                     ),
@@ -1206,31 +1236,7 @@ class _AssignTagScreenState extends State<AssignTagScreen> {
             const SizedBox(height: 10),
           ],
 
-          // Sorting Segmented Control
-          Row(
-            children: [
-              _buildSortChip(
-                mode: TagSortMode.roomWise,
-                label: 'Room-wise',
-                icon: Icons.meeting_room_outlined,
-              ),
-              const SizedBox(width: 8),
-              _buildSortChip(
-                mode: TagSortMode.nameAZ,
-                label: 'Name (A-Z)',
-                icon: Icons.sort_by_alpha_rounded,
-              ),
-              const SizedBox(width: 8),
-              _buildSortChip(
-                mode: TagSortMode.assignedFirst,
-                label: 'Assigned First',
-                icon: Icons.check_circle_outline_rounded,
-              ),
-            ],
-          ),
-          const SizedBox(height: 10),
-
-          // Horizontal Floor Filter Chips
+          // Floor filter
           SingleChildScrollView(
             scrollDirection: Axis.horizontal,
             child: Row(
@@ -1238,36 +1244,32 @@ class _AssignTagScreenState extends State<AssignTagScreen> {
                 final selected = _selectedFloor == f;
                 final isAlumni = f == 'Alumni';
                 final activeColor = isAlumni ? const Color(0xFF9333EA) : const Color(0xFF0284C7);
-                String displayLabel = f;
-                if (f == 'All') {
-                  displayLabel = 'All Rooms';
-                } else if (f == 'Ground') {
-                  displayLabel = 'Ground Floor';
-                } else if (f != 'Alumni') {
-                  displayLabel = 'Floor $f';
-                }
-
+                final label = f == 'All'
+                    ? 'All'
+                    : f == 'Ground'
+                        ? 'Ground'
+                        : f == 'Alumni'
+                            ? 'Alumni'
+                            : 'Floor $f';
                 return Padding(
                   padding: const EdgeInsets.only(right: 6),
-                  child: FilterChip(
+                  child: ChoiceChip(
                     label: Text(
-                      displayLabel,
+                      label,
                       style: TextStyle(
-                        fontSize: 11.5,
-                        fontWeight: selected ? FontWeight.w700 : FontWeight.w500,
-                        color: selected ? Colors.white : const Color(0xFF334155),
+                        fontSize: 12,
+                        fontWeight: selected ? FontWeight.w700 : FontWeight.w600,
+                        color: selected ? Colors.white : const Color(0xFF475569),
                       ),
                     ),
                     selected: selected,
+                    showCheckmark: false,
+                    visualDensity: VisualDensity.compact,
                     selectedColor: activeColor,
                     backgroundColor: const Color(0xFFF1F5F9),
-                    showCheckmark: false,
-                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
                     shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(10),
-                      side: BorderSide(
-                        color: selected ? activeColor : const Color(0xFFE2E8F0),
-                      ),
+                      borderRadius: BorderRadius.circular(20),
+                      side: BorderSide(color: selected ? activeColor : const Color(0xFFE2E8F0)),
                     ),
                     onSelected: (val) {
                       if (val) {
@@ -1285,55 +1287,62 @@ class _AssignTagScreenState extends State<AssignTagScreen> {
     );
   }
 
-  Widget _buildSortChip({
-    required TagSortMode mode,
-    required String label,
-    required IconData icon,
-  }) {
-    final isSelected = _sortMode == mode;
-    return Expanded(
-      child: InkWell(
-        onTap: () {
-          if (_sortMode != mode) {
-            setState(() => _sortMode = mode);
-            _applyFilterAndSort();
-          }
-        },
-        borderRadius: BorderRadius.circular(10),
-        child: AnimatedContainer(
-          duration: const Duration(milliseconds: 180),
-          padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 4),
-          decoration: BoxDecoration(
-            color: isSelected ? const Color(0xFF0284C7) : const Color(0xFFF8FAFC),
-            borderRadius: BorderRadius.circular(10),
-            border: Border.all(
-              color: isSelected ? const Color(0xFF0284C7) : const Color(0xFFE2E8F0),
-            ),
+  Widget _buildSelectionBar(double bottomPad) {
+    final tagCount = _selectedTagIds.length;
+    final n = _pickedIds.length;
+    final allShown = _displayedStudents.isNotEmpty && _displayedStudents.every((s) => _pickedIds.contains(s.id));
+    return Container(
+      padding: EdgeInsets.fromLTRB(8, 8, 12, 8 + bottomPad),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        boxShadow: [
+          BoxShadow(color: const Color(0xFF0F172A).withValues(alpha: 0.10), blurRadius: 16, offset: const Offset(0, -4)),
+        ],
+      ),
+      child: Row(
+        children: [
+          IconButton(
+            tooltip: 'Cancel',
+            onPressed: _bulkBusy ? null : _stopSelecting,
+            icon: const Icon(Icons.close_rounded, color: Color(0xFF475569)),
           ),
-          child: Row(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              Icon(
-                icon,
-                size: 14,
-                color: isSelected ? Colors.white : const Color(0xFF64748B),
-              ),
-              const SizedBox(width: 4),
-              Flexible(
-                child: Text(
-                  label,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: TextStyle(
-                    fontSize: 11.5,
-                    fontWeight: isSelected ? FontWeight.w800 : FontWeight.w600,
-                    color: isSelected ? Colors.white : const Color(0xFF475569),
+          Expanded(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  '$n selected',
+                  style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w800, color: Color(0xFF0F172A)),
+                ),
+                GestureDetector(
+                  onTap: _bulkBusy ? null : _toggleAllShown,
+                  child: Text(
+                    allShown ? 'Clear shown' : 'Select all shown',
+                    style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w700, color: Color(0xFF0284C7)),
                   ),
                 ),
-              ),
-            ],
+              ],
+            ),
           ),
-        ),
+          ElevatedButton.icon(
+            onPressed: (n == 0 || _bulkBusy) ? null : _assignToPicked,
+            icon: _bulkBusy
+                ? const SizedBox(width: 14, height: 14, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
+                : const Icon(Icons.label_rounded, size: 16),
+            label: Text(tagCount > 1 ? 'Assign $tagCount tags' : 'Assign tag'),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: const Color(0xFF0284C7),
+              foregroundColor: Colors.white,
+              disabledBackgroundColor: const Color(0xFFCBD5E1),
+              disabledForegroundColor: Colors.white,
+              elevation: 0,
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 11),
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+              textStyle: const TextStyle(fontSize: 13, fontWeight: FontWeight.w800),
+            ),
+          ),
+        ],
       ),
     );
   }
@@ -1366,7 +1375,53 @@ class _AssignTagScreenState extends State<AssignTagScreen> {
               }
             }
 
-            final card = _buildStudentCard(student);
+            final picked = _pickedIds.contains(student.id);
+            final card = GestureDetector(
+              behavior: HitTestBehavior.opaque,
+              onLongPress: _selecting ? null : () => _startSelecting(student.id),
+              onTap: _selecting && !_bulkBusy ? () => _togglePicked(student.id) : null,
+              // While selecting, a tap anywhere on the card ticks it.
+              child: AbsorbPointer(
+                absorbing: _selecting,
+                child: Stack(
+                  children: [
+                    _buildStudentCard(student),
+                    if (_selecting)
+                      Positioned.fill(
+                        child: IgnorePointer(
+                          child: Container(
+                            decoration: BoxDecoration(
+                              borderRadius: BorderRadius.circular(20),
+                              color: picked ? const Color(0xFF0284C7).withValues(alpha: 0.06) : null,
+                              border: picked ? Border.all(color: const Color(0xFF0284C7), width: 2) : null,
+                            ),
+                          ),
+                        ),
+                      ),
+                    if (_selecting)
+                      Positioned(
+                        top: 6,
+                        left: 6,
+                        child: IgnorePointer(
+                          child: Container(
+                            width: 22,
+                            height: 22,
+                            decoration: BoxDecoration(
+                              color: picked ? const Color(0xFF0284C7) : Colors.white,
+                              shape: BoxShape.circle,
+                              border: Border.all(
+                                color: picked ? const Color(0xFF0284C7) : const Color(0xFFCBD5E1),
+                                width: 1.6,
+                              ),
+                            ),
+                            child: picked ? const Icon(Icons.check_rounded, size: 15, color: Colors.white) : null,
+                          ),
+                        ),
+                      ),
+                  ],
+                ),
+              ),
+            );
             Widget item = card;
             if (header != null) {
               item = Column(
@@ -1550,6 +1605,13 @@ class _AssignTagScreenState extends State<AssignTagScreen> {
 
     final gColor = isAlumni ? const Color(0xFF9333EA) : StudentContactCard.groupColor(student.groupName);
     final gBg = isAlumni ? const Color(0xFFF3E8FF) : StudentContactCard.groupBgColor(student.groupName);
+
+    final hasRoom = student.room.isNotEmpty && student.room != 'Alumni' && student.room != 'N/A';
+    final group = student.groupName?.trim() ?? '';
+    final subtitle = isAlumni
+        ? (hasRoom ? 'Alumni · Room ${student.room}' : 'Alumni')
+        : [if (hasRoom) 'Room ${student.room}', if (group.isNotEmpty) group].join(' · ');
+
     final wave = StudentContactCard.waveColor(student.groupName, isAlumni: isAlumni);
 
     return Container(
@@ -1558,13 +1620,11 @@ class _AssignTagScreenState extends State<AssignTagScreen> {
         borderRadius: BorderRadius.circular(20),
         border: Border.all(
           color: hasAllSelected ? const Color(0xFF16A34A).withValues(alpha: 0.4) : const Color(0xFFF1F5F9),
-          width: hasAllSelected ? 1.6 : 1.2,
+          width: 1.4,
         ),
         boxShadow: [
           BoxShadow(
-            color: hasAllSelected
-                ? const Color(0xFF16A34A).withValues(alpha: 0.08)
-                : const Color(0xFF0F172A).withValues(alpha: 0.04),
+            color: const Color(0xFF0F172A).withValues(alpha: 0.04),
             blurRadius: 14,
             offset: const Offset(0, 4),
           ),
@@ -1573,319 +1633,180 @@ class _AssignTagScreenState extends State<AssignTagScreen> {
       clipBehavior: Clip.antiAlias,
       child: Stack(
         children: [
-          // Bottom-right organic corner wave (phonebook signature)
           Positioned(
             bottom: 0,
             right: 0,
             child: CustomPaint(
-              size: const Size(100, 65),
-              painter: CornerWavePainter(
-                color: wave.withValues(alpha: 0.55),
-              ),
+              size: const Size(90, 58),
+              painter: CornerWavePainter(color: wave.withValues(alpha: 0.5)),
             ),
           ),
-
-          // Main Card Content
           Padding(
             padding: const EdgeInsets.all(14),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                // Identity row
-                Row(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    // Squircle Avatar in group colors
-                    Stack(
-                      clipBehavior: Clip.none,
-                      children: [
-                        Container(
-                          width: 46,
-                          height: 46,
-                          decoration: BoxDecoration(
-                            color: gBg,
-                            borderRadius: BorderRadius.circular(14),
-                            border: Border.all(
-                              color: gColor.withValues(alpha: 0.25),
-                              width: 1.2,
-                            ),
-                          ),
-                          alignment: Alignment.center,
-                          child: Text(
-                            student.name.isNotEmpty ? student.name[0].toUpperCase() : 'S',
-                            style: TextStyle(
-                              color: gColor,
-                              fontWeight: FontWeight.w800,
-                              fontSize: 20,
-                            ),
-                          ),
-                        ),
-                        Positioned(
-                          bottom: -2,
-                          right: -2,
-                          child: Container(
-                            padding: const EdgeInsets.all(2.5),
-                            decoration: BoxDecoration(
-                              color: gColor,
-                              shape: BoxShape.circle,
-                              border: Border.all(color: Colors.white, width: 1.5),
-                            ),
-                            child: Icon(
-                              isAlumni ? Icons.school_rounded : Icons.person_rounded,
-                              color: Colors.white,
-                              size: 9,
-                            ),
-                          ),
-                        ),
-                      ],
-                    ),
-                    const SizedBox(width: 12),
-
-                    // Name + Subtitle
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(
-                            student.name,
-                            style: const TextStyle(
-                              fontSize: 15,
-                              fontWeight: FontWeight.w700,
-                              color: Color(0xFF0F172A),
-                              letterSpacing: -0.2,
-                              height: 1.2,
-                            ),
-                            maxLines: 2,
-                            overflow: TextOverflow.ellipsis,
-                          ),
-                          const SizedBox(height: 3),
-                          Text(
-                            isAlumni
-                                ? (student.room != 'Alumni' && student.room != 'N/A'
-                                    ? 'Alumni • Room ${student.room}'
-                                    : 'Alumni Student')
-                                : (student.room != 'N/A' && student.room != 'Alumni'
-                                    ? 'Room ${student.room} • ${student.groupName ?? "Resident"}'
-                                    : (student.groupName ?? 'Hostel Resident')),
-                            style: TextStyle(
-                              fontSize: 11.5,
-                              fontWeight: FontWeight.w600,
-                              color: gColor,
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-
-                    const SizedBox(width: 8),
-
-                    // Top-right Wing/Status Pill
-                    Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 8.5, vertical: 4),
-                      decoration: BoxDecoration(
-                        color: gBg,
-                        borderRadius: BorderRadius.circular(20),
-                        border: Border.all(
-                          color: gColor.withValues(alpha: 0.3),
-                          width: 1,
-                        ),
-                      ),
-                      child: Row(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          Container(
-                            width: 6,
-                            height: 6,
-                            decoration: BoxDecoration(
-                              color: gColor,
-                              shape: BoxShape.circle,
-                            ),
-                          ),
-                          const SizedBox(width: 4.5),
-                          Text(
-                            isAlumni ? 'Alumni' : (student.groupName ?? 'Resident'),
-                            style: TextStyle(
-                              color: gColor,
-                              fontSize: 10.5,
-                              fontWeight: FontWeight.w800,
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                  ],
-                ),
-
-                const SizedBox(height: 10),
-
-                // Celebrant Metadata Chips (Room, ID, Floor, Tags)
-                Wrap(
-                  spacing: 6,
-                  runSpacing: 4.5,
-                  children: [
-                    if (student.room.isNotEmpty && student.room != 'Alumni' && student.room != 'N/A')
-                      CelebrantLightChip(
-                        icon: Icons.meeting_room_rounded,
-                        text: 'Room ${student.room}',
-                        bgColor: const Color(0xFFF1F5F9),
-                        borderColor: const Color(0xFFE2E8F0),
-                        textColor: const Color(0xFF334155),
-                      ),
-                    if (student.studentCode.isNotEmpty)
-                      CelebrantLightChip(
-                        icon: Icons.tag_rounded,
-                        text: 'ID: ${student.studentCode}',
-                        bgColor: const Color(0xFFF8FAFC),
-                        borderColor: const Color(0xFFE2E8F0),
-                        textColor: const Color(0xFF475569),
-                      ),
-                    if (!isAlumni && student.floor != null)
-                      CelebrantLightChip(
-                        icon: Icons.layers_rounded,
-                        text: student.floor == 0 ? 'Ground' : 'Floor ${student.floor}',
-                        bgColor: const Color(0xFFF8FAFC),
-                        borderColor: const Color(0xFFE2E8F0),
-                        textColor: const Color(0xFF64748B),
-                      ),
-                    ...student.tags.map((t) {
-                      final isSelectedTag = _selectedTagIds.contains(t.id);
-                      return InkWell(
-                        onTap: () => _openStudentTagSheet(student),
-                        borderRadius: BorderRadius.circular(8),
-                        child: CelebrantLightChip(
-                          icon: Icons.label_rounded,
-                          text: t.name,
-                          bgColor: isSelectedTag ? t.displayColor.withValues(alpha: 0.15) : t.backgroundColor,
-                          borderColor: isSelectedTag ? t.displayColor : t.borderColor,
-                          textColor: isSelectedTag ? t.displayColor : t.color,
-                        ),
-                      );
-                    }),
-                    InkWell(
-                      onTap: () => _openStudentTagSheet(student),
-                      borderRadius: BorderRadius.circular(8),
-                      child: const CelebrantLightChip(
-                        icon: Icons.edit_note_rounded,
-                        text: 'Manage',
-                        bgColor: Color(0xFFF1F5F9),
-                        borderColor: Color(0xFFCBD5E1),
-                        textColor: Color(0xFF475569),
-                      ),
-                    ),
-                  ],
-                ),
-
-                const SizedBox(height: 10),
-                const Divider(height: 1, color: Color(0xFFF1F5F9)),
-                const SizedBox(height: 8),
-
-                // Bottom row: Primary phone on left + Action button on right
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  children: [
-                    // Phone Info
-                    if (student.phone != null && student.phone!.isNotEmpty && student.phone != 'No Phone')
-                      Row(
-                        children: [
-                          const Icon(Icons.phone_outlined, size: 13, color: Color(0xFF64748B)),
-                          const SizedBox(width: 4),
-                          Text(
-                            student.phone!,
-                            style: const TextStyle(
-                              fontSize: 11.5,
-                              fontWeight: FontWeight.w600,
-                              color: Color(0xFF64748B),
-                            ),
-                          ),
-                        ],
-                      )
-                    else
-                      const SizedBox.shrink(),
-
-                    // Action Button (Assigned / Assign)
-                    if (isBusy)
-                      const SizedBox(
-                        width: 22,
-                        height: 22,
-                        child: CircularProgressIndicator(strokeWidth: 2),
-                      )
-                    else if (hasAllSelected)
-                      InkWell(
-                        onTap: () => _unassignTag(student),
-                        borderRadius: BorderRadius.circular(10),
-                        child: Container(
-                          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5.5),
-                          decoration: BoxDecoration(
-                            color: const Color(0xFFDCFCE7),
-                            borderRadius: BorderRadius.circular(10),
-                            border: Border.all(color: const Color(0xFF86EFAC)),
-                          ),
-                          child: const Row(
-                            mainAxisSize: MainAxisSize.min,
-                            children: [
-                              Icon(Icons.check_circle_rounded, size: 14, color: Color(0xFF16A34A)),
-                              SizedBox(width: 5),
-                              Text(
-                                'Assigned',
-                                style: TextStyle(
-                                  fontSize: 11.5,
-                                  fontWeight: FontWeight.w800,
-                                  color: Color(0xFF16A34A),
-                                ),
-                              ),
-                            ],
-                          ),
-                        ),
-                      )
-                    else
-                      ElevatedButton.icon(
-                        onPressed: () => _assignTag(student),
-                        icon: const Icon(Icons.add_rounded, size: 14),
-                        label: Text(
-                          _selectedTagIds.length > 1 && missingSelectedCount > 0
-                              ? 'Assign ($missingSelectedCount)'
-                              : 'Assign',
-                        ),
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor: const Color(0xFF0284C7),
-                          foregroundColor: Colors.white,
-                          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
-                          minimumSize: Size.zero,
-                          tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(10),
-                          ),
-                          elevation: 0,
-                          textStyle: const TextStyle(
-                            fontSize: 12,
-                            fontWeight: FontWeight.w700,
-                          ),
-                        ),
-                      ),
-                  ],
-                ),
-              ],
+            child: _studentCardBody(
+              student: student,
+              gColor: gColor,
+              gBg: gBg,
+              subtitle: subtitle,
+              isBusy: isBusy,
+              hasAllSelected: hasAllSelected,
+              missingSelectedCount: missingSelectedCount,
             ),
           ),
         ],
       ),
     );
   }
-}
 
-class _HeaderOrbPainter extends CustomPainter {
-  @override
-  void paint(Canvas canvas, Size size) {
-    final strokePaint = Paint()
-      ..color = Colors.white.withValues(alpha: 0.05)
-      ..style = PaintingStyle.stroke
-      ..strokeWidth = 1.2;
-
-    canvas.drawCircle(Offset(size.width * 0.88, size.height * 0.08), size.width * 0.38, strokePaint);
-    canvas.drawCircle(Offset(size.width * 0.88, size.height * 0.08), size.width * 0.62, strokePaint);
-    canvas.drawCircle(Offset(size.width * 0.88, size.height * 0.08), size.width * 0.86, strokePaint);
+  Widget _studentCardBody({
+    required TagAssignableStudent student,
+    required Color gColor,
+    required Color gBg,
+    required String subtitle,
+    required bool isBusy,
+    required bool hasAllSelected,
+    required int missingSelectedCount,
+  }) {
+    return Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Container(
+                width: 40,
+                height: 40,
+                decoration: BoxDecoration(color: gBg, borderRadius: BorderRadius.circular(12)),
+                alignment: Alignment.center,
+                child: Text(
+                  student.name.isNotEmpty ? student.name[0].toUpperCase() : 'S',
+                  style: TextStyle(color: gColor, fontWeight: FontWeight.w800, fontSize: 17),
+                ),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      student.name,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: const TextStyle(
+                        fontSize: 14.5,
+                        fontWeight: FontWeight.w700,
+                        color: Color(0xFF0F172A),
+                      ),
+                    ),
+                    if (subtitle.isNotEmpty)
+                      Padding(
+                        padding: const EdgeInsets.only(top: 2),
+                        child: Text(
+                          subtitle,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: gColor),
+                        ),
+                      ),
+                  ],
+                ),
+              ),
+              const SizedBox(width: 8),
+              if (isBusy)
+                const SizedBox(width: 22, height: 22, child: CircularProgressIndicator(strokeWidth: 2))
+              else if (hasAllSelected)
+                InkWell(
+                  onTap: () => _unassignTag(student),
+                  borderRadius: BorderRadius.circular(10),
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                    decoration: BoxDecoration(
+                      color: const Color(0xFFDCFCE7),
+                      borderRadius: BorderRadius.circular(10),
+                    ),
+                    child: const Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Icon(Icons.check_rounded, size: 15, color: Color(0xFF16A34A)),
+                        SizedBox(width: 4),
+                        Text(
+                          'Assigned',
+                          style: TextStyle(fontSize: 12, fontWeight: FontWeight.w800, color: Color(0xFF16A34A)),
+                        ),
+                      ],
+                    ),
+                  ),
+                )
+              else
+                ElevatedButton(
+                  onPressed: () => _assignTag(student),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: const Color(0xFF0284C7),
+                    foregroundColor: Colors.white,
+                    padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 7),
+                    minimumSize: Size.zero,
+                    tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                    elevation: 0,
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                    textStyle: const TextStyle(fontSize: 12, fontWeight: FontWeight.w800),
+                  ),
+                  child: Text(
+                    _selectedTagIds.length > 1 && missingSelectedCount > 0 ? 'Assign ($missingSelectedCount)' : 'Assign',
+                  ),
+                ),
+            ],
+          ),
+          if (student.tags.isNotEmpty) ...[
+            const SizedBox(height: 10),
+            Wrap(
+              spacing: 6,
+              runSpacing: 6,
+              children: [
+                ...student.tags.map((t) {
+                  final on = _selectedTagIds.contains(t.id);
+                  return InkWell(
+                    onTap: () => _openStudentTagSheet(student),
+                    borderRadius: BorderRadius.circular(8),
+                    child: CelebrantLightChip(
+                      icon: Icons.label_rounded,
+                      text: t.name,
+                      bgColor: on ? t.displayColor.withValues(alpha: 0.15) : t.backgroundColor,
+                      borderColor: on ? t.displayColor : t.borderColor,
+                      textColor: on ? t.displayColor : t.color,
+                    ),
+                  );
+                }),
+                InkWell(
+                  onTap: () => _openStudentTagSheet(student),
+                  borderRadius: BorderRadius.circular(8),
+                  child: const CelebrantLightChip(
+                    icon: Icons.edit_note_rounded,
+                    text: 'Manage',
+                    bgColor: Color(0xFFF1F5F9),
+                    borderColor: Color(0xFFCBD5E1),
+                    textColor: Color(0xFF475569),
+                  ),
+                ),
+              ],
+            ),
+          ] else
+            Align(
+              alignment: Alignment.centerLeft,
+              child: Padding(
+                padding: const EdgeInsets.only(top: 6),
+                child: InkWell(
+                  onTap: () => _openStudentTagSheet(student),
+                  borderRadius: BorderRadius.circular(8),
+                  child: const Padding(
+                    padding: EdgeInsets.symmetric(vertical: 2),
+                    child: Text(
+                      'Manage tags',
+                      style: TextStyle(fontSize: 12, fontWeight: FontWeight.w700, color: Color(0xFF64748B)),
+                    ),
+                  ),
+                ),
+              ),
+            ),
+        ],
+    );
   }
-
-  @override
-  bool shouldRepaint(covariant CustomPainter oldDelegate) => false;
 }

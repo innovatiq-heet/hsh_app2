@@ -157,7 +157,6 @@ class ScreenTimeDirectoryController extends GetxController with WidgetsBindingOb
     'Pavitra',
     'Pulkit',
     'Paramanand',
-    'Alumni',
   ];
 
   static const List<String> floorOptions = [
@@ -215,7 +214,11 @@ class ScreenTimeDirectoryController extends GetxController with WidgetsBindingOb
   bool isInGroup(dynamic student, String group) {
     final grp = (groupForStudent(student) ?? '').trim().toLowerCase();
     final selG = group.trim().toLowerCase();
-    if (selG != 'alumni') return grp == selG;
+    if (selG != 'alumni') {
+      final normG = selG.replaceAll(RegExp(r'\s*wing', caseSensitive: false), '').trim();
+      final normGrp = grp.replaceAll(RegExp(r'\s*wing', caseSensitive: false), '').trim();
+      return grp == selG || (normGrp.isNotEmpty && normGrp == normG);
+    }
     final statusStr = (student is Map ? (student['status'] ?? '') : '').toString().toLowerCase();
     final roomStr = (student is Map ? (student['room'] ?? student['room_number'] ?? student['roomNumber'] ?? '') : '')
         .toString()
@@ -397,10 +400,7 @@ class ScreenTimeDirectoryController extends GetxController with WidgetsBindingOb
       if (isStudentOnline(s)) online++;
       if (isStudentLocked(s)) locked++;
       if (isStudentRestricted(s)) restricted++;
-      if (s is Map &&
-          toInt(s['nightScreenTimeMinutes'] ??
-                  s['night_screen_time_minutes']) >
-              0) {
+      if (s is Map && extractStudentNightMinutes(s) > 0) {
         night++;
       }
       if (isStudentNeedsAttention(s)) attention++;
@@ -466,17 +466,29 @@ class ScreenTimeDirectoryController extends GetxController with WidgetsBindingOb
 
   int directoryCount(String filter) {
     _countsVersion.value; // rebuild when the cache is invalidated
-    // The API's directory-wide numbers, unless a search narrows the list.
-    final fromApi = serverCounts[filter];
-    if (fromApi != null && searchText.value.trim().isEmpty) return fromApi;
     final counts = _directoryCounts ??= _computeDirectoryCounts();
+    final hasActiveFilter = selectedGroup.value != 'All' ||
+        selectedFloor.value != 'All' ||
+        selectedStatus.value != 'All' ||
+        searchText.value.trim().isNotEmpty;
+
+    // If an active filter is applied, return the count matching that filter
+    if (hasActiveFilter) {
+      return counts[filter] ?? 0;
+    }
+
+    final fromApi = serverCounts[filter];
+    // If local loaded count exceeds server total, local count is more complete
+    if (fromApi != null && (counts['All'] ?? 0) <= (serverCounts['All'] ?? 0)) {
+      return fromApi;
+    }
+
     final count = counts[filter] ?? 0;
     // Only some pages may be loaded yet, so the loaded rows under-count the
     // directory. Use the server total for Total, and total - online for
     // Offline, so both are right on the first frame.
     final partial = hasMoreStudents.value &&
-        searchText.value.trim().isEmpty &&
-        totalStudentsCount.value > counts['All']!;
+        totalStudentsCount.value > (counts['All'] ?? 0);
     if (partial) {
       if (filter == 'All') return totalStudentsCount.value;
       if (filter == 'Offline') {
@@ -500,8 +512,7 @@ class ScreenTimeDirectoryController extends GetxController with WidgetsBindingOb
       case 'Restricted':
         return isStudentRestricted(s);
       case 'Night':
-        return s is Map && toInt(
-            s['nightScreenTimeMinutes'] ?? s['night_screen_time_minutes']) > 0;
+        return s is Map && extractStudentNightMinutes(s) > 0;
       case 'Attention':
         return isStudentNeedsAttention(s);
       default:
@@ -1085,7 +1096,12 @@ class ScreenTimeDirectoryController extends GetxController with WidgetsBindingOb
       if (isLeaderView) {
         final group = (_groupScope ?? '').trim().toLowerCase();
         if (group.isEmpty) return;
-        pbStudents = pbStudents.where((p) => (p.groupName ?? '').trim().toLowerCase() == group).toList();
+        final normGroup = group.replaceAll(RegExp(r'\s*wing', caseSensitive: false), '').trim();
+        pbStudents = pbStudents.where((p) {
+          final g = (p.groupName ?? '').trim().toLowerCase();
+          final normG = g.replaceAll(RegExp(r'\s*wing', caseSensitive: false), '').trim();
+          return g == group || normG == normGroup;
+        }).toList();
       }
 
       if (pbStudents.isEmpty) return;
@@ -1192,6 +1208,10 @@ class ScreenTimeDirectoryController extends GetxController with WidgetsBindingOb
 
     if (toAdd.isNotEmpty) {
       allStudents.addAll(toAdd);
+      if (allStudents.length > totalStudentsCount.value) {
+        totalStudentsCount.value = allStudents.length;
+      }
+      _invalidateDirectoryCounts();
       if (searchFilterController.text.trim().isEmpty) {
         _baseStudents
           ..clear()
@@ -1395,8 +1415,8 @@ class ScreenTimeDirectoryController extends GetxController with WidgetsBindingOb
 
       // Toggle attributes
       if (student is Map) {
-        final mins = toInt(student['totalScreenTimeMinutes'] ?? student['todayScreenTimeMinutes'] ?? student['total_screen_time_minutes']);
-        final nightMins = toInt(student['nightScreenTimeMinutes'] ?? student['night_screen_time_minutes']);
+        final mins = extractStudentMinutes(student);
+        final nightMins = extractStudentNightMinutes(student);
         final phone = (student['phone'] ?? student['phoneNumber'] ?? student['phone_number'] ?? '').toString().trim();
         final aadhar = (student['aadhar'] ?? student['student_code'] ?? student['studentCode'] ?? '').toString().trim();
 
@@ -1452,8 +1472,8 @@ class ScreenTimeDirectoryController extends GetxController with WidgetsBindingOb
       matched.sort((a, b) {
       switch (selectedSort.value) {
         case 'Usage (Low-High)': {
-          final minsA = toInt(a['totalScreenTimeMinutes'] ?? a['todayScreenTimeMinutes'] ?? a['total_screen_time_minutes']);
-          final minsB = toInt(b['totalScreenTimeMinutes'] ?? b['todayScreenTimeMinutes'] ?? b['total_screen_time_minutes']);
+          final minsA = extractStudentMinutes(a);
+          final minsB = extractStudentMinutes(b);
           if (minsA != minsB) return minsA.compareTo(minsB);
           final nameA = (a['name'] ?? a['fullName'] ?? '').toString();
           final nameB = (b['name'] ?? b['fullName'] ?? '').toString();
@@ -1522,8 +1542,8 @@ class ScreenTimeDirectoryController extends GetxController with WidgetsBindingOb
           final onB = isStudentOnline(b);
           if (onA != onB) return onA ? -1 : 1;
 
-          final minsA = toInt(a['totalScreenTimeMinutes'] ?? a['todayScreenTimeMinutes'] ?? a['total_screen_time_minutes']);
-          final minsB = toInt(b['totalScreenTimeMinutes'] ?? b['todayScreenTimeMinutes'] ?? b['total_screen_time_minutes']);
+          final minsA = extractStudentMinutes(a);
+          final minsB = extractStudentMinutes(b);
           if (minsA != minsB) return minsB.compareTo(minsA);
 
           final roomA = (a['room'] ?? a['room_number'] ?? a['roomNumber'] ?? '').toString();
@@ -1611,6 +1631,52 @@ class ScreenTimeDirectoryController extends GetxController with WidgetsBindingOb
     } catch (e) {
       debugPrint('[ScreenTime] reviewAppRequest error: $e');
       AppSnackbar.error('Action Failed', 'Could not review app request: $e');
+    }
+  }
+
+  /// Updates local student row in directory when remote policy changes (e.g. locked/unlocked)
+  void updateStudentPolicyState(String studentId, {bool? isLocked}) {
+    if (studentId.isEmpty) return;
+    bool changed = false;
+
+    void updateMap(Map<String, dynamic> m) {
+      if (isLocked != null) {
+        m['is_locked'] = isLocked;
+        m['isLocked'] = isLocked;
+        if (m['policy'] is Map) {
+          final p = Map<String, dynamic>.from(m['policy'] as Map);
+          p['is_locked'] = isLocked ? 1 : 0;
+          p['isLocked'] = isLocked;
+          m['policy'] = p;
+        } else {
+          m['policy'] = {'is_locked': isLocked ? 1 : 0, 'isLocked': isLocked};
+        }
+      }
+    }
+
+    for (int i = 0; i < allStudents.length; i++) {
+      final s = allStudents[i];
+      if (s is Map && (s['id']?.toString() == studentId || s['student_id']?.toString() == studentId)) {
+        final m = Map<String, dynamic>.from(s);
+        updateMap(m);
+        allStudents[i] = m;
+        changed = true;
+      }
+    }
+
+    for (int i = 0; i < _baseStudents.length; i++) {
+      final s = _baseStudents[i];
+      if (s is Map && (s['id']?.toString() == studentId || s['student_id']?.toString() == studentId)) {
+        final m = Map<String, dynamic>.from(s);
+        updateMap(m);
+        _baseStudents[i] = m;
+      }
+    }
+
+    if (changed) {
+      serverCounts.remove('Locked');
+      _invalidateDirectoryCounts();
+      filterStudents(searchFilterController.text);
     }
   }
 }

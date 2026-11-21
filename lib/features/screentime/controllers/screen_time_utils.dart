@@ -92,9 +92,18 @@ bool isStudentTampered(dynamic s) {
 
 bool isStudentLocked(dynamic s) {
   if (s is! Map) return false;
-  final pol = s['policy'] is Map ? s['policy'] as Map : s;
-  return pol['is_locked'] == true || pol['isLocked'] == true ||
-      pol['is_locked'] == 1;
+  final id = (s['id'] ?? s['studentId'] ?? s['student_id'] ?? '').toString().trim();
+  // Unenrolled students or rows without a numeric student id cannot be locked
+  if (id.isEmpty || !isStudentId(id)) return false;
+
+  final pol = s['policy'] is Map ? s['policy'] as Map : null;
+  final lockedVal = pol?['is_locked'] ??
+      pol?['isLocked'] ??
+      pol?['locked'] ??
+      s['is_locked'] ??
+      s['isLocked'] ??
+      s['locked'];
+  return toBool(lockedVal);
 }
 
 bool isStudentLowBattery(dynamic s) {
@@ -397,6 +406,109 @@ int extractAppMinutes(dynamic item) {
         item['usage_time'] ??
         item['time_spent'],
   );
+}
+
+int extractStudentMinutes(dynamic s) {
+  if (s == null) return 0;
+  if (s is num) return toInt(s);
+  if (s is! Map) return toInt(s);
+
+  // 1. Direct keys on root object
+  final direct = s['totalScreenTimeMinutes'] ??
+      s['total_screen_time_minutes'] ??
+      s['totalMinutes'] ??
+      s['total_minutes'] ??
+      s['todayScreenTimeMinutes'] ??
+      s['today_screen_time_minutes'] ??
+      s['todayMinutes'] ??
+      s['today_minutes'] ??
+      s['usageMinutes'] ??
+      s['usage_minutes'] ??
+      s['screenTimeMinutes'] ??
+      s['screen_time_minutes'] ??
+      s['screenTime'] ??
+      s['screen_time'] ??
+      s['minutes'] ??
+      s['duration'] ??
+      s['time'] ??
+      s['timeInMinutes'];
+  if (direct != null && direct is! Map && direct is! List) {
+    final m = toInt(direct);
+    if (m > 0) return m;
+  }
+
+  // 2. Nested sub-objects commonly returned by backend / live endpoint
+  for (final key in const [
+    'screenTime',
+    'screen_time',
+    'today',
+    'live',
+    'liveStatus',
+    'usage',
+    'stats',
+    'data',
+    'student'
+  ]) {
+    final nested = s[key];
+    if (nested is Map) {
+      final m = extractStudentMinutes(nested);
+      if (m > 0) return m;
+    }
+  }
+
+  // 3. Fallback: sum of appUsageBreakdown
+  final apps = extractAppsListStatic(s);
+  if (apps.isNotEmpty) {
+    int sum = 0;
+    for (final app in apps) {
+      sum += extractAppMinutes(app);
+    }
+    if (sum > 0) return sum;
+  }
+
+  return direct != null && direct is! Map && direct is! List ? toInt(direct) : 0;
+}
+
+int extractStudentNightMinutes(dynamic s) {
+  if (s == null) return 0;
+  if (s is num) return toInt(s);
+  if (s is! Map) return toInt(s);
+
+  final direct = s['nightScreenTimeMinutes'] ??
+      s['night_screen_time_minutes'] ??
+      s['nightMinutes'] ??
+      s['night_minutes'] ??
+      s['nightScreenTime'] ??
+      s['night_screen_time'] ??
+      s['nightUsageMinutes'] ??
+      s['night_usage_minutes'] ??
+      s['curfewMinutes'] ??
+      s['curfew_minutes'] ??
+      s['curfew_screen_time_minutes'];
+  if (direct != null && direct is! Map && direct is! List) {
+    final m = toInt(direct);
+    if (m > 0) return m;
+  }
+
+  for (final key in const [
+    'screenTime',
+    'screen_time',
+    'today',
+    'live',
+    'liveStatus',
+    'usage',
+    'stats',
+    'data',
+    'student'
+  ]) {
+    final nested = s[key];
+    if (nested is Map) {
+      final m = extractStudentNightMinutes(nested);
+      if (m > 0) return m;
+    }
+  }
+
+  return direct != null && direct is! Map && direct is! List ? toInt(direct) : 0;
 }
 
 /// The API may send minutes as int, double or string.

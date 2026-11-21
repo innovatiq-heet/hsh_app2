@@ -123,17 +123,17 @@ class RoomKeysRoomScreen extends GetView<RoomKeysController> {
                                   Container(
                                     padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2),
                                     decoration: BoxDecoration(
-                                      color: slot == 'A' ? const Color(0xFFE0F2FE) : const Color(0xFFF3E8FF),
+                                      color: cupboardSlotColor(slot).withValues(alpha: 0.12),
                                       borderRadius: BorderRadius.circular(6),
                                       border: Border.all(
-                                        color: slot == 'A' ? const Color(0xFF0284C7) : const Color(0xFF9333EA),
+                                        color: cupboardSlotColor(slot),
                                         width: 0.8,
                                       ),
                                     ),
                                     child: Text(
                                       'Cupboard $slot',
                                       style: TextStyle(
-                                        color: slot == 'A' ? const Color(0xFF0284C7) : const Color(0xFF9333EA),
+                                        color: cupboardSlotColor(slot),
                                         fontSize: 11,
                                         fontWeight: FontWeight.w700,
                                       ),
@@ -147,7 +147,7 @@ class RoomKeysRoomScreen extends GetView<RoomKeysController> {
                               Builder(
                                 builder: (context) {
                                   final expected = r.expectedCupboardSlot(s);
-                                  final officeKey = expected == 'A' ? r.officeCupboardA : r.officeCupboardB;
+                                  final officeKey = r.officeCupboardForSlot(expected);
                                   if (officeKey != null) {
                                     return Padding(
                                       padding: const EdgeInsets.symmetric(vertical: 6),

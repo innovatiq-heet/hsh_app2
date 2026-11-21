@@ -6,6 +6,7 @@ import 'package:hsh_app2/core/network/repository/staff_users/staff_users_reposit
 import 'package:hsh_app2/core/storage/session_store.dart';
 import 'package:hsh_app2/core/utils/validators.dart';
 import 'package:hsh_app2/features/manage_users/controllers/manage_users_controller.dart';
+import 'package:hsh_app2/features/manage_users/controllers/student_tags_controller.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import 'support/fake_api.dart';
@@ -155,7 +156,7 @@ void main() {
     expect(ManageUsersController.validateName('  '), isNotNull);
   });
 
-  test('updateTag renames and updates tag in controller.tags list', () async {
+  test('student tags: updateTag renames and updates tag in controller.tags list', () async {
     api.on('GET /staff-users', {'data': []});
     api.on('GET /complaint-categories', {'data': []});
     api.on('GET /tags', {
@@ -175,8 +176,8 @@ void main() {
       },
     });
 
-    final c = ManageUsersController();
-    await c.loadTags();
+    final c = StudentTagsController();
+    await c.load();
     expect(c.tags, hasLength(1));
     expect(c.tags.first.name, 'Hostel Committee');
 
@@ -193,7 +194,7 @@ void main() {
     expect(c.tags.first.description, 'Updated description');
   });
 
-  test('updateTag returns false on API error', () async {
+  test('student tags: updateTag returns false on API error', () async {
     api.on('GET /tags', {
       'data': [
         {'id': 12, 'name': 'Hostel Committee', 'color': '#10b981', 'is_system': 0},
@@ -204,8 +205,8 @@ void main() {
       'message': 'A tag with this name already exists',
     }, status: 400);
 
-    final c = ManageUsersController();
-    await c.loadTags();
+    final c = StudentTagsController();
+    await c.load();
 
     final success = await c.updateTag(
       id: 12,
@@ -215,5 +216,66 @@ void main() {
 
     expect(success, isFalse);
     expect(c.tags.first.name, 'Hostel Committee');
+  });
+
+  test('Manage Users is only staff accounts: it no longer loads student tags', () {
+    expect(api.called('GET /tags'), isEmpty);
+    expect(api.called('GET /admin/users'), hasLength(1));
+  });
+
+  group('student tags (their own screen)', () {
+    Map<String, dynamic> tagJson(int id, String name, {bool system = false}) =>
+        {'id': id, 'name': name, 'color': '#10b981', 'is_system': system ? 1 : 0, 'student_count': 3};
+
+    test('loads the tags, system ones included', () async {
+      api.on('GET /tags', {
+        'success': true,
+        'data': [tagJson(1, 'Regular', system: true), tagJson(12, 'Karyakarta')],
+      });
+      final c = Get.put(StudentTagsController());
+      await until(() => !c.isLoading.value, reason: 'tags load');
+
+      expect(c.hasError.value, isFalse);
+      expect(c.tags.map((t) => t.name), ['Regular', 'Karyakarta']);
+    });
+
+    test('a failed load shows the error with a way to retry', () async {
+      api.on('GET /tags', {'success': false, 'message': 'Server error'}, status: 500);
+      final c = Get.put(StudentTagsController());
+      await until(() => !c.isLoading.value, reason: 'tags load');
+      expect(c.hasError.value, isTrue);
+
+      api.on('GET /tags', {'success': true, 'data': [tagJson(12, 'Karyakarta')]});
+      await c.load();
+      expect(c.hasError.value, isFalse);
+      expect(c.tags, hasLength(1));
+    });
+
+    test('createTag adds the new tag', () async {
+      api.on('GET /tags', {'success': true, 'data': []});
+      api.on('POST /tags', {'success': true, 'data': tagJson(20, 'Wing Leader')});
+      final c = Get.put(StudentTagsController());
+      await until(() => !c.isLoading.value, reason: 'tags load');
+
+      expect(await c.createTag(name: 'Wing Leader', color: '#10b981'), isTrue);
+      expect(c.tags.map((t) => t.name), ['Wing Leader']);
+    });
+
+    test('deleteTag removes it, and never a system tag', () async {
+      api.on('GET /tags', {
+        'success': true,
+        'data': [tagJson(1, 'Regular', system: true), tagJson(12, 'Karyakarta')],
+      });
+      api.on('DELETE /tags/12', {'success': true});
+      final c = Get.put(StudentTagsController());
+      await until(() => !c.isLoading.value, reason: 'tags load');
+
+      await c.deleteTag(c.tags.first); // the system tag
+      expect(api.called('DELETE /tags/1'), isEmpty);
+      expect(c.tags, hasLength(2));
+
+      await c.deleteTag(c.tags.last);
+      expect(c.tags.map((t) => t.name), ['Regular']);
+    });
   });
 }

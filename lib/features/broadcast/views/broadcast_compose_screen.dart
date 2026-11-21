@@ -458,7 +458,7 @@ class _TagChips extends StatelessWidget {
       }
       if (controller.tags.isEmpty) {
         return Text(
-          'No tags yet. Create them in Manage User → Student Tags, or add students individually.',
+          'No tags yet. Create them in Student Tags, or add students individually.',
           style: AppTextStyles.bodySm.copyWith(color: PhonebookTheme.muted),
         );
       }

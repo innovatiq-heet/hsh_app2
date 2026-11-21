@@ -476,7 +476,7 @@ class AdminAnniversaryScreen extends GetView<AdminAnniversaryController> {
             : const Color(0xFFE11D48));
 
     return Container(
-      margin: const EdgeInsets.only(bottom: 16),
+      margin: const EdgeInsets.only(bottom: 12),
       decoration: BoxDecoration(
         color: Colors.white,
         borderRadius: BorderRadius.circular(20),
@@ -496,14 +496,17 @@ class AdminAnniversaryScreen extends GetView<AdminAnniversaryController> {
         children: [
           // 1. Card Top Row: Avatar, Names, Milestone & Status Badge
           Padding(
-            padding: const EdgeInsets.fromLTRB(16, 16, 16, 12),
-            child: Row(
+            padding: const EdgeInsets.fromLTRB(14, 14, 14, 12),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+            Row(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 StudentAvatar(
                   name: record.name,
                   bankCode: record.studentCode,
-                  size: 46,
+                  size: 40,
                   background: avatarBgColor,
                   child: Text(
                     record.name.isNotEmpty ? record.name[0].toUpperCase() : '💍',
@@ -549,51 +552,6 @@ class AdminAnniversaryScreen extends GetView<AdminAnniversaryController> {
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
                       ),
-                      const SizedBox(height: 8),
-
-                      // Metadata Chips (Wing, Room, Milestone, Date)
-                      Wrap(
-                        spacing: 6,
-                        runSpacing: 4.5,
-                        children: [
-                          // Group / Alumni Chip
-                          _buildCelebrantLightChip(
-                            icon: isAlumni ? Icons.school_rounded : Icons.groups_rounded,
-                            text: isAlumni ? 'Alumni' : (group ?? 'Active'),
-                            bgColor: isAlumni ? const Color(0xFFF3E8FF) : StudentContactCard.groupBgColor(group),
-                            borderColor: isAlumni
-                                ? const Color(0xFFE9D5FF)
-                                : StudentContactCard.groupColor(group).withValues(alpha: 0.25),
-                            textColor: isAlumni ? const Color(0xFF9333EA) : StudentContactCard.groupColor(group),
-                          ),
-                          // Room Chip
-                          if (record.room != 'N/A' && !isAlumni)
-                            _buildCelebrantLightChip(
-                              icon: Icons.meeting_room_rounded,
-                              text: 'Room ${record.room}',
-                              bgColor: const Color(0xFFF1F5F9),
-                              borderColor: const Color(0xFFE2E8F0),
-                              textColor: const Color(0xFF334155),
-                            ),
-                          // Milestone Chip
-                          _buildCelebrantLightChip(
-                            icon: Icons.volunteer_activism_rounded,
-                            text: record.yearsMilestoneLabel,
-                            bgColor: const Color(0xFFFFF1F2),
-                            borderColor: const Color(0xFFFECDD3),
-                            textColor: const Color(0xFFE11D48),
-                          ),
-                          // Anniversary Date Chip
-                          if (record.anniversaryDate.isNotEmpty)
-                            _buildCelebrantLightChip(
-                              icon: Icons.event_rounded,
-                              text: record.anniversaryDate,
-                              bgColor: const Color(0xFFF0F9FF),
-                              borderColor: const Color(0xFFBAE6FD),
-                              textColor: const Color(0xFF0284C7),
-                            ),
-                        ],
-                      ),
                     ],
                   ),
                 ),
@@ -632,13 +590,49 @@ class AdminAnniversaryScreen extends GetView<AdminAnniversaryController> {
                 ),
               ],
             ),
+            const SizedBox(height: 10),
+          Wrap(
+            spacing: 6,
+            runSpacing: 4.5,
+            children: [
+              // Group / Alumni Chip
+              _buildCelebrantLightChip(
+                icon: isAlumni ? Icons.school_rounded : Icons.groups_rounded,
+                text: isAlumni ? 'Alumni' : (group ?? 'Active'),
+                bgColor: isAlumni ? const Color(0xFFF3E8FF) : StudentContactCard.groupBgColor(group),
+                borderColor: isAlumni
+                    ? const Color(0xFFE9D5FF)
+                    : StudentContactCard.groupColor(group).withValues(alpha: 0.25),
+                textColor: isAlumni ? const Color(0xFF9333EA) : StudentContactCard.groupColor(group),
+              ),
+              // Milestone Chip
+              _buildCelebrantLightChip(
+                icon: Icons.volunteer_activism_rounded,
+                text: record.yearsMilestoneLabel,
+                bgColor: const Color(0xFFFFF1F2),
+                borderColor: const Color(0xFFFECDD3),
+                textColor: const Color(0xFFE11D48),
+              ),
+              // Anniversary Date Chip
+              if (record.anniversaryDate.isNotEmpty)
+                _buildCelebrantLightChip(
+                  icon: Icons.event_rounded,
+                  text: record.anniversaryDate,
+                  bgColor: const Color(0xFFF0F9FF),
+                  borderColor: const Color(0xFFBAE6FD),
+                  textColor: const Color(0xFF0284C7),
+                ),
+            ],
+          ),
+              ],
+            ),
           ),
 
           const Divider(height: 1, color: Color(0xFFF1F5F9)),
 
           // 2. Parents Phone Grid: Father & Mother sub-cards
           Padding(
-            padding: const EdgeInsets.all(14),
+            padding: const EdgeInsets.all(12),
             child: Column(
               children: [
                 Row(

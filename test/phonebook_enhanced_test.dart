@@ -63,14 +63,16 @@ void main() {
 
         // Test toShareText()
         final shareText = student.toShareText();
-        expect(shareText, contains('Rudra Ketanbhai Patel'));
-        expect(shareText, contains('B-204'));
-        expect(shareText, contains('B-Wing'));
-        expect(shareText, contains('9876543210'));
-        expect(shareText, contains('Ketanbhai Patel'));
-        expect(shareText, contains('Meenaben Patel'));
+        expect(shareText, contains('*Student Profile - Hari Saurabh Hostel (HSH)*'));
+        expect(shareText, contains('*Name:* Rudra Ketanbhai Patel'));
+        expect(shareText, contains('*Room:* B-204 (B-Wing)'));
+        expect(shareText, contains('*Mobile & WhatsApp:* 9876543210'));
+        expect(shareText, contains('*Father:* Ketanbhai Patel (Ph: 9825012345)'));
+        expect(shareText, contains('*Mother:* Meenaben Patel (Ph: 9825054321)'));
         expect(shareText, contains('12, Shanti Nagar'));
-        expect(shareText, contains('101'));
+        expect(shareText, isNot(contains('👤')));
+        expect(shareText, isNot(contains('🎓')));
+        expect(shareText, isNot(contains('Student ID')));
       },
     );
 
@@ -107,7 +109,7 @@ void main() {
       expect(shareText, contains('Aakash Sharma'));
       expect(shareText, contains('A-102'));
       expect(shareText, contains('A-Wing'));
-      expect(shareText, contains('📍 *Address:* Not Provided'));
+      expect(shareText, contains('*Address:* Not Provided'));
     });
 
     test(
@@ -244,9 +246,12 @@ void main() {
         expect(student.hometown, 'Surat, Gujarat');
 
         final shareText = student.toShareText();
-        expect(shareText, contains('Diamond Business'));
-        expect(shareText, contains('Home Maker'));
-        expect(shareText, contains('Parents’ Anniversary'));
+        expect(shareText, contains('*Name:* Smit Hasmukhbhai Padaliya'));
+        expect(shareText, contains('*Father:* Hasmukhbhai Padaliya (Ph: 9825123456)'));
+        expect(shareText, contains('*Mother:* Hansaben Padaliya (Ph: 9825654321)'));
+        expect(shareText, contains('*Parents’ Anniversary:*'));
+        expect(shareText, isNot(contains('Diamond Business')));
+        expect(shareText, isNot(contains('Home Maker')));
       },
     );
 
@@ -275,7 +280,7 @@ void main() {
     );
 
     test(
-      'Supports extra Father & Mother international/India numbers in StudentAdditionalPhone and toShareText',
+      'Supports extra Father & Mother international/India numbers in StudentAdditionalPhone',
       () {
         final fAbroad = StudentAdditionalPhone.fromJson({
           'id': 1,
@@ -342,10 +347,10 @@ void main() {
         );
 
         final shareText = student.toShareText();
-        expect(shareText, contains('Father - USA'));
-        expect(shareText, contains('+1 415 555 2671'));
-        expect(shareText, contains('Mother - UK'));
-        expect(shareText, contains('+44 7700 900077'));
+        expect(shareText, contains('*Father:* Kamleshbhai Patel (Ph: 9825116403)'));
+        expect(shareText, contains('*Mother:* Ranjanben Patel (Ph: 6355026686)'));
+        expect(shareText, isNot(contains('Father - USA')));
+        expect(shareText, isNot(contains('Mother - UK')));
       },
     );
 

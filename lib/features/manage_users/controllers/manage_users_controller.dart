@@ -1,10 +1,8 @@
 import 'package:get/get.dart';
 import '../../../core/abstracts/mixins/load_state_mixin.dart';
-import '../../../core/models/tags/student_tag_model.dart';
 import '../../../core/network/api_exception.dart';
 import '../../../core/network/repository/complaints/complaints_repository.dart';
 import '../../../core/network/repository/staff_users/staff_users_repository.dart';
-import '../../../core/network/repository/tags/tags_repository.dart';
 import '../../../core/network/request/staff_users/save_staff_user_request.dart';
 import '../../../core/network/responses/complaints/complaint_catalog.dart';
 import '../../../core/network/responses/staff_users/staff_user.dart';
@@ -12,12 +10,12 @@ import '../../../core/utils/app_snackbar.dart';
 import '../../../core/utils/validators.dart';
 
 /// Admin → Manage Users: staff accounts (complain-solver, laundry-man) that
-/// sign in with their mobile number alone, and student role tags.
+/// sign in with their mobile number alone. Student tags have their own
+/// screen ([StudentTagsController]).
 class ManageUsersController extends GetxController with LoadStateMixin {
   ManageUsersController({
     StaffUsersRepository? repository,
     ComplaintsRepository? complaints,
-    TagsRepository? tagsRepo,
   })  : _repository = repository ??
             (Get.isRegistered<StaffUsersRepository>()
                 ? Get.find<StaffUsersRepository>()
@@ -25,18 +23,10 @@ class ManageUsersController extends GetxController with LoadStateMixin {
         _complaints = complaints ??
             (Get.isRegistered<ComplaintsRepository>()
                 ? Get.find<ComplaintsRepository>()
-                : Get.put(ComplaintsRepository())),
-        _tagsRepo = tagsRepo ??
-            (Get.isRegistered<TagsRepository>()
-                ? Get.find<TagsRepository>()
-                : Get.put(TagsRepository()));
+                : Get.put(ComplaintsRepository()));
 
   final StaffUsersRepository _repository;
   final ComplaintsRepository _complaints;
-  final TagsRepository _tagsRepo;
-
-  /// Tab index: 0 = Staff Users, 1 = Student Tags
-  final selectedTab = 0.obs;
 
   final users = <StaffUser>[].obs;
 
@@ -46,11 +36,7 @@ class ManageUsersController extends GetxController with LoadStateMixin {
   /// Complaint categories a complaint solver can be limited to.
   final complaintCategories = <ComplaintCategory>[].obs;
 
-  /// Tags list for student tags management tab.
-  final tags = <StudentTag>[].obs;
-  final isTagsLoading = false.obs;
-
-  /// Users or tags with a toggle/delete request in flight.
+  /// Users with a toggle/delete request in flight.
   final busyIds = <int>{}.obs;
 
   @override
@@ -63,94 +49,8 @@ class ManageUsersController extends GetxController with LoadStateMixin {
         final result = await _repository.list();
         users.assignAll(result.users);
         roles.assignAll(result.roles);
-        await Future.wait([
-          _loadComplaintCategories(),
-          loadTags(showLoading: false),
-        ]);
+        await _loadComplaintCategories();
       }, showLoading: showLoading);
-
-  Future<void> loadTags({bool showLoading = true}) async {
-    if (showLoading) isTagsLoading.value = true;
-    try {
-      final list = await _tagsRepo.getTags();
-      tags.assignAll(list);
-    } catch (_) {
-      // Keep existing tags
-    } finally {
-      if (showLoading) isTagsLoading.value = false;
-    }
-  }
-
-  Future<bool> createTag({
-    required String name,
-    required String color,
-    String? description,
-  }) async {
-    try {
-      final newTag = await _tagsRepo.createTag(
-        name: name,
-        color: color,
-        description: description,
-      );
-      tags.add(newTag);
-      AppSnackbar.success('Tag Created', 'Created tag "${newTag.name}".');
-      return true;
-    } on ApiException catch (e) {
-      AppSnackbar.error('Create Tag Failed', e.message);
-      return false;
-    } catch (_) {
-      AppSnackbar.error('Create Tag Failed', 'Something went wrong, try again.');
-      return false;
-    }
-  }
-
-  Future<bool> updateTag({
-    required int id,
-    required String name,
-    required String color,
-    String? description,
-  }) async {
-    try {
-      final updated = await _tagsRepo.updateTag(
-        id: id,
-        name: name,
-        color: color,
-        description: description,
-      );
-      final idx = tags.indexWhere((t) => t.id == id);
-      if (idx != -1) {
-        tags[idx] = updated;
-      }
-      AppSnackbar.success('Tag Updated', 'Tag "${updated.name}" updated successfully.');
-      return true;
-    } on ApiException catch (e) {
-      AppSnackbar.error('Update Failed', e.message);
-      return false;
-    } catch (_) {
-      AppSnackbar.error('Update Failed', 'Something went wrong, try again.');
-      return false;
-    }
-  }
-
-  Future<void> deleteTag(StudentTag tag) async {
-    if (tag.isSystem) {
-      AppSnackbar.warning('System Tag', 'System tags cannot be deleted.');
-      return;
-    }
-    if (busyIds.contains(tag.id)) return;
-    busyIds.add(tag.id);
-    try {
-      await _tagsRepo.deleteTag(tag.id);
-      tags.removeWhere((t) => t.id == tag.id);
-      AppSnackbar.success('Tag Deleted', 'Tag "${tag.name}" was removed.');
-    } on ApiException catch (e) {
-      AppSnackbar.error('Delete Failed', e.message);
-    } catch (_) {
-      AppSnackbar.error('Delete Failed', 'Something went wrong, try again.');
-    } finally {
-      busyIds.remove(tag.id);
-    }
-  }
 
   Future<void> _loadComplaintCategories() async {
     try {

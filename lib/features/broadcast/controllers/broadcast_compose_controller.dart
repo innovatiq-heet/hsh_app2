@@ -96,7 +96,10 @@ class BroadcastComposeController extends GetxController
   }
 
   Future<void> _start() async {
-    if (await ensureAdmin()) await loadTags();
+    if (await ensureAdmin()) {
+      loadStudents(); // in the background: the picker is ready when opened
+      await loadTags();
+    }
   }
 
   @override

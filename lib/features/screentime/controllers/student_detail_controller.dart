@@ -11,6 +11,7 @@ import '../../../core/enums/user_role.dart';
 import '../models/screen_time_policy.dart';
 import '../services/app_icon_cache.dart';
 import 'app_requests_host.dart';
+import 'screen_time_directory_controller.dart';
 import 'screen_time_utils.dart';
 
 /// Everything about ONE student's screen time: live status, usage and
@@ -93,8 +94,8 @@ class StudentDetailController extends GetxController
   /// loads the rest.
   void _showStudentFromDirectoryEntry(dynamic student) {
     // Retain all existing stats from the student object immediately so data is visible
-    totalMinutesToday.value = toInt(student['totalScreenTimeMinutes']);
-    nightMinutesToday.value = toInt(student['nightScreenTimeMinutes']);
+    totalMinutesToday.value = extractStudentMinutes(student);
+    nightMinutesToday.value = extractStudentNightMinutes(student);
     isOnline.value = isStudentOnline(student);
     isScreenOn.value = isStudentScreenOn(student);
     currentApp.value = (student['currentApp'] ?? 'Idle').toString();
@@ -147,6 +148,8 @@ class StudentDetailController extends GetxController
         installPassUntil.value = pol.installPassUntil;
         playStoreBlocked.value = pol.restrictAppInstalls;
       }
+    } else {
+      isDeviceLocked.value = isStudentLocked(student);
     }
 
     final directApps = _extractAppsList(student);
@@ -1306,31 +1309,8 @@ class StudentDetailController extends GetxController
       currentApp.value = data['current_app'].toString();
     }
 
-    final liveTotal = toInt(
-      data['totalScreenTimeMinutes'] ??
-          data['total_screen_time_minutes'] ??
-          data['totalMinutes'] ??
-          data['total_minutes'] ??
-          data['screenTime']?['totalScreenTimeMinutes'] ??
-          data['screenTime']?['total_screen_time_minutes'] ??
-          data['today']?['totalScreenTimeMinutes'] ??
-          data['today']?['total_screen_time_minutes'] ??
-          data['live']?['totalScreenTimeMinutes'] ??
-          data['live']?['total_screen_time_minutes'],
-    );
-
-    final liveNight = toInt(
-      data['nightScreenTimeMinutes'] ??
-          data['night_screen_time_minutes'] ??
-          data['nightMinutes'] ??
-          data['night_minutes'] ??
-          data['screenTime']?['nightScreenTimeMinutes'] ??
-          data['screenTime']?['night_screen_time_minutes'] ??
-          data['today']?['nightScreenTimeMinutes'] ??
-          data['today']?['night_screen_time_minutes'] ??
-          data['live']?['nightScreenTimeMinutes'] ??
-          data['live']?['night_screen_time_minutes'],
-    );
+    final liveTotal = extractStudentMinutes(data);
+    final liveNight = extractStudentNightMinutes(data);
     if (liveNight > 0 || nightMinutesToday.value == 0) {
       nightMinutesToday.value = liveNight;
     }
@@ -1801,6 +1781,25 @@ class StudentDetailController extends GetxController
     _applyPolicy(previous.copyWith(isLocked: lock));
     try {
       await _putPolicy({'is_locked': lock});
+      if (selectedStudent.value is Map) {
+        final m = Map<String, dynamic>.from(selectedStudent.value as Map);
+        m['is_locked'] = lock;
+        m['isLocked'] = lock;
+        if (m['policy'] is Map) {
+          final p = Map<String, dynamic>.from(m['policy'] as Map);
+          p['is_locked'] = lock ? 1 : 0;
+          p['isLocked'] = lock;
+          m['policy'] = p;
+        } else {
+          m['policy'] = {'is_locked': lock ? 1 : 0, 'isLocked': lock};
+        }
+        selectedStudent.value = m;
+      }
+      if (host is ScreenTimeDirectoryController) {
+        (host as ScreenTimeDirectoryController).updateStudentPolicyState(id, isLocked: lock);
+      } else if (Get.isRegistered<ScreenTimeDirectoryController>()) {
+        Get.find<ScreenTimeDirectoryController>().updateStudentPolicyState(id, isLocked: lock);
+      }
       if (lock) {
         AppSnackbar.warning(
           'Device Locked',

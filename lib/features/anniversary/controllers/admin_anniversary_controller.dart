@@ -164,14 +164,53 @@ class AdminAnniversaryController extends GetxController {
   void selectStatus(String status) {
     if (selectedStatus.value == status) {
       selectedStatus.value = 'All';
+      if (directoryFilter.value == 'hostel' || directoryFilter.value == 'alumni') {
+        directoryFilter.value = 'all';
+      }
     } else {
       selectedStatus.value = status;
+      if (status == 'Active Residents') {
+        directoryFilter.value = 'hostel';
+      } else if (status == 'Alumni / Left') {
+        directoryFilter.value = 'alumni';
+      }
     }
   }
 
   void selectSort(String sort) {
     selectedSort.value = sort;
   }
+
+  void toggleOnlyWithAnniversaryDate(bool val) {
+    onlyWithAnniversaryDate.value = val;
+    if (val) {
+      onlyWithoutAnniversaryDate.value = false;
+      if (directoryFilter.value == 'no_date') directoryFilter.value = 'has_date';
+    }
+  }
+
+  void toggleOnlyWithoutAnniversaryDate(bool val) {
+    onlyWithoutAnniversaryDate.value = val;
+    if (val) {
+      onlyWithAnniversaryDate.value = false;
+      if (directoryFilter.value == 'has_date') directoryFilter.value = 'no_date';
+    }
+  }
+
+  void toggleOnlyWithFatherPhone(bool val) {
+    onlyWithFatherPhone.value = val;
+  }
+
+  void toggleOnlyWithMotherPhone(bool val) {
+    onlyWithMotherPhone.value = val;
+  }
+
+  void toggleOnlyWithBothPhones(bool val) {
+    onlyWithBothPhones.value = val;
+  }
+
+  bool isAlumni(AnniversaryStudentRecord s) => s.isAlumni;
+  String? groupFor(AnniversaryStudentRecord s) => s.groupName;
 
   void resetAllFilters() {
     selectedGroup.value = isLeader.value ? (leaderGroup.value ?? 'All') : 'All';
@@ -228,6 +267,11 @@ class AdminAnniversaryController extends GetxController {
       if (selectedStatus.value == 'Active Residents' && alumni) return false;
       if (selectedStatus.value == 'Alumni / Left' && !alumni) return false;
 
+      if (directoryFilter.value == 'hostel' && alumni) return false;
+      if (directoryFilter.value == 'alumni' && !alumni) return false;
+      if (directoryFilter.value == 'has_date' && s.anniversaryDate.trim().isEmpty) return false;
+      if (directoryFilter.value == 'no_date' && s.anniversaryDate.trim().isNotEmpty) return false;
+
       // Date / phone toggles
       if (onlyWithAnniversaryDate.value && s.anniversaryDate.trim().isEmpty) return false;
       if (onlyWithoutAnniversaryDate.value && s.anniversaryDate.trim().isNotEmpty) return false;
@@ -273,6 +317,14 @@ class AdminAnniversaryController extends GetxController {
           return dateA.compareTo(dateB);
         });
         break;
+      case 'Default (Hostel First)':
+      default:
+        list.sort((a, b) {
+          if (!a.isAlumni && b.isAlumni) return -1;
+          if (a.isAlumni && !b.isAlumni) return 1;
+          return a.name.toLowerCase().compareTo(b.name.toLowerCase());
+        });
+        break;
     }
 
     return list;
@@ -299,11 +351,12 @@ class AdminAnniversaryController extends GetxController {
     }
   }
 
-  Future<void> loadAllStudents() async {
+  Future<void> loadAllStudents({String? query}) async {
     if (isLoadingStudents.value) return;
     isLoadingStudents.value = true;
     try {
       final list = await _repository.fetchAllStudents(
+        search: query ?? (searchController.text.trim().isNotEmpty ? searchController.text.trim() : null),
         group: isLeader.value ? leaderGroup.value : null,
       );
       allStudents.value = list;
@@ -311,6 +364,22 @@ class AdminAnniversaryController extends GetxController {
       AppSnackbar.warning('Directory Error', 'Could not load anniversary directory: $e');
     } finally {
       isLoadingStudents.value = false;
+    }
+  }
+
+  Future<void> callPhone(String phone) async {
+    final clean = phone.replaceAll(RegExp(r'\D'), '');
+    if (clean.isEmpty) {
+      AppSnackbar.warning('No Phone', 'No valid phone number to call.');
+      return;
+    }
+    final uri = Uri.parse('tel:$clean');
+    try {
+      if (await canLaunchUrl(uri)) {
+        await launchUrl(uri);
+      }
+    } catch (_) {
+      AppSnackbar.warning('Call Failed', 'Could not start phone call to $clean.');
     }
   }
 

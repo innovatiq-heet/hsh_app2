@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
+import 'package:url_launcher/url_launcher.dart';
 import '../../../core/constants/app_colors.dart';
 import '../../../core/constants/app_dimens.dart';
 import '../../../core/constants/app_text_styles.dart';
@@ -87,11 +88,7 @@ class _DeviceSetupScreenState extends State<DeviceSetupScreen> with WidgetsBindi
   }
 
   Future<void> _promptAccessibilityDisclosure() async {
-    final agreed = await showDialog<bool>(
-      context: context,
-      barrierDismissible: false,
-      builder: (ctx) => const _AccessibilityProminentDisclosureDialog(),
-    );
+    final agreed = await AccessibilityProminentDisclosureDialog.show(context);
     if (agreed == true) {
       await ScreenTimeService.openAccessibilitySettings();
     }
@@ -164,19 +161,20 @@ class _DeviceSetupScreenState extends State<DeviceSetupScreen> with WidgetsBindi
                         checking: _checking,
                         actionLabel: 'Open settings',
                         onAction: ScreenTimeService.openUsageSettings,
+                        enabled: true,
                       ),
                       const SizedBox(height: AppDimens.gapMd),
                       _Step(
                         index: 2,
                         icon: Icons.shield_rounded,
-                        title: 'App blocker',
-                        description: 'Applies curfew and restricted-app rules.',
-                        hint: 'Under Installed apps / Downloaded services, turn on "HSH Connect Blocker".',
+                        title: 'App blocker (Accessibility API)',
+                        description: 'Applies curfew and restricted-app rules via AccessibilityService.',
+                        hint: 'Under Installed apps / Downloaded services, turn on "HSH Connect Blocker & Screen Time Service".',
                         done: _accessibility,
                         checking: _checking,
                         actionLabel: 'Open settings',
                         onAction: _promptAccessibilityDisclosure,
-                        enabled: _usage,
+                        enabled: true,
                       ),
                       const SizedBox(height: AppDimens.gapMd),
                       _Step(
@@ -194,7 +192,7 @@ class _DeviceSetupScreenState extends State<DeviceSetupScreen> with WidgetsBindi
                           final level = await GeofenceDeviceService.requestLocationAlways();
                           if (mounted) setState(() => _location = level == 'always');
                         },
-                        enabled: _usage && _accessibility,
+                        enabled: true,
                       ),
                       const SizedBox(height: AppDimens.gapMd),
                       _Step(
@@ -211,8 +209,8 @@ class _DeviceSetupScreenState extends State<DeviceSetupScreen> with WidgetsBindi
                           final shown = await ScreenTimeService.requestIgnoreBatteryOptimizations();
                           if (!shown && mounted) setState(() => _batterySkipped = true);
                         },
-                        onSkip: _requiredDone && !_battery ? () => setState(() => _batterySkipped = true) : null,
-                        enabled: _requiredDone,
+                        onSkip: !_battery ? () => setState(() => _batterySkipped = true) : null,
+                        enabled: true,
                       ),
                     ],
                   ),
@@ -290,75 +288,82 @@ class _Step extends StatelessWidget {
                 ? AppColors.primary
                 : AppColors.textLight;
 
-    return AnimatedContainer(
-      duration: const Duration(milliseconds: 220),
-      padding: const EdgeInsets.all(AppDimens.cardPadding),
-      decoration: BoxDecoration(
-        color: AppColors.surface,
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        onTap: done ? null : onAction,
         borderRadius: BorderRadius.circular(AppDimens.radiusLg),
-        border: Border.all(color: active ? AppColors.primary.withValues(alpha: 0.5) : AppColors.borderLight, width: active ? 1.5 : 1),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
+        child: AnimatedContainer(
+          duration: const Duration(milliseconds: 220),
+          padding: const EdgeInsets.all(AppDimens.cardPadding),
+          decoration: BoxDecoration(
+            color: AppColors.surface,
+            borderRadius: BorderRadius.circular(AppDimens.radiusLg),
+            border: Border.all(color: active ? AppColors.primary.withValues(alpha: 0.5) : AppColors.borderLight, width: active ? 1.5 : 1),
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Container(
-                width: 40,
-                height: 40,
-                decoration: BoxDecoration(color: color.withValues(alpha: 0.12), shape: BoxShape.circle),
-                child: Icon(done ? Icons.check_rounded : icon, color: color, size: 22),
-              ),
-              const SizedBox(width: 12),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      'Step $index · $title',
-                      style: AppTextStyles.title.copyWith(color: enabled || done ? AppColors.textPrimary : AppColors.textMuted),
+              Row(
+                children: [
+                  Container(
+                    width: 40,
+                    height: 40,
+                    decoration: BoxDecoration(color: color.withValues(alpha: 0.12), shape: BoxShape.circle),
+                    child: Icon(done ? Icons.check_rounded : icon, color: color, size: 22),
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          'Step $index · $title',
+                          style: AppTextStyles.title.copyWith(color: enabled || done ? AppColors.textPrimary : AppColors.textMuted),
+                        ),
+                        Text(description, style: AppTextStyles.bodySm.copyWith(color: AppColors.textSecondary)),
+                      ],
                     ),
-                    Text(description, style: AppTextStyles.bodySm.copyWith(color: AppColors.textSecondary)),
+                  ),
+                  if (done)
+                    Text('Done', style: AppTextStyles.label.copyWith(color: AppColors.successGreen, fontWeight: FontWeight.w700))
+                  else if (skipped)
+                    Text('Skipped', style: AppTextStyles.label.copyWith(color: AppColors.textMuted)),
+                ],
+              ),
+              if (active) ...[
+                const SizedBox(height: AppDimens.gapMd),
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                  decoration: BoxDecoration(
+                    color: AppColors.primarySoft,
+                    borderRadius: BorderRadius.circular(AppDimens.radiusSm),
+                  ),
+                  child: Row(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      const Icon(Icons.info_outline_rounded, size: 16, color: AppColors.primary),
+                      const SizedBox(width: 8),
+                      Expanded(child: Text(hint, style: AppTextStyles.bodySm)),
+                    ],
+                  ),
+                ),
+                const SizedBox(height: AppDimens.gapMd),
+                Row(
+                  children: [
+                    Expanded(
+                      child: AppButton(label: actionLabel, icon: Icons.open_in_new_rounded, onPressed: onAction),
+                    ),
+                    if (onSkip != null) ...[
+                      const SizedBox(width: AppDimens.gapSm),
+                      TextButton(onPressed: onSkip, child: const Text('Skip')),
+                    ],
                   ],
                 ),
-              ),
-              if (done)
-                Text('Done', style: AppTextStyles.label.copyWith(color: AppColors.successGreen, fontWeight: FontWeight.w700))
-              else if (skipped)
-                Text('Skipped', style: AppTextStyles.label.copyWith(color: AppColors.textMuted)),
+              ],
             ],
           ),
-          if (active) ...[
-            const SizedBox(height: AppDimens.gapMd),
-            Container(
-              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-              decoration: BoxDecoration(
-                color: AppColors.primarySoft,
-                borderRadius: BorderRadius.circular(AppDimens.radiusSm),
-              ),
-              child: Row(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  const Icon(Icons.info_outline_rounded, size: 16, color: AppColors.primary),
-                  const SizedBox(width: 8),
-                  Expanded(child: Text(hint, style: AppTextStyles.bodySm)),
-                ],
-              ),
-            ),
-            const SizedBox(height: AppDimens.gapMd),
-            Row(
-              children: [
-                Expanded(
-                  child: AppButton(label: actionLabel, icon: Icons.open_in_new_rounded, onPressed: onAction),
-                ),
-                if (onSkip != null) ...[
-                  const SizedBox(width: AppDimens.gapSm),
-                  TextButton(onPressed: onSkip, child: const Text('Skip')),
-                ],
-              ],
-            ),
-          ],
-        ],
+        ),
       ),
     );
   }
@@ -366,8 +371,16 @@ class _Step extends StatelessWidget {
 
 /// Prominent in-app disclosure modal required by Google Play User Data & Accessibility API Policy.
 /// Must be presented before the user is directed to the Android Accessibility settings screen.
-class _AccessibilityProminentDisclosureDialog extends StatelessWidget {
-  const _AccessibilityProminentDisclosureDialog();
+class AccessibilityProminentDisclosureDialog extends StatelessWidget {
+  const AccessibilityProminentDisclosureDialog({super.key});
+
+  static Future<bool?> show(BuildContext context) {
+    return showDialog<bool>(
+      context: context,
+      barrierDismissible: false,
+      builder: (ctx) => const AccessibilityProminentDisclosureDialog(),
+    );
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -398,7 +411,7 @@ class _AccessibilityProminentDisclosureDialog extends StatelessWidget {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
-                  'ACCESSIBILITY API',
+                  'ACCESSIBILITY SERVICE API',
                   style: TextStyle(
                     fontSize: 10.5,
                     fontWeight: FontWeight.w800,
@@ -408,9 +421,9 @@ class _AccessibilityProminentDisclosureDialog extends StatelessWidget {
                 ),
                 SizedBox(height: 2),
                 Text(
-                  'Prominent Disclosure',
+                  'Prominent Disclosure & Consent',
                   style: TextStyle(
-                    fontSize: 17,
+                    fontSize: 16.5,
                     fontWeight: FontWeight.w800,
                     color: Color(0xFF0F172A),
                     letterSpacing: -0.3,
@@ -429,7 +442,7 @@ class _AccessibilityProminentDisclosureDialog extends StatelessWidget {
             mainAxisSize: MainAxisSize.min,
             children: [
               const Text(
-                'HSH Connect uses the Android AccessibilityService API strictly for hostel parental control, student focus, and curfew enforcement.',
+                'HSH Connect uses the Android AccessibilityService API strictly for institutional hostel parental control, student focus, and curfew enforcement.',
                 style: TextStyle(
                   fontSize: 13,
                   fontWeight: FontWeight.w600,
@@ -441,39 +454,51 @@ class _AccessibilityProminentDisclosureDialog extends StatelessWidget {
               const _DisclosureSectionHeader(
                 icon: Icons.check_circle_outline_rounded,
                 iconColor: Color(0xFF0284C7),
-                title: 'How It Is Used',
+                title: 'How It Works & What Data Is Used',
               ),
               const SizedBox(height: 6),
               const _DisclosureBullet(
-                bold: 'Restricted App Blocking: ',
-                text: 'Detects when prohibited or non-academic apps are opened during active study and curfew hours, and displays a blocking screen.',
+                bold: 'Foreground App Detection: ',
+                text: 'Only inspects the package name and window state changes of the active foreground application to verify if it is restricted under hostel policy.',
               ),
               const _DisclosureBullet(
-                bold: 'Foreground App Detection: ',
-                text: 'Only inspects the package name of the active foreground application to verify if it is restricted under hostel policy.',
+                bold: 'Curfew & Study Hour App Blocking: ',
+                text: 'Detects when prohibited or non-academic apps (such as entertainment or gaming) are opened during active study and curfew hours, and displays a curfew restriction screen.',
+              ),
+              const _DisclosureBullet(
+                bold: 'Hostel Policy Self-Protection: ',
+                text: 'Prevents unauthorized force-stopping or bypassing of the hostel monitoring service from device settings during active residency.',
               ),
               const SizedBox(height: 14),
               const _DisclosureSectionHeader(
                 icon: Icons.lock_outline_rounded,
                 iconColor: Color(0xFF059669),
-                title: 'Privacy & Data Protection Guarantee',
+                title: 'Privacy & Data Protection Guarantees',
               ),
               const SizedBox(height: 6),
               const _DisclosureBullet(
                 bold: 'NO Personal Content: ',
-                text: 'Does NOT read, collect, or store any personal messages, emails, photos, passwords, or on-screen text.',
+                text: 'Does NOT read, collect, or store any personal messages, chats, emails, photos, passwords, or on-screen text.',
               ),
               const _DisclosureBullet(
                 bold: 'NO Keystroke Logging: ',
-                text: 'Does NOT track keystrokes, typing, or user input.',
+                text: 'Does NOT track or log keyboard keystrokes, typing, or user input.',
               ),
               const _DisclosureBullet(
                 bold: 'NO Audio Recording: ',
-                text: 'Does NOT access or monitor the microphone or audio.',
+                text: 'Does NOT access or monitor the microphone, phone calls, or audio.',
+              ),
+              const _DisclosureBullet(
+                bold: 'Banking Apps Protected: ',
+                text: 'Essential financial, UPI, and banking apps are never restricted or blocked.',
               ),
               const _DisclosureBullet(
                 bold: 'Zero Third-Party Sharing: ',
-                text: 'Accessibility data is never shared with third parties, advertisers, or analytics trackers.',
+                text: 'All accessibility checks are evaluated locally in real time on your device. Data is never sold, shared, or transmitted to any third parties, advertisers, or analytics trackers.',
+              ),
+              const _DisclosureBullet(
+                bold: 'User Control & Revocation: ',
+                text: 'You can disable or modify this permission at any time in Android Settings > Accessibility > HSH Connect Blocker & Screen Time Service.',
               ),
               const SizedBox(height: 12),
               Container(
@@ -484,11 +509,28 @@ class _AccessibilityProminentDisclosureDialog extends StatelessWidget {
                   border: Border.all(color: const Color(0xFFCBD5E1)),
                 ),
                 child: const Text(
-                  'Next: In Settings > Installed apps / Downloaded services, enable "HSH Connect Blocker".',
+                  'Next: In Settings > Installed apps / Downloaded services, enable "HSH Connect Blocker & Screen Time Service".',
                   style: TextStyle(
                     fontSize: 11.5,
                     color: Color(0xFF475569),
                     fontWeight: FontWeight.w500,
+                  ),
+                ),
+              ),
+              const SizedBox(height: 8),
+              Center(
+                child: TextButton(
+                  onPressed: () => launchUrl(
+                    Uri.parse('https://lightcoral-eel-306042.hostingersite.com/privacy-policy'),
+                    mode: LaunchMode.externalApplication,
+                  ),
+                  child: const Text(
+                    'Read Full Privacy Policy ↗',
+                    style: TextStyle(
+                      fontSize: 12,
+                      fontWeight: FontWeight.w700,
+                      color: Color(0xFF0284C7),
+                    ),
                   ),
                 ),
               ),

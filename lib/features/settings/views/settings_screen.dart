@@ -13,6 +13,7 @@ import '../../shared/widgets/gradient_header.dart';
 import '../../shared/widgets/icon_badge.dart';
 import '../../shared/widgets/section_header.dart';
 import '../../shared/widgets/section_list_tile.dart';
+import '../../shared/widgets/privacy_and_disclosures_sheet.dart';
 import '../../../core/constants/app_config.dart';
 import '../../../core/services/shorebird_service.dart';
 import '../../../core/utils/app_snackbar.dart';
@@ -395,6 +396,20 @@ class SettingScreen extends StatelessWidget {
                           AppSnackbar.info('App Up to Date', 'Current version: ${AppConfig.appVersionDisplay} ($patch).');
                         }
                       },
+                    ),
+                    SectionListTile(
+                      icon: Icons.shield_outlined,
+                      title: 'Privacy & Permissions Disclosures',
+                      subtitle: 'Accessibility API, Curfew Location & Policy',
+                      iconColor: AppColors.secondary,
+                      onTap: () => PrivacyAndDisclosuresSheet.show(context),
+                    ),
+                    SectionListTile(
+                      icon: Icons.phonelink_setup_rounded,
+                      title: 'Device Permissions & Setup',
+                      subtitle: 'Re-check screen-time and curfew permissions',
+                      iconColor: AppColors.primary,
+                      onTap: () => Get.toNamed(Routes.deviceSetup),
                     ),
                     SectionListTile(
                       icon: Icons.info_outline_rounded,

@@ -9,6 +9,7 @@ import '../../../core/constants/app_text_styles.dart';
 import '../../shared/widgets/app_button.dart';
 import '../../shared/widgets/app_text_field.dart';
 import '../../shared/widgets/brand.dart';
+import '../../shared/widgets/privacy_and_disclosures_sheet.dart';
 import '../controllers/login_controller.dart';
 
 class LoginScreen extends GetView<LoginController> {
@@ -256,6 +257,26 @@ class _FormPanel extends StatelessWidget {
                       ),
                     ),
                   ],
+                ),
+              ),
+            ),
+            const SizedBox(height: 20),
+            Center(
+              child: TextButton.icon(
+                onPressed: () => PrivacyAndDisclosuresSheet.show(context),
+                icon: const Icon(
+                  Icons.shield_outlined,
+                  size: 15,
+                  color: AppColors.textSecondary,
+                ),
+                label: const Text(
+                  'Privacy Policy & Permissions Disclosure',
+                  style: TextStyle(
+                    fontSize: 12,
+                    fontWeight: FontWeight.w600,
+                    color: AppColors.textSecondary,
+                    decoration: TextDecoration.underline,
+                  ),
                 ),
               ),
             ),

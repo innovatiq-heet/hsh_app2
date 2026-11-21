@@ -52,6 +52,7 @@ dependencies:
   latlong2: ^0.10.1
   shorebird_code_push: ^2.0.7
   shared_preferences: ^2.5.5
+  path_provider: 2.1.6
   # FIREBASE DISABLED: push notifications are switched off for now. To turn
   # them back on, uncomment these two lines and every "FIREBASE DISABLED"
   # block in lib/main.dart and lib/core/services/push_notification_service.dart.

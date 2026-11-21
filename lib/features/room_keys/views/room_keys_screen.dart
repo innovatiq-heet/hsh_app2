@@ -704,13 +704,18 @@ class RoomKeysScreen extends GetView<RoomKeysController> {
                 }
                 return SliverPadding(
                   padding: const EdgeInsets.fromLTRB(20, 0, 20, 110),
-                  sliver: SliverList.separated(
+                  sliver: SliverReorderableList(
                     itemCount: rooms.length,
-                    separatorBuilder: (_, _) => const SizedBox(height: 10),
-                    itemBuilder: (_, i) => _RoomCard(
-                      room: rooms[i],
-                      group: controller.groupOfRoom(rooms[i].number),
-                      onTap: () => _openRoom(rooms[i].number),
+                    onReorder: controller.reorderVisibleRooms,
+                    itemBuilder: (_, i) => Padding(
+                      key: ValueKey('room-${rooms[i].number}'),
+                      padding: const EdgeInsets.only(bottom: 10),
+                      child: _RoomCard(
+                        room: rooms[i],
+                        dragIndex: i,
+                        group: controller.groupOfRoom(rooms[i].number),
+                        onTap: () => _openRoom(rooms[i].number),
+                      ),
                     ),
                   ),
                 );
@@ -891,12 +896,13 @@ class _FilterPillTab extends StatelessWidget {
 
 class _RoomCard extends StatelessWidget {
   final KeyRoom room;
+  final int dragIndex;
 
   /// The room's group (Param, Pavitra, ...) when the phonebook knows it.
   final String? group;
   final VoidCallback onTap;
 
-  const _RoomCard({required this.room, required this.onTap, this.group});
+  const _RoomCard({required this.room, required this.dragIndex, required this.onTap, this.group});
 
   /// The card's colour says how the room stands: red when keys need checking,
   /// amber when keys are missing, green when it is complete.
@@ -1024,7 +1030,16 @@ class _RoomCard extends StatelessWidget {
                         ],
                       ),
                     ),
-                    Icon(Icons.chevron_right_rounded, color: accent.withValues(alpha: 0.7)),
+                    ReorderableDragStartListener(
+                      index: dragIndex,
+                      child: Semantics(
+                        label: 'Drag to reorder room ${room.number}',
+                        child: const Padding(
+                          padding: EdgeInsets.all(8),
+                          child: Icon(Icons.drag_handle_rounded, color: Color(0xFF64748B), size: 23),
+                        ),
+                      ),
+                    ),
                   ],
                 ),
               ),

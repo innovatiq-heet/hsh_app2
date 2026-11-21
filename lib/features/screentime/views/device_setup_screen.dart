@@ -1,7 +1,6 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
-import 'package:url_launcher/url_launcher.dart';
 import '../../../core/constants/app_colors.dart';
 import '../../../core/constants/app_dimens.dart';
 import '../../../core/constants/app_text_styles.dart';
@@ -22,14 +21,17 @@ class DeviceSetupScreen extends StatefulWidget {
 
 class _DeviceSetupScreenState extends State<DeviceSetupScreen> with WidgetsBindingObserver {
   bool _usage = false;
-  bool _accessibility = false;
+  bool _overlay = false;
   bool _location = false;
   bool _battery = false;
+  bool _admin = false;
   bool _batterySkipped = false;
   bool _checking = true;
   Timer? _poll;
 
-  bool get _requiredDone => _usage && _accessibility && _location;
+  /// The app blocker needs "Display over other apps" (plus Usage access, step 1).
+  bool get _blocker => _overlay;
+  bool get _requiredDone => _usage && _blocker && _location && _admin;
   bool get _allDone => _requiredDone && (_battery || _batterySkipped);
 
   @override
@@ -65,15 +67,17 @@ class _DeviceSetupScreenState extends State<DeviceSetupScreen> with WidgetsBindi
   Future<void> _refresh() async {
     final results = await Future.wait([
       ScreenTimeService.hasUsagePermission(),
-      ScreenTimeService.hasAccessibilityPermission(),
+      ScreenTimeService.hasOverlayPermission(),
       ScreenTimeService.isBatteryOptimizationIgnored(),
+      ScreenTimeService.isDeviceAdminActive(),
     ]);
     final location = await GeofenceDeviceService.locationPermission();
     if (!mounted) return;
     setState(() {
       _usage = results[0];
-      _accessibility = results[1];
+      _overlay = results[1];
       _battery = results[2];
+      _admin = results[3];
       _location = location == 'always';
       _checking = false;
     });
@@ -87,16 +91,9 @@ class _DeviceSetupScreenState extends State<DeviceSetupScreen> with WidgetsBindi
     if (Get.currentRoute.contains('device-setup')) Get.back();
   }
 
-  Future<void> _promptAccessibilityDisclosure() async {
-    final agreed = await AccessibilityProminentDisclosureDialog.show(context);
-    if (agreed == true) {
-      await ScreenTimeService.openAccessibilitySettings();
-    }
-  }
-
   @override
   Widget build(BuildContext context) {
-    final done = [_usage, _accessibility, _location, _battery || _batterySkipped].where((b) => b).length;
+    final done = [_usage, _blocker, _location, _battery || _batterySkipped, _admin].where((b) => b).length;
 
     return PopScope(
       canPop: true,
@@ -135,7 +132,7 @@ class _DeviceSetupScreenState extends State<DeviceSetupScreen> with WidgetsBindi
                       child: ClipRRect(
                         borderRadius: BorderRadius.circular(4),
                         child: LinearProgressIndicator(
-                          value: done / 4,
+                          value: done / 5,
                           minHeight: 6,
                           backgroundColor: AppColors.borderLight,
                           valueColor: const AlwaysStoppedAnimation(AppColors.primary),
@@ -143,7 +140,7 @@ class _DeviceSetupScreenState extends State<DeviceSetupScreen> with WidgetsBindi
                       ),
                     ),
                     const SizedBox(width: 12),
-                    Text('$done of 4', style: AppTextStyles.label.copyWith(color: AppColors.textSecondary)),
+                    Text('$done of 5', style: AppTextStyles.label.copyWith(color: AppColors.textSecondary)),
                   ],
                 ),
                 const SizedBox(height: AppDimens.gapLg),
@@ -155,7 +152,7 @@ class _DeviceSetupScreenState extends State<DeviceSetupScreen> with WidgetsBindi
                         index: 1,
                         icon: Icons.query_stats_rounded,
                         title: 'Usage access',
-                        description: 'Lets the app count how long each app is used.',
+                        description: 'Lets the app count how long each app is used and see which app is open.',
                         hint: 'Find "HSH Connect" in the list and turn on Permit usage access.',
                         done: _usage,
                         checking: _checking,
@@ -167,13 +164,14 @@ class _DeviceSetupScreenState extends State<DeviceSetupScreen> with WidgetsBindi
                       _Step(
                         index: 2,
                         icon: Icons.shield_rounded,
-                        title: 'App blocker (Accessibility API)',
-                        description: 'Applies curfew and restricted-app rules via AccessibilityService.',
-                        hint: 'Under Installed apps / Downloaded services, turn on "HSH Connect Blocker & Screen Time Service".',
-                        done: _accessibility,
+                        title: 'App blocker',
+                        description: 'Blocks restricted apps and applies time limits, bedtime and phone locks. '
+                            'Each block (app, time, reason) is sent to the hostel server.',
+                        hint: 'Find "HSH Connect" in the list and turn on "Allow display over other apps".',
+                        done: _blocker,
                         checking: _checking,
                         actionLabel: 'Open settings',
-                        onAction: _promptAccessibilityDisclosure,
+                        onAction: ScreenTimeService.openOverlaySettings,
                         enabled: true,
                       ),
                       const SizedBox(height: AppDimens.gapMd),
@@ -199,7 +197,8 @@ class _DeviceSetupScreenState extends State<DeviceSetupScreen> with WidgetsBindi
                         index: 4,
                         icon: Icons.battery_saver_rounded,
                         title: 'Keep running in background',
-                        description: 'Stops Android from pausing monitoring to save battery.',
+                        description: 'Stops Android from pausing monitoring to save battery, and lets it restart '
+                            'by itself if it is stopped.',
                         hint: 'Choose "Allow" or "Don\'t optimise", and keep background data on.',
                         done: _battery,
                         skipped: _batterySkipped && !_battery,
@@ -207,9 +206,25 @@ class _DeviceSetupScreenState extends State<DeviceSetupScreen> with WidgetsBindi
                         actionLabel: 'Allow',
                         onAction: () async {
                           final shown = await ScreenTimeService.requestIgnoreBatteryOptimizations();
+                          // Only phones without this setting may skip it: without the
+                          // exemption Android won't restart monitoring after a Stop.
                           if (!shown && mounted) setState(() => _batterySkipped = true);
                         },
-                        onSkip: !_battery ? () => setState(() => _batterySkipped = true) : null,
+                        enabled: true,
+                      ),
+                      const SizedBox(height: AppDimens.gapMd),
+                      _Step(
+                        index: 5,
+                        icon: Icons.admin_panel_settings_rounded,
+                        title: 'Protect from removal',
+                        description: "Makes HSH Connect a device admin app, so it can't be force-stopped or "
+                            'uninstalled while you are signed in. It uses no admin powers (no lock, erase or '
+                            'password changes), is turned off when you log out, and attempts to turn it off are reported to the hostel.',
+                        hint: 'On the next screen, tap "Activate this device admin app".',
+                        done: _admin,
+                        checking: _checking,
+                        actionLabel: 'Activate',
+                        onAction: ScreenTimeService.requestDeviceAdmin,
                         enabled: true,
                       ),
                     ],
@@ -260,7 +275,6 @@ class _Step extends StatelessWidget {
   final bool enabled;
   final String actionLabel;
   final VoidCallback onAction;
-  final VoidCallback? onSkip;
 
   const _Step({
     required this.index,
@@ -274,7 +288,6 @@ class _Step extends StatelessWidget {
     this.enabled = true,
     required this.actionLabel,
     required this.onAction,
-    this.onSkip,
   });
 
   @override
@@ -349,293 +362,11 @@ class _Step extends StatelessWidget {
                   ),
                 ),
                 const SizedBox(height: AppDimens.gapMd),
-                Row(
-                  children: [
-                    Expanded(
-                      child: AppButton(label: actionLabel, icon: Icons.open_in_new_rounded, onPressed: onAction),
-                    ),
-                    if (onSkip != null) ...[
-                      const SizedBox(width: AppDimens.gapSm),
-                      TextButton(onPressed: onSkip, child: const Text('Skip')),
-                    ],
-                  ],
-                ),
+                AppButton(label: actionLabel, icon: Icons.open_in_new_rounded, onPressed: onAction),
               ],
             ],
           ),
         ),
-      ),
-    );
-  }
-}
-
-/// Prominent in-app disclosure modal required by Google Play User Data & Accessibility API Policy.
-/// Must be presented before the user is directed to the Android Accessibility settings screen.
-class AccessibilityProminentDisclosureDialog extends StatelessWidget {
-  const AccessibilityProminentDisclosureDialog({super.key});
-
-  static Future<bool?> show(BuildContext context) {
-    return showDialog<bool>(
-      context: context,
-      barrierDismissible: false,
-      builder: (ctx) => const AccessibilityProminentDisclosureDialog(),
-    );
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    return AlertDialog(
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-      backgroundColor: Colors.white,
-      titlePadding: const EdgeInsets.fromLTRB(20, 20, 20, 0),
-      contentPadding: const EdgeInsets.fromLTRB(20, 14, 20, 0),
-      actionsPadding: const EdgeInsets.fromLTRB(16, 12, 16, 16),
-      title: Row(
-        children: [
-          Container(
-            width: 40,
-            height: 40,
-            decoration: BoxDecoration(
-              color: const Color(0xFFE0F2FE),
-              borderRadius: BorderRadius.circular(12),
-            ),
-            child: const Icon(
-              Icons.shield_rounded,
-              color: Color(0xFF0284C7),
-              size: 22,
-            ),
-          ),
-          const SizedBox(width: 12),
-          const Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  'ACCESSIBILITY SERVICE API',
-                  style: TextStyle(
-                    fontSize: 10.5,
-                    fontWeight: FontWeight.w800,
-                    color: Color(0xFFD97706),
-                    letterSpacing: 0.8,
-                  ),
-                ),
-                SizedBox(height: 2),
-                Text(
-                  'Prominent Disclosure & Consent',
-                  style: TextStyle(
-                    fontSize: 16.5,
-                    fontWeight: FontWeight.w800,
-                    color: Color(0xFF0F172A),
-                    letterSpacing: -0.3,
-                  ),
-                ),
-              ],
-            ),
-          ),
-        ],
-      ),
-      content: SizedBox(
-        width: double.maxFinite,
-        child: SingleChildScrollView(
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              const Text(
-                'HSH Connect uses the Android AccessibilityService API strictly for institutional hostel parental control, student focus, and curfew enforcement.',
-                style: TextStyle(
-                  fontSize: 13,
-                  fontWeight: FontWeight.w600,
-                  color: Color(0xFF334155),
-                  height: 1.4,
-                ),
-              ),
-              const SizedBox(height: 14),
-              const _DisclosureSectionHeader(
-                icon: Icons.check_circle_outline_rounded,
-                iconColor: Color(0xFF0284C7),
-                title: 'How It Works & What Data Is Used',
-              ),
-              const SizedBox(height: 6),
-              const _DisclosureBullet(
-                bold: 'Foreground App Detection: ',
-                text: 'Only inspects the package name and window state changes of the active foreground application to verify if it is restricted under hostel policy.',
-              ),
-              const _DisclosureBullet(
-                bold: 'Curfew & Study Hour App Blocking: ',
-                text: 'Detects when prohibited or non-academic apps (such as entertainment or gaming) are opened during active study and curfew hours, and displays a curfew restriction screen.',
-              ),
-              const _DisclosureBullet(
-                bold: 'Hostel Policy Self-Protection: ',
-                text: 'Prevents unauthorized force-stopping or bypassing of the hostel monitoring service from device settings during active residency.',
-              ),
-              const SizedBox(height: 14),
-              const _DisclosureSectionHeader(
-                icon: Icons.lock_outline_rounded,
-                iconColor: Color(0xFF059669),
-                title: 'Privacy & Data Protection Guarantees',
-              ),
-              const SizedBox(height: 6),
-              const _DisclosureBullet(
-                bold: 'NO Personal Content: ',
-                text: 'Does NOT read, collect, or store any personal messages, chats, emails, photos, passwords, or on-screen text.',
-              ),
-              const _DisclosureBullet(
-                bold: 'NO Keystroke Logging: ',
-                text: 'Does NOT track or log keyboard keystrokes, typing, or user input.',
-              ),
-              const _DisclosureBullet(
-                bold: 'NO Audio Recording: ',
-                text: 'Does NOT access or monitor the microphone, phone calls, or audio.',
-              ),
-              const _DisclosureBullet(
-                bold: 'Banking Apps Protected: ',
-                text: 'Essential financial, UPI, and banking apps are never restricted or blocked.',
-              ),
-              const _DisclosureBullet(
-                bold: 'Zero Third-Party Sharing: ',
-                text: 'All accessibility checks are evaluated locally in real time on your device. Data is never sold, shared, or transmitted to any third parties, advertisers, or analytics trackers.',
-              ),
-              const _DisclosureBullet(
-                bold: 'User Control & Revocation: ',
-                text: 'You can disable or modify this permission at any time in Android Settings > Accessibility > HSH Connect Blocker & Screen Time Service.',
-              ),
-              const SizedBox(height: 12),
-              Container(
-                padding: const EdgeInsets.all(10),
-                decoration: BoxDecoration(
-                  color: const Color(0xFFF1F5F9),
-                  borderRadius: BorderRadius.circular(10),
-                  border: Border.all(color: const Color(0xFFCBD5E1)),
-                ),
-                child: const Text(
-                  'Next: In Settings > Installed apps / Downloaded services, enable "HSH Connect Blocker & Screen Time Service".',
-                  style: TextStyle(
-                    fontSize: 11.5,
-                    color: Color(0xFF475569),
-                    fontWeight: FontWeight.w500,
-                  ),
-                ),
-              ),
-              const SizedBox(height: 8),
-              Center(
-                child: TextButton(
-                  onPressed: () => launchUrl(
-                    Uri.parse('https://lightcoral-eel-306042.hostingersite.com/privacy-policy'),
-                    mode: LaunchMode.externalApplication,
-                  ),
-                  child: const Text(
-                    'Read Full Privacy Policy ↗',
-                    style: TextStyle(
-                      fontSize: 12,
-                      fontWeight: FontWeight.w700,
-                      color: Color(0xFF0284C7),
-                    ),
-                  ),
-                ),
-              ),
-            ],
-          ),
-        ),
-      ),
-      actions: [
-        TextButton(
-          onPressed: () => Navigator.of(context).pop(false),
-          child: const Text(
-            'Not Now',
-            style: TextStyle(
-              color: Color(0xFF64748B),
-              fontWeight: FontWeight.w600,
-            ),
-          ),
-        ),
-        ElevatedButton(
-          onPressed: () => Navigator.of(context).pop(true),
-          style: ElevatedButton.styleFrom(
-            backgroundColor: const Color(0xFF0284C7),
-            foregroundColor: Colors.white,
-            elevation: 1,
-            shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(12),
-            ),
-            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
-          ),
-          child: const Text(
-            'Agree & Continue',
-            style: TextStyle(fontWeight: FontWeight.w700),
-          ),
-        ),
-      ],
-    );
-  }
-}
-
-class _DisclosureSectionHeader extends StatelessWidget {
-  final IconData icon;
-  final Color iconColor;
-  final String title;
-
-  const _DisclosureSectionHeader({
-    required this.icon,
-    required this.iconColor,
-    required this.title,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return Row(
-      children: [
-        Icon(icon, size: 16, color: iconColor),
-        const SizedBox(width: 6),
-        Text(
-          title,
-          style: const TextStyle(
-            fontSize: 12.5,
-            fontWeight: FontWeight.w800,
-            color: Color(0xFF0F172A),
-          ),
-        ),
-      ],
-    );
-  }
-}
-
-class _DisclosureBullet extends StatelessWidget {
-  final String bold;
-  final String text;
-
-  const _DisclosureBullet({required this.bold, required this.text});
-
-  @override
-  Widget build(BuildContext context) {
-    return Padding(
-      padding: const EdgeInsets.only(bottom: 5),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          const Text('• ', style: TextStyle(color: Color(0xFF64748B), fontWeight: FontWeight.w700)),
-          Expanded(
-            child: RichText(
-              text: TextSpan(
-                style: const TextStyle(
-                  fontSize: 11.5,
-                  color: Color(0xFF475569),
-                  height: 1.35,
-                ),
-                children: [
-                  TextSpan(
-                    text: bold,
-                    style: const TextStyle(
-                      fontWeight: FontWeight.w700,
-                      color: Color(0xFF1E293B),
-                    ),
-                  ),
-                  TextSpan(text: text),
-                ],
-              ),
-            ),
-          ),
-        ],
       ),
     );
   }

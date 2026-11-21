@@ -1,6 +1,6 @@
 # Room Keys
 
-> **Last updated:** 2026-11-18 · **Repos:** `hsh_app2` (Flutter) and `HAMS_WEB` / `hsh_api` (Node/Express/MySQL)
+> **Last updated:** 2026-11-22 · **Repos:** `hsh_app2` (Flutter) and `HAMS_WEB` / `hsh_api` (Node/Express/MySQL)
 >
 > **Backend status:** Implemented and live in `HAMS_WEB` (`src/modules/roomKeys/`, mounted at `/room-keys` and `/api/room-keys`, e2e tested in `tests/e2e/room-keys.e2e.test.ts`).
 
@@ -16,7 +16,7 @@ Operator console → **Room Keys** (admin and warden).
 
 ## 2. Screens
 
-- **Room list** (`RoomKeysScreen`): counts of keys with students, in the office and lost; search by room, key number or student name; filters *All rooms*, *Missing keys* (no usable door key, or a resident without a cupboard key) and *Needs attention* (a lost key, or a key still with a student who moved to another room or left the hostel). Each room card shows its students, door number and copies, and cupboards given out (e.g. `Cupboards 2/3`). Rooms come from the current residents plus any room that has keys; *Another room* opens a room with no residents.
+- **Room list** (`RoomKeysScreen`): counts of keys with students, in the office and lost; search by room, key number or student name; filters *All rooms*, *Missing keys* (no usable door key, or a resident without a cupboard key) and *Needs attention* (a lost key, or a key still with a student who moved to another room or left the hostel). Each room card shows its students, door number and copies, and cupboards given out (e.g. `Cupboards 2/3`). Drag a card's handle to change the room order; it saves automatically on this device and survives reloads. Filtered reorders leave hidden rooms in their existing slots. Rooms come from the current residents plus any room that has keys; *Another room* opens a room with no residents.
 - **Room** (`RoomKeysRoomScreen`): the door keys; each resident with their cupboard key (or *No cupboard key · Add*); other cupboard keys of the room (spare, lost, or with someone who moved out). Tap a key for its actions.
 - **Add keys** (`RoomKeysSetupSheet`): the whole room at once. Type the door key number once, tick *Give a door key copy* per student, choose how many spare door keys stay in the office, type each student's cupboard number, and add spare cupboard keys. Keys a student already has are shown instead of asked for. One request (`POST /room-keys/batch`). Before saving, the app warns when a cupboard number is already used in another room, or the door number is another room's.
 - **Key actions** (`KeyActionsSheet`): give to a student (the room's students first, anyone else by search), returned to office, mark lost (with confirmation), found, edit number / name / notes / type (only changed fields are sent), history, remove (with confirmation; history is kept).
@@ -29,6 +29,7 @@ Changes show at once and are rolled back with an error message if the server ref
 - Room numbers are compared trimmed and upper-cased (`normalizeRoom`).
 - `PUT /room-keys/:id` is a partial update: send only changed fields.
 - If the student list can't be loaded, the keys still show; rooms then list keys without residents.
+- Room order is stored in this device's preferences (`room_keys_room_order_v1`). The API has no shared room-order field or endpoint, so another device keeps its own order. The default remains natural room-number order until a room is dragged.
 
 ## 4. API (summary)
 

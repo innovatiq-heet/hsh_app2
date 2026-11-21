@@ -400,7 +400,7 @@ class SettingScreen extends StatelessWidget {
                     SectionListTile(
                       icon: Icons.shield_outlined,
                       title: 'Privacy & Permissions Disclosures',
-                      subtitle: 'Accessibility API, Curfew Location & Policy',
+                      subtitle: 'App Blocker, Curfew Location & Policy',
                       iconColor: AppColors.secondary,
                       onTap: () => PrivacyAndDisclosuresSheet.show(context),
                     ),

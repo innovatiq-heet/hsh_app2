@@ -522,6 +522,28 @@ class AlumniRepository extends BaseRepository {
     }
   }
 
+  /// Admin-only contact update. The server records number changes atomically.
+  Future<void> updateOutreachContact(int studentId, {String? whatsappNumber, String? reachability}) async {
+    try {
+      await _dio.patch('/alumni/daily-outreach/students/$studentId/contact', data: {
+        'whatsappNumber': ?whatsappNumber,
+        'whatsappReachability': ?reachability,
+      });
+    } on DioException catch (e) {
+      developer.log('AlumniRepository.updateOutreachContact error: ${errorMessage(e)}', name: 'AlumniRepo');
+      throw errorMessage(e);
+    }
+  }
+
+  Future<List<Map<String, dynamic>>> getOutreachContactChanges(int studentId) async {
+    try {
+      final response = await _dio.get('/alumni/daily-outreach/students/$studentId/contact-changes');
+      return (response.data['data'] as List).map((row) => Map<String, dynamic>.from(row as Map)).toList();
+    } on DioException catch (e) {
+      throw errorMessage(e);
+    }
+  }
+
   /// Retrieves outreach configuration.
   Future<AlumniOutreachConfigModel> getOutreachConfig() async {
     try {

@@ -35,6 +35,12 @@ enum class BlockReason(val wireName: String, val tag: String, val title: String,
     APP_LIMIT(
         "app_limit", "APP TIME LIMIT REACHED", "App Time Over",
         "You have used up today's time for this app. It opens again tomorrow.",
+    ),
+    /** The student tried to turn off HSH's device admin (removal protection). */
+    ADMIN_PROTECTED(
+        "admin_protected", "HOSTEL POLICY ENFORCEMENT", "Setting Protected",
+        "HSH Connect's removal protection can't be turned off while you are signed in. " +
+            "It is turned off when you log out. Ask your warden if you need help.",
     );
 
     companion object {

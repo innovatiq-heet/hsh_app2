@@ -70,6 +70,14 @@ Map<String, dynamic>? complianceOf(dynamic s) =>
     s is Map && s['compliance'] is Map ? Map<String, dynamic>.from(
         s['compliance']) : null;
 
+/// Whether a phone's compliance report says nothing can block apps. Current
+/// builds send `appBlockerActive` (Usage access + Display over other apps).
+/// Older builds, which blocked through Accessibility, only send
+/// `accessibilityEnabled`.
+bool isAppBlockerOff(Map<String, dynamic> c) => c.containsKey('appBlockerActive')
+    ? c['appBlockerActive'] == false
+    : c['accessibilityEnabled'] == false;
+
 bool isStudentTampered(dynamic s) {
   final c = complianceOf(s);
   if (c == null || c.isEmpty) return false;
@@ -77,7 +85,8 @@ bool isStudentTampered(dynamic s) {
   final locDisabled = locPerm == 'denied' || locPerm == 'foreground';
   final locServicesOff = c['locationEnabled'] == false;
   return c['usageAccess'] == false ||
-      c['accessibilityEnabled'] == false ||
+      isAppBlockerOff(c) ||
+      c['deviceAdminActive'] == false ||
       locDisabled ||
       locServicesOff;
 }

@@ -93,20 +93,6 @@
             android:resizeableActivity="false"
             android:excludeFromRecents="true" />
 
-        <!-- Real-time Android App Blocker Accessibility Service -->
-        <service
-            android:name=".screentime.AppBlockerAccessibilityService"
-            android:permission="android.permission.BIND_ACCESSIBILITY_SERVICE"
-            android:exported="false"
-            android:label="@string/accessibility_service_label">
-            <intent-filter>
-                <action android:name="android.accessibilityservice.AccessibilityService" />
-            </intent-filter>
-            <meta-data
-                android:name="android.accessibilityservice"
-                android:resource="@xml/accessibility_service_config" />
-        </service>
-
         <!-- Background Policy Poll Service (polls lock/block every 30s) -->
         <service
             android:name=".screentime.PolicyPollService"
@@ -137,6 +123,33 @@
             </intent-filter>
         </receiver>
 
+        <!-- Device admin (no policies): disables Force stop / Uninstall for students -->
+        <receiver
+            android:name=".screentime.HshDeviceAdmin"
+            android:exported="true"
+            android:label="@string/app_name"
+            android:permission="android.permission.BIND_DEVICE_ADMIN">
+            <meta-data
+                android:name="android.app.device_admin"
+                android:resource="@xml/hsh_device_admin" />
+            <intent-filter>
+                <action android:name="android.app.action.DEVICE_ADMIN_ENABLED" />
+            </intent-filter>
+        </receiver>
+
+        <!-- Restarts monitoring after Stop in the Active apps panel (alarms survive it) -->
+        <receiver
+            android:name=".screentime.KeepAliveReceiver"
+            android:exported="false" />
+        <!-- Invisible: restarts monitoring when Android refuses a background start -->
+        <activity
+            android:name=".screentime.KeepAliveActivity"
+            android:exported="false"
+            android:excludeFromRecents="true"
+            android:noHistory="true"
+            android:taskAffinity="com.example.hsh_app2.keepalive"
+            android:theme="@android:style/Theme.Translucent.NoTitleBar" />
+
         <!-- Catches new app downloads/installations to auto-quarantine and request approval -->
         <receiver
             android:name=".screentime.PackageInstallReceiver"
@@ -157,8 +170,6 @@
             <action android:name="android.intent.action.PROCESS_TEXT"/>
             <data android:mimeType="text/plain"/>
         </intent>
-        <!-- Self-protection reads SystemUI's localized "Stop" label (Active apps panel) -->
-        <package android:name="com.android.systemui" />
         <!-- Package visibility for screen time: app names + home launcher detection -->
         <intent>
             <action android:name="android.intent.action.MAIN"/>

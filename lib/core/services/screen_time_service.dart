@@ -8,9 +8,9 @@ import '../../features/screentime/models/screen_time_policy.dart';
 ///
 /// Android reads real per-app usage from `UsageStatsManager` and syncs it to
 /// `POST /screen-time/ping` from a WorkManager job, enforces the
-/// [ScreenTimePolicy] through an Accessibility service and polls for remote
-/// lock from a foreground service — so everything keeps working while the
-/// app is closed and after reboots. Every call is a no-op on non-Android.
+/// [ScreenTimePolicy] from usage events (no Accessibility service) and polls
+/// for remote lock from a foreground service, so everything keeps working
+/// while the app is closed and after reboots. Every call is a no-op on non-Android.
 class ScreenTimeService {
   ScreenTimeService._();
 
@@ -26,11 +26,21 @@ class ScreenTimeService {
   /// Opens the system "Usage access" page (there is no runtime dialog for it).
   static Future<void> openUsageSettings() => _invoke('openUsageSettings');
 
-  /// Whether the HSH App Blocker Accessibility Service is switched on.
-  static Future<bool> hasAccessibilityPermission() => _bool('hasAccessibilityPermission');
+  /// Whether Android lets the app open its block screen over other apps
+  /// ("Display over other apps"). Always true below Android 10, which needs
+  /// no permission for it. Together with Usage access, this is what the app
+  /// blocker needs.
+  static Future<bool> hasOverlayPermission() => _bool('hasOverlayPermission');
 
-  /// Opens the system Accessibility settings page.
-  static Future<void> openAccessibilitySettings() => _invoke('openAccessibilitySettings');
+  /// Opens the system "Display over other apps" page for this app.
+  static Future<void> openOverlaySettings() => _invoke('openOverlaySettings');
+
+  /// Whether HSH is an active device admin. While it is, Android disables
+  /// Force stop and Uninstall on the app's App info page. Removed on logout.
+  static Future<bool> isDeviceAdminActive() => _bool('isDeviceAdminActive');
+
+  /// Shows the system "Activate device admin app?" screen.
+  static Future<void> requestDeviceAdmin() => _invoke('requestDeviceAdmin');
 
   /// Whether the OS will leave our background work alone.
   static Future<bool> isBatteryOptimizationIgnored() => _bool('isBatteryOptimizationIgnored');
@@ -39,11 +49,6 @@ class ScreenTimeService {
   /// the device has no such screen (then there's nothing more we can do).
   static Future<bool> requestIgnoreBatteryOptimizations() =>
       _bool('requestIgnoreBatteryOptimizations');
-
-  /// Call right before `openAppSettings()`. The monitor stops students from
-  /// opening this app's App info page (Force stop / Uninstall); this lets our
-  /// own permission flows through for a couple of minutes.
-  static Future<void> allowAppSettings() => _invoke('allowAppSettings');
 
   // ---------- Monitoring lifecycle ----------
 

@@ -4,7 +4,7 @@ import 'package:get/get.dart';
 import '../../../core/models/birthday/birthday_models.dart';
 import '../controllers/admin_birthday_controller.dart';
 
-/// Template Studio library: a Students / Parents switch, that audience's saved
+/// Template Studio library: a Student / To parents / Father / Mother switch, that audience's saved
 /// templates (tap to edit, "Set active", delete) and a "New template" button.
 class BirthdayTemplateLibrary extends StatelessWidget {
   final AdminBirthdayController controller;
@@ -21,17 +21,26 @@ class BirthdayTemplateLibrary extends StatelessWidget {
       final editingId = controller.editingTemplateId.value;
       final target = controller.targetAudience.value;
       final isParent = audience == BirthdayAudience.parent;
+      final isOwnBirthday = BirthdayAudience.parentBirthdays.contains(audience);
 
       return Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
           _AudienceSwitch(
             selected: audience,
-            studentCount: controller.templatesFor(BirthdayAudience.student).length,
-            parentCount: controller.templatesFor(BirthdayAudience.parent).length,
+            counts: {
+              for (final a in BirthdayAudience.every) a: controller.templatesFor(a).length,
+            },
             onChanged: controller.selectTemplateAudience,
           ),
           const SizedBox(height: 10),
+          if (isOwnBirthday)
+            _Note(
+              controller.supportsParentBirthdays
+                  ? 'Used for parents whose own birthday is today or tomorrow (see the Today / Tomorrow tabs).'
+                  : 'Used when you wish a parent on their own birthday from the Today / Tomorrow tabs '
+                      "(opens this phone's WhatsApp). Saved on this phone until the server supports parent birthdays.",
+            ),
           if (isParent && target == 'student_only')
             const _Note(
               'Parents are not in the Target Audience above, so parent templates are not sent right now.',
@@ -54,7 +63,7 @@ class BirthdayTemplateLibrary extends StatelessWidget {
           OutlinedButton.icon(
             onPressed: controller.addTemplate,
             icon: const Icon(Icons.add_rounded, size: 18),
-            label: Text(isParent ? 'New parent template' : 'New student template'),
+            label: Text('New ${AdminBirthdayController.audienceLabel(audience).toLowerCase()} template'),
             style: OutlinedButton.styleFrom(
               foregroundColor: _accent,
               side: const BorderSide(color: Color(0xFFBAE6FD)),
@@ -89,39 +98,53 @@ class BirthdayTemplateLibrary extends StatelessWidget {
   }
 }
 
+/// Which kind of template is being edited, in two rows:
+/// on the student's birthday (to the student / to their parents), and on a
+/// parent's own birthday (father / mother).
 class _AudienceSwitch extends StatelessWidget {
   final String selected;
-  final int studentCount;
-  final int parentCount;
+  final Map<String, int> counts;
   final ValueChanged<String> onChanged;
 
   const _AudienceSwitch({
     required this.selected,
-    required this.studentCount,
-    required this.parentCount,
+    required this.counts,
     required this.onChanged,
   });
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.all(4),
-      decoration: BoxDecoration(
-        color: const Color(0xFFF1F5F9),
-        borderRadius: BorderRadius.circular(14),
-      ),
-      child: Row(
-        children: [
-          _segment(BirthdayAudience.student, Icons.school_rounded, 'Students', studentCount),
-          _segment(BirthdayAudience.parent, Icons.family_restroom_rounded, 'Parents', parentCount),
-        ],
-      ),
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        const _RowLabel("On the student's birthday"),
+        _row([
+          _segment(BirthdayAudience.student, Icons.school_rounded, 'Student'),
+          _segment(BirthdayAudience.parent, Icons.family_restroom_rounded, 'To parents'),
+        ]),
+        const SizedBox(height: 10),
+        const _RowLabel("On a parent's own birthday"),
+        _row([
+          _segment(BirthdayAudience.father, Icons.man_rounded, 'Father', color: const Color(0xFF0369A1)),
+          _segment(BirthdayAudience.mother, Icons.woman_rounded, 'Mother', color: const Color(0xFFDB2777)),
+        ]),
+      ],
     );
   }
 
-  Widget _segment(String value, IconData icon, String label, int count) {
+  Widget _row(List<Widget> children) => Container(
+        padding: const EdgeInsets.all(4),
+        decoration: BoxDecoration(
+          color: const Color(0xFFF1F5F9),
+          borderRadius: BorderRadius.circular(14),
+        ),
+        child: Row(children: children),
+      );
+
+  Widget _segment(String value, IconData icon, String label, {Color activeColor = const Color(0xFF0284C7), Color? color}) {
     final isSelected = selected == value;
-    final color = isSelected ? const Color(0xFF0284C7) : const Color(0xFF64748B);
+    final tint = isSelected ? (color ?? activeColor) : const Color(0xFF64748B);
+    final count = counts[value] ?? 0;
     return Expanded(
       child: Semantics(
         button: true,
@@ -148,19 +171,44 @@ class _AudienceSwitch extends StatelessWidget {
             child: Row(
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
-                Icon(icon, size: 16, color: color),
+                Icon(icon, size: 16, color: tint),
                 const SizedBox(width: 6),
-                Text(
-                  '$label · $count',
-                  style: TextStyle(
-                    fontSize: 12.5,
-                    fontWeight: isSelected ? FontWeight.w800 : FontWeight.w600,
-                    color: color,
+                Flexible(
+                  child: Text(
+                    '$label · $count',
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: TextStyle(
+                      fontSize: 12.5,
+                      fontWeight: isSelected ? FontWeight.w800 : FontWeight.w600,
+                      color: tint,
+                    ),
                   ),
                 ),
               ],
             ),
           ),
+        ),
+      ),
+    );
+  }
+}
+
+class _RowLabel extends StatelessWidget {
+  final String text;
+  const _RowLabel(this.text);
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.only(left: 2, bottom: 6),
+      child: Text(
+        text.toUpperCase(),
+        style: const TextStyle(
+          fontSize: 10.5,
+          fontWeight: FontWeight.w800,
+          letterSpacing: 0.8,
+          color: Color(0xFF94A3B8),
         ),
       ),
     );

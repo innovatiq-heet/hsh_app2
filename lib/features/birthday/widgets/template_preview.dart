@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../controllers/admin_birthday_controller.dart';
+import '../models/parent_birthday.dart';
 
 /// WhatsApp-style preview of the birthday template with sample student data.
 ///
@@ -9,11 +10,25 @@ class BirthdayTemplatePreview extends StatelessWidget {
   final TextEditingController templateController;
   final String title;
 
+  /// `father` / `mother`: filled with a sample parent instead of a student.
+  final String? parentRole;
+
   const BirthdayTemplatePreview({
     super.key,
     required this.templateController,
     this.title = 'WhatsApp Preview Mockup',
+    this.parentRole,
   });
+
+  static ParentBirthday _sampleParent(String role) => ParentBirthday(
+        role: role,
+        parentName: role == 'mother' ? 'Sunita Sharma' : 'Rajesh Sharma',
+        phone: '9800000000',
+        dob: DateTime(1972, 1, 1),
+        turning: 54,
+        studentNames: const ['Rahul Sharma'],
+        room: '306',
+      );
 
   @override
   Widget build(BuildContext context) {
@@ -70,14 +85,17 @@ class BirthdayTemplatePreview extends StatelessWidget {
                     ),
                   );
                 }
+                final role = parentRole;
                 return Text(
-                  AdminBirthdayController.fillTemplate(
-                    value.text,
-                    firstName: 'Rahul',
-                    fullName: 'Rahul Sharma',
-                    room: '306',
-                    code: 'HSH-105',
-                  ),
+                  role != null
+                      ? AdminBirthdayController.fillParentTemplate(value.text, _sampleParent(role))
+                      : AdminBirthdayController.fillTemplate(
+                          value.text,
+                          firstName: 'Rahul',
+                          fullName: 'Rahul Sharma',
+                          room: '306',
+                          code: 'HSH-105',
+                        ),
                   style: const TextStyle(
                     fontSize: 13,
                     height: 1.4,

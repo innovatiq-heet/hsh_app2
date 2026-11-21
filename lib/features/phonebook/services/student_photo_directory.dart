@@ -42,9 +42,13 @@ class StudentPhotoDirectory {
     version.value++;
   }
 
-  String? urlForBankCode(String? bankCode) {
+  String? urlForBankCode(String? bankCode, {PhotoOf who = PhotoOf.student}) =>
+      familyPhotoUrl(aadharForBankCode(bankCode), who);
+
+  /// The student's Aadhar for [bankCode], from the synced phonebook.
+  String? aadharForBankCode(String? bankCode) {
     final key = PhonebookDatabaseService.normalizeBankCode(bankCode ?? '');
     if (key.isEmpty) return null;
-    return studentPhotoUrl(_aadharByCode[key]);
+    return _aadharByCode[key];
   }
 }

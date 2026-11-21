@@ -11,7 +11,9 @@ import '../../../core/models/tags/student_tag_model.dart';
 import '../../shared/widgets/icon_badge.dart';
 import '../../shared/widgets/phonebook_style_widgets.dart';
 import '../../shared/widgets/status_badge.dart';
+import '../../shared/widgets/student_avatar.dart';
 import '../../shared/widgets/student_contact_card.dart';
+import '../../../core/utils/student_photo.dart';
 import '../controllers/phonebook_controller.dart';
 import '../models/phonebook_models.dart';
 import '../services/phone_number_normalizer.dart';
@@ -892,6 +894,7 @@ class _StudentDetailScreenState extends State<StudentDetailScreen> {
         phones: fatherPhones,
         icon: const Icon(Icons.man_rounded, size: 22),
         color: AppColors.secondaryDark,
+        photoOf: PhotoOf.father,
       ));
     }
 
@@ -906,6 +909,7 @@ class _StudentDetailScreenState extends State<StudentDetailScreen> {
         phones: motherPhones,
         icon: const Icon(Icons.woman_rounded, size: 22),
         color: const Color(0xFFDB2777),
+        photoOf: PhotoOf.mother,
         sharesNumberWithFather: sharedPrimary,
         // The parents' anniversary is listed once, on the father's card.
         showAnniversary: !hasFatherSection,
@@ -961,6 +965,7 @@ class _StudentDetailScreenState extends State<StudentDetailScreen> {
     required List<_ParentPhoneEntry> phones,
     required Widget icon,
     required Color color,
+    required PhotoOf photoOf,
     bool sharesNumberWithFather = false,
     bool showAnniversary = true,
   }) {
@@ -1005,7 +1010,17 @@ class _StudentDetailScreenState extends State<StudentDetailScreen> {
     ];
 
     return _ParentContactCard(
-      leading: _TintedIcon(icon: icon, color: color),
+      // The parent's photo (named after the student's Aadhar); the icon
+      // stays when there is none.
+      leading: StudentAvatar(
+        name: title,
+        aadhar: student.aadhar,
+        photoOf: photoOf,
+        size: 44,
+        circle: false,
+        background: color.withValues(alpha: 0.12),
+        child: IconTheme(data: IconThemeData(color: color), child: icon),
+      ),
       title: title,
       subtitle: subtitle,
       accentColor: color,
@@ -1450,30 +1465,6 @@ class _DetailRow extends StatelessWidget {
           ),
           ?copy,
         ],
-      ),
-    );
-  }
-}
-
-/// Rounded tinted square used as the leading visual on contact cards.
-class _TintedIcon extends StatelessWidget {
-  final Widget icon;
-  final Color color;
-  const _TintedIcon({required this.icon, required this.color});
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      width: 44,
-      height: 44,
-      decoration: BoxDecoration(
-        color: color.withValues(alpha: 0.12),
-        borderRadius: BorderRadius.circular(44 * 0.32),
-      ),
-      alignment: Alignment.center,
-      child: IconTheme(
-        data: IconThemeData(color: color),
-        child: DefaultTextStyle(style: TextStyle(color: color), child: icon),
       ),
     );
   }

@@ -19,6 +19,10 @@ class StudentAvatar extends StatefulWidget {
   final Color? borderColor;
   final Widget child;
 
+  /// Whose photo to show: the student's (default) or a parent's. Parent
+  /// photos are found with the same [aadhar] / [bankCode] of the student.
+  final PhotoOf photoOf;
+
   /// What a tap does while there is no photo; null leaves taps to the card.
   final VoidCallback? onFallbackTap;
 
@@ -33,6 +37,7 @@ class StudentAvatar extends StatefulWidget {
     this.circle = true,
     this.borderColor,
     this.onFallbackTap,
+    this.photoOf = PhotoOf.student,
   });
 
   @override
@@ -53,7 +58,8 @@ class _StudentAvatarState extends State<StudentAvatar> {
     return ValueListenableBuilder<int>(
       valueListenable: StudentPhotoDirectory.instance.version,
       builder: (context, _, _) {
-        final url = studentPhotoUrl(widget.aadhar) ?? StudentPhotoDirectory.instance.urlForBankCode(widget.bankCode);
+        final url = familyPhotoUrl(widget.aadhar, widget.photoOf) ??
+            StudentPhotoDirectory.instance.urlForBankCode(widget.bankCode, who: widget.photoOf);
         final radius = widget.circle ? widget.size / 2 : widget.size * 0.3;
         return Container(
           width: widget.size,

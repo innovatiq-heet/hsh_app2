@@ -38,6 +38,16 @@ void main() {
       expect(StudentPhotoCacheService.filenameForUrl(url), '123456789012.jpg');
     });
 
+    test('father and mother photos get their own file, not the student\'s', () {
+      const base = 'https://storage.googleapis.com/hari-saurabh-hostel-78d58.appspot.com';
+      final names = {
+        StudentPhotoCacheService.filenameForUrl('$base/student/personal/342374115218.jpg'),
+        StudentPhotoCacheService.filenameForUrl('$base/father/personal/342374115218.jpg'),
+        StudentPhotoCacheService.filenameForUrl('$base/mother/personal/342374115218.jpg'),
+      };
+      expect(names, {'342374115218.jpg', 'father_342374115218.jpg', 'mother_342374115218.jpg'});
+    });
+
     test('handles empty or blank url', () {
       expect(StudentPhotoCacheService.filenameForUrl(''), '');
       expect(StudentPhotoCacheService.filenameForUrl('   '), '');

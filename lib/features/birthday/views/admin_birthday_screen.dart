@@ -7,6 +7,8 @@ import '../../../core/utils/app_snackbar.dart';
 import '../../../core/utils/date_formatting.dart';
 import '../../shared/widgets/student_contact_card.dart';
 import '../controllers/admin_birthday_controller.dart';
+import '../models/parent_birthday.dart';
+import '../widgets/parent_birthday_section.dart';
 import '../widgets/template_library.dart';
 import '../widgets/template_preview.dart';
 import '../../shared/widgets/student_avatar.dart';
@@ -460,7 +462,66 @@ class AdminBirthdayScreen extends GetView<AdminBirthdayController> {
 
   // --- Tab 0: Today's Celebrants ---
 
+  /// Today: students' birthdays, then parents' own birthdays (from the
+  /// phonebook on this phone).
   Widget _buildTodayTab(BuildContext context, BirthdayDashboardData? data) {
+    return Obx(() => _withParentBirthdays(
+          students: data?.todaysBirthdays ?? const [],
+          parents: controller.parentBirthdaysToday.toList(),
+          isToday: true,
+          studentsPart: () => _buildTodayStudents(context, data),
+        ));
+  }
+
+  /// Tomorrow: students' birthdays, then parents' own birthdays.
+  Widget _buildTomorrowTab(BuildContext context, BirthdayDashboardData? data) {
+    return Obx(() => _withParentBirthdays(
+          students: data?.tomorrowsBirthdays ?? const [],
+          parents: controller.parentBirthdaysTomorrow.toList(),
+          isToday: false,
+          studentsPart: () => _buildTomorrowStudents(context, data),
+        ));
+  }
+
+  /// The students part as before (with its empty card when nobody at all
+  /// celebrates), followed by the parents' section when there are any.
+  Widget _withParentBirthdays({
+    required List<BirthdayStudentModel> students,
+    required List<ParentBirthday> parents,
+    required bool isToday,
+    required Widget Function() studentsPart,
+  }) {
+    if (parents.isEmpty) return studentsPart();
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        if (students.isNotEmpty) ...[
+          studentsPart(),
+          const SizedBox(height: 22),
+        ] else
+          Padding(
+            padding: const EdgeInsets.only(bottom: 14),
+            child: Text(
+              isToday ? 'No student birthdays today.' : 'No student birthdays tomorrow.',
+              style: const TextStyle(fontSize: 12.5, fontWeight: FontWeight.w600, color: Color(0xFF64748B)),
+            ),
+          ),
+        ParentBirthdaySection(
+          controller: controller,
+          parents: parents,
+          isToday: isToday,
+          // No student card (with its Send All) today: offer it here when the run includes parents.
+          showSendAll: isToday &&
+              students.isEmpty &&
+              !controller.isLeader.value &&
+              controller.parentBirthdaysFromServer.value &&
+              controller.includeParentBirthdays.value,
+        ),
+      ],
+    );
+  }
+
+  Widget _buildTodayStudents(BuildContext context, BirthdayDashboardData? data) {
     final list = data?.todaysBirthdays ?? [];
 
     if (list.isEmpty) {
@@ -680,7 +741,7 @@ class AdminBirthdayScreen extends GetView<AdminBirthdayController> {
 
   // --- Tab 1: Tomorrow's Celebrants ---
 
-  Widget _buildTomorrowTab(BuildContext context, BirthdayDashboardData? data) {
+  Widget _buildTomorrowStudents(BuildContext context, BirthdayDashboardData? data) {
     final list = data?.tomorrowsBirthdays ?? [];
 
     if (list.isEmpty) {
@@ -1384,6 +1445,49 @@ class AdminBirthdayScreen extends GetView<AdminBirthdayController> {
                   ),
                 );
               }),
+
+              // Parents' own birthdays in Send All and the daily run (servers that support it)
+              Obx(() {
+                if (!controller.supportsParentBirthdays) return const SizedBox.shrink();
+                final on = controller.includeParentBirthdays.value;
+                return Container(
+                  margin: const EdgeInsets.only(top: 14),
+                  padding: const EdgeInsets.fromLTRB(14, 10, 8, 10),
+                  decoration: BoxDecoration(
+                    color: on ? const Color(0xFFFFFBEB) : const Color(0xFFF8FAFC),
+                    borderRadius: BorderRadius.circular(14),
+                    border: Border.all(color: on ? const Color(0xFFFDE68A) : const Color(0xFFE2E8F0)),
+                  ),
+                  child: Row(
+                    children: [
+                      const Icon(Icons.cake_rounded, size: 20, color: Color(0xFFD97706)),
+                      const SizedBox(width: 10),
+                      const Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              "Also wish parents on their own birthday",
+                              style: TextStyle(fontSize: 13, fontWeight: FontWeight.w800, color: Color(0xFF0F172A)),
+                            ),
+                            SizedBox(height: 2),
+                            Text(
+                              'Send All and the daily run also wish fathers and mothers whose birthday it is, '
+                              'with the Father / Mother templates. Each parent once a day.',
+                              style: TextStyle(fontSize: 11.5, color: Color(0xFF64748B), height: 1.3),
+                            ),
+                          ],
+                        ),
+                      ),
+                      Switch(
+                        value: on,
+                        activeTrackColor: const Color(0xFFD97706),
+                        onChanged: (v) => controller.includeParentBirthdays.value = v,
+                      ),
+                    ],
+                  ),
+                );
+              }),
               const Divider(height: 28, color: Color(0xFFF1F5F9)),
 
               // Admin Notification Phone
@@ -1458,9 +1562,12 @@ class AdminBirthdayScreen extends GetView<AdminBirthdayController> {
 
               Obx(
                 () => Text(
-                  controller.editingAudience.value == BirthdayAudience.parent
-                      ? 'Edit Parent Template'
-                      : 'Edit Student Template',
+                  switch (controller.editingAudience.value) {
+                    BirthdayAudience.parent => 'Edit Template · to parents on the student\'s birthday',
+                    BirthdayAudience.father => 'Edit Father Birthday Template',
+                    BirthdayAudience.mother => 'Edit Mother Birthday Template',
+                    _ => 'Edit Student Template',
+                  },
                   style: const TextStyle(
                     fontWeight: FontWeight.w800,
                     fontSize: 14,
@@ -1512,15 +1619,25 @@ class AdminBirthdayScreen extends GetView<AdminBirthdayController> {
               const SizedBox(height: 10),
 
               // Placeholder chips
-              Wrap(
-                spacing: 6,
-                runSpacing: 6,
-                children: [
-                  _varChip('{first_name}', 'First Name'),
-                  _varChip('{student_name}', 'Full Name'),
-                  _varChip('{room}', 'Room No'),
-                  _varChip('{student_code}', 'Student Code'),
-                ],
+              Obx(
+                () => Wrap(
+                  spacing: 6,
+                  runSpacing: 6,
+                  children: BirthdayAudience.parentBirthdays.contains(controller.editingAudience.value)
+                      ? [
+                          _varChip('{parent_name}', 'Parent Name'),
+                          _varChip('{first_name}', 'Parent First Name'),
+                          _varChip('{student_name}', 'Child Name'),
+                          _varChip('{age}', 'Age'),
+                          _varChip('{room}', 'Room No'),
+                        ]
+                      : [
+                          _varChip('{first_name}', 'First Name'),
+                          _varChip('{student_name}', 'Full Name'),
+                          _varChip('{room}', 'Room No'),
+                          _varChip('{student_code}', 'Student Code'),
+                        ],
+                ),
               ),
               const SizedBox(height: 14),
 
@@ -1550,14 +1667,20 @@ class AdminBirthdayScreen extends GetView<AdminBirthdayController> {
 
               // Live preview: rebuilds on every keystroke in the template editor.
               Obx(
-                () => BirthdayTemplatePreview(
-                  templateController: controller.templateController,
-                  title:
-                      controller.editingAudience.value ==
-                          BirthdayAudience.parent
-                      ? 'WhatsApp Preview · sent to parents'
-                      : 'WhatsApp Preview · sent to students',
-                ),
+                () {
+                  final audience = controller.editingAudience.value;
+                  final ownBirthday = BirthdayAudience.parentBirthdays.contains(audience);
+                  return BirthdayTemplatePreview(
+                    templateController: controller.templateController,
+                    parentRole: ownBirthday ? audience : null,
+                    title: switch (audience) {
+                      BirthdayAudience.parent => 'WhatsApp Preview · sent to parents',
+                      BirthdayAudience.father => 'WhatsApp Preview · father\'s birthday',
+                      BirthdayAudience.mother => 'WhatsApp Preview · mother\'s birthday',
+                      _ => 'WhatsApp Preview · sent to students',
+                    },
+                  );
+                },
               ),
               const SizedBox(height: 20),
 

@@ -14,6 +14,7 @@ import '../../../core/storage/session_store.dart';
 import '../../../core/utils/app_snackbar.dart';
 import '../../../core/utils/date_formatting.dart';
 import '../../phonebook/models/phonebook_models.dart';
+import '../models/parent_birthday.dart';
 import '../../phonebook/services/phonebook_database_service.dart';
 import '../../phonebook/services/phonebook_sync_service.dart';
 
@@ -335,6 +336,28 @@ class AdminBirthdayController extends GetxController {
   // Template library: several templates per audience, one active per audience.
   // Until hsh_api stores `templates`, the library is also cached on this device.
   static const _templatesCacheKey = 'birthday_templates_v1';
+
+  /// Father / mother templates kept on this phone while hsh_api doesn't store
+  /// them (see [BirthdayConfigModel.supportsParentBirthdays]).
+  static const _parentTemplatesCacheKey = 'birthday_parent_templates_v1';
+
+  /// Parents (father / mother) whose own birthday is today / tomorrow, from
+  /// the phonebook synced on this phone. Wished from this phone's WhatsApp.
+  final RxList<ParentBirthday> parentBirthdaysToday = <ParentBirthday>[].obs;
+  final RxList<ParentBirthday> parentBirthdaysTomorrow = <ParentBirthday>[].obs;
+
+  /// False while the synced phonebook is empty on this phone (nothing to read).
+  final RxBool hasPhonebookForParents = true.obs;
+
+  /// The lists above came from the server (`todaysParentBirthdays`), which
+  /// also means the server bot can wish them (`send-parent-wish`).
+  final RxBool parentBirthdaysFromServer = false.obs;
+
+  /// "Also wish parents on their own birthday" in Send All and the daily run.
+  final RxBool includeParentBirthdays = false.obs;
+
+  /// Parents with a bot send in flight ([ParentBirthday.key]).
+  final RxSet<String> sendingParentKeys = <String>{}.obs;
   final RxList<BirthdayTemplate> templates = <BirthdayTemplate>[].obs;
   final RxMap<String, String> activeTemplateIds = <String, String>{}.obs;
   final RxString editingAudience = BirthdayAudience.student.obs;
@@ -452,6 +475,8 @@ class AdminBirthdayController extends GetxController {
       targetAudience.value = data.config.targetAudience;
       preferWhatsApp.value = data.config.preferWhatsAppNumber;
       await _loadTemplates(data.config);
+      includeParentBirthdays.value = data.config.includeParentBirthdays;
+      _applyParentBirthdays(data);
       adminPhoneController.text = data.config.adminNotificationPhone ?? '';
       adminPhone.value = adminPhoneController.text;
 
@@ -862,6 +887,7 @@ class AdminBirthdayController extends GetxController {
             targetAudience: targetAudience.value,
             preferWhatsAppNumber: preferWhatsApp.value,
             adminNotificationPhone: adminPhoneController.text.trim().isEmpty ? null : adminPhoneController.text.trim(),
+            includeParentBirthdays: includeParentBirthdays.value,
           ),
         ),
       );
@@ -883,8 +909,11 @@ class AdminBirthdayController extends GetxController {
   }
 
   Future<void> triggerAllToday({VoidCallback? onNeedLinkDevice}) async {
-    // 1. Ensure there are celebrants to send to
-    final countToTrigger = dashboard.value?.todaysBirthdays.length ?? 0;
+    // 1. Ensure there are celebrants to send to (parents too, when the run includes them)
+    final parentsToWish = parentBirthdaysFromServer.value && includeParentBirthdays.value
+        ? parentBirthdaysToday.where((p) => !p.alreadySent).length
+        : 0;
+    final countToTrigger = (dashboard.value?.todaysBirthdays.length ?? 0) + parentsToWish;
     if (countToTrigger == 0) {
       AppSnackbar.info('No Celebrants', 'There are no birthdays registered for today.');
       return;
@@ -1011,23 +1040,50 @@ class AdminBirthdayController extends GetxController {
   static const defaultParentTemplate =
       'Dear Parent, 🎂 Hari Saurabh Hostel family wishes {student_name} a very Happy Birthday! May {first_name} be blessed with joy, good health and success. 🌟 - HSH Warden Team';
 
-  static String defaultBodyFor(String audience) =>
-      audience == BirthdayAudience.parent ? defaultParentTemplate : defaultStudentTemplate;
+  static const defaultFatherTemplate =
+      'Dear {parent_name}, 🎂 Hari Saurabh Hostel family wishes you a very Happy Birthday! Thank you for being part of our family through {student_name}. Wishing you good health and happiness. 🌟 - HSH Warden Team';
+  static const defaultMotherTemplate =
+      'Dear {parent_name}, 🎂🌸 Hari Saurabh Hostel family wishes you a very Happy Birthday! Thank you for your blessings on {student_name} and all of us. Wishing you joy and good health. 🌟 - HSH Warden Team';
+
+  static String defaultBodyFor(String audience) => switch (audience) {
+        BirthdayAudience.parent => defaultParentTemplate,
+        BirthdayAudience.father => defaultFatherTemplate,
+        BirthdayAudience.mother => defaultMotherTemplate,
+        _ => defaultStudentTemplate,
+      };
+
+  static String audienceLabel(String audience) => switch (audience) {
+        BirthdayAudience.parent => 'Parent',
+        BirthdayAudience.father => 'Father',
+        BirthdayAudience.mother => 'Mother',
+        _ => 'Student',
+      };
 
   /// Builds the template library from the API config, falling back to the local
   /// [cache] while the API has no `templates` field. Every audience ends up with
   /// at least one template and a valid active id.
+  ///
+  /// Father / mother templates come from the server only when it stores them
+  /// ([BirthdayConfigModel.supportsParentBirthdays]); otherwise from
+  /// [parentCache], the copy kept on this phone.
   static ({List<BirthdayTemplate> templates, Map<String, String> active}) resolveTemplates(
     BirthdayConfigModel config,
-    Map<String, dynamic>? cache,
-  ) {
+    Map<String, dynamic>? cache, {
+    Map<String, dynamic>? parentCache,
+  }) {
     final fromServer = config.templatesFromServer && config.templates.isNotEmpty;
     final templates = <BirthdayTemplate>[];
     final active = <String, String>{};
     if (fromServer) {
-      templates.addAll(config.templates);
+      templates.addAll(config.supportsParentBirthdays
+          ? config.templates
+          : config.templates.where((t) => BirthdayAudience.all.contains(t.audience)));
       if (config.activeStudentTemplateId != null) active[BirthdayAudience.student] = config.activeStudentTemplateId!;
       if (config.activeParentTemplateId != null) active[BirthdayAudience.parent] = config.activeParentTemplateId!;
+      if (config.supportsParentBirthdays) {
+        if (config.activeFatherTemplateId != null) active[BirthdayAudience.father] = config.activeFatherTemplateId!;
+        if (config.activeMotherTemplateId != null) active[BirthdayAudience.mother] = config.activeMotherTemplateId!;
+      }
     } else if (cache != null) {
       templates.addAll(BirthdayTemplate.listFromJson(cache['templates']));
       final cachedActive = cache['active'];
@@ -1036,14 +1092,38 @@ class AdminBirthdayController extends GetxController {
       }
     }
 
-    for (final audience in BirthdayAudience.all) {
-      final sentBody = (audience == BirthdayAudience.student ? config.messageTemplate : config.parentMessageTemplate).trim();
+    // Father / mother templates kept on this phone fill in what the server lacks.
+    // A server that supports them but has none saved yet (just upgraded) still
+    // takes the phone's copy, which the next save then uploads.
+    final serverHasParents = fromServer &&
+        config.supportsParentBirthdays &&
+        config.templates.any((t) => BirthdayAudience.parentBirthdays.contains(t.audience));
+    if (!serverHasParents && parentCache != null) {
+      final known = templates.map((t) => t.id).toSet();
+      for (final t in BirthdayTemplate.listFromJson(parentCache['templates'])) {
+        if (BirthdayAudience.parentBirthdays.contains(t.audience) && known.add(t.id)) templates.add(t);
+      }
+      final cachedActive = parentCache['active'];
+      if (cachedActive is Map) {
+        for (final a in BirthdayAudience.parentBirthdays) {
+          if (cachedActive[a] != null) active[a] = '${cachedActive[a]}';
+        }
+      }
+    }
+
+    for (final audience in BirthdayAudience.every) {
+      final sentBody = switch (audience) {
+        BirthdayAudience.student => config.messageTemplate,
+        BirthdayAudience.parent => config.parentMessageTemplate,
+        _ => '',
+      }
+          .trim();
       final forAudience = templates.where((t) => t.audience == audience).toList();
 
       if (forAudience.isEmpty) {
         final first = BirthdayTemplate(
           id: 'default_$audience',
-          name: audience == BirthdayAudience.parent ? 'Default parent wish' : 'Default student wish',
+          name: 'Default ${audienceLabel(audience).toLowerCase()} wish',
           body: sentBody.isNotEmpty ? sentBody : defaultBodyFor(audience),
           audience: audience,
         );
@@ -1065,6 +1145,9 @@ class AdminBirthdayController extends GetxController {
     }
     return (templates: templates, active: active);
   }
+
+  /// Whether hsh_api stores father / mother templates (else kept on this phone).
+  bool get supportsParentBirthdays => dashboard.value?.config.supportsParentBirthdays ?? false;
 
   List<BirthdayTemplate> templatesFor(String audience) =>
       templates.where((t) => t.audience == audience).toList();
@@ -1093,6 +1176,7 @@ class AdminBirthdayController extends GetxController {
     final savedAdminPhone = (config.adminNotificationPhone ?? '').trim();
     if (adminPhone.value.trim() != savedAdminPhone) return true;
     if (hasUnsavedTemplateChanges) return true;
+    if (config.supportsParentBirthdays && includeParentBirthdays.value != config.includeParentBirthdays) return true;
     return false;
   }
 
@@ -1104,6 +1188,7 @@ class AdminBirthdayController extends GetxController {
     sendTime.value = config.sendTime;
     adminPhoneController.text = config.adminNotificationPhone ?? '';
     adminPhone.value = adminPhoneController.text;
+    includeParentBirthdays.value = config.includeParentBirthdays;
     _loadTemplates(config);
   }
 
@@ -1120,7 +1205,7 @@ class AdminBirthdayController extends GetxController {
       return;
     }
     final audience = editingAudience.value;
-    final label = audience == BirthdayAudience.parent ? 'Parent' : 'Student';
+    final label = audienceLabel(audience);
     final template = BirthdayTemplate(
       id: 'tpl_${DateTime.now().microsecondsSinceEpoch}',
       name: '$label wish ${templatesFor(audience).length + 1}',
@@ -1215,13 +1300,21 @@ class AdminBirthdayController extends GetxController {
 
   /// [config] plus the template library. `messageTemplate` stays the active student
   /// body, so an hsh_api without template support keeps working.
+  ///
+  /// Father / mother templates are sent only when the server stores them; an
+  /// older hsh_api never sees them (they stay on this phone).
   BirthdayConfigModel _withTemplates(BirthdayConfigModel config) {
+    final withParents = config.supportsParentBirthdays;
     return config.copyWith(
       messageTemplate: activeBody(BirthdayAudience.student),
       parentMessageTemplate: activeBody(BirthdayAudience.parent),
-      templates: templates.toList(),
+      templates: withParents
+          ? templates.toList()
+          : templates.where((t) => BirthdayAudience.all.contains(t.audience)).toList(),
       activeStudentTemplateId: activeTemplateIds[BirthdayAudience.student],
       activeParentTemplateId: activeTemplateIds[BirthdayAudience.parent],
+      activeFatherTemplateId: withParents ? activeTemplateIds[BirthdayAudience.father] : null,
+      activeMotherTemplateId: withParents ? activeTemplateIds[BirthdayAudience.mother] : null,
     );
   }
 
@@ -1240,7 +1333,14 @@ class AdminBirthdayController extends GetxController {
         debugPrint('[AdminBirthdayController] template cache unreadable: $e');
       }
     }
-    final resolved = resolveTemplates(config, cache);
+    Map<String, dynamic>? parentCache;
+    try {
+      final raw = (await SharedPreferences.getInstance()).getString(_parentTemplatesCacheKey);
+      if (raw != null) parentCache = Map<String, dynamic>.from(jsonDecode(raw) as Map);
+    } catch (e) {
+      debugPrint('[AdminBirthdayController] parent template cache unreadable: $e');
+    }
+    final resolved = resolveTemplates(config, cache, parentCache: parentCache);
     templates.assignAll(resolved.templates);
     activeTemplateIds.assignAll(resolved.active);
     await _markTemplatesSaved();
@@ -1250,10 +1350,128 @@ class AdminBirthdayController extends GetxController {
   Future<void> _markTemplatesSaved() async {
     _savedTemplatesSnapshot = _templatesSnapshot();
     try {
-      await (await SharedPreferences.getInstance()).setString(_templatesCacheKey, _savedTemplatesSnapshot);
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setString(_templatesCacheKey, _savedTemplatesSnapshot);
+      await prefs.setString(
+        _parentTemplatesCacheKey,
+        jsonEncode({
+          'templates': templates
+              .where((t) => BirthdayAudience.parentBirthdays.contains(t.audience))
+              .map((t) => t.toJson())
+              .toList(),
+          'active': {
+            for (final a in BirthdayAudience.parentBirthdays)
+              if (activeTemplateIds[a] != null) a: activeTemplateIds[a],
+          },
+        }),
+      );
     } catch (e) {
       debugPrint('[AdminBirthdayController] template cache write failed: $e');
     }
+  }
+
+  // --- Parents' own birthdays ---
+
+  /// Uses the server's lists when the API sends them; otherwise reads the
+  /// phonebook synced on this phone.
+  void _applyParentBirthdays(BirthdayDashboardData data) {
+    final today = data.todaysParentBirthdays;
+    final tomorrow = data.tomorrowsParentBirthdays;
+    if (today != null && tomorrow != null) {
+      parentBirthdaysFromServer.value = true;
+      parentBirthdaysToday.assignAll(sortParents(today.map(ParentBirthday.fromServer)));
+      parentBirthdaysTomorrow.assignAll(sortParents(tomorrow.map(ParentBirthday.fromServer)));
+      return;
+    }
+    parentBirthdaysFromServer.value = false;
+    unawaited(loadParentBirthdays());
+  }
+
+  /// Fathers first, then by name (same order as the phonebook lists).
+  static List<ParentBirthday> sortParents(Iterable<ParentBirthday> list) => list.toList()
+    ..sort((a, b) {
+      if (a.isFather != b.isFather) return a.isFather ? -1 : 1;
+      return a.parentName.toLowerCase().compareTo(b.parentName.toLowerCase());
+    });
+
+  /// Whether [p] can be wished by the server bot now: today's server list,
+  /// with a student id, not already wished.
+  bool canWishParentViaBot(ParentBirthday p) =>
+      parentBirthdaysFromServer.value && p.studentIds.isNotEmpty && !p.alreadySent;
+
+  /// Sends the active father / mother template to [p] through the server bot,
+  /// from the WhatsApp number the admin picks.
+  Future<void> wishParentViaBot(ParentBirthday p) async {
+    if (!canWishParentViaBot(p) || sendingParentKeys.contains(p.key)) return;
+    final from = await pickSendFromAccount(purpose: 'birthday');
+    if (from == null) return;
+    if (from.legacy && !isWhatsAppLinked) {
+      AppSnackbar.warning('WhatsApp Not Connected', 'Link a WhatsApp number first, then send again.');
+      return;
+    }
+    sendingParentKeys.add(p.key);
+    try {
+      await _repository.sendParentWish(role: p.role, studentId: p.studentIds.first, accountId: from.accountId);
+      _markParentSent(p);
+      AppSnackbar.success('Birthday Wish Sent 🎂', 'Sent to ${p.parentName} on WhatsApp.');
+    } on ParentAlreadyWishedException catch (e) {
+      _markParentSent(p);
+      AppSnackbar.info('Already Wished', e.message);
+    } catch (e) {
+      AppSnackbar.error('Could Not Send', e.toString().replaceFirst('Exception: ', ''));
+    } finally {
+      sendingParentKeys.remove(p.key);
+    }
+  }
+
+  void _markParentSent(ParentBirthday p) {
+    final i = parentBirthdaysToday.indexWhere((x) => x.key == p.key);
+    if (i >= 0) parentBirthdaysToday[i] = parentBirthdaysToday[i].copyWith(alreadySent: true);
+  }
+
+  /// Reads father / mother birthdays for today and tomorrow from the synced
+  /// phonebook. A leader only sees their own group.
+  Future<void> loadParentBirthdays({DateTime? now}) async {
+    try {
+      final students = await PhonebookDatabaseService.instance.searchStudents();
+      hasPhonebookForParents.value = students.isNotEmpty;
+      final today = now ?? DateTime.now();
+      final day = DateTime(today.year, today.month, today.day);
+      final group = isLeader.value ? leaderGroup.value : null;
+      parentBirthdaysToday.assignAll(ParentBirthday.on(students, day, group: group));
+      parentBirthdaysTomorrow.assignAll(ParentBirthday.on(students, day.add(const Duration(days: 1)), group: group));
+    } catch (e) {
+      debugPrint('[AdminBirthdayController] parent birthdays: $e');
+    }
+  }
+
+  /// [template] for a parent's own birthday. Placeholders: {parent_name}
+  /// (full name), {first_name} (the parent's first name), {student_name}
+  /// (their child / children), {age} (age they turn), {room}.
+  static String fillParentTemplate(String template, ParentBirthday p) {
+    final first = p.parentName.trim().split(RegExp(r'\s+')).first;
+    final children = p.studentNames.length <= 1
+        ? (p.studentNames.isEmpty ? '' : p.studentNames.first)
+        : '${p.studentNames.sublist(0, p.studentNames.length - 1).join(', ')} & ${p.studentNames.last}';
+    return template
+        .replaceAll('{parent_name}', p.parentName)
+        .replaceAll('{name}', p.parentName)
+        .replaceAll('{first_name}', first)
+        .replaceAll('{student_name}', children)
+        .replaceAll('{age}', p.turning?.toString() ?? '')
+        .replaceAll('{room}', p.room ?? '')
+        .replaceAll('{room_number}', p.room ?? '');
+  }
+
+  /// Opens this phone's WhatsApp to [p] with the active father / mother template.
+  Future<void> wishParentViaWhatsApp(ParentBirthday p) async {
+    if (p.phone.replaceAll(RegExp(r'\D'), '').isEmpty) {
+      AppSnackbar.warning('No Contact Number', 'No phone number registered for ${p.parentName}.');
+      return;
+    }
+    var body = activeBody(p.role);
+    if (body.isEmpty) body = defaultBodyFor(p.role);
+    await openWhatsApp(p.phone, customText: fillParentTemplate(body, p));
   }
 
 

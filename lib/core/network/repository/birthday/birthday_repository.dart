@@ -4,6 +4,14 @@ import '../../../models/birthday/birthday_models.dart';
 import '../../api_client.dart';
 import '../base_repository.dart';
 
+/// The parent was already wished today (server 409).
+class ParentAlreadyWishedException implements Exception {
+  final String message;
+  const ParentAlreadyWishedException(this.message);
+  @override
+  String toString() => message;
+}
+
 class BirthdayRepository extends BaseRepository {
   ApiClient get _apiClient => Get.find<ApiClient>();
 
@@ -80,6 +88,31 @@ class BirthdayRepository extends BaseRepository {
       return Map<String, dynamic>.from(data['data']);
     }
     return {'success': true};
+  }
+
+  /// Wishes one student's father or mother on their own birthday through the
+  /// server bot (`POST /whatsapp/birthday/send-parent-wish`). [studentId] is
+  /// the numeric `students.id`. Throws with the server's message; a 409 (already
+  /// wished today) throws [ParentAlreadyWishedException].
+  Future<void> sendParentWish({
+    required String role,
+    required int studentId,
+    String? accountId,
+  }) async {
+    try {
+      await _apiClient.dio.post(
+        '/whatsapp/birthday/send-parent-wish',
+        data: {
+          'role': role,
+          'studentId': studentId,
+          if (accountId != null && accountId.isNotEmpty) 'accountId': accountId,
+        },
+      );
+    } on DioException catch (e) {
+      final message = errorMessage(e, fallback: 'Could not send the birthday wish.');
+      if (e.response?.statusCode == 409) throw ParentAlreadyWishedException(message);
+      throw Exception(message);
+    }
   }
 
   /// Fetch all students directory (including room N/A)

@@ -146,17 +146,30 @@ class StudentPhotoCacheService {
 
   /// Returns a clean, safe local filename for a photo URL.
   /// E.g. `https://.../student/personal/123456789012.jpg` -> `123456789012.jpg`.
+  ///
+  /// Father and mother photos share the student's file name
+  /// (`father/personal/123456789012.jpg`), so any folder other than `student`
+  /// is kept as a prefix (`father_123456789012.jpg`); otherwise a parent would
+  /// be shown the student's cached photo. Student names stay unprefixed so
+  /// photos already cached on phones remain valid.
   static String filenameForUrl(String url) {
     if (url.trim().isEmpty) return '';
     try {
       final uri = Uri.parse(url);
-      if (uri.pathSegments.isNotEmpty) {
-        final last = uri.pathSegments.last.trim();
+      final segments = uri.pathSegments.where((s) => s.trim().isNotEmpty).toList();
+      if (segments.isNotEmpty) {
+        final last = segments.last.trim();
+        // The folder that says whose photo it is: `<who>/personal/<file>`.
+        String prefix = '';
+        if (segments.length >= 3 && segments[segments.length - 2].toLowerCase() == 'personal') {
+          final who = segments[segments.length - 3].toLowerCase();
+          if (who != 'student' && RegExp(r'^[a-z0-9_\-]+$').hasMatch(who)) prefix = '${who}_';
+        }
         if (RegExp(r'^\d{12}\.(jpg|jpeg|png)$', caseSensitive: false).hasMatch(last)) {
-          return last.toLowerCase();
+          return '$prefix${last.toLowerCase()}';
         }
         if (RegExp(r'^[a-zA-Z0-9_\-\.]+\.(jpg|jpeg|png|webp)$', caseSensitive: false).hasMatch(last)) {
-          return last.toLowerCase();
+          return '$prefix${last.toLowerCase()}';
         }
       }
     } catch (_) {}

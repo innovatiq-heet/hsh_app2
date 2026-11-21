@@ -1,6 +1,6 @@
 # Student Phonebook & Caller ID
 
-> **Last updated:** 2026-11-15 · **Repo:** `hsh_app2` (Flutter, native Android, native iOS). The directory itself comes straight from the AVD VVN API; only **Favourites** (section 5.1) uses `hsh_api`.
+> **Last updated:** 2026-11-22 · **Repo:** `hsh_app2` (Flutter, native Android, native iOS). The directory itself comes straight from the AVD VVN API; only **Favourites** (section 5.1) uses `hsh_api`.
 >
 > iOS signing and Xcode setup for caller ID: [ios/CALLER_ID_SETUP.md](../ios/CALLER_ID_SETUP.md) (quick reference) and [ios/CALLER_ID_HANDOFF.md](../ios/CALLER_ID_HANDOFF.md) (full guide).
 
@@ -182,6 +182,7 @@ Operator home → **Student Phonebook** (`Routes.operatorDirectory`).
 - **A-Z index rail** (Name A-Z sort, no search): two independent sections on the right edge, **Students** (blue) and **Alumni** (purple), each resting as its own small tab. Tapping a tab smoothly grows just that section into a strip of its letters while the other stays a tab (opening one folds the other); the open strip folds back after 3 seconds without a touch. On an open strip, slide a finger anywhere; the list jumps letter by letter with a haptic tick (`PhonebookController.railEntries`). Jumps are exact because `PrecalculateExtentsPolicy` measures every row in the background shortly after the list loads.
 - **Student details screen** (tap a card): a full screen with the navy header, an interactive **"Expand all / Collapse all"** master toggle, and smoothly expandable/collapsible detail sections (each with rotating chevron and collapsed summary badge): *Student contact* (numbers + email, Call / WhatsApp / Message / Gmail), *Tags & Roles*, *Hostel*, *Personal*, *Family*, and *Family contacts* (one card when father and mother share a number). **View screen time** (residents only; alumni don't have it) resolves the student's Screen Time `students.id` through Screen Time's own directory (bank code equal AND name or room equal, exactly one match) and opens that student directly; otherwise it opens Screen Time searched by name. A bank code is never sent as an id.
 - Call uses `tel:`; WhatsApp opens `https://wa.me/91XXXXXXXXXX` in the external app.
+- **Photos** are public files in `AppConfig.photoStorageUrl`, all named after the **student's** 12-digit Aadhar: `student/personal/<aadhar>.jpg`, `father/personal/<aadhar>.jpg`, `mother/personal/<aadhar>.jpg` (`familyPhotoUrl`, `PhotoOf`). A missing photo answers 403 and the avatar keeps its initials or icon. `StudentAvatar(photoOf: PhotoOf.father | mother)` shows a parent: on the student details *Family contacts* cards and on the anniversary father / mother boxes and parent picker. Screens that only know a bank code get the Aadhar from the synced phonebook (`StudentPhotoDirectory`, display only).
 
 ### 5.1 Favourites (manual star + most dialled)
 

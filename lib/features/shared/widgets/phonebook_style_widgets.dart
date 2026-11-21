@@ -142,7 +142,8 @@ class PhonebookHeaderDelegate extends SliverPersistentHeaderDelegate {
 
   @override
   double get maxExtent {
-    if (pills != null) return topPadding + 166.0;
+    final hasSubtitle = subtitle != null && subtitle!.isNotEmpty;
+    if (pills != null) return topPadding + (hasSubtitle ? 190.0 : 166.0);
     if (subtitle != null && subtitle!.isNotEmpty) return topPadding + 150.0;
     return topPadding + 136.0;
   }

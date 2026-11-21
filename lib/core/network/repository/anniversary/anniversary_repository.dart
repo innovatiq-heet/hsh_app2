@@ -66,13 +66,17 @@ class AnniversaryRepository extends BaseRepository {
   }
 
   /// Manually trigger anniversary wishes or send a test wish.
-  Future<Map<String, dynamic>> triggerWishes({bool force = false, String? testPhone}) async {
+  ///
+  /// [accountId] picks the WhatsApp number to send from; without it the server
+  /// uses the default anniversary number.
+  Future<Map<String, dynamic>> triggerWishes({bool force = false, String? testPhone, String? accountId}) async {
     final response = await _apiClient.dio.post(
       '/whatsapp/anniversary/trigger',
       data: {
         if (force) 'force': true,
         if (testPhone != null && testPhone.trim().isNotEmpty)
           'testPhone': testPhone.trim(),
+        if (accountId != null && accountId.isNotEmpty) 'accountId': accountId,
       },
     );
     final data = response.data;
@@ -88,6 +92,7 @@ class AnniversaryRepository extends BaseRepository {
     required String target,
     String? customPhone,
     String? customMessage,
+    String? accountId,
   }) async {
     final Response response;
     try {
@@ -98,6 +103,7 @@ class AnniversaryRepository extends BaseRepository {
           'target': target,
           if (customPhone != null && customPhone.trim().isNotEmpty) 'customPhone': customPhone.trim(),
           if (customMessage != null && customMessage.trim().isNotEmpty) 'customMessage': customMessage.trim(),
+          if (accountId != null && accountId.isNotEmpty) 'accountId': accountId,
         },
       );
     } on DioException catch (e) {

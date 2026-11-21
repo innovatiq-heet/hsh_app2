@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:get/get.dart';
+import '../../../core/constants/app_routes.dart';
 import '../../../core/models/anniversary/anniversary_models.dart';
 import '../../../core/utils/app_snackbar.dart';
 import '../../shared/widgets/student_avatar.dart';
@@ -672,41 +673,56 @@ class AdminAnniversaryScreen extends GetView<AdminAnniversaryController> {
                 const SizedBox(height: 12),
 
                 // 3. Primary Actions: Wish Both Parents + Wish Another No.
+                // Same width and height; labels shrink to fit narrow phones.
                 Row(
                   children: [
                     Expanded(
-                      flex: 3,
-                      child: ElevatedButton.icon(
-                        onPressed: record.hasAnyPhone ? () => controller.wishBoth(record) : null,
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor: const Color(0xFFE11D48),
-                          foregroundColor: Colors.white,
-                          elevation: 0,
-                          padding: const EdgeInsets.symmetric(vertical: 11),
-                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                        ),
-                        icon: const Icon(Icons.favorite_rounded, size: 16),
-                        label: const Text(
-                          'Wish Both Parents 🎉',
-                          style: TextStyle(fontSize: 12.5, fontWeight: FontWeight.w700),
+                      child: SizedBox(
+                        height: 44,
+                        child: ElevatedButton.icon(
+                          onPressed: record.hasAnyPhone ? () => controller.wishBoth(record) : null,
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: const Color(0xFFE11D48),
+                            foregroundColor: Colors.white,
+                            elevation: 0,
+                            minimumSize: Size.zero,
+                            tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                            padding: const EdgeInsets.symmetric(horizontal: 10),
+                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                          ),
+                          icon: const Icon(Icons.favorite_rounded, size: 16),
+                          label: const FittedBox(
+                            fit: BoxFit.scaleDown,
+                            child: Text(
+                              'Wish Both Parents 🎉',
+                              style: TextStyle(fontSize: 12.5, fontWeight: FontWeight.w700),
+                            ),
+                          ),
                         ),
                       ),
                     ),
                     const SizedBox(width: 8),
                     Expanded(
-                      flex: 2,
-                      child: OutlinedButton.icon(
-                        onPressed: () => _showWishWithAnotherNumberSheet(context, record),
-                        style: OutlinedButton.styleFrom(
-                          foregroundColor: const Color(0xFF0F172A),
-                          side: const BorderSide(color: Color(0xFFCBD5E1), width: 1.2),
-                          padding: const EdgeInsets.symmetric(vertical: 11),
-                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                        ),
-                        icon: const Icon(Icons.phone_iphone_rounded, size: 16, color: Color(0xFF059669)),
-                        label: const Text(
-                          'Another No.',
-                          style: TextStyle(fontSize: 11.5, fontWeight: FontWeight.w700),
+                      child: SizedBox(
+                        height: 44,
+                        child: OutlinedButton.icon(
+                          onPressed: () => _showWishWithAnotherNumberSheet(context, record),
+                          style: OutlinedButton.styleFrom(
+                            foregroundColor: const Color(0xFF0F172A),
+                            side: const BorderSide(color: Color(0xFFCBD5E1), width: 1.2),
+                            minimumSize: Size.zero,
+                            tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                            padding: const EdgeInsets.symmetric(horizontal: 10),
+                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                          ),
+                          icon: const Icon(Icons.phone_iphone_rounded, size: 16, color: Color(0xFF059669)),
+                          label: const FittedBox(
+                            fit: BoxFit.scaleDown,
+                            child: Text(
+                              'Another No.',
+                              style: TextStyle(fontSize: 12.5, fontWeight: FontWeight.w700),
+                            ),
+                          ),
                         ),
                       ),
                     ),
@@ -2520,18 +2536,93 @@ class AdminAnniversaryScreen extends GetView<AdminAnniversaryController> {
   // --- Confirmation & Custom Number Dialogs ---
 
   void _confirmSendAllDialog(BuildContext context) {
-    Get.defaultDialog(
-      title: 'Send All Wishes?',
-      titleStyle: const TextStyle(fontWeight: FontWeight.w800, fontSize: 16),
-      middleText: "Automated anniversary greetings will be dispatched via WhatsApp to all parents celebrating today.",
-      textConfirm: 'Send Now',
-      textCancel: 'Cancel',
-      confirmTextColor: Colors.white,
-      buttonColor: const Color(0xFFE11D48),
-      onConfirm: () {
-        Get.back();
-        controller.sendAllWishesToday();
-      },
+    final count = controller.dashboard.value?.todaysAnniversaries.length ?? 0;
+    const rose = Color(0xFFE11D48);
+    showDialog<void>(
+      context: context,
+      builder: (ctx) => Dialog(
+        backgroundColor: Colors.white,
+        insetPadding: const EdgeInsets.symmetric(horizontal: 24),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(22, 24, 22, 18),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Container(
+                width: 56,
+                height: 56,
+                decoration: BoxDecoration(
+                  color: rose.withValues(alpha: 0.1),
+                  shape: BoxShape.circle,
+                ),
+                child: const Icon(Icons.volunteer_activism_rounded, color: rose, size: 28),
+              ),
+              const SizedBox(height: 14),
+              const Text(
+                'Send all wishes?',
+                textAlign: TextAlign.center,
+                style: TextStyle(
+                  fontSize: 19,
+                  fontWeight: FontWeight.w800,
+                  color: Color(0xFF0F172A),
+                  letterSpacing: -0.3,
+                ),
+              ),
+              const SizedBox(height: 8),
+              Text(
+                count > 0
+                    ? 'Anniversary greetings will be sent on WhatsApp to the parents of '
+                        '$count ${count == 1 ? 'student' : 'students'} celebrating today.'
+                    : 'Anniversary greetings will be sent on WhatsApp to all parents celebrating today.',
+                textAlign: TextAlign.center,
+                style: const TextStyle(fontSize: 13.5, color: Color(0xFF64748B), height: 1.4),
+              ),
+              const SizedBox(height: 22),
+              Row(
+                children: [
+                  Expanded(
+                    child: SizedBox(
+                      height: 46,
+                      child: OutlinedButton(
+                        onPressed: () => Navigator.of(ctx).pop(),
+                        style: OutlinedButton.styleFrom(
+                          foregroundColor: const Color(0xFF475569),
+                          side: const BorderSide(color: Color(0xFFE2E8F0), width: 1.2),
+                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+                          textStyle: const TextStyle(fontSize: 14, fontWeight: FontWeight.w700),
+                        ),
+                        child: const Text('Cancel'),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 10),
+                  Expanded(
+                    child: SizedBox(
+                      height: 46,
+                      child: ElevatedButton.icon(
+                        onPressed: () {
+                          Navigator.of(ctx).pop();
+                          controller.sendAllWishesToday();
+                        },
+                        icon: const Icon(Icons.send_rounded, size: 17),
+                        label: const Text('Send now'),
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: rose,
+                          foregroundColor: Colors.white,
+                          elevation: 0,
+                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+                          textStyle: const TextStyle(fontSize: 14, fontWeight: FontWeight.w800),
+                        ),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ],
+          ),
+        ),
+      ),
     );
   }
 
@@ -2801,7 +2892,9 @@ class _AdminAnniversaryHeaderDelegate extends SliverPersistentHeaderDelegate {
                     }
 
                     final isOnline = controller.dashboard.value?.isWhatsAppConnected ?? false;
-                    return Container(
+                    return GestureDetector(
+                      onTap: () => Get.toNamed(Routes.whatsappNumbers),
+                      child: Container(
                       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
                       decoration: BoxDecoration(
                         color: isOnline
@@ -2831,6 +2924,7 @@ class _AdminAnniversaryHeaderDelegate extends SliverPersistentHeaderDelegate {
                             ),
                           ),
                         ],
+                      ),
                       ),
                     );
                   }),

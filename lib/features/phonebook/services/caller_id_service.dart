@@ -161,9 +161,9 @@ class CallerIdService {
       }
       final groupOnly = rawPlace.replaceAll(RegExp(r'[•·-]?\s*Room\s*[A-Za-z0-9_-]+', caseSensitive: false), '').trim();
       if (groupOnly.isNotEmpty && groupOnly != 'HSH Resident') {
-        return 'Rm $roomNum ($groupOnly)';
+        return '$roomNum ($groupOnly)';
       }
-      return 'Rm $roomNum';
+      return roomNum;
     }
     return rawPlace;
   }

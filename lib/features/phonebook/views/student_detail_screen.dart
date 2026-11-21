@@ -8,7 +8,6 @@ import '../../../core/constants/app_dimens.dart';
 import '../../../core/constants/app_routes.dart';
 import '../../../core/constants/app_text_styles.dart';
 import '../../../core/models/tags/student_tag_model.dart';
-import '../../shared/widgets/app_button.dart';
 import '../../shared/widgets/icon_badge.dart';
 import '../../shared/widgets/phonebook_style_widgets.dart';
 import '../../shared/widgets/status_badge.dart';
@@ -287,14 +286,37 @@ class _StudentDetailScreenState extends State<StudentDetailScreen> {
                   Row(
                     children: [
                       Expanded(
-                        child: AppButton(
-                          label: 'Share details',
-                          icon: Icons.ios_share_rounded,
-                          onPressed: () => _c.shareStudent(student),
+                        child: SizedBox(
+                          height: 48,
+                          child: ElevatedButton.icon(
+                            onPressed: () => _c.shareStudent(student),
+                            icon: const Icon(Icons.share_rounded, size: 18, color: Colors.white),
+                            label: const Text(
+                              'Share details',
+                              style: TextStyle(
+                                fontSize: 14,
+                                fontWeight: FontWeight.w600,
+                                letterSpacing: -0.1,
+                                color: Colors.white,
+                              ),
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                            style: ElevatedButton.styleFrom(
+                              backgroundColor: const Color(0xFF0284C7),
+                              foregroundColor: Colors.white,
+                              elevation: 1,
+                              shadowColor: const Color(0xFF0284C7).withValues(alpha: 0.3),
+                              padding: const EdgeInsets.symmetric(horizontal: 12),
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(12),
+                              ),
+                            ),
+                          ),
                         ),
                       ),
                       if (!student.isAlumni) ...[
-                        const SizedBox(width: AppDimens.gapSm),
+                        const SizedBox(width: 10),
                         Expanded(child: _ScreenTimeButton(student: student)),
                       ],
                     ],
@@ -2067,12 +2089,43 @@ class _ScreenTimeButtonState extends State<_ScreenTimeButton> {
 
   @override
   Widget build(BuildContext context) {
-    return AppButton(
-      label: 'Screen time',
-      icon: Icons.timelapse_rounded,
-      variant: AppButtonVariant.outline,
-      isLoading: _loading,
-      onPressed: _open,
+    return SizedBox(
+      height: 48,
+      child: ElevatedButton.icon(
+        onPressed: _loading ? null : _open,
+        icon: _loading
+            ? const SizedBox(
+                width: 18,
+                height: 18,
+                child: CircularProgressIndicator(
+                  strokeWidth: 2,
+                  color: Colors.white,
+                ),
+              )
+            : const Icon(Icons.timelapse_rounded, size: 18, color: Colors.white),
+        label: Text(
+          _loading ? 'Opening...' : 'Screen time',
+          style: const TextStyle(
+            fontSize: 14,
+            fontWeight: FontWeight.w600,
+            letterSpacing: -0.1,
+            color: Colors.white,
+          ),
+          maxLines: 1,
+          overflow: TextOverflow.ellipsis,
+        ),
+        style: ElevatedButton.styleFrom(
+          backgroundColor: const Color(0xFF6366F1),
+          foregroundColor: Colors.white,
+          disabledBackgroundColor: const Color(0xFF6366F1).withValues(alpha: 0.7),
+          elevation: 1,
+          shadowColor: const Color(0xFF6366F1).withValues(alpha: 0.3),
+          padding: const EdgeInsets.symmetric(horizontal: 12),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(12),
+          ),
+        ),
+      ),
     );
   }
 }

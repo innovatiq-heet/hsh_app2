@@ -3,6 +3,7 @@ import 'package:get/get.dart' hide Response;
 import '../../api_client.dart';
 import '../../api_exception.dart';
 import '../../responses/screentime/students_page.dart';
+import '../../../../features/screentime/models/screen_time_alert.dart';
 import '../base_repository.dart';
 
 /// Every `/screen-time/*` call the app makes, in one place.
@@ -48,6 +49,35 @@ class ScreenTimeRepository extends BaseRepository {
         );
         return StudentsPage.parse(response.data);
       });
+
+  // ---------------------------------------------------------------- alerts
+
+  /// Removal-protection alerts, newest first (HAMS_WEB `GET /screen-time/alerts`).
+  /// The server limits a leader to their own group; [group] is sent too, as on
+  /// every other leader request. Throws [ApiException] with status 404 while
+  /// the backend doesn't have the endpoint yet.
+  Future<List<ScreenTimeAlert>> alerts({
+    bool unreadOnly = false,
+    String? group,
+    int limit = 50,
+    int offset = 0,
+  }) =>
+      _guard(() async {
+        final response = await _dio.get(
+          '/screen-time/alerts',
+          queryParameters: {
+            'status': unreadOnly ? 'unread' : 'all',
+            'limit': limit,
+            'offset': offset,
+            if (group != null && group.isNotEmpty) 'group': group,
+          },
+        );
+        return ScreenTimeAlert.parseList(response.data);
+      });
+
+  /// Marks one alert read.
+  Future<void> markAlertRead(int alertId) =>
+      _guard(() async => _dio.post('/screen-time/alerts/$alertId/read'));
 
   // ------------------------------------------------------- one student: read
 

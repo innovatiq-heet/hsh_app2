@@ -107,16 +107,10 @@ class _StudentDetailScreenState extends State<StudentDetailScreen> {
       PhoneNumberNormalizer.normalize(raw) ??
       (raw ?? '').replaceAll(RegExp(r'\D'), '');
 
-  /// Active expanded sections. All sections default to expanded so details
-  /// are immediately visible on open, with full interactive expand/collapse
-  /// per card and a master "Collapse all / Expand all" toggle.
-  final Set<String> _expandedSections = {
-    'contacts',
-    'tags',
-    'hostel',
-    'personal',
-    'family_contacts',
-  };
+  /// Active expanded sections. Defaults to empty (collapsed view by default),
+  /// with full interactive expand/collapse per card and a master
+  /// "Collapse all / Expand all" toggle.
+  final Set<String> _expandedSections = {};
 
   /// Tracks which parent cards ('father', 'mother') have their full details expanded.
   final Set<String> _expandedParents = {};

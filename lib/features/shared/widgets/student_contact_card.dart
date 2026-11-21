@@ -272,7 +272,7 @@ class StudentContactCard extends StatelessWidget {
                           if (customSubtitle != null)
                             customSubtitle!
                           else
-                            _buildMetadataRow(gColor, isAlumni),
+                            _buildMetadataRow(gColor, gBg, isAlumni),
                         ],
                       ),
                     ),
@@ -398,37 +398,85 @@ class StudentContactCard extends StatelessWidget {
     );
   }
 
-  Widget _buildMetadataRow(Color gColor, bool isAlumni) {
+  Widget _buildGroupChip(Color gColor, Color gBg) {
+    final group = (groupName ?? '').trim();
+    if (group.isEmpty) return const SizedBox.shrink();
+    if (isAlumni && group.toLowerCase() == 'alumni') return const SizedBox.shrink();
+
+    final label = isAlumni ? 'Alumni' : group;
+    final color = isAlumni ? const Color(0xFF9333EA) : gColor;
+    final bg = isAlumni ? const Color(0xFFF3E8FF) : gBg;
+    final borderColor = isAlumni ? const Color(0xFFE9D5FF) : color.withValues(alpha: 0.25);
+
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 6.5, vertical: 2),
+      decoration: BoxDecoration(
+        color: bg,
+        borderRadius: BorderRadius.circular(6),
+        border: Border.all(
+          color: borderColor,
+          width: 0.8,
+        ),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Container(
+            width: 5.5,
+            height: 5.5,
+            decoration: BoxDecoration(
+              color: color,
+              shape: BoxShape.circle,
+            ),
+          ),
+          const SizedBox(width: 3.5),
+          Text(
+            label,
+            style: TextStyle(
+              fontSize: 11,
+              fontWeight: FontWeight.w700,
+              color: color,
+              letterSpacing: -0.1,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildMetadataRow(Color gColor, Color gBg, bool isAlumni) {
+    final hasGroup = (groupName != null && groupName!.trim().isNotEmpty);
     final hasExtra = (bankCode != null && bankCode!.isNotEmpty) ||
         (dobText != null && dobText!.isNotEmpty) ||
         (extraChips != null && extraChips!.isNotEmpty);
 
-    if (!hasExtra) {
-      return _buildRoomChip(gColor, isAlumni);
-    }
-
     return Wrap(
       spacing: 5,
       runSpacing: 4,
+      crossAxisAlignment: WrapCrossAlignment.center,
       children: [
         _buildRoomChip(gColor, isAlumni),
-        if (bankCode != null && bankCode!.isNotEmpty)
-          CelebrantLightChip(
-            icon: Icons.tag_rounded,
-            text: 'ID: $bankCode',
-            bgColor: const Color(0xFFF8FAFC),
-            borderColor: const Color(0xFFE2E8F0),
-            textColor: const Color(0xFF475569),
-          ),
-        if (dobText != null && dobText!.isNotEmpty)
-          CelebrantLightChip(
-            icon: Icons.cake_outlined,
-            text: dobText!,
-            bgColor: const Color(0xFFFFFBEB),
-            borderColor: const Color(0xFFFDE68A),
-            textColor: const Color(0xFFD97706),
-          ),
-        ...?extraChips,
+        if (hasGroup)
+          _buildGroupChip(gColor, gBg),
+        if (hasExtra) ...[
+          if (bankCode != null && bankCode!.isNotEmpty)
+            CelebrantLightChip(
+              icon: Icons.tag_rounded,
+              text: 'ID: $bankCode',
+              bgColor: const Color(0xFFF8FAFC),
+              borderColor: const Color(0xFFE2E8F0),
+              textColor: const Color(0xFF475569),
+            ),
+          if (dobText != null && dobText!.isNotEmpty)
+            CelebrantLightChip(
+              icon: Icons.cake_outlined,
+              text: dobText!,
+              bgColor: const Color(0xFFFFFBEB),
+              borderColor: const Color(0xFFFDE68A),
+              textColor: const Color(0xFFD97706),
+            ),
+          ...?extraChips,
+        ],
       ],
     );
   }

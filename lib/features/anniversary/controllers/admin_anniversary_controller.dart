@@ -10,6 +10,7 @@ import '../../../core/storage/session_store.dart';
 import '../../../core/utils/apple_search_utils.dart';
 import '../../../core/utils/app_snackbar.dart';
 import '../../phonebook/models/phonebook_models.dart';
+import '../../whatsapp_accounts/widgets/send_from_sheet.dart';
 
 class AdminAnniversaryController extends GetxController {
   final AnniversaryRepository _repository = AnniversaryRepository();
@@ -432,13 +433,19 @@ class AdminAnniversaryController extends GetxController {
 
   // --- Wishing Actions ---
 
+  /// Which WhatsApp number to send from (asked only when several are linked).
+  Future<SendFromChoice?> _pickNumber() => pickSendFromAccount(purpose: 'anniversary');
+
   /// Send automated wish via Server Bot to BOTH Father and Mother.
   Future<void> wishBoth(AnniversaryStudentRecord record) async {
+    final from = await _pickNumber();
+    if (from == null) return;
     isTriggering.value = true;
     try {
       final res = await _repository.sendSingleWish(
         studentId: record.studentId,
         target: 'both',
+        accountId: from.accountId,
       );
       final count = res['sentCount'] ?? 2;
       AppSnackbar.success(
@@ -459,11 +466,14 @@ class AdminAnniversaryController extends GetxController {
       AppSnackbar.warning('No Phone', 'Father phone number is not available for ${record.name}.');
       return;
     }
+    final from = await _pickNumber();
+    if (from == null) return;
     isTriggering.value = true;
     try {
       await _repository.sendSingleWish(
         studentId: record.studentId,
         target: 'father',
+        accountId: from.accountId,
       );
       AppSnackbar.success(
         'Wish Sent to Father! 🎩',
@@ -483,11 +493,14 @@ class AdminAnniversaryController extends GetxController {
       AppSnackbar.warning('No Phone', 'Mother phone number is not available for ${record.name}.');
       return;
     }
+    final from = await _pickNumber();
+    if (from == null) return;
     isTriggering.value = true;
     try {
       await _repository.sendSingleWish(
         studentId: record.studentId,
         target: 'mother',
+        accountId: from.accountId,
       );
       AppSnackbar.success(
         'Wish Sent to Mother! 🌸',
@@ -567,6 +580,8 @@ class AdminAnniversaryController extends GetxController {
     final message = formatMessage(template, record, recipientType);
 
     if (viaBot) {
+      final from = await _pickNumber();
+      if (from == null) return;
       isTriggering.value = true;
       try {
         await _repository.sendSingleWish(
@@ -574,6 +589,7 @@ class AdminAnniversaryController extends GetxController {
           target: recipientType,
           customPhone: cleanPhone,
           customMessage: message,
+          accountId: from.accountId,
         );
         AppSnackbar.success(
           'Custom Wish Sent! 💍',
@@ -598,9 +614,11 @@ class AdminAnniversaryController extends GetxController {
       return;
     }
 
+    final from = await _pickNumber();
+    if (from == null) return;
     isTriggering.value = true;
     try {
-      final res = await _repository.triggerWishes(force: true);
+      final res = await _repository.triggerWishes(force: true, accountId: from.accountId);
       final sentCount = res['count'] ?? count;
       AppSnackbar.success(
         'All Wishes Dispatched! 💍🎉',
@@ -622,9 +640,11 @@ class AdminAnniversaryController extends GetxController {
       return;
     }
 
+    final from = await _pickNumber();
+    if (from == null) return;
     isTriggering.value = true;
     try {
-      await _repository.triggerWishes(testPhone: clean);
+      await _repository.triggerWishes(testPhone: clean, accountId: from.accountId);
       AppSnackbar.success(
         'Test Wish Sent! 🧪',
         'Sample parents anniversary wish sent to +$clean.',

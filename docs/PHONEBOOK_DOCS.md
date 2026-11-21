@@ -264,7 +264,7 @@ Tapping the card or the notification launches the app with extras `hsh_target = 
 2. `CallerIdService.syncDirectory()` builds the directory from the cache after each sync, when enabling, and every time the phonebook opens while enabled:
    - one entry per number, as an E.164 integer (`917984907753`);
    - names are shortened to first + last name; siblings sharing a number are merged (`Rohan Sharma & Meet Sharma`, or `Rohan Sharma +2` for three or more);
-   - label `<who> · <place> · <relation>`, e.g. `Rohan Sharma · Rm 204 (Param) · Father`. The relation is left out for the student's own number and the place when it isn't known. Labels longer than 60 characters are cut with "…";
+   - label `<who> · <place> · <relation>`, e.g. `Rohan Sharma · 204 (Param) · Father`. The relation is left out for the student's own number and the place when it isn't known. Labels longer than 60 characters are cut with "…";
    - sorted ascending with no duplicates (CallKit rejects the whole batch otherwise).
 3. `CallerIdPlugin` re-sorts and de-duplicates defensively, writes `callerid-directory.json` to the App Group `group.com.avdhsh.org`, and asks CallKit to reload `com.avdhsh.org.CallDirectoryExtension`.
 4. `CallDirectoryHandler` reads the file and adds every entry (on incremental reloads it clears and resends everything).

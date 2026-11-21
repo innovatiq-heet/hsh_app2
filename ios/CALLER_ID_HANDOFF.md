@@ -35,7 +35,7 @@ Instead, Apple provides **CallKit's Call Directory Extension (`CXCallDirectoryPr
 ┌─────────────────────────────────────────────────────────────┐
 │                    iOS Native Phone UI                      │
 │  • Incoming call & Recents display:                         │
-│    "Rohan Sharma · Rm 204 (Param) · Father"                 │
+│    "Rohan Sharma · 204 (Param) · Father"                 │
 └─────────────────────────────────────────────────────────────┘
 ```
 
@@ -62,7 +62,7 @@ Instead, Apple provides **CallKit's Call Directory Extension (`CXCallDirectoryPr
 
 `setActive(false)` (Turn off, logout, or a non-admin/warden login) deletes `callerid-directory.json` and reloads the extension, so labels disappear.
 
-**Label format** (built in `CallerIdService.buildDirectoryEntries()`): `<who> · <place> · <relation>`, e.g. `Rohan Sharma · Rm 204 (Param) · Father`. The relation is omitted for the student's own number; siblings sharing a number are merged (`Rohan Sharma & Meet Sharma`, `Rohan Sharma +2`); labels over 60 characters are truncated. There is **no** `HSH ·` prefix, even though the in-app "Caller ID is on" card still says so.
+**Label format** (built in `CallerIdService.buildDirectoryEntries()`): `<who> · <place> · <relation>`, e.g. `Rohan Sharma · 204 (Param) · Father`. The relation is omitted for the student's own number; siblings sharing a number are merged (`Rohan Sharma & Meet Sharma`, `Rohan Sharma +2`); labels over 60 characters are truncated. There is **no** `HSH ·` prefix, even though the in-app "Caller ID is on" card still says so.
 
 Full feature documentation (Android and iOS): [docs/PHONEBOOK_DOCS.md](../docs/PHONEBOOK_DOCS.md).
 

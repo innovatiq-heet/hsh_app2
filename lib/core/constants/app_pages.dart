@@ -68,6 +68,8 @@ import '../../features/geofence/bindings/admin_geofence_binding.dart';
 import '../../features/geofence/views/admin_geofence_screen.dart';
 import '../../features/geofence/bindings/student_locations_binding.dart';
 import '../../features/geofence/views/student_locations_screen.dart';
+import '../../features/whatsapp_accounts/bindings/whatsapp_numbers_binding.dart';
+import '../../features/whatsapp_accounts/views/whatsapp_numbers_screen.dart';
 import '../../features/birthday/bindings/admin_birthday_binding.dart';
 import '../../features/birthday/views/admin_birthday_screen.dart';
 import '../../features/anniversary/bindings/admin_anniversary_binding.dart';
@@ -375,6 +377,11 @@ class AppPages {
       name: Routes.operatorStudentTags,
       page: () => const StudentTagsScreen(),
       binding: StudentTagsBinding(),
+    ),
+    GetPage(
+      name: Routes.whatsappNumbers,
+      page: () => const WhatsAppNumbersScreen(),
+      binding: WhatsAppNumbersBinding(),
     ),
     GetPage(
       name: Routes.operatorBroadcasts,

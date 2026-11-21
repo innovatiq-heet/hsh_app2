@@ -63,12 +63,16 @@ class BirthdayRepository extends BaseRepository {
   }
 
   /// Manually trigger birthday wishes or send a test wish
-  Future<Map<String, dynamic>> triggerWishes({String? testPhone}) async {
+  ///
+  /// [accountId] picks the WhatsApp number to send from; without it the server
+  /// uses the default birthday number.
+  Future<Map<String, dynamic>> triggerWishes({String? testPhone, String? accountId}) async {
     final response = await _apiClient.dio.post(
       '/whatsapp/birthday/trigger',
       data: {
         if (testPhone != null && testPhone.trim().isNotEmpty)
           'testPhone': testPhone.trim(),
+        if (accountId != null && accountId.isNotEmpty) 'accountId': accountId,
       },
     );
     final data = response.data;

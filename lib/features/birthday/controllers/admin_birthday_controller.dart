@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'dart:convert';
 import 'package:flutter/material.dart';
+import '../../whatsapp_accounts/widgets/send_from_sheet.dart';
 import 'package:flutter/services.dart';
 import 'package:get/get.dart';
 import 'package:intl/intl.dart';
@@ -882,8 +883,17 @@ class AdminBirthdayController extends GetxController {
   }
 
   Future<void> triggerAllToday({VoidCallback? onNeedLinkDevice}) async {
-    // 1. Validation: Ensure WhatsApp device is linked
-    if (!isWhatsAppLinked) {
+    // 1. Ensure there are celebrants to send to
+    final countToTrigger = dashboard.value?.todaysBirthdays.length ?? 0;
+    if (countToTrigger == 0) {
+      AppSnackbar.info('No Celebrants', 'There are no birthdays registered for today.');
+      return;
+    }
+
+    // 2. Which WhatsApp number to send from (asked only when several are linked)
+    final from = await pickSendFromAccount(purpose: 'birthday');
+    if (from == null) return;
+    if (from.legacy && !isWhatsAppLinked) {
       AppSnackbar.warning(
         'WhatsApp Not Connected',
         'Please link your WhatsApp device first before sending birthday wishes.',
@@ -894,16 +904,9 @@ class AdminBirthdayController extends GetxController {
       return;
     }
 
-    // 2. Ensure there are celebrants to send to
-    final countToTrigger = dashboard.value?.todaysBirthdays.length ?? 0;
-    if (countToTrigger == 0) {
-      AppSnackbar.info('No Celebrants', 'There are no birthdays registered for today.');
-      return;
-    }
-
     isTriggering.value = true;
     try {
-      final result = await _repository.triggerWishes();
+      final result = await _repository.triggerWishes(accountId: from.accountId);
       final count = result['count'] is num ? (result['count'] as num).toInt() : 0;
 
       if (count > 0) {
@@ -951,8 +954,9 @@ class AdminBirthdayController extends GetxController {
       return;
     }
 
-    // Validation: Ensure WhatsApp device is linked
-    if (!isWhatsAppLinked) {
+    final from = await pickSendFromAccount(purpose: 'birthday');
+    if (from == null) return;
+    if (from.legacy && !isWhatsAppLinked) {
       AppSnackbar.warning(
         'WhatsApp Not Connected',
         'Please link your WhatsApp device first before sending a test wish.',
@@ -965,7 +969,7 @@ class AdminBirthdayController extends GetxController {
 
     isTriggering.value = true;
     try {
-      final res = await _repository.triggerWishes(testPhone: phone);
+      final res = await _repository.triggerWishes(testPhone: phone, accountId: from.accountId);
       if (res['success'] == false) {
         AppSnackbar.warning(
           'Test Wish Failed',

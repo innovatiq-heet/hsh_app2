@@ -1,6 +1,6 @@
 # Birthday Wishes
 
-> **Last updated:** 2026-10-26 · **Repos:** `hsh_app2` (admin Template Studio), `hsh_api` (stores the config and sends the WhatsApp wishes).
+> **Last updated:** 2026-11-21 · **Repos:** `hsh_app2` (admin Template Studio), `hsh_api` (stores the config and sends the WhatsApp wishes).
 
 ---
 
@@ -49,9 +49,19 @@ Logs (Logs & Test tab) are grouped under date headers (Today, Yesterday, `Thu, 2
 
 The dashboard only carries the most recent logs. **Pick a day** (first chip) opens a calendar and loads every wish logged that day from `GET /whatsapp/birthday/logs` (`AdminBirthdayController.loadLogsForDate`); the day is merged with the recent logs and selected. A day with no wishes shows "No wishes were logged on …".
 
+### Several WhatsApp numbers
+
+The server keeps several numbers connected at once (`/whatsapp/accounts`); each has its own `id`, label, status and login. The number that existed before is the account `default` (label "Main"). The app handles them on the **WhatsApp Numbers** screen (`Routes.whatsappNumbers`), opened from the birthday screen's connection pill and from the anniversary screen's "WA Online / Offline" pill.
+
+- **List:** `GET /whatsapp/accounts` → `accounts[]` (`id`, `label`, `status`, `qr`, `user.phone`) and `defaults {birthday, anniversary}` (`null` = Main). Only `status == "open"` can send. The screen polls every 3 s while a number is `connecting`, `qr` or `pairing`.
+- **Link / disconnect any number:** `POST /connect`, `/pair`, `/disconnect` with `{accountId}`; the link sheet offers QR code or pairing code per number (same steps as below).
+- **Admin only:** add (`POST /accounts {label}`, then link), rename (`PUT /accounts/:id`), remove (`DELETE`, not Main), and the two defaults (`PUT /accounts/defaults {birthday?, anniversary?}`; Main is sent as `null`). The defaults are what the scheduled daily run uses, since nobody picks a number then.
+- **Choosing the sender:** a hand-sent bot message asks "Send from" (`pickSendFromAccount`) when more than one number exists: birthday **Send All** and test wish, anniversary **Send All**, test wish, **Wish Both / Father / Mother** and custom-number sends via the bot. The default for that screen is marked; numbers that are not `open` are greyed with their status. The chosen id goes out as `accountId`. With a single number, or when `/accounts` cannot be loaded (older server), nothing is asked and the old "is WhatsApp linked?" check applies.
+- Wishes opened in the phone's own WhatsApp (`wa.me`), attendance reports, alumni outreach and broadcasts are unchanged: the server sends those from the Main number.
+
 ### Linking WhatsApp (sender device)
 
-The **Link Device** sheet offers two ways to link the WhatsApp account that sends the wishes:
+The sections below describe the pairing steps, now used per number by the link sheet on the WhatsApp Numbers screen. The older single-number **Link Device** sheet offers two ways to link the WhatsApp account that sends the wishes:
 
 | Option | When | Flow |
 | :--- | :--- | :--- |
@@ -148,5 +158,9 @@ The app also keeps the library and active picks in `SharedPreferences` (`birthda
 | `lib/features/birthday/widgets/template_library.dart` | Students / Parents switch, template list, new / set active / delete |
 | `lib/features/birthday/widgets/template_preview.dart` | Live WhatsApp preview |
 | `lib/features/birthday/views/admin_birthday_screen.dart` | Template Studio tab layout, dispatch logs with date chips and **Pick a day** |
+| `lib/core/models/whatsapp/whatsapp_account.dart` | `WhatsAppAccount` (id, label, status, qr, phone) and `WhatsAppAccountsData` (accounts + scheduled-run defaults) |
+| `lib/core/network/repository/whatsapp/whatsapp_accounts_repository.dart` | `/whatsapp/accounts` and per-number status, connect, pair, disconnect |
+| `lib/features/whatsapp_accounts/` | WhatsApp Numbers screen, controller (polling, add / rename / delete / defaults) and the "Send from" sheet (`pickSendFromAccount`) |
+| `test/whatsapp_accounts_test.dart` | Accounts parsing, `accountId` on sends and linking, admin actions, nothing asked with one number (fake API) |
 | `test/birthday_models_test.dart` | Config, student and dashboard JSON parsing |
 | `test/birthday_api_contract_test.dart` | Template checks matching the API, log merging, save rejection message, logs-by-day request (fake API) |

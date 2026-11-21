@@ -136,7 +136,7 @@ class PhonebookScreen extends GetView<PhonebookController> {
                               ),
                             ),
                             Text(
-                              'Refine by wings, floors, location, residence, and records',
+                              'Refine by wings, floors, residence, tags, and location',
                               style: TextStyle(
                                 fontSize: 11.5,
                                 color: Color(0xFF64748B),
@@ -399,67 +399,7 @@ class PhonebookScreen extends GetView<PhonebookController> {
                       ),
                       const SizedBox(height: 20),
 
-                      // 4. ATTRIBUTES & PROFILE DATA
-                      _filterSectionHeader('PROFILE ATTRIBUTES & RECORDS', Icons.check_circle_outline_rounded),
-                      const SizedBox(height: 10),
-                      Container(
-                        decoration: BoxDecoration(
-                          color: const Color(0xFFF8FAFC),
-                          borderRadius: BorderRadius.circular(16),
-                          border: Border.all(color: const Color(0xFFE2E8F0)),
-                        ),
-                        child: Column(
-                          children: [
-                            _toggleRow(
-                              icon: Icons.cake_outlined,
-                              iconColor: const Color(0xFFD97706),
-                              title: 'Has Date of Birth (DOB)',
-                              subtitle: 'Show students with registered birthday info',
-                              value: controller.onlyWithDob.value,
-                              onChanged: controller.toggleOnlyWithDob,
-                            ),
-                            const Divider(height: 1, indent: 52, color: Color(0xFFE2E8F0)),
-                            _toggleRow(
-                              icon: Icons.family_restroom_rounded,
-                              iconColor: const Color(0xFF059669),
-                              title: 'Has Parent Contact Phone',
-                              subtitle: 'Show students with Father or Mother numbers',
-                              value: controller.onlyWithParents.value,
-                              onChanged: controller.toggleOnlyWithParents,
-                            ),
-                            const Divider(height: 1, indent: 52, color: Color(0xFFE2E8F0)),
-                            _toggleRow(
-                              icon: Icons.chat_rounded,
-                              iconColor: const Color(0xFF10B981),
-                              title: 'Has Dedicated WhatsApp Number',
-                              subtitle: 'Show students with verified WhatsApp details',
-                              value: controller.onlyWithWhatsApp.value,
-                              onChanged: controller.toggleOnlyWithWhatsApp,
-                            ),
-                            const Divider(height: 1, indent: 52, color: Color(0xFFE2E8F0)),
-                            _toggleRow(
-                              icon: Icons.home_rounded,
-                              iconColor: const Color(0xFF0284C7),
-                              title: 'Has Permanent Address',
-                              subtitle: 'Show students with hometown/permanent address',
-                              value: controller.onlyWithAddress.value,
-                              onChanged: controller.toggleOnlyWithAddress,
-                            ),
-                            const Divider(height: 1, indent: 52, color: Color(0xFFE2E8F0)),
-                            _toggleRow(
-                              icon: Icons.fingerprint_rounded,
-                              iconColor: const Color(0xFF6366F1),
-                              title: 'Has Aadhar Number',
-                              subtitle: 'Show students with registered 12-digit Aadhar',
-                              value: controller.onlyWithAadhar.value,
-                              onChanged: controller.toggleOnlyWithAadhar,
-                            ),
-                          ],
-                        ),
-                      ),
-                      const SizedBox(height: 20),
-
-                      // 5. SORT ORDER
+                      // 4. SORT ORDER
                       _filterSectionHeader('SORT STUDENTS BY', Icons.sort_by_alpha_rounded),
                       const SizedBox(height: 10),
                       Wrap(
@@ -559,64 +499,6 @@ class PhonebookScreen extends GetView<PhonebookController> {
           ),
         ),
       ],
-    );
-  }
-
-  Widget _toggleRow({
-    required IconData icon,
-    required Color iconColor,
-    required String title,
-    required String subtitle,
-    required bool value,
-    required ValueChanged<bool> onChanged,
-  }) {
-    return InkWell(
-      onTap: () => onChanged(!value),
-      child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 11),
-        child: Row(
-          children: [
-            Container(
-              width: 34,
-              height: 34,
-              decoration: BoxDecoration(
-                color: iconColor.withValues(alpha: 0.12),
-                borderRadius: BorderRadius.circular(9),
-              ),
-              child: Icon(icon, color: iconColor, size: 18),
-            ),
-            const SizedBox(width: 12),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    title,
-                    style: const TextStyle(
-                      fontSize: 13.5,
-                      fontWeight: FontWeight.w700,
-                      color: Color(0xFF0F172A),
-                    ),
-                  ),
-                  const SizedBox(height: 2),
-                  Text(
-                    subtitle,
-                    style: const TextStyle(
-                      fontSize: 11,
-                      color: Color(0xFF64748B),
-                    ),
-                  ),
-                ],
-              ),
-            ),
-            Switch(
-              value: value,
-              onChanged: onChanged,
-              activeThumbColor: const Color(0xFF0284C7),
-            ),
-          ],
-        ),
-      ),
     );
   }
 

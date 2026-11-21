@@ -167,7 +167,7 @@ class PhonebookController extends GetxController {
   static const List<String> statusOptions = [
     'All',
     'Active Residents',
-    'Alumni / Left',
+    'Alumni',
   ];
 
   static const List<String> sortOptions = [
@@ -208,11 +208,36 @@ class PhonebookController extends GetxController {
     _loadAvailableTags();
   }
 
+  bool _tagsSynced = false;
+
+  /// Syncs student tag assignments from backend into local SQLite cache.
+  Future<void> _ensureTagsSynced() async {
+    if (_tagsSynced) return;
+    try {
+      if (Get.isRegistered<TagsRepository>()) {
+        final backendStudents =
+            await Get.find<TagsRepository>().getStudentsForAssignment();
+        if (backendStudents.isNotEmpty) {
+          await PhonebookDatabaseService.instance.syncStudentTags(backendStudents);
+          _tagsSynced = true;
+        }
+      }
+    } catch (e) {
+      debugPrint('[PhonebookController] _ensureTagsSynced error: $e');
+    }
+  }
+
   Future<void> _loadAvailableTags() async {
     try {
       if (Get.isRegistered<TagsRepository>()) {
         final tags = await Get.find<TagsRepository>().getTags();
         availableTags.assignAll(dedupeTags(tags));
+
+        // Sync student tag assignments into SQLite so filtering works immediately
+        await _ensureTagsSynced();
+        if (selectedTag.value != 'All') {
+          search();
+        }
       }
     } catch (_) {}
   }
@@ -419,14 +444,22 @@ class PhonebookController extends GetxController {
   }
 
   void selectStatus(String status) {
-    selectedStatus.value = status;
+    if (selectedStatus.value == status) {
+      selectedStatus.value = 'All';
+    } else {
+      selectedStatus.value = status;
+    }
     selectedStudentIds.clear();
     isSelectionMode.value = false;
     search();
   }
 
   void selectTag(String tag) {
-    selectedTag.value = tag;
+    if (selectedTag.value == tag) {
+      selectedTag.value = 'All';
+    } else {
+      selectedTag.value = tag;
+    }
     selectedStudentIds.clear();
     isSelectionMode.value = false;
     search();
@@ -548,8 +581,13 @@ class PhonebookController extends GetxController {
       String? statusFilter;
       if (selectedStatus.value == 'Active Residents') {
         statusFilter = 'active';
-      } else if (selectedStatus.value == 'Alumni / Left') {
+      } else if (selectedStatus.value == 'Alumni' ||
+          selectedStatus.value == 'Alumni / Left') {
         statusFilter = 'alumni';
+      }
+
+      if (selectedTag.value != 'All' && !_tagsSynced) {
+        await _ensureTagsSynced();
       }
 
       String sortBy = 'name_asc';
@@ -593,6 +631,9 @@ class PhonebookController extends GetxController {
       );
       if (isFavGroup) {
         results.retainWhere((s) => isFavourite(s.id));
+      }
+      if (selectedTag.value != 'All') {
+        results.retainWhere((s) => s.hasTag(selectedTag.value));
       }
       if (selectedSort.value == 'Name (A-Z)') {
         results.sort((a, b) => a.name.trim().toLowerCase().compareTo(b.name.trim().toLowerCase()));

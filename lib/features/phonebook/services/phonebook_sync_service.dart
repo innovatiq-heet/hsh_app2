@@ -6,6 +6,7 @@ import 'phone_number_normalizer.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:get/get.dart';
 import '../../../core/network/repository/students/student_contacts_repository.dart';
+import '../../../core/network/repository/tags/tags_repository.dart';
 import '../../../core/utils/string_formatting.dart';
 import '../models/phonebook_models.dart';
 import 'phonebook_database_service.dart';
@@ -498,6 +499,24 @@ class PhonebookSyncService {
       } catch (err) {
         debugPrint(
           '[PhonebookSync] Non-fatal: Failed to fetch backend additional contacts: $err',
+        );
+      }
+
+      // Overlay student tags saved on HAMS backend
+      try {
+        if (Get.isRegistered<TagsRepository>()) {
+          final backendStudents =
+              await Get.find<TagsRepository>().getStudentsForAssignment();
+          if (backendStudents.isNotEmpty) {
+            await PhonebookDatabaseService.instance.syncStudentTags(backendStudents);
+            debugPrint(
+              '[PhonebookSync] Synced tags for ${backendStudents.length} students into SQLite.',
+            );
+          }
+        }
+      } catch (err) {
+        debugPrint(
+          '[PhonebookSync] Non-fatal: Failed to fetch backend student tags: $err',
         );
       }
 

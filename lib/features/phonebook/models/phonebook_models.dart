@@ -1,3 +1,4 @@
+import 'dart:convert';
 import 'package:intl/intl.dart';
 import '../../../core/models/tags/student_tag_model.dart';
 import '../../../core/utils/string_formatting.dart';
@@ -435,9 +436,15 @@ class PhonebookStudent {
         : null;
 
     List<StudentTag> tagsList = [];
-    if (json['tags'] != null && json['tags'] is List) {
+    dynamic rawTags = json['tags'];
+    if (rawTags is String && rawTags.trim().isNotEmpty) {
+      try {
+        rawTags = jsonDecode(rawTags);
+      } catch (_) {}
+    }
+    if (rawTags != null && rawTags is List) {
       tagsList = dedupeTags(
-        (json['tags'] as List).whereType<Map>().map(
+        rawTags.whereType<Map>().map(
           (t) => StudentTag.fromJson(Map<String, dynamic>.from(t)),
         ),
       );

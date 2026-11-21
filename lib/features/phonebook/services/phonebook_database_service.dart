@@ -1,4 +1,5 @@
 import 'dart:convert';
+import 'package:flutter/foundation.dart';
 import 'package:sqflite/sqflite.dart';
 import 'package:path/path.dart' as p;
 import '../../../core/models/tags/student_tag_model.dart';
@@ -370,8 +371,8 @@ class PhonebookDatabaseService {
 
     // Tag filter
     if (tag != null && tag.isNotEmpty && tag.toLowerCase() != 'all') {
-      whereClauses.add('(tags LIKE ?)');
-      whereArgs.add('%$tag%');
+      whereClauses.add('(LOWER(tags) LIKE ?)');
+      whereArgs.add('%${tag.trim().toLowerCase()}%');
     }
 
     // Location filters (State, District, City)
@@ -540,13 +541,86 @@ class PhonebookDatabaseService {
     try {
       final db = await database;
       final tagsJson = jsonEncode(tags.map((t) => t.toJson()).toList());
+      final stripped = studentId.replaceFirst('HSH-', '').replaceFirst(RegExp(r'^0+'), '');
       await db.update(
         'student_cache',
         {'tags': tagsJson},
-        where: 'student_id = ? OR id = ? OR bank_code = ?',
-        whereArgs: [studentId, studentId, studentId],
+        where: 'student_id = ? OR id = ? OR bank_code = ? OR bank_code = ? OR student_id = ?',
+        whereArgs: [studentId, studentId, studentId, stripped, 'HSH-$stripped'],
       );
     } catch (_) {}
+  }
+
+  /// Syncs tags for multiple students into local SQLite cache.
+  Future<void> syncStudentTags(List<Map<String, dynamic>> studentsWithTags) async {
+    if (studentsWithTags.isEmpty) return;
+    try {
+      final db = await database;
+      await db.transaction((txn) async {
+        final batch = txn.batch();
+        for (final s in studentsWithTags) {
+          final tagsRaw = s['tags'];
+          if (tagsRaw == null) continue;
+
+          List<dynamic> list;
+          if (tagsRaw is List) {
+            list = tagsRaw;
+          } else if (tagsRaw is String && tagsRaw.isNotEmpty && tagsRaw != 'null') {
+            try {
+              final dec = jsonDecode(tagsRaw);
+              list = dec is List ? dec : [];
+            } catch (_) {
+              list = [];
+            }
+          } else {
+            list = [];
+          }
+
+          final tagsJson = jsonEncode(list);
+
+          final rawCode = (s['student_code'] ?? s['bank_code'] ?? '').toString().trim();
+          final rawId = s['id'] ?? s['student_id'];
+          final numId = rawId?.toString().trim() ?? '';
+
+          final conditions = <String>[];
+          final args = <dynamic>[];
+
+          if (rawCode.isNotEmpty) {
+            conditions.add('bank_code = ?');
+            args.add(rawCode);
+
+            conditions.add('student_id = ?');
+            args.add('HSH-$rawCode');
+
+            final stripped = rawCode.replaceFirst(RegExp(r'^0+'), '');
+            if (stripped.isNotEmpty && stripped != rawCode) {
+              conditions.add('bank_code = ?');
+              args.add(stripped);
+
+              conditions.add('student_id = ?');
+              args.add('HSH-$stripped');
+            }
+          }
+
+          if (numId.isNotEmpty && numId != '0') {
+            conditions.add('student_id = ?');
+            args.add(numId);
+          }
+
+          if (conditions.isNotEmpty) {
+            batch.update(
+              'student_cache',
+              {'tags': tagsJson},
+              where: conditions.join(' OR '),
+              whereArgs: args,
+            );
+          }
+        }
+        await batch.commit(noResult: true);
+      });
+    } catch (e) {
+      debugPrint('[PhonebookDatabase] syncStudentTags error: $e');
+    }
   }
 
   /// Group and status per bank code, for showing them elsewhere (birthday cards).

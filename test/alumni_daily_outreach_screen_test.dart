@@ -214,9 +214,9 @@ void main() {
       final two = tester.getTopLeft(find.text('Alum Two')).dy;
       final one = tester.getTopLeft(find.text('Alum One')).dy;
       expect(two, lessThan(one), reason: 'still to contact comes first');
-      expect(find.text('Engineer at Tata'), findsOneWidget);
-      expect(find.text('Send on WhatsApp'), findsOneWidget);
-      expect(find.text('Send again'), findsOneWidget);
+      expect(find.text('Room 102 · Batch of 2019'), findsOneWidget);
+      expect(find.byTooltip('Send on WhatsApp'), findsOneWidget);
+      expect(find.byTooltip('Send again'), findsOneWidget);
       expect(tester.takeException(), isNull);
     });
 
@@ -246,7 +246,7 @@ void main() {
 
       expect(repo.contacted.single.$1, 102);
       expect(find.text('2/5'), findsOneWidget);
-      expect(find.text('Send on WhatsApp'), findsNothing);
+      expect(find.byTooltip('Send on WhatsApp'), findsNothing);
       await settleSnackbars(tester);
     });
 
@@ -281,7 +281,9 @@ void main() {
       await tester.runAsync(() => signIn('leader'));
       final c = await pumpScreen(tester);
 
-      await tester.tap(find.text('Edit'));
+      await tester.tap(find.byTooltip('More').first);
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Edit message'));
       await tester.pumpAndSettle();
       expect(find.text('Message for Alum Two'), findsOneWidget);
       await tester.enterText(find.byType(TextField), 'Hi Alum, long time!');
@@ -289,8 +291,7 @@ void main() {
       await tester.pumpAndSettle();
 
       expect(find.text('Message for Alum Two'), findsNothing);
-      expect(find.text('Your message'), findsOneWidget);
-      expect(find.text('Hi Alum, long time!'), findsOneWidget);
+      expect(c.hasCustomMessage(102), isTrue);
       expect(c.getFormattedMessage(c.orderedStudents.first), 'Hi Alum, long time!');
     });
 

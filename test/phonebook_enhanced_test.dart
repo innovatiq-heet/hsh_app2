@@ -1,5 +1,7 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:hsh_app2/core/models/students/student_contacts_model.dart';
+import 'package:hsh_app2/core/models/tags/student_tag_model.dart';
+import 'package:hsh_app2/features/phonebook/controllers/phonebook_controller.dart';
 import 'package:hsh_app2/features/phonebook/models/phonebook_models.dart';
 import 'package:hsh_app2/features/phonebook/services/phonebook_database_service.dart';
 
@@ -344,6 +346,47 @@ void main() {
         expect(shareText, contains('+1 415 555 2671'));
         expect(shareText, contains('Mother - UK'));
         expect(shareText, contains('+44 7700 900077'));
+      },
+    );
+
+    test(
+      'PhonebookStudent tag matching and status options reflect updated filters',
+      () {
+        expect(PhonebookController.statusOptions, ['All', 'Active Residents', 'Alumni']);
+        expect(PhonebookController.statusOptions, isNot(contains('Alumni / Left')));
+
+        final student = PhonebookStudent(
+          id: '101',
+          studentId: '101',
+          name: 'Rahul Patel',
+          enrollmentNumber: 'EN101',
+          department: 'B.Tech IT',
+          batch: 'ACTIVE',
+          tags: [
+            StudentTag(id: 1, name: 'Regular', colorHex: '#10b981', isSystem: true),
+            StudentTag(id: 2, name: 'Parent Control', colorHex: '#8b5cf6', isSystem: true),
+          ],
+        );
+
+        expect(student.hasTag('Regular'), isTrue);
+        expect(student.hasTag('regular'), isTrue);
+        expect(student.hasTag('Parent Control'), isTrue);
+        expect(student.hasTag('PARENT CONTROL'), isTrue);
+        expect(student.hasTag('iPhone'), isFalse);
+        expect(student.hasTag('Unknown'), isFalse);
+
+        // Deserialization of tags from JSON string in SQLite
+        final studentFromDb = PhonebookStudent.fromJson({
+          'id': '102',
+          'name': 'Pooja Dave',
+          'tags': '[{"id": 12, "name": "Hostel Committee", "color": "#10b981", "is_system": 0}]',
+        });
+
+        expect(studentFromDb.tags.length, 1);
+        expect(studentFromDb.tags.first.name, 'Hostel Committee');
+        expect(studentFromDb.hasTag('Hostel Committee'), isTrue);
+        expect(studentFromDb.hasTag('hostel committee'), isTrue);
+        expect(studentFromDb.hasTag('Regular'), isFalse);
       },
     );
   });

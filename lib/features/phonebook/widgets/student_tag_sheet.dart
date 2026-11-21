@@ -349,6 +349,148 @@ class _StudentTagSheetState extends State<StudentTagSheet> {
     }
   }
 
+  Future<void> _showEditTagDialog(StudentTag tag) async {
+    final nameCtrl = TextEditingController(text: tag.name);
+    final descCtrl = TextEditingController(text: tag.description ?? '');
+    String selectedHex = tag.colorHex.isNotEmpty ? tag.colorHex : '#6366f1';
+
+    const colorOptions = [
+      '#6366f1', // Indigo
+      '#0284c7', // Sky Blue
+      '#059669', // Emerald
+      '#d97706', // Amber
+      '#dc2626', // Red
+      '#9333ea', // Purple
+      '#ec4899', // Pink
+      '#0d9488', // Teal
+    ];
+
+    final updated = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => StatefulBuilder(
+        builder: (ctx, setDlgState) {
+          final currentColor = StudentTag.parseHexColor(selectedHex);
+          return AlertDialog(
+            backgroundColor: Colors.white,
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+            title: Row(
+              children: [
+                Container(
+                  width: 32,
+                  height: 32,
+                  decoration: BoxDecoration(
+                    color: currentColor.withValues(alpha: 0.15),
+                    shape: BoxShape.circle,
+                  ),
+                  child: Icon(Icons.edit_rounded, size: 16, color: currentColor),
+                ),
+                const SizedBox(width: 10),
+                const Text('Edit Tag', style: TextStyle(fontWeight: FontWeight.w800, fontSize: 18)),
+              ],
+            ),
+            content: SingleChildScrollView(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Text('Tag Name (e.g. Karyakarta, Wing Leader)', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: Color(0xFF64748B))),
+                  const SizedBox(height: 6),
+                  TextField(
+                    controller: nameCtrl,
+                    textCapitalization: TextCapitalization.words,
+                    decoration: InputDecoration(
+                      hintText: 'Enter tag name',
+                      filled: true,
+                      fillColor: const Color(0xFFF8FAFC),
+                      contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+                      border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: const BorderSide(color: Color(0xFFE2E8F0))),
+                    ),
+                  ),
+                  const SizedBox(height: 16),
+                  const Text('Color Accent', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: Color(0xFF64748B))),
+                  const SizedBox(height: 8),
+                  Wrap(
+                    spacing: 8,
+                    runSpacing: 8,
+                    children: colorOptions.map((hex) {
+                      final c = StudentTag.parseHexColor(hex);
+                      final isSel = selectedHex.toLowerCase() == hex.toLowerCase();
+                      return InkWell(
+                        onTap: () => setDlgState(() => selectedHex = hex),
+                        borderRadius: BorderRadius.circular(20),
+                        child: Container(
+                          width: 32,
+                          height: 32,
+                          decoration: BoxDecoration(
+                            color: c,
+                            shape: BoxShape.circle,
+                            border: Border.all(color: isSel ? Colors.black : Colors.white, width: isSel ? 2.5 : 1.5),
+                          ),
+                          child: isSel ? const Icon(Icons.check, size: 16, color: Colors.white) : null,
+                        ),
+                      );
+                    }).toList(),
+                  ),
+                  const SizedBox(height: 16),
+                  const Text('Description (Optional)', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: Color(0xFF64748B))),
+                  const SizedBox(height: 6),
+                  TextField(
+                    controller: descCtrl,
+                    maxLines: 2,
+                    decoration: InputDecoration(
+                      hintText: 'Briefly describe this tag',
+                      filled: true,
+                      fillColor: const Color(0xFFF8FAFC),
+                      contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+                      border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: const BorderSide(color: Color(0xFFE2E8F0))),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(ctx, false),
+                child: const Text('Cancel'),
+              ),
+              ElevatedButton(
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: AppColors.primary,
+                  foregroundColor: Colors.white,
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                ),
+                onPressed: () async {
+                  final name = nameCtrl.text.trim();
+                  if (name.isEmpty) {
+                    AppSnackbar.warning('Validation', 'Please provide a tag name.');
+                    return;
+                  }
+                  try {
+                    final updatedTag = await _repo.updateTag(
+                      id: tag.id,
+                      name: name,
+                      color: selectedHex,
+                      description: descCtrl.text.trim().isNotEmpty ? descCtrl.text.trim() : null,
+                    );
+                    AppSnackbar.success('Tag Updated', 'Tag "${updatedTag.name}" updated successfully.');
+                    if (ctx.mounted) Navigator.pop(ctx, true);
+                  } on ApiException catch (e) {
+                    AppSnackbar.error('Update Failed', e.message);
+                  }
+                },
+                child: const Text('Save Changes', style: TextStyle(fontWeight: FontWeight.w700)),
+              ),
+            ],
+          );
+        },
+      ),
+    );
+
+    if (updated == true) {
+      _loadData();
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     return Container(
@@ -546,6 +688,26 @@ class _StudentTagSheetState extends State<StudentTagSheet> {
                                         fontSize: 10,
                                         fontWeight: FontWeight.w500,
                                         color: isAssigned ? Colors.white70 : const Color(0xFF64748B),
+                                      ),
+                                    ),
+                                  ] else ...[
+                                    const SizedBox(width: 6),
+                                    GestureDetector(
+                                      behavior: HitTestBehavior.opaque,
+                                      onTap: () => _showEditTagDialog(tag),
+                                      child: Container(
+                                        padding: const EdgeInsets.all(3),
+                                        decoration: BoxDecoration(
+                                          color: isAssigned
+                                              ? Colors.white.withValues(alpha: 0.25)
+                                              : tag.color.withValues(alpha: 0.15),
+                                          shape: BoxShape.circle,
+                                        ),
+                                        child: Icon(
+                                          Icons.edit_rounded,
+                                          size: 11,
+                                          color: isAssigned ? Colors.white : tag.color,
+                                        ),
                                       ),
                                     ),
                                   ],

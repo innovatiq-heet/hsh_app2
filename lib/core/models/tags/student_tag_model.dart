@@ -37,6 +37,26 @@ class StudentTag {
     this.assignedAt,
   });
 
+  StudentTag copyWith({
+    int? id,
+    String? name,
+    String? colorHex,
+    bool? isSystem,
+    String? description,
+    int? studentCount,
+    DateTime? assignedAt,
+  }) {
+    return StudentTag(
+      id: id ?? this.id,
+      name: name ?? this.name,
+      colorHex: colorHex ?? this.colorHex,
+      isSystem: isSystem ?? this.isSystem,
+      description: description ?? this.description,
+      studentCount: studentCount ?? this.studentCount,
+      assignedAt: assignedAt ?? this.assignedAt,
+    );
+  }
+
   static Color parseHexColor(String? hexString, {Color defaultColor = const Color(0xFF6366F1)}) {
     if (hexString == null || hexString.isEmpty) return defaultColor;
     String hex = hexString.replaceAll('#', '').trim();

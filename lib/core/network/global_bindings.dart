@@ -19,6 +19,7 @@ import './repository/tags/tags_repository.dart';
 import '../storage/session_store.dart';
 import '../services/aadhar_service.dart';
 import '../services/push_notification_service.dart';
+import '../services/student_photo_cache_service.dart';
 
 /// App-wide dependency registrations.
 ///
@@ -36,6 +37,7 @@ class GlobalBindings extends Bindings {
     Get.put(SessionStore(), permanent: true);
     Get.put(NetworkController(), permanent: true);
     Get.put(ApiClient.create(), permanent: true);
+    StudentPhotoCacheService.instance.init();
 
     // Repositories
     Get.put(AuthRepository(), permanent: true);

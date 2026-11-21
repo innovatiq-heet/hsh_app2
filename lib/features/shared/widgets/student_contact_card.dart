@@ -1,4 +1,6 @@
+import 'dart:io';
 import 'package:flutter/material.dart';
+import '../../../core/services/student_photo_cache_service.dart';
 import '../../../core/utils/string_formatting.dart';
 
 /// Reusable executive student contact card featuring the signature
@@ -637,7 +639,58 @@ class StudentPhoto extends StatefulWidget {
 }
 
 class _StudentPhotoState extends State<StudentPhoto> {
+  File? _file;
   bool _loaded = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _checkAndLoadPhoto();
+  }
+
+  @override
+  void didUpdateWidget(StudentPhoto oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.url != widget.url) {
+      _checkAndLoadPhoto();
+    }
+  }
+
+  void _checkAndLoadPhoto() {
+    if (widget.url.trim().isEmpty) {
+      _file = null;
+      _loaded = false;
+      return;
+    }
+
+    // 1. Fast synchronous check: cached on local storage
+    final cached = StudentPhotoCacheService.instance.getCachedFile(widget.url);
+    if (cached != null) {
+      _file = cached;
+      _loaded = true;
+      return;
+    }
+
+    // 2. Fast synchronous check: known missing (403/404)
+    if (StudentPhotoCacheService.instance.isMarkedMissing(widget.url)) {
+      _file = null;
+      _loaded = false;
+      return;
+    }
+
+    // 3. Otherwise fetch asynchronously and store in phone local
+    _file = null;
+    _loaded = false;
+    StudentPhotoCacheService.instance.loadPhoto(widget.url).then((file) {
+      if (!mounted) return;
+      if (file != null) {
+        setState(() {
+          _file = file;
+          _loaded = true;
+        });
+      }
+    });
+  }
 
   /// Remembers whether the photo is showing, and rebuilds so the tap handler
   /// follows (this runs while the image is building).
@@ -659,7 +712,12 @@ class _StudentPhotoState extends State<StudentPhoto> {
       onTap: (_loaded || widget.onFallbackTap != null)
           ? () {
               if (_loaded) {
-                showStudentPhotoDialog(context, url: widget.url, name: widget.name);
+                showStudentPhotoDialog(
+                  context,
+                  url: widget.url,
+                  name: widget.name,
+                  localFile: _file,
+                );
               } else {
                 widget.onFallbackTap?.call();
               }
@@ -667,23 +725,25 @@ class _StudentPhotoState extends State<StudentPhoto> {
           : null,
       child: ClipRRect(
         borderRadius: BorderRadius.circular(widget.radius),
-        child: Image.network(
-          widget.url,
-          width: widget.size,
-          height: widget.size,
-          fit: BoxFit.cover,
-          // The files are large; decode them at avatar size.
-          cacheWidth: (widget.size * 3).round(),
-          gaplessPlayback: true,
-          frameBuilder: (context, child, frame, wasSynchronouslyLoaded) {
-            _setLoaded(frame != null || wasSynchronouslyLoaded);
-            return _loaded ? child : Center(child: widget.letter);
-          },
-          errorBuilder: (context, error, stack) {
-            _setLoaded(false);
-            return Center(child: widget.letter);
-          },
-        ),
+        child: _file != null
+            ? Image.file(
+                _file!,
+                width: widget.size,
+                height: widget.size,
+                fit: BoxFit.cover,
+                // The files are large; decode them at avatar size.
+                cacheWidth: (widget.size * 3).round(),
+                gaplessPlayback: true,
+                frameBuilder: (context, child, frame, wasSynchronouslyLoaded) {
+                  _setLoaded(frame != null || wasSynchronouslyLoaded);
+                  return _loaded ? child : Center(child: widget.letter);
+                },
+                errorBuilder: (context, error, stack) {
+                  _setLoaded(false);
+                  return Center(child: widget.letter);
+                },
+              )
+            : Center(child: widget.letter),
       ),
     );
   }
@@ -691,7 +751,14 @@ class _StudentPhotoState extends State<StudentPhoto> {
 
 /// A student's photo in a popup: pinch to zoom, tap outside or the close
 /// button to dismiss.
-Future<void> showStudentPhotoDialog(BuildContext context, {required String url, required String name}) {
+Future<void> showStudentPhotoDialog(
+  BuildContext context, {
+  required String url,
+  required String name,
+  File? localFile,
+}) {
+  final resolvedFile = localFile ?? StudentPhotoCacheService.instance.getCachedFile(url);
+
   return showDialog<void>(
     context: context,
     barrierColor: Colors.black87,
@@ -714,22 +781,46 @@ Future<void> showStudentPhotoDialog(BuildContext context, {required String url, 
               borderRadius: BorderRadius.circular(18),
               child: InteractiveViewer(
                 maxScale: 4,
-                child: Image.network(
-                  url,
-                  fit: BoxFit.contain,
-                  loadingBuilder: (context, child, progress) => progress == null
-                      ? child
-                      : const SizedBox(
-                          height: 240,
-                          child: Center(child: CircularProgressIndicator(color: Colors.white)),
+                child: resolvedFile != null
+                    ? Image.file(
+                        resolvedFile,
+                        fit: BoxFit.contain,
+                        errorBuilder: (context, error, stack) => const SizedBox(
+                          height: 200,
+                          child: Center(
+                            child: Text(
+                              'Photo not available',
+                              style: TextStyle(color: Colors.white70),
+                            ),
+                          ),
                         ),
-                  errorBuilder: (context, error, stack) => const SizedBox(
-                    height: 200,
-                    child: Center(
-                      child: Text('Photo not available', style: TextStyle(color: Colors.white70)),
-                    ),
-                  ),
-                ),
+                      )
+                    : FutureBuilder<File?>(
+                        future: StudentPhotoCacheService.instance.loadPhoto(url),
+                        builder: (context, snapshot) {
+                          if (snapshot.connectionState == ConnectionState.waiting) {
+                            return const SizedBox(
+                              height: 240,
+                              child: Center(
+                                child: CircularProgressIndicator(color: Colors.white),
+                              ),
+                            );
+                          }
+                          final file = snapshot.data;
+                          if (file != null && file.existsSync()) {
+                            return Image.file(file, fit: BoxFit.contain);
+                          }
+                          return const SizedBox(
+                            height: 200,
+                            child: Center(
+                              child: Text(
+                                'Photo not available',
+                                style: TextStyle(color: Colors.white70),
+                              ),
+                            ),
+                          );
+                        },
+                      ),
               ),
             ),
           ),

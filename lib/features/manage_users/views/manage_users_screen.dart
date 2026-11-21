@@ -15,6 +15,7 @@ import '../../shared/widgets/section_header.dart';
 import '../../shared/widgets/skeleton_loader.dart';
 import '../../shared/widgets/staggered_slide_fade.dart';
 import '../../shared/widgets/status_badge.dart';
+import '../../../core/utils/app_snackbar.dart';
 import '../../../core/utils/string_formatting.dart';
 import '../controllers/manage_users_controller.dart';
 import '../widgets/staff_user_form_sheet.dart';
@@ -1043,6 +1044,12 @@ class _StudentTagCard extends StatelessWidget {
           ),
           if (!tag.isSystem)
             IconButton(
+              icon: const Icon(Icons.edit_outlined, color: Color(0xFF64748B), size: 20),
+              tooltip: 'Edit / Rename tag',
+              onPressed: () => _showEditTagDialog(context, controller, tag),
+            ),
+          if (!tag.isSystem)
+            IconButton(
               icon: const Icon(Icons.person_add_alt_1_rounded, color: AppColors.primary, size: 20),
               tooltip: 'Assign to student',
               onPressed: () => Navigator.of(context).push(
@@ -1208,6 +1215,179 @@ void _showCreateTagDialog(BuildContext context, ManageUsersController controller
                 }
               },
               child: const Text('Create Tag', style: TextStyle(fontWeight: FontWeight.w700)),
+            ),
+          ],
+        );
+      },
+    ),
+  );
+}
+
+void _showEditTagDialog(BuildContext context, ManageUsersController controller, StudentTag tag) {
+  final nameCtrl = TextEditingController(text: tag.name);
+  final descCtrl = TextEditingController(text: tag.description ?? '');
+  String selectedHex = tag.colorHex.isNotEmpty ? tag.colorHex : '#6366f1';
+  bool isSaving = false;
+
+  const colorOptions = [
+    '#6366f1', // Indigo
+    '#0284c7', // Sky Blue
+    '#059669', // Emerald
+    '#d97706', // Amber
+    '#dc2626', // Red
+    '#9333ea', // Purple
+    '#ec4899', // Pink
+    '#0d9488', // Teal
+  ];
+
+  showDialog(
+    context: context,
+    builder: (ctx) => StatefulBuilder(
+      builder: (ctx, setDlgState) {
+        final currentColor = StudentTag.parseHexColor(selectedHex);
+        return AlertDialog(
+          backgroundColor: Colors.white,
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+          title: Row(
+            children: [
+              Container(
+                width: 32,
+                height: 32,
+                decoration: BoxDecoration(
+                  color: currentColor.withValues(alpha: 0.15),
+                  shape: BoxShape.circle,
+                ),
+                child: Icon(Icons.edit_rounded, size: 16, color: currentColor),
+              ),
+              const SizedBox(width: 10),
+              const Text('Edit Tag', style: TextStyle(fontWeight: FontWeight.w800, fontSize: 18)),
+            ],
+          ),
+          content: SingleChildScrollView(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Text(
+                  'Tag Name',
+                  style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: Color(0xFF64748B)),
+                ),
+                const SizedBox(height: 6),
+                TextField(
+                  controller: nameCtrl,
+                  textCapitalization: TextCapitalization.words,
+                  decoration: InputDecoration(
+                    hintText: 'Enter tag name',
+                    filled: true,
+                    fillColor: const Color(0xFFF8FAFC),
+                    contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+                    border: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(12),
+                      borderSide: const BorderSide(color: Color(0xFFE2E8F0)),
+                    ),
+                    enabledBorder: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(12),
+                      borderSide: const BorderSide(color: Color(0xFFE2E8F0)),
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 16),
+                const Text(
+                  'Description (Optional)',
+                  style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: Color(0xFF64748B)),
+                ),
+                const SizedBox(height: 6),
+                TextField(
+                  controller: descCtrl,
+                  maxLines: 2,
+                  decoration: InputDecoration(
+                    hintText: 'Add an optional note about this tag',
+                    filled: true,
+                    fillColor: const Color(0xFFF8FAFC),
+                    contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+                    border: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(12),
+                      borderSide: const BorderSide(color: Color(0xFFE2E8F0)),
+                    ),
+                    enabledBorder: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(12),
+                      borderSide: const BorderSide(color: Color(0xFFE2E8F0)),
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 16),
+                const Text(
+                  'Tag Color',
+                  style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: Color(0xFF64748B)),
+                ),
+                const SizedBox(height: 8),
+                Wrap(
+                  spacing: 10,
+                  runSpacing: 10,
+                  children: colorOptions.map((hex) {
+                    final c = StudentTag.parseHexColor(hex);
+                    final isSel = selectedHex.toLowerCase() == hex.toLowerCase();
+                    return GestureDetector(
+                      onTap: () => setDlgState(() => selectedHex = hex),
+                      child: Container(
+                        width: 32,
+                        height: 32,
+                        decoration: BoxDecoration(
+                          color: c,
+                          shape: BoxShape.circle,
+                          border: isSel
+                              ? Border.all(color: Colors.black87, width: 2.5)
+                              : Border.all(color: Colors.transparent, width: 2),
+                        ),
+                        child: isSel
+                            ? const Icon(Icons.check, size: 16, color: Colors.white)
+                            : null,
+                      ),
+                    );
+                  }).toList(),
+                ),
+              ],
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: isSaving ? null : () => Navigator.pop(ctx),
+              child: const Text('Cancel'),
+            ),
+            ElevatedButton(
+              style: ElevatedButton.styleFrom(
+                backgroundColor: const Color(0xFF4F46E5),
+                foregroundColor: Colors.white,
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+              ),
+              onPressed: isSaving
+                  ? null
+                  : () async {
+                      final name = nameCtrl.text.trim();
+                      if (name.isEmpty) {
+                        AppSnackbar.warning('Validation', 'Tag name is required.');
+                        return;
+                      }
+                      setDlgState(() => isSaving = true);
+                      final ok = await controller.updateTag(
+                        id: tag.id,
+                        name: name,
+                        color: selectedHex,
+                        description: descCtrl.text.trim().isNotEmpty ? descCtrl.text.trim() : null,
+                      );
+                      if (ok && ctx.mounted) {
+                        Navigator.pop(ctx);
+                      } else if (ctx.mounted) {
+                        setDlgState(() => isSaving = false);
+                      }
+                    },
+              child: isSaving
+                  ? const SizedBox(
+                      width: 16,
+                      height: 16,
+                      child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
+                    )
+                  : const Text('Save Changes', style: TextStyle(fontWeight: FontWeight.w700)),
             ),
           ],
         );

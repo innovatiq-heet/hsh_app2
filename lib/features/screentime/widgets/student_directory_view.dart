@@ -32,14 +32,14 @@ class StudentDirectoryView extends GetView<ScreenTimeDirectoryController> {
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               const _GlobalCurfewBanner(),
-              const SizedBox(height: AppDimens.gapMd),
+              const SizedBox(height: 10),
               AppRequestsBanner(host: controller),
               _SummaryStrip(),
-              const SizedBox(height: AppDimens.gapMd),
+              const SizedBox(height: 10),
               _SearchField(),
               const _LeaderGroupBanner(),
               const _GroupQuickFilter(),
-              const SizedBox(height: AppDimens.gapMd),
+              const SizedBox(height: 12),
             ],
           ),
         ),
@@ -201,121 +201,148 @@ class _SummaryStrip extends GetView<ScreenTimeDirectoryController> {
       final locked = controller.directoryCount('Locked');
       final attention = controller.directoryCount('Attention');
 
-      Widget tile(
-        String filter,
-        String value,
-        String label,
-        Color color,
-        Color bg,
-        Color border, {
-        VoidCallback? onTap,
+      Widget item({
+        required String filter,
+        required String count,
+        required String label,
+        Color? dotColor,
       }) {
         final selected = active == filter;
         return Expanded(
-          child: InkWell(
-            onTap: onTap,
-            borderRadius: BorderRadius.circular(12),
-            child: AnimatedContainer(
-              duration: const Duration(milliseconds: 180),
-              padding: const EdgeInsets.symmetric(vertical: 10, horizontal: 4),
-              decoration: BoxDecoration(
-                color: selected ? color : bg,
-                borderRadius: BorderRadius.circular(12),
-                border: Border.all(color: selected ? color : border),
-                boxShadow: selected
-                    ? [
-                        BoxShadow(
-                          color: color.withValues(alpha: 0.3),
-                          blurRadius: 8,
-                          offset: const Offset(0, 2),
+          child: Material(
+            color: Colors.transparent,
+            child: InkWell(
+              onTap: () => controller.setDirectoryFilter(filter),
+              borderRadius: BorderRadius.circular(10),
+              child: AnimatedContainer(
+                duration: const Duration(milliseconds: 160),
+                padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 2),
+                decoration: BoxDecoration(
+                  color: selected ? const Color(0xFF0284C7) : Colors.transparent,
+                  borderRadius: BorderRadius.circular(10),
+                  boxShadow: selected
+                      ? [
+                          BoxShadow(
+                            color: const Color(0xFF0284C7).withValues(alpha: 0.25),
+                            blurRadius: 6,
+                            offset: const Offset(0, 2),
+                          ),
+                        ]
+                      : null,
+                ),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        if (dotColor != null && !selected) ...[
+                          Container(
+                            width: 6,
+                            height: 6,
+                            margin: const EdgeInsets.only(right: 3),
+                            decoration: BoxDecoration(
+                              color: dotColor,
+                              shape: BoxShape.circle,
+                            ),
+                          ),
+                        ],
+                        Flexible(
+                          child: Text(
+                            count,
+                            style: TextStyle(
+                              color: selected ? Colors.white : const Color(0xFF0F172A),
+                              fontSize: 16,
+                              fontWeight: FontWeight.w800,
+                              height: 1.1,
+                            ),
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                          ),
                         ),
-                      ]
-                    : null,
-              ),
-              child: Column(
-                children: [
-                  Text(
-                    value,
-                    style: TextStyle(
-                      color: selected ? Colors.white : color,
-                      fontSize: 17,
-                      fontWeight: FontWeight.w800,
+                      ],
                     ),
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                  ),
-                  const SizedBox(height: 2),
-                  Text(
-                    label,
-                    style: TextStyle(
-                      color: selected ? Colors.white : const Color(0xFF64748B),
-                      fontSize: 10.5,
-                      fontWeight: FontWeight.w600,
+                    const SizedBox(height: 3),
+                    Text(
+                      label,
+                      style: TextStyle(
+                        color: selected ? Colors.white.withValues(alpha: 0.95) : const Color(0xFF64748B),
+                        fontSize: 10.5,
+                        fontWeight: selected ? FontWeight.w700 : FontWeight.w600,
+                        height: 1.1,
+                      ),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
                     ),
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                  ),
-                ],
+                  ],
+                ),
               ),
             ),
           ),
         );
       }
 
-      return Row(
-        children: [
-          tile(
-            'All',
-            '$total',
-            'Total',
-            const Color(0xFF0284C7),
-            const Color(0xFFF0F9FF),
-            const Color(0xFFBAE6FD),
-            onTap: () => controller.setDirectoryFilter('All'),
-          ),
-          const SizedBox(width: 6),
-          tile(
-            'Online',
-            '$online',
-            'Online',
-            const Color(0xFF16A34A),
-            const Color(0xFFF0FDF4),
-            const Color(0xFF86EFAC),
-            onTap: () => controller.setDirectoryFilter('Online'),
-          ),
-          const SizedBox(width: 6),
-          tile(
-            'Offline',
-            '$offline',
-            'Offline',
-            const Color(0xFF64748B),
-            const Color(0xFFF8FAFC),
-            const Color(0xFFCBD5E1),
-            onTap: () => controller.setDirectoryFilter('Offline'),
-          ),
-          const SizedBox(width: 6),
-          tile(
-            'Locked',
-            '$locked',
-            'Locked',
-            const Color(0xFFDC2626),
-            const Color(0xFFFEF2F2),
-            const Color(0xFFFCA5A5),
-            onTap: () => controller.setDirectoryFilter('Locked'),
-          ),
-          const SizedBox(width: 6),
-          tile(
-            'Attention',
-            '$attention',
-            'Attention',
-            const Color(0xFFD97706),
-            const Color(0xFFFEF3C7),
-            const Color(0xFFFDE68A),
-            onTap: () => controller.setDirectoryFilter('Attention'),
-          ),
-        ],
+      return Container(
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(14),
+          border: Border.all(color: const Color(0xFFE2E8F0)),
+          boxShadow: [
+            BoxShadow(
+              color: const Color(0xFF0F172A).withValues(alpha: 0.03),
+              blurRadius: 8,
+              offset: const Offset(0, 2),
+            ),
+          ],
+        ),
+        padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 4),
+        child: Row(
+          children: [
+            item(
+              filter: 'All',
+              count: '$total',
+              label: 'Total',
+            ),
+            _divider(),
+            item(
+              filter: 'Online',
+              count: '$online',
+              label: 'Online',
+              dotColor: const Color(0xFF16A34A),
+            ),
+            _divider(),
+            item(
+              filter: 'Offline',
+              count: '$offline',
+              label: 'Offline',
+            ),
+            _divider(),
+            item(
+              filter: 'Locked',
+              count: '$locked',
+              label: 'Locked',
+              dotColor: locked > 0 ? const Color(0xFFDC2626) : null,
+            ),
+            _divider(),
+            item(
+              filter: 'Attention',
+              count: '$attention',
+              label: 'Attention',
+              dotColor: attention > 0 ? const Color(0xFFD97706) : null,
+            ),
+          ],
+        ),
       );
     });
+  }
+
+  static Widget _divider() {
+    return Container(
+      width: 1,
+      height: 20,
+      color: const Color(0xFFF1F5F9),
+    );
   }
 }
 
@@ -687,13 +714,13 @@ class _SearchField extends GetView<ScreenTimeDirectoryController> {
             child: Container(
               decoration: BoxDecoration(
                 color: Colors.white,
-                borderRadius: BorderRadius.circular(16),
+                borderRadius: BorderRadius.circular(14),
                 border: Border.all(color: const Color(0xFFE2E8F0)),
                 boxShadow: [
                   BoxShadow(
-                    color: const Color(0xFF0F172A).withValues(alpha: 0.04),
-                    blurRadius: 14,
-                    offset: const Offset(0, 3),
+                    color: const Color(0xFF0F172A).withValues(alpha: 0.03),
+                    blurRadius: 8,
+                    offset: const Offset(0, 2),
                   ),
                 ],
               ),
@@ -760,21 +787,28 @@ class _SearchField extends GetView<ScreenTimeDirectoryController> {
             final count = controller.activeFilterCount;
             return Material(
               color: count > 0 ? const Color(0xFF0284C7) : Colors.white,
-              borderRadius: BorderRadius.circular(16),
-              elevation: count > 0 ? 3 : 1,
+              borderRadius: BorderRadius.circular(14),
+              elevation: count > 0 ? 2 : 0,
               shadowColor: count > 0 ? const Color(0xFF0284C7).withValues(alpha: 0.3) : Colors.black12,
               child: InkWell(
                 key: const ValueKey('screentime_directory_filter_button'),
-                borderRadius: BorderRadius.circular(16),
+                borderRadius: BorderRadius.circular(14),
                 onTap: () => _showFilterBottomSheet(context),
                 child: Container(
                   height: 48,
                   padding: const EdgeInsets.symmetric(horizontal: 14),
                   decoration: BoxDecoration(
-                    borderRadius: BorderRadius.circular(16),
+                    borderRadius: BorderRadius.circular(14),
                     border: Border.all(
                       color: count > 0 ? const Color(0xFF0284C7) : const Color(0xFFE2E8F0),
                     ),
+                    boxShadow: [
+                      BoxShadow(
+                        color: const Color(0xFF0F172A).withValues(alpha: 0.03),
+                        blurRadius: 8,
+                        offset: const Offset(0, 2),
+                      ),
+                    ],
                   ),
                   child: Row(
                     mainAxisSize: MainAxisSize.min,
@@ -830,13 +864,13 @@ class _LeaderGroupBanner extends GetView<ScreenTimeDirectoryController> {
         child: Container(
           padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
           decoration: BoxDecoration(
-            color: const Color(0xFFEEF2FF),
+            color: const Color(0xFFF0F9FF),
             borderRadius: BorderRadius.circular(14),
-            border: Border.all(color: const Color(0xFFC7D2FE)),
+            border: Border.all(color: const Color(0xFFBAE6FD)),
           ),
           child: Row(
             children: [
-              const Icon(Icons.groups_rounded, size: 20, color: Color(0xFF4F46E5)),
+              const Icon(Icons.groups_rounded, size: 20, color: Color(0xFF0284C7)),
               const SizedBox(width: 10),
               Expanded(
                 child: Column(
@@ -844,12 +878,12 @@ class _LeaderGroupBanner extends GetView<ScreenTimeDirectoryController> {
                   children: [
                     Text(
                       '$group group',
-                      style: const TextStyle(color: Color(0xFF312E81), fontWeight: FontWeight.w800, fontSize: 13.5),
+                      style: const TextStyle(color: Color(0xFF0369A1), fontWeight: FontWeight.w800, fontSize: 13.5),
                     ),
                     const SizedBox(height: 1),
                     const Text(
                       'You see only the students of your group.',
-                      style: TextStyle(color: Color(0xFF4338CA), fontSize: 12),
+                      style: TextStyle(color: Color(0xFF0284C7), fontSize: 12),
                     ),
                   ],
                 ),
@@ -874,7 +908,7 @@ class _GroupQuickFilter extends GetView<ScreenTimeDirectoryController> {
       if (!controller.currentRole.value.canOperate) return const SizedBox.shrink();
       final selected = controller.selectedGroup.value;
       return Padding(
-        padding: const EdgeInsets.only(top: 10),
+        padding: const EdgeInsets.only(top: 8),
         child: SingleChildScrollView(
           scrollDirection: Axis.horizontal,
           child: Row(
@@ -913,16 +947,27 @@ class _GroupChip extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Material(
-      color: selected ? const Color(0xFF4F46E5) : const Color(0xFFEEF2FF),
+      color: selected ? const Color(0xFF0284C7) : Colors.white,
       borderRadius: BorderRadius.circular(999),
       child: InkWell(
         onTap: onTap,
         borderRadius: BorderRadius.circular(999),
         child: Container(
-          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 7),
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6.5),
           decoration: BoxDecoration(
             borderRadius: BorderRadius.circular(999),
-            border: Border.all(color: selected ? const Color(0xFF4338CA) : const Color(0xFFC7D2FE)),
+            border: Border.all(
+              color: selected ? const Color(0xFF0284C7) : const Color(0xFFE2E8F0),
+            ),
+            boxShadow: selected
+                ? [
+                    BoxShadow(
+                      color: const Color(0xFF0284C7).withValues(alpha: 0.25),
+                      blurRadius: 6,
+                      offset: const Offset(0, 2),
+                    ),
+                  ]
+                : null,
           ),
           child: Row(
             mainAxisSize: MainAxisSize.min,
@@ -930,16 +975,16 @@ class _GroupChip extends StatelessWidget {
               if (label != 'All groups') ...[
                 Icon(
                   Icons.groups_rounded,
-                  size: 15,
-                  color: selected ? Colors.white : const Color(0xFF4F46E5),
+                  size: 14,
+                  color: selected ? Colors.white : const Color(0xFF64748B),
                 ),
                 const SizedBox(width: 5),
               ],
               Text(
                 label,
                 style: TextStyle(
-                  color: selected ? Colors.white : const Color(0xFF312E81),
-                  fontWeight: FontWeight.w700,
+                  color: selected ? Colors.white : const Color(0xFF334155),
+                  fontWeight: selected ? FontWeight.w700 : FontWeight.w600,
                   fontSize: 12.5,
                 ),
               ),
@@ -948,12 +993,16 @@ class _GroupChip extends StatelessWidget {
                 Container(
                   padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 1),
                   decoration: BoxDecoration(
-                    color: Colors.white.withValues(alpha: 0.22),
+                    color: selected ? Colors.white.withValues(alpha: 0.22) : const Color(0xFFE2E8F0),
                     borderRadius: BorderRadius.circular(999),
                   ),
                   child: Text(
                     count!,
-                    style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w800, fontSize: 11.5),
+                    style: TextStyle(
+                      color: selected ? Colors.white : const Color(0xFF475569),
+                      fontWeight: FontWeight.w800,
+                      fontSize: 11,
+                    ),
                   ),
                 ),
               ],
@@ -1369,43 +1418,37 @@ class _GlobalCurfewBanner extends GetView<ScreenTimeDirectoryController> {
       final policy = controller.globalCurfewPolicy.value;
       final isActive = policy.isActive;
       final isUpdating = controller.isUpdatingCurfew.value;
-      final accentColor = isActive
-          ? const Color(0xFF16A34A)
-          : const Color(0xFFD97706);
-      final accentBg = isActive
-          ? const Color(0xFFF0FDF4)
-          : const Color(0xFFFEF3C7);
-      final accentBorder = isActive
-          ? const Color(0xFF86EFAC)
-          : const Color(0xFFFDE68A);
 
       return Container(
         decoration: BoxDecoration(
           color: Colors.white,
-          borderRadius: BorderRadius.circular(16),
-          border: Border.all(color: accentBorder, width: 1.2),
+          borderRadius: BorderRadius.circular(14),
+          border: Border.all(color: const Color(0xFFE2E8F0)),
           boxShadow: [
             BoxShadow(
-              color: const Color(0xFF0F172A).withValues(alpha: 0.035),
-              blurRadius: 10,
-              offset: const Offset(0, 3),
+              color: const Color(0xFF0F172A).withValues(alpha: 0.03),
+              blurRadius: 8,
+              offset: const Offset(0, 2),
             ),
           ],
         ),
-        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
         child: Row(
           children: [
             Container(
-              width: 44,
-              height: 44,
+              width: 38,
+              height: 38,
               decoration: BoxDecoration(
-                color: accentBg,
-                borderRadius: BorderRadius.circular(12),
+                color: isActive ? const Color(0xFFF0FDF4) : const Color(0xFFF8FAFC),
+                borderRadius: BorderRadius.circular(10),
+                border: Border.all(
+                  color: isActive ? const Color(0xFFBBF7D0) : const Color(0xFFE2E8F0),
+                ),
               ),
               child: Icon(
                 isActive ? Icons.nightlight_round : Icons.bedtime_off_outlined,
-                color: accentColor,
-                size: 22,
+                color: isActive ? const Color(0xFF16A34A) : const Color(0xFF94A3B8),
+                size: 20,
               ),
             ),
             const SizedBox(width: 12),
@@ -1415,50 +1458,50 @@ class _GlobalCurfewBanner extends GetView<ScreenTimeDirectoryController> {
                 children: [
                   Row(
                     children: [
-                      Flexible(
-                        child: Text(
-                          'Night Curfew',
-                          style: const TextStyle(
-                            fontSize: 14.5,
-                            fontWeight: FontWeight.w700,
-                            color: Color(0xFF0F172A),
-                          ),
-                          overflow: TextOverflow.ellipsis,
+                      const Text(
+                        'Night Curfew',
+                        style: TextStyle(
+                          fontSize: 14,
+                          fontWeight: FontWeight.w700,
+                          color: Color(0xFF0F172A),
                         ),
                       ),
-                      // const SizedBox(width: 8),
-                      // StatusBadge(
-                      //   label: isActive ? 'ACTIVE' : 'TURNED OFF',
-                      //   color: accentColor,
-                      //   icon: isActive ? Icons.check_circle_rounded : Icons.pause_circle_rounded,
-                      // ),
+                      const SizedBox(width: 8),
+                      Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 1.5),
+                        decoration: BoxDecoration(
+                          color: isActive ? const Color(0xFFDCFCE7) : const Color(0xFFF1F5F9),
+                          borderRadius: BorderRadius.circular(6),
+                        ),
+                        child: Text(
+                          isActive ? 'Active' : 'Off',
+                          style: TextStyle(
+                            fontSize: 10,
+                            fontWeight: FontWeight.w700,
+                            color: isActive ? const Color(0xFF16A34A) : const Color(0xFF64748B),
+                          ),
+                        ),
+                      ),
                     ],
                   ),
                   const SizedBox(height: 3),
-                  Wrap(
-                    crossAxisAlignment: WrapCrossAlignment.center,
-                    spacing: 6,
-                    runSpacing: 2,
+                  Row(
                     children: [
-                      Row(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          const Icon(
-                            Icons.schedule_rounded,
-                            size: 13,
-                            color: Color(0xFF64748B),
-                          ),
-                          const SizedBox(width: 4),
-                          Text(
-                            policy.formatTimeRange(),
-                            style: const TextStyle(
-                              fontSize: 10.5,
-                              color: Color(0xFF64748B),
-                              fontWeight: FontWeight.w600,
-                            ),
-                          ),
-                        ],
+                      const Icon(
+                        Icons.schedule_rounded,
+                        size: 13,
+                        color: Color(0xFF64748B),
                       ),
+                      const SizedBox(width: 4),
+                      Text(
+                        policy.formatTimeRange(),
+                        style: const TextStyle(
+                          fontSize: 11,
+                          color: Color(0xFF64748B),
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                      const SizedBox(width: 8),
                       InkWell(
                         onTap: () =>
                             _showEditCurfewHours(context, controller, policy),
@@ -1466,15 +1509,14 @@ class _GlobalCurfewBanner extends GetView<ScreenTimeDirectoryController> {
                         child: const Padding(
                           padding: EdgeInsets.symmetric(
                             horizontal: 4,
-                            vertical: 2,
+                            vertical: 1,
                           ),
                           child: Text(
                             'Edit Hours',
                             style: TextStyle(
-                              fontSize: 10.5,
+                              fontSize: 11,
                               color: Color(0xFF0284C7),
                               fontWeight: FontWeight.w700,
-                              decoration: TextDecoration.underline,
                             ),
                           ),
                         ),
@@ -1485,12 +1527,25 @@ class _GlobalCurfewBanner extends GetView<ScreenTimeDirectoryController> {
               ),
             ),
             const SizedBox(width: 8),
-            _CurfewToggleButton(
-              isActive: isActive,
-              isUpdating: isUpdating,
-              onPressed: isUpdating
-                  ? null
-                  : () => controller.toggleGlobalCurfew(!isActive),
+            SizedBox(
+              height: 32,
+              child: isUpdating
+                  ? const SizedBox(
+                      width: 22,
+                      height: 22,
+                      child: CircularProgressIndicator(
+                        strokeWidth: 2,
+                        color: Color(0xFF0284C7),
+                      ),
+                    )
+                  : Switch.adaptive(
+                      value: isActive,
+                      onChanged: (val) => controller.toggleGlobalCurfew(val),
+                      activeThumbColor: const Color(0xFF16A34A),
+                      activeTrackColor: const Color(0xFFDCFCE7),
+                      inactiveThumbColor: const Color(0xFF94A3B8),
+                      inactiveTrackColor: const Color(0xFFE2E8F0),
+                    ),
             ),
           ],
         ),
@@ -1710,123 +1765,6 @@ class _CurfewTimeTile extends StatelessWidget {
         ),
       ),
     );
-  }
-}
-
-class _CurfewToggleButton extends StatelessWidget {
-  final bool isActive;
-  final bool isUpdating;
-  final VoidCallback? onPressed;
-
-  const _CurfewToggleButton({
-    required this.isActive,
-    required this.isUpdating,
-    required this.onPressed,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    if (isActive) {
-      // Button to turn OFF curfew
-      return Material(
-        color: Colors.transparent,
-        child: InkWell(
-          onTap: onPressed,
-          borderRadius: BorderRadius.circular(20),
-          child: Container(
-            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
-            decoration: BoxDecoration(
-              color: const Color(0xFFFEF2F2),
-              borderRadius: BorderRadius.circular(20),
-              border: Border.all(color: const Color(0xFFFCA5A5)),
-            ),
-            child: Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                if (isUpdating)
-                  const SizedBox(
-                    width: 14,
-                    height: 14,
-                    child: CircularProgressIndicator(
-                      strokeWidth: 2,
-                      color: Color(0xFFDC2626),
-                    ),
-                  )
-                else
-                  const Icon(
-                    Icons.power_settings_new_rounded,
-                    size: 15,
-                    color: Color(0xFFDC2626),
-                  ),
-                const SizedBox(width: 6),
-                const Text(
-                  'Turn OFF',
-                  style: TextStyle(
-                    color: Color(0xFFDC2626),
-                    fontWeight: FontWeight.bold,
-                    fontSize: 12,
-                  ),
-                ),
-              ],
-            ),
-          ),
-        ),
-      );
-    } else {
-      // Button to turn ON curfew
-      return Material(
-        color: Colors.transparent,
-        child: InkWell(
-          onTap: onPressed,
-          borderRadius: BorderRadius.circular(20),
-          child: Container(
-            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
-            decoration: BoxDecoration(
-              gradient: const LinearGradient(
-                colors: [Color(0xFF16A34A), Color(0xFF15803D)],
-              ),
-              borderRadius: BorderRadius.circular(20),
-              boxShadow: [
-                BoxShadow(
-                  color: const Color(0xFF16A34A).withValues(alpha: 0.3),
-                  blurRadius: 6,
-                  offset: const Offset(0, 2),
-                ),
-              ],
-            ),
-            child: Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                if (isUpdating)
-                  const SizedBox(
-                    width: 14,
-                    height: 14,
-                    child: CircularProgressIndicator(
-                      strokeWidth: 2,
-                      color: Colors.white,
-                    ),
-                  )
-                else
-                  const Icon(
-                    Icons.power_settings_new_rounded,
-                    size: 15,
-                    color: Colors.white,
-                  ),
-                const SizedBox(width: 6),
-                const Text(
-                  'Turn ON',
-                  style: TextStyle(
-                    color: Colors.white,
-                    fontWeight: FontWeight.bold,
-                    fontSize: 12,
-                  ),
-                ),
-              ],
-            ),
-          ),
-        ),
-      );
-    }
   }
 }
 

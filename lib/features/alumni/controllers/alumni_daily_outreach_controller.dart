@@ -34,6 +34,9 @@ class AlumniDailyOutreachController extends GetxController {
   final RxString historyError = ''.obs;
   final RxBool historyLoaded = false.obs;
   final RxBool isLeader = false.obs;
+  final RxBool isAdmin = false.obs;
+  final RxString reachabilityFilter = 'all'.obs;
+  final RxSet<int> contactBusyIds = <int>{}.obs;
 
   final RxString currentGroup = 'Param'.obs;
   final RxString adminSelectedGroup = 'Param'.obs;
@@ -64,6 +67,7 @@ class AlumniDailyOutreachController extends GetxController {
     if (Get.isRegistered<SessionStore>()) {
       final session = Get.find<SessionStore>().currentSession;
       isLeader.value = session?.role == UserRole.leader;
+      isAdmin.value = session?.role == UserRole.admin;
     }
     loadDailyOutreach();
   }
@@ -162,12 +166,31 @@ class AlumniDailyOutreachController extends GetxController {
   List<MapEntry<String, List<AlumniOutreachHistoryModel>>> get historyByDay {
     final days = <String, List<AlumniOutreachHistoryModel>>{};
     for (final h in historyList) {
+      if (reachabilityFilter.value != 'all' && h.whatsappReachability != reachabilityFilter.value) continue;
       final day = h.outreachDate.length >= 10 ? h.outreachDate.substring(0, 10) : h.outreachDate;
       days.putIfAbsent(day, () => []).add(h);
     }
     final entries = days.entries.toList()..sort((a, b) => b.key.compareTo(a.key));
     return entries;
   }
+
+  Future<bool> updateContact(AlumniOutreachHistoryModel item, {String? number, String? reachability}) async {
+    if (!isAdmin.value || !contactBusyIds.add(item.studentId)) return false;
+    try {
+      await _repository.updateOutreachContact(item.studentId, whatsappNumber: number, reachability: reachability);
+      await Future.wait([loadHistory(), loadDailyOutreach()]);
+      AppSnackbar.success('Contact Updated', number != null ? '${item.name}\'s WhatsApp number was updated.' : '${item.name}\'s WhatsApp status was updated.');
+      return true;
+    } catch (e) {
+      AppSnackbar.error('Contact Not Updated', _message(e));
+      return false;
+    } finally {
+      contactBusyIds.remove(item.studentId);
+    }
+  }
+
+  Future<List<Map<String, dynamic>>> contactChanges(int studentId) =>
+      _repository.getOutreachContactChanges(studentId);
 
   // ---------------------------------------------------------------- message
 

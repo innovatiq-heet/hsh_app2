@@ -36,7 +36,8 @@ class FakeAlumniRepository extends AlumniRepository {
         totalAlumniInGroup: 135,
         totalMessagedAlumni: 12,
         messageTemplate: 'Jai Swaminarayan {first_name} from {group_name} (room {room})',
-        students: students ??
+        students:
+            students ??
             const [
               AlumniOutreachStudentModel(
                 studentId: 101,
@@ -78,19 +79,49 @@ class FakeAlumniRepository extends AlumniRepository {
   @override
   Future<AlumniDailyOutreachDataModel> skipAndReplaceAlumnus(int studentId) async {
     skipped.add(studentId);
-    return today(students: const [
-      AlumniOutreachStudentModel(studentId: 101, name: 'Alum One', groupName: 'Param', status: 'messaged'),
-      AlumniOutreachStudentModel(studentId: 103, name: 'Alum Three', pastRoom: '103', phone: '9876543212', groupName: 'Param'),
-    ]);
+    return today(
+      students: const [
+        AlumniOutreachStudentModel(studentId: 101, name: 'Alum One', groupName: 'Param', status: 'messaged'),
+        AlumniOutreachStudentModel(
+          studentId: 103,
+          name: 'Alum Three',
+          pastRoom: '103',
+          phone: '9876543212',
+          groupName: 'Param',
+        ),
+      ],
+    );
   }
 
   @override
   Future<List<AlumniOutreachHistoryModel>> getOutreachHistory({String? group, int limit = 100}) async {
     historyCalls++;
     return [
-      AlumniOutreachHistoryModel(id: 1, studentId: 101, name: 'Alum One', pastRoom: '101', outreachDate: _day(0), message: 'Hi', leaderName: 'Ravi'),
-      AlumniOutreachHistoryModel(id: 2, studentId: 90, name: 'Old Friend', pastRoom: '90', outreachDate: _day(1), leaderName: 'Ravi'),
-      AlumniOutreachHistoryModel(id: 3, studentId: 91, name: 'Older Friend', pastRoom: '91', outreachDate: _day(1), leaderName: 'Ravi'),
+      AlumniOutreachHistoryModel(
+        id: 1,
+        studentId: 101,
+        name: 'Alum One',
+        pastRoom: '101',
+        outreachDate: _day(0),
+        message: 'Hi',
+        leaderName: 'Ravi',
+      ),
+      AlumniOutreachHistoryModel(
+        id: 2,
+        studentId: 90,
+        name: 'Old Friend',
+        pastRoom: '90',
+        outreachDate: _day(1),
+        leaderName: 'Ravi',
+      ),
+      AlumniOutreachHistoryModel(
+        id: 3,
+        studentId: 91,
+        name: 'Older Friend',
+        pastRoom: '91',
+        outreachDate: _day(1),
+        leaderName: 'Ravi',
+      ),
     ];
   }
 }
@@ -172,8 +203,10 @@ void main() {
 
     test('nothing is recorded when WhatsApp does not open', () async {
       await signIn('leader');
-      TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
-          .setMockMethodCallHandler(SystemChannels.platform, (_) async => null);
+      TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger.setMockMethodCallHandler(
+        SystemChannels.platform,
+        (_) async => null,
+      );
       final c = Get.put(AlumniDailyOutreachController(repository: repo));
       await until(() => c.outreachData.value != null, reason: 'today');
 
@@ -233,6 +266,38 @@ void main() {
       await tester.pumpAndSettle();
       expect(find.text('Save template'), findsOneWidget);
       expect(find.text('PREVIEW FOR ALUM ONE'), findsOneWidget);
+    });
+
+    testWidgets('history puts contact actions and status filter in reach', (tester) async {
+      await tester.runAsync(() => signIn('admin'));
+      await pumpScreen(tester);
+      await tester.tap(find.text('History'));
+      await tester.pumpAndSettle();
+
+      expect(find.text('Contact history'), findsOneWidget);
+      expect(find.text('Not Reachable'), findsWidgets);
+      expect(find.byTooltip('Edit WhatsApp number'), findsWidgets);
+      expect(find.text('View sent message'), findsOneWidget);
+      expect(find.text('Hi'), findsNothing);
+      await tester.tap(find.text('Not Reachable').first);
+      await tester.pumpAndSettle();
+      expect(find.text('No contacts with this status.'), findsOneWidget);
+    });
+
+    testWidgets('canceling a WhatsApp number edit closes the sheet cleanly', (tester) async {
+      await tester.runAsync(() => signIn('admin'));
+      await pumpScreen(tester);
+      await tester.tap(find.text('History'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.byTooltip('Edit WhatsApp number').first);
+      await tester.pumpAndSettle();
+
+      expect(find.text('Update WhatsApp contact'), findsOneWidget);
+      await tester.tap(find.text('Cancel'));
+      await tester.pumpAndSettle();
+
+      expect(find.text('Update WhatsApp contact'), findsNothing);
+      expect(tester.takeException(), isNull);
     });
 
     testWidgets('mark as done from the menu moves the alumnus to done', (tester) async {

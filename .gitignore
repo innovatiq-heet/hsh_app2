@@ -27,6 +27,9 @@ migrate_working_dir/
 **/doc/api/
 **/ios/Flutter/.last_build_id
 .dart_tool/
+# Local Dart CLI telemetry and analyzer state when APPDATA points at this repo.
+/.dart-tool/
+/.dartServer/
 .flutter-plugins-dependencies
 .pub-cache/
 .pub/

@@ -537,6 +537,7 @@ class AlumniOutreachStudentModel {
   final String studentCode;
   final String phone;
   final String whatsappNumber;
+  final String whatsappReachability;
   final String pastRoom;
   final int? graduationYear;
   final String? currentCompany;
@@ -554,6 +555,7 @@ class AlumniOutreachStudentModel {
     this.studentCode = '',
     this.phone = '',
     this.whatsappNumber = '',
+    this.whatsappReachability = 'not_verified',
     this.pastRoom = 'N/A',
     this.graduationYear,
     this.currentCompany,
@@ -605,6 +607,7 @@ class AlumniOutreachStudentModel {
         studentCode: studentCode,
         phone: phone,
         whatsappNumber: whatsappNumber,
+        whatsappReachability: whatsappReachability,
         pastRoom: pastRoom,
         graduationYear: graduationYear,
         currentCompany: currentCompany,
@@ -624,6 +627,7 @@ class AlumniOutreachStudentModel {
       studentCode: json['studentCode']?.toString() ?? '',
       phone: json['phone']?.toString() ?? '',
       whatsappNumber: json['whatsappNumber']?.toString() ?? '',
+      whatsappReachability: json['whatsappReachability']?.toString() ?? 'not_verified',
       pastRoom: json['pastRoom']?.toString() ?? 'N/A',
       graduationYear: json['graduationYear'] != null ? int.tryParse(json['graduationYear'].toString()) : null,
       currentCompany: json['currentCompany']?.toString(),
@@ -706,6 +710,7 @@ class AlumniOutreachHistoryModel {
   final String studentCode;
   final String phone;
   final String whatsappNumber;
+  final String whatsappReachability;
   final String pastRoom;
   final int? graduationYear;
   final String? currentCompany;
@@ -724,6 +729,7 @@ class AlumniOutreachHistoryModel {
     this.studentCode = '',
     this.phone = '',
     this.whatsappNumber = '',
+    this.whatsappReachability = 'not_verified',
     this.pastRoom = 'N/A',
     this.graduationYear,
     this.currentCompany,
@@ -744,6 +750,7 @@ class AlumniOutreachHistoryModel {
       studentCode: json['studentCode']?.toString() ?? '',
       phone: json['phone']?.toString() ?? '',
       whatsappNumber: json['whatsappNumber']?.toString() ?? '',
+      whatsappReachability: json['whatsappReachability']?.toString() ?? 'not_verified',
       pastRoom: json['pastRoom']?.toString() ?? 'N/A',
       graduationYear: json['graduationYear'] != null ? int.tryParse(json['graduationYear'].toString()) : null,
       currentCompany: json['currentCompany']?.toString(),

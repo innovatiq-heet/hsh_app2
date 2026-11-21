@@ -33,13 +33,11 @@ data class UsageSnapshot(
  * and are notoriously inaccurate on many OEM ROMs.
  */
 object UsageCollector {
-    // UsageEvents.Event constants (literal values so they work below the API
-    // level that introduced the named constants).
-    private const val ACTIVITY_RESUMED = 1
-    private const val ACTIVITY_PAUSED = 2
-    private const val SCREEN_NON_INTERACTIVE = 16
-    private const val KEYGUARD_SHOWN = 17
-    private const val DEVICE_SHUTDOWN = 26
+    private const val ACTIVITY_RESUMED = ForegroundReplay.ACTIVITY_RESUMED
+    private const val ACTIVITY_PAUSED = ForegroundReplay.ACTIVITY_PAUSED
+    private const val SCREEN_NON_INTERACTIVE = ForegroundReplay.SCREEN_NON_INTERACTIVE
+    private const val KEYGUARD_SHOWN = ForegroundReplay.KEYGUARD_SHOWN
+    private const val DEVICE_SHUTDOWN = ForegroundReplay.DEVICE_SHUTDOWN
 
     /** Look back before midnight so an app already open at 00:00 is counted. */
     private const val LOOKBACK_MS = 6 * 60 * 60 * 1000L
@@ -91,17 +89,22 @@ object UsageCollector {
     fun foregroundPackage(context: Context, lookbackMs: Long = 3 * 60 * 60 * 1000L): String? {
         if (!isScreenOn(context) || !hasPermission(context)) return null
         val now = System.currentTimeMillis()
+        return replayForeground(context, now - lookbackMs, now, null)
+    }
+
+    /**
+     * The app in front after applying the usage events in [from, to] to
+     * [foreground], the app in front before them. Returns [foreground]
+     * unchanged when the events can't be read.
+     */
+    fun replayForeground(context: Context, from: Long, to: Long, foreground: String?): String? {
         val usm = context.getSystemService(Context.USAGE_STATS_SERVICE) as UsageStatsManager
-        val events = runCatching { usm.queryEvents(now - lookbackMs, now) }.getOrNull() ?: return null
+        val events = runCatching { usm.queryEvents(from, to) }.getOrNull() ?: return foreground
         val event = UsageEvents.Event()
-        var fg: String? = null
+        var fg = foreground
         while (events.hasNextEvent()) {
             events.getNextEvent(event)
-            when (event.eventType) {
-                ACTIVITY_RESUMED -> fg = event.packageName
-                ACTIVITY_PAUSED -> if (fg == event.packageName) fg = null
-                SCREEN_NON_INTERACTIVE, KEYGUARD_SHOWN, DEVICE_SHUTDOWN -> fg = null
-            }
+            fg = ForegroundReplay.step(fg, event.eventType, event.packageName)
         }
         return fg
     }

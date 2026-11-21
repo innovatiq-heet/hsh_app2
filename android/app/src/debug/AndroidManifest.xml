@@ -4,4 +4,24 @@
          to allow setting breakpoints, to provide hot reload, etc.
     -->
     <uses-permission android:name="android.permission.INTERNET"/>
+    <queries>
+        <package android:name="com.google.android.youtube" />
+    </queries>
+    <application android:testOnly="true">
+        <receiver
+            android:name="com.example.hsh_app2.pilot.ManagedDevicePilotAdmin"
+            android:exported="true"
+            android:permission="android.permission.BIND_DEVICE_ADMIN">
+            <meta-data
+                android:name="android.app.device_admin"
+                android:resource="@xml/managed_device_pilot_admin" />
+            <intent-filter>
+                <action android:name="android.app.action.DEVICE_ADMIN_ENABLED" />
+            </intent-filter>
+        </receiver>
+        <activity
+            android:name="com.example.hsh_app2.pilot.ManagedDevicePilotActivity"
+            android:exported="true"
+            android:permission="android.permission.DUMP" />
+    </application>
 </manifest>

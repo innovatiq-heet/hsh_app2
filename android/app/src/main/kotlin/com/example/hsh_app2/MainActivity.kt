@@ -18,6 +18,7 @@ import com.example.hsh_app2.screentime.PolicyPollService
 import com.example.hsh_app2.screentime.PolicyStore
 import com.example.hsh_app2.screentime.ScreenTimeSync
 import com.example.hsh_app2.screentime.SelfProtection
+import com.example.hsh_app2.screentime.UsageAppBlocker
 import com.example.hsh_app2.screentime.UsageCollector
 import android.Manifest
 import android.content.pm.PackageManager
@@ -90,6 +91,12 @@ class MainActivity : FlutterActivity() {
                     "hasAccessibilityPermission" -> result.success(AppBlockerAccessibilityService.isEnabled(this))
                     "openAccessibilitySettings" -> {
                         openAccessibilitySettings()
+                        result.success(null)
+                    }
+                    // "Display over other apps": lets the block screen open with Accessibility off.
+                    "hasOverlayPermission" -> result.success(UsageAppBlocker.canShowBlockScreen(this))
+                    "openOverlaySettings" -> {
+                        openOverlaySettings()
                         result.success(null)
                     }
                     "isBatteryOptimizationIgnored" -> {
@@ -261,6 +268,14 @@ class MainActivity : FlutterActivity() {
         runCatching {
             startActivity(Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
         }
+    }
+
+    private fun openOverlaySettings() {
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.M) return
+        val direct = Intent(Settings.ACTION_MANAGE_OVERLAY_PERMISSION, Uri.parse("package:$packageName"))
+        if (runCatching { startActivity(direct); true }.getOrDefault(false)) return
+        // Some ROMs have no per-app page; fall back to the list.
+        runCatching { startActivity(Intent(Settings.ACTION_MANAGE_OVERLAY_PERMISSION)) }
     }
 
     /** Returns false when the device offers no way to request the exemption. */

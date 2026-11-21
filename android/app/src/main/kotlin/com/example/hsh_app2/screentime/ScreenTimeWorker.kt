@@ -11,7 +11,7 @@ class ScreenTimeWorker(context: Context, params: WorkerParameters) : Worker(cont
         val ctx = applicationContext
         if (!ScreenTimeSync.isConfigured(ctx)) return Result.success()
         // Watchdog for the real-time policy channel: revive the poller if the OS killed it.
-        PolicyPollService.start(ctx)
+        if (!PolicyPollService.isRunning()) KeepAliveReceiver.restartMonitoring(ctx)
 
         val status = ScreenTimeSync.syncNow(ctx)
         if (status == ScreenTimeSync.STATUS_UNAUTHORIZED || status == ScreenTimeSync.STATUS_NO_SESSION) {

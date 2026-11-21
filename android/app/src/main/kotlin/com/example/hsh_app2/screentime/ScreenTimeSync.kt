@@ -75,6 +75,7 @@ object ScreenTimeSync {
         val wm = WorkManager.getInstance(context)
         wm.cancelUniqueWork(TICK_WORK)
         wm.cancelUniqueWork(WATCHDOG_WORK)
+        KeepAliveReceiver.cancel(context)
         PolicyStore.clearSession(context)
         // A logged-out phone must not keep enforcing the previous student's rules,
         // nor hand their queued breaches / gate pass to the next login.
@@ -324,9 +325,20 @@ object ScreenTimeSync {
         val lm = context.getSystemService(Context.LOCATION_SERVICE) as? LocationManager
         val locationEnabled = lm?.let { LocationManagerCompat.isLocationEnabled(it) } ?: false
         val battery = getBatteryInfo(context)
+        val accessibility = AppBlockerAccessibilityService.isEnabled(context)
+        // Which blocker can stop restricted apps: the accessibility service, or
+        // UsageAppBlocker (Usage access + "Display over other apps") while it is off.
+        val appBlocker = when {
+            accessibility -> "accessibility"
+            UsageAppBlocker.isReady(context) -> "usage_events"
+            else -> "off"
+        }
         return JSONObject()
             .put("usageAccess", UsageCollector.hasPermission(context))
-            .put("accessibilityEnabled", AppBlockerAccessibilityService.isEnabled(context))
+            .put("accessibilityEnabled", accessibility)
+            .put("overlayPermission", UsageAppBlocker.canShowBlockScreen(context))
+            .put("appBlocker", appBlocker)
+            .put("appBlockerActive", appBlocker != "off")
             .put("batteryOptimizationIgnored", pm.isIgnoringBatteryOptimizations(context.packageName))
             .put("backgroundDataRestricted", bgDataRestricted)
             .put("policyVersion", policy.version)

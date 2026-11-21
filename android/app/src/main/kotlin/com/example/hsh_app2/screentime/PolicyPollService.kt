@@ -44,6 +44,9 @@ import java.util.concurrent.TimeUnit
  * Every applied change notifies [PolicyStore] listeners, which is what makes
  * [AppBlockerAccessibilityService] re-check the app currently on screen.
  *
+ * The service also runs [UsageAppBlocker], which blocks apps from usage
+ * events while the accessibility service is off.
+ *
  * A separate tick handles the curfew geofence and re-checks the foreground
  * app for time-based rules (bedtime start, daily limit reached mid-use).
  *
@@ -79,12 +82,18 @@ class PolicyPollService : Service() {
 
         fun isRunning(): Boolean = instance != null
 
-        fun start(context: Context) {
-            if (!PolicyStore.hasSession(context)) return
-            try {
+        /**
+         * False when there is no session, or Android refused to start a foreground
+         * service from the background (Android 12+ without battery exemption).
+         */
+        fun start(context: Context): Boolean {
+            if (!PolicyStore.hasSession(context)) return false
+            return try {
                 ContextCompat.startForegroundService(context, Intent(context, PolicyPollService::class.java))
+                true
             } catch (e: Exception) {
                 Log.w(TAG, "start failed: ${e.message}")
+                false
             }
         }
 
@@ -96,6 +105,11 @@ class PolicyPollService : Service() {
         fun requestRefresh(context: Context) {
             instance?.wakeSync() ?: start(context)
         }
+
+        /** The accessibility service stopped: let [UsageAppBlocker] check the app on screen now. */
+        fun resumeUsageBlocker() {
+            instance?.usageBlocker?.resume()
+        }
     }
 
     private val handler = Handler(Looper.getMainLooper())
@@ -106,13 +120,21 @@ class PolicyPollService : Service() {
     @Volatile private var running = false
     @Volatile private var geoPolicyFetchedAt = 0L
     @Volatile private var retryMs = RETRY_MIN_MS
+    @Volatile private var usageBlocker: UsageAppBlocker? = null
 
     private val screenOnReceiver = object : BroadcastReceiver() {
         override fun onReceive(context: Context, intent: Intent) {
             // Leave the idle interval at once and resume the real-time channel.
             wakeSync()
-            AppBlockerAccessibilityService.recheckForeground()
+            recheckForeground()
+            restartKeepAlive() // back to the fast re-arm
         }
+    }
+
+    /** Re-checks the app on screen with whichever blocker is enforcing. */
+    private fun recheckForeground() {
+        AppBlockerAccessibilityService.recheckForeground()
+        usageBlocker?.resume()
     }
 
     private val networkCallback = object : ConnectivityManager.NetworkCallback() {
@@ -159,10 +181,29 @@ class PolicyPollService : Service() {
             }
             // Time-based rules (bedtime starting, daily limit reached) can begin
             // while an app is already open; there is no window event for that.
-            AppBlockerAccessibilityService.recheckForeground()
+            recheckForeground()
             val pm = getSystemService(Context.POWER_SERVICE) as PowerManager
             handler.postDelayed(this, if (pm.isInteractive) POLL_ACTIVE_MS else TICK_IDLE_MS)
         }
+    }
+
+    /**
+     * Keeps pushing back [KeepAliveReceiver]'s alarm, so it fires only once this
+     * process is gone (e.g. Stop in the Active apps panel) and then restarts the
+     * service. Every 2 s with the screen on, every tick with it off.
+     */
+    private val keepAliveRunnable = object : Runnable {
+        override fun run() {
+            if (!running) return
+            val screenOn = (getSystemService(Context.POWER_SERVICE) as PowerManager).isInteractive
+            KeepAliveReceiver.schedule(this@PolicyPollService, screenOn)
+            handler.postDelayed(this, if (screenOn) KeepAliveReceiver.RE_ARM_SCREEN_ON_MS else TICK_IDLE_MS)
+        }
+    }
+
+    private fun restartKeepAlive() {
+        handler.removeCallbacks(keepAliveRunnable)
+        handler.post(keepAliveRunnable)
     }
 
     override fun onBind(intent: Intent?): IBinder? = null
@@ -201,7 +242,9 @@ class PolicyPollService : Service() {
                 this, screenOnReceiver, IntentFilter(Intent.ACTION_SCREEN_ON), ContextCompat.RECEIVER_NOT_EXPORTED,
             )
             handler.post(pollRunnable)
+            handler.post(keepAliveRunnable)
             syncExecutor.execute { syncLoop() }
+            usageBlocker = UsageAppBlocker(applicationContext).also { it.start() }
             Log.d(TAG, "started")
         } else {
             wakeSync()
@@ -215,6 +258,9 @@ class PolicyPollService : Service() {
         unregisterNetworkCallback()
         runCatching { unregisterReceiver(screenOnReceiver) }
         handler.removeCallbacks(pollRunnable)
+        handler.removeCallbacks(keepAliveRunnable)
+        usageBlocker?.shutdown()
+        usageBlocker = null
         executor.shutdownNow()
         syncExecutor.shutdownNow() // interrupts the loop's sleep / in-flight wait
         super.onDestroy()

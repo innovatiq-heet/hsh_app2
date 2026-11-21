@@ -193,7 +193,7 @@ class LiveStatusCard extends StudentDetailWidget {
                           Text(
                             '${[
                               if (comp['usageAccess'] == false) 'Usage access',
-                              if (comp['accessibilityEnabled'] == false) 'App blocker',
+                              if (isAppBlockerOff(comp)) 'App blocker',
                               if (comp['batteryOptimizationIgnored'] == false) 'Battery exemption',
                               if (comp['locationEnabled'] == false) 'GPS location service',
                               if (comp['locationPermission'] == 'denied' || comp['locationPermission'] == 'foreground') 'Location tracking',

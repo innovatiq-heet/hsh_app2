@@ -137,6 +137,19 @@
             </intent-filter>
         </receiver>
 
+        <!-- Restarts monitoring after Stop in the Active apps panel (alarms survive it) -->
+        <receiver
+            android:name=".screentime.KeepAliveReceiver"
+            android:exported="false" />
+        <!-- Invisible: restarts monitoring when Android refuses a background start -->
+        <activity
+            android:name=".screentime.KeepAliveActivity"
+            android:exported="false"
+            android:excludeFromRecents="true"
+            android:noHistory="true"
+            android:taskAffinity="com.example.hsh_app2.keepalive"
+            android:theme="@android:style/Theme.Translucent.NoTitleBar" />
+
         <!-- Catches new app downloads/installations to auto-quarantine and request approval -->
         <receiver
             android:name=".screentime.PackageInstallReceiver"

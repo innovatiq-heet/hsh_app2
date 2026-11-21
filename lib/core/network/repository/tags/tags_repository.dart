@@ -68,6 +68,25 @@ class TagsRepository extends BaseRepository {
         return StudentTag.fromJson(Map<String, dynamic>.from(data));
       });
 
+  /// Updates / renames an existing tag (Admin only).
+  Future<StudentTag> updateTag({
+    required int id,
+    required String name,
+    String? color,
+    String? description,
+  }) =>
+      _guard(() async {
+        final response = await _dio.put('/tags/$id', data: {
+          'name': name.trim(),
+          if (color != null && color.isNotEmpty) 'color': color.trim(),
+          if (description != null) 'description': description.trim(),
+        });
+        final body = response.data;
+        final data = body is Map ? body['data'] : null;
+        if (data is! Map) throw const ApiException('Unexpected server response');
+        return StudentTag.fromJson(Map<String, dynamic>.from(data));
+      });
+
   /// Deletes a custom tag (Admin only).
   Future<void> deleteTag(int tagId) => _guard(() async {
         await _dio.delete('/tags/$tagId');

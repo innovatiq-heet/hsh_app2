@@ -154,4 +154,66 @@ void main() {
     expect(ManageUsersController.validateName('x' * 101), isNotNull);
     expect(ManageUsersController.validateName('  '), isNotNull);
   });
+
+  test('updateTag renames and updates tag in controller.tags list', () async {
+    api.on('GET /staff-users', {'data': []});
+    api.on('GET /complaint-categories', {'data': []});
+    api.on('GET /tags', {
+      'data': [
+        {'id': 12, 'name': 'Hostel Committee', 'color': '#10b981', 'is_system': 0, 'student_count': 14},
+      ],
+    });
+    api.on('PUT /tags/12', {
+      'success': true,
+      'data': {
+        'id': 12,
+        'name': 'Hostel Management',
+        'color': '#8b5cf6',
+        'is_system': 0,
+        'description': 'Updated description',
+        'student_count': 14,
+      },
+    });
+
+    final c = ManageUsersController();
+    await c.loadTags();
+    expect(c.tags, hasLength(1));
+    expect(c.tags.first.name, 'Hostel Committee');
+
+    final success = await c.updateTag(
+      id: 12,
+      name: 'Hostel Management',
+      color: '#8b5cf6',
+      description: 'Updated description',
+    );
+
+    expect(success, isTrue);
+    expect(c.tags.first.name, 'Hostel Management');
+    expect(c.tags.first.colorHex, '#8b5cf6');
+    expect(c.tags.first.description, 'Updated description');
+  });
+
+  test('updateTag returns false on API error', () async {
+    api.on('GET /tags', {
+      'data': [
+        {'id': 12, 'name': 'Hostel Committee', 'color': '#10b981', 'is_system': 0},
+      ],
+    });
+    api.on('PUT /tags/12', {
+      'success': false,
+      'message': 'A tag with this name already exists',
+    }, status: 400);
+
+    final c = ManageUsersController();
+    await c.loadTags();
+
+    final success = await c.updateTag(
+      id: 12,
+      name: 'Duplicate Tag',
+      color: '#10b981',
+    );
+
+    expect(success, isFalse);
+    expect(c.tags.first.name, 'Hostel Committee');
+  });
 }

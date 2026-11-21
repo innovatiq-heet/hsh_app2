@@ -104,6 +104,34 @@ class ManageUsersController extends GetxController with LoadStateMixin {
     }
   }
 
+  Future<bool> updateTag({
+    required int id,
+    required String name,
+    required String color,
+    String? description,
+  }) async {
+    try {
+      final updated = await _tagsRepo.updateTag(
+        id: id,
+        name: name,
+        color: color,
+        description: description,
+      );
+      final idx = tags.indexWhere((t) => t.id == id);
+      if (idx != -1) {
+        tags[idx] = updated;
+      }
+      AppSnackbar.success('Tag Updated', 'Tag "${updated.name}" updated successfully.');
+      return true;
+    } on ApiException catch (e) {
+      AppSnackbar.error('Update Failed', e.message);
+      return false;
+    } catch (_) {
+      AppSnackbar.error('Update Failed', 'Something went wrong, try again.');
+      return false;
+    }
+  }
+
   Future<void> deleteTag(StudentTag tag) async {
     if (tag.isSystem) {
       AppSnackbar.warning('System Tag', 'System tags cannot be deleted.');

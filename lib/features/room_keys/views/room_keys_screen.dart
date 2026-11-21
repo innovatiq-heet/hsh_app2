@@ -4,6 +4,7 @@ import 'package:get/get.dart';
 import '../../../core/constants/app_routes.dart';
 import '../../../core/models/room_keys/room_key_models.dart';
 import '../../shared/widgets/empty_state.dart';
+import '../../shared/widgets/student_contact_card.dart';
 import '../controllers/room_keys_controller.dart';
 
 /// Operator → Room Keys: every room with its door and cupboard key numbers,
@@ -82,6 +83,7 @@ class RoomKeysScreen extends GetView<RoomKeysController> {
             padding: const EdgeInsets.fromLTRB(20, 14, 20, 20),
             child: Obx(() {
               final floors = controller.availableFloors;
+              final groups = controller.availableGroups;
               final activeCount = controller.activeFilterCount;
               return Column(
                 mainAxisSize: MainAxisSize.min,
@@ -122,7 +124,7 @@ class RoomKeysScreen extends GetView<RoomKeysController> {
                               ),
                             ),
                             Text(
-                              'Refine by key status and hostel floor',
+                              'Refine by key status, group and hostel floor',
                               style: TextStyle(fontSize: 11.5, color: _muted),
                             ),
                           ],
@@ -175,6 +177,24 @@ class RoomKeysScreen extends GetView<RoomKeysController> {
                       ),
                     ],
                   ),
+                  if (groups.length > 1) ...[
+                    const SizedBox(height: 20),
+                    _sheetSectionHeader('WING / GROUP', Icons.apartment_rounded),
+                    const SizedBox(height: 10),
+                    Wrap(
+                      spacing: 8,
+                      runSpacing: 8,
+                      children: [
+                        for (final g in groups)
+                          _sheetChip(
+                            label: g == 'All' ? 'All groups' : g,
+                            selected: controller.selectedGroup.value == g,
+                            color: g == 'All' ? _blue : StudentContactCard.groupColor(g),
+                            onTap: () => controller.selectedGroup.value = g,
+                          ),
+                      ],
+                    ),
+                  ],
                   if (floors.length > 1) ...[
                     const SizedBox(height: 20),
                     _sheetSectionHeader('HOSTEL FLOOR', Icons.layers_rounded),
@@ -187,7 +207,7 @@ class RoomKeysScreen extends GetView<RoomKeysController> {
                           _sheetChip(
                             label: f,
                             selected: controller.selectedFloor.value == f,
-                            color: _blue,
+                            color: _floorColor(f),
                             onTap: () => controller.selectedFloor.value = f,
                           ),
                       ],
@@ -236,27 +256,52 @@ class RoomKeysScreen extends GetView<RoomKeysController> {
     ],
   );
 
+  /// Floors: ground in teal, real floors in blue, the common rooms in purple.
+  static Color _floorColor(String floor) {
+    if (floor == 'Ground') return const Color(0xFF0D9488);
+    if (floor == RoomKeysController.commonRoomsLabel) return const Color(0xFF9333EA);
+    return _blue;
+  }
+
+  /// A filter chip in its own colour: soft tint with a coloured label, and
+  /// solid with white text when chosen.
   static Widget _sheetChip({
     required String label,
     required bool selected,
     required Color color,
     required VoidCallback onTap,
-  }) => FilterChip(
-    label: Text(label),
-    selected: selected,
-    selectedColor: color,
-    checkmarkColor: Colors.white,
-    labelStyle: TextStyle(
-      color: selected ? Colors.white : const Color(0xFF334155),
-      fontWeight: selected ? FontWeight.w700 : FontWeight.w600,
-      fontSize: 12.5,
-    ),
-    backgroundColor: const Color(0xFFF1F5F9),
-    shape: RoundedRectangleBorder(
+  }) => Material(
+    color: Colors.transparent,
+    child: InkWell(
       borderRadius: BorderRadius.circular(12),
-      side: BorderSide(color: selected ? color : _border),
+      onTap: onTap,
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 160),
+        padding: const EdgeInsets.symmetric(horizontal: 13, vertical: 8),
+        decoration: BoxDecoration(
+          color: selected ? color : color.withValues(alpha: 0.08),
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(color: selected ? color : color.withValues(alpha: 0.28)),
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            if (selected) ...[
+              const Icon(Icons.check_rounded, size: 15, color: Colors.white),
+              const SizedBox(width: 5),
+            ],
+            Text(
+              label,
+              style: TextStyle(
+                color: selected ? Colors.white : color,
+                fontWeight: selected ? FontWeight.w700 : FontWeight.w600,
+                fontSize: 12.5,
+              ),
+            ),
+          ],
+        ),
+      ),
     ),
-    onSelected: (_) => onTap(),
   );
 
   @override
@@ -488,6 +533,31 @@ class RoomKeysScreen extends GetView<RoomKeysController> {
                         }),
                       ),
 
+                      // Group pills, as on the Phonebook
+                      Obx(() {
+                        final groups = controller.availableGroups;
+                        if (groups.length < 2) return const SizedBox.shrink();
+                        return Padding(
+                          padding: const EdgeInsets.only(top: 10),
+                          child: SingleChildScrollView(
+                            scrollDirection: Axis.horizontal,
+                            physics: const BouncingScrollPhysics(),
+                            child: Row(
+                              children: [
+                                for (final g in groups)
+                                  _FilterPillTab(
+                                    label: g == 'All' ? 'All groups' : g,
+                                    icon: g == 'All' ? Icons.apartment_rounded : null,
+                                    selected: controller.selectedGroup.value == g,
+                                    color: g == 'All' ? _blue : StudentContactCard.groupColor(g),
+                                    onTap: () => controller.selectedGroup.value = g,
+                                  ),
+                              ],
+                            ),
+                          ),
+                        );
+                      }),
+
                       // Active floor chip when narrowed via Filter sheet
                       Obx(() {
                         final floor = controller.selectedFloor.value;
@@ -602,6 +672,7 @@ class RoomKeysScreen extends GetView<RoomKeysController> {
                   );
                 }
                 final rooms = controller.visibleRooms;
+                controller.roomGroups.length; // rebuild when the groups arrive
                 if (rooms.isEmpty) {
                   final none = controller.rooms.isEmpty;
                   final hasFilters =
@@ -638,6 +709,7 @@ class RoomKeysScreen extends GetView<RoomKeysController> {
                     separatorBuilder: (_, _) => const SizedBox(height: 10),
                     itemBuilder: (_, i) => _RoomCard(
                       room: rooms[i],
+                      group: controller.groupOfRoom(rooms[i].number),
                       onTap: () => _openRoom(rooms[i].number),
                     ),
                   ),
@@ -773,10 +845,10 @@ class _FilterPillTab extends StatelessWidget {
             duration: const Duration(milliseconds: 200),
             padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 7.5),
             decoration: BoxDecoration(
-              color: selected ? color : Colors.white,
+              color: selected ? color : color.withValues(alpha: 0.07),
               borderRadius: BorderRadius.circular(20),
               border: Border.all(
-                color: selected ? color : const Color(0xFFE2E8F0),
+                color: selected ? color : color.withValues(alpha: 0.28),
                 width: 1,
               ),
               boxShadow: selected
@@ -803,7 +875,7 @@ class _FilterPillTab extends StatelessWidget {
                 Text(
                   label,
                   style: TextStyle(
-                    color: selected ? Colors.white : const Color(0xFF475569),
+                    color: selected ? Colors.white : color,
                     fontSize: 13,
                     fontWeight: selected ? FontWeight.w700 : FontWeight.w600,
                   ),
@@ -819,39 +891,24 @@ class _FilterPillTab extends StatelessWidget {
 
 class _RoomCard extends StatelessWidget {
   final KeyRoom room;
+
+  /// The room's group (Param, Pavitra, ...) when the phonebook knows it.
+  final String? group;
   final VoidCallback onTap;
 
-  const _RoomCard({required this.room, required this.onTap});
+  const _RoomCard({required this.room, required this.onTap, this.group});
+
+  /// The card's colour says how the room stands: red when keys need checking,
+  /// amber when keys are missing, green when it is complete.
+  Color get _accent {
+    if (room.attentionCount > 0) return const Color(0xFFDC2626);
+    if (room.missingKeys) return const Color(0xFFD97706);
+    return const Color(0xFF059669);
+  }
 
   @override
   Widget build(BuildContext context) {
-    final students = room.students.length;
-    final withCupboard = students - room.studentsWithoutCupboard.length;
-    final door = room.doorNumber;
-    String cupboardSummary;
-    final hasA = room.cupboardA != null;
-    final hasB = room.cupboardB != null;
-    if (students == 2 && (hasA || hasB)) {
-      if (hasA && hasB) {
-        cupboardSummary = 'Cupboards A & B';
-      } else if (hasA) {
-        cupboardSummary = 'Cupboard A (B missing)';
-      } else {
-        cupboardSummary = 'Cupboard B (A missing)';
-      }
-    } else if (students > 0) {
-      cupboardSummary = 'Cupboards $withCupboard/$students';
-    } else if (room.cupboardKeys.isNotEmpty) {
-      cupboardSummary = '${room.cupboardKeys.length} cupboard ${room.cupboardKeys.length == 1 ? 'key' : 'keys'}';
-    } else {
-      cupboardSummary = 'No cupboards';
-    }
-
-    final lines = <String>[
-      '$students ${students == 1 ? 'student' : 'students'}',
-      door == null ? 'No door key' : 'Door $door (${room.doorKeys.length})',
-      cupboardSummary,
-    ];
+    final accent = _accent;
     final warnings = <(String, Color, Color)>[
       if (!room.hasDoorKey) ('No door key', const Color(0xFFD97706), const Color(0xFFFEF3C7)),
       if (room.studentsWithoutCupboard.isNotEmpty)
@@ -863,101 +920,114 @@ class _RoomCard extends StatelessWidget {
       if (room.attentionCount > 0)
         ('${room.attentionCount} to check', const Color(0xFFDC2626), const Color(0xFFFEF2F2)),
     ];
+    final groupColor = group == null ? null : StudentContactCard.groupColor(group);
 
-    return Material(
-      color: Colors.white,
-      borderRadius: BorderRadius.circular(16),
-      child: InkWell(
-        onTap: onTap,
+    return Container(
+      decoration: BoxDecoration(
+        color: Colors.white,
         borderRadius: BorderRadius.circular(16),
-        child: Container(
-          padding: const EdgeInsets.all(14),
-          decoration: BoxDecoration(
-            borderRadius: BorderRadius.circular(16),
-            border: Border.all(color: const Color(0xFFE2E8F0)),
-            boxShadow: [
-              BoxShadow(
-                color: const Color(0xFF0F172A).withValues(alpha: 0.04),
-                blurRadius: 12,
-                offset: const Offset(0, 3),
-              ),
-            ],
+        border: Border.all(color: accent.withValues(alpha: 0.3)),
+        boxShadow: [
+          BoxShadow(
+            color: accent.withValues(alpha: 0.08),
+            blurRadius: 12,
+            offset: const Offset(0, 3),
           ),
-          child: Row(
+        ],
+      ),
+      clipBehavior: Clip.antiAlias,
+      child: Material(
+        color: Colors.transparent,
+        child: InkWell(
+          onTap: onTap,
+          child: Stack(
             children: [
-              Container(
-                constraints: const BoxConstraints(minWidth: 54),
-                height: 54,
-                padding: const EdgeInsets.symmetric(horizontal: 8),
-                alignment: Alignment.center,
-                decoration: BoxDecoration(
-                  color: const Color(0xFFE0F2FE),
-                  borderRadius: BorderRadius.circular(14),
-                  border: Border.all(color: const Color(0xFF0284C7).withValues(alpha: 0.2)),
-                ),
-                child: Text(
-                  room.number,
-                  style: const TextStyle(
-                    color: Color(0xFF0284C7),
-                    fontSize: 16,
-                    fontWeight: FontWeight.w800,
-                    letterSpacing: -0.3,
-                  ),
+              // Soft corner wave, as on the Phonebook cards.
+              Positioned(
+                bottom: 0,
+                right: 0,
+                child: CustomPaint(
+                  size: const Size(96, 64),
+                  painter: CornerWavePainter(color: accent.withValues(alpha: 0.13)),
                 ),
               ),
-              const SizedBox(width: 12),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
+              Padding(
+                padding: const EdgeInsets.fromLTRB(14, 14, 10, 14),
+                child: Row(
                   children: [
-                    Text(
-                      'Room ${room.number}',
-                      style: const TextStyle(
-                        fontSize: 15.5,
-                        fontWeight: FontWeight.w800,
-                        color: Color(0xFF0F172A),
-                        letterSpacing: -0.2,
-                      ),
-                    ),
-                    const SizedBox(height: 3),
-                    Text(
-                      lines.join(' · '),
-                      style: const TextStyle(
-                        fontSize: 12.5,
-                        fontWeight: FontWeight.w500,
-                        color: Color(0xFF64748B),
-                      ),
-                    ),
-                    if (warnings.isNotEmpty) ...[
-                      const SizedBox(height: 7),
-                      Wrap(
-                        spacing: 6,
-                        runSpacing: 4,
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          for (final (text, fg, bg) in warnings)
-                            Container(
-                              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-                              decoration: BoxDecoration(
-                                color: bg,
-                                borderRadius: BorderRadius.circular(999),
-                                border: Border.all(color: fg.withValues(alpha: 0.25)),
-                              ),
-                              child: Text(
-                                text,
-                                style: TextStyle(
-                                  fontSize: 11,
-                                  color: fg,
-                                  fontWeight: FontWeight.w700,
+                          Row(
+                            children: [
+                              Flexible(
+                                child: Text(
+                                  'Room ${room.number}',
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                  style: TextStyle(
+                                    fontSize: 16,
+                                    fontWeight: FontWeight.w800,
+                                    color: accent,
+                                    letterSpacing: -0.2,
+                                  ),
                                 ),
                               ),
+                              if (groupColor != null) ...[
+                                const SizedBox(width: 8),
+                                Container(
+                                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2.5),
+                                  decoration: BoxDecoration(
+                                    color: groupColor.withValues(alpha: 0.12),
+                                    borderRadius: BorderRadius.circular(999),
+                                    border: Border.all(color: groupColor.withValues(alpha: 0.3)),
+                                  ),
+                                  child: Text(
+                                    group!,
+                                    style: TextStyle(
+                                      fontSize: 10.5,
+                                      fontWeight: FontWeight.w800,
+                                      color: groupColor,
+                                    ),
+                                  ),
+                                ),
+                              ],
+                            ],
+                          ),
+                          if (warnings.isNotEmpty) ...[
+                            const SizedBox(height: 8),
+                            Wrap(
+                              spacing: 6,
+                              runSpacing: 4,
+                              children: [
+                                for (final (text, fg, bg) in warnings)
+                                  Container(
+                                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                                    decoration: BoxDecoration(
+                                      color: bg,
+                                      borderRadius: BorderRadius.circular(999),
+                                      border: Border.all(color: fg.withValues(alpha: 0.25)),
+                                    ),
+                                    child: Text(
+                                      text,
+                                      style: TextStyle(
+                                        fontSize: 11,
+                                        color: fg,
+                                        fontWeight: FontWeight.w700,
+                                      ),
+                                    ),
+                                  ),
+                              ],
                             ),
+                          ],
                         ],
                       ),
-                    ],
+                    ),
+                    Icon(Icons.chevron_right_rounded, color: accent.withValues(alpha: 0.7)),
                   ],
                 ),
               ),
-              const Icon(Icons.chevron_right_rounded, color: Color(0xFF94A3B8)),
             ],
           ),
         ),

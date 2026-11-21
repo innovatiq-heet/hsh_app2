@@ -124,17 +124,12 @@ class RoomKey {
     updatedBy: _text(j['updated_by'] ?? j['updatedBy']),
   );
 
-  /// Cupboard slot letter ('A' or 'B') if labeled as such, else null.
+  static final _slotLabel = RegExp(r'^(?:CUPBOARD[\s-]*)?([A-G])(?![A-Z0-9])');
+
+  /// Cupboard slot letter ('A' to 'G') if labeled as such, else null.
   String? get cupboardSlot {
     if (type != KeyType.cupboard || label == null) return null;
-    final l = label!.trim().toUpperCase();
-    if (l == 'A' || l == 'CUPBOARD A' || l.startsWith('CUPBOARD A') || l.startsWith('CUPBOARD-A') || l == 'CUPBOARD-A') {
-      return 'A';
-    }
-    if (l == 'B' || l == 'CUPBOARD B' || l.startsWith('CUPBOARD B') || l.startsWith('CUPBOARD-B') || l == 'CUPBOARD-B') {
-      return 'B';
-    }
-    return null;
+    return _slotLabel.firstMatch(label!.trim().toUpperCase())?.group(1);
   }
 
   /// "Door 204" / "Cupboard 1123" / "Cupboard A · Key 1123".
@@ -274,3 +269,7 @@ class RoomKeyLog {
     }
   }
 }
+
+/// Cupboard slot letters. Two-student rooms use A and B; common rooms hold up
+/// to seven students, so they go on to G.
+const cupboardSlotLetters = ['A', 'B', 'C', 'D', 'E', 'F', 'G'];

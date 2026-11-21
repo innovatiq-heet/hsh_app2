@@ -801,6 +801,17 @@ class _OperatorHomeDashboard extends StatelessWidget {
         adminOnly: true,
       ),
       _OperatorAction(
+        title: 'Student Tags',
+        subtitle: 'Roles & labels for\nstudents',
+        icon: Icons.label_rounded,
+        iconColor: Color(0xFF9333EA),
+        bgTint: Color(0xFFF3E8FF),
+        arrowBgTint: Color(0xFFFAF5FF),
+        waveColor: Color(0xFFE9D5FF),
+        route: Routes.operatorStudentTags,
+        adminOnly: true,
+      ),
+      _OperatorAction(
         title: 'Broadcast',
         subtitle: 'Message students by\ntag or by name',
         icon: Icons.campaign_rounded,

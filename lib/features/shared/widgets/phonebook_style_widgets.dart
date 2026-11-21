@@ -708,3 +708,94 @@ class PhonebookSectionHeader extends StatelessWidget {
     );
   }
 }
+
+/// Outlined text field look used on Phonebook-styled forms: pale fill, slate
+/// border, blue focus ring. Pass it to [TextField.decoration].
+InputDecoration phonebookInputDecoration({
+  String? label,
+  String? hint,
+  Widget? prefixIcon,
+  Widget? suffixIcon,
+  bool alignLabelWithHint = false,
+  EdgeInsetsGeometry? contentPadding,
+}) {
+  OutlineInputBorder border(Color color, [double width = 1]) => OutlineInputBorder(
+        borderRadius: BorderRadius.circular(14),
+        borderSide: BorderSide(color: color, width: width),
+      );
+  return InputDecoration(
+    labelText: label,
+    hintText: hint,
+    alignLabelWithHint: alignLabelWithHint,
+    prefixIcon: prefixIcon,
+    suffixIcon: suffixIcon,
+    contentPadding: contentPadding,
+    filled: true,
+    fillColor: PhonebookTheme.bg,
+    labelStyle: const TextStyle(color: PhonebookTheme.muted),
+    floatingLabelStyle: const TextStyle(color: PhonebookTheme.blue, fontWeight: FontWeight.w600),
+    hintStyle: TextStyle(color: PhonebookTheme.muted.withValues(alpha: 0.7)),
+    counterStyle: const TextStyle(color: PhonebookTheme.muted, fontSize: 11),
+    border: border(PhonebookTheme.border),
+    enabledBorder: border(PhonebookTheme.border),
+    focusedBorder: border(PhonebookTheme.blue, 1.6),
+  );
+}
+
+/// A choice chip in its own colour: soft tint with a coloured label, solid
+/// with white text and a tick when chosen.
+class PhonebookTintChip extends StatelessWidget {
+  final String label;
+  final bool selected;
+  final Color color;
+  final IconData? icon;
+  final VoidCallback onTap;
+
+  const PhonebookTintChip({
+    super.key,
+    required this.label,
+    required this.selected,
+    required this.onTap,
+    this.color = PhonebookTheme.blue,
+    this.icon,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        borderRadius: BorderRadius.circular(12),
+        onTap: onTap,
+        child: AnimatedContainer(
+          duration: const Duration(milliseconds: 160),
+          padding: const EdgeInsets.symmetric(horizontal: 13, vertical: 8),
+          decoration: BoxDecoration(
+            color: selected ? color : color.withValues(alpha: 0.08),
+            borderRadius: BorderRadius.circular(12),
+            border: Border.all(color: selected ? color : color.withValues(alpha: 0.28)),
+          ),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              if (selected || icon != null) ...[
+                Icon(selected ? Icons.check_rounded : icon, size: 15, color: selected ? Colors.white : color),
+                const SizedBox(width: 5),
+              ],
+              Flexible(
+                child: Text(
+                  label,
+                  style: TextStyle(
+                    color: selected ? Colors.white : color,
+                    fontWeight: selected ? FontWeight.w700 : FontWeight.w600,
+                    fontSize: 12.5,
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}

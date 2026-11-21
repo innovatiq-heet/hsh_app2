@@ -5,6 +5,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:get/get.dart';
 import 'package:hsh_app2/core/constants/app_routes.dart';
 import 'package:hsh_app2/core/models/room_keys/room_key_models.dart';
+import 'package:hsh_app2/core/models/students/pickable_student.dart';
 import 'package:hsh_app2/core/network/repository/room_keys/room_keys_repository.dart';
 import 'package:hsh_app2/core/network/repository/tags/tags_repository.dart';
 import 'package:hsh_app2/core/storage/session_store.dart';
@@ -321,6 +322,84 @@ void main() {
       expect(c.keys, hasLength(4));
     });
 
+    test('common rooms give each student their own cupboard letter, A to G', () {
+      PickableStudent student(int id) => PickableStudent(id: id, name: 'Student $id', room: '3000');
+      final five = [for (var i = 1; i <= 5; i++) student(i)];
+      final room = KeyRoom(number: '3000', students: five, keys: const []);
+
+      expect(room.slotLetters, cupboardSlotLetters);
+      expect([for (final s in five) room.expectedCupboardSlot(s)], ['A', 'B', 'C', 'D', 'E']);
+
+      // Student 2 already holds C: they keep it, and student 3 moves on.
+      final held = RoomKey.fromJson({
+        'id': 1, 'room_number': '3000', 'key_type': 'cupboard', 'key_number': '77', 'label': 'Cupboard C',
+        'status': 'assigned', 'student_id': 2, 'student_name': 'Student 2', 'student_room': '3000',
+      });
+      final withHeld = KeyRoom(number: '3000', students: five, keys: [held]);
+      expect(withHeld.expectedCupboardSlot(five[1]), 'C');
+      expect(withHeld.expectedCupboardSlot(five[2]), isNot('C'));
+      expect({for (final s in five) withHeld.expectedCupboardSlot(s)}.length, 5, reason: 'no letter is given twice');
+    });
+
+    test('an ordinary two-student room still uses only A and B', () {
+      final two = [
+        const PickableStudent(id: 1, name: 'One', room: '204'),
+        const PickableStudent(id: 2, name: 'Two', room: '204'),
+      ];
+      final room = KeyRoom(number: '204', students: two, keys: const []);
+      expect(room.slotLetters, ['A', 'B']);
+      expect([for (final s in two) room.expectedCupboardSlot(s)], ['A', 'B']);
+    });
+
+    test('cupboard letters C to G are read from the label', () {
+      RoomKey key(String label) => RoomKey.fromJson({
+        'id': 1, 'room_number': '3000', 'key_type': 'cupboard', 'key_number': '1', 'label': label,
+      });
+      for (final l in ['C', 'D', 'E', 'F', 'G']) {
+        expect(key('Cupboard $l').cupboardSlot, l);
+        expect(key(l.toLowerCase()).cupboardSlot, l);
+      }
+      expect(key('Cupboard H').cupboardSlot, isNull);
+      expect(key('Main cupboard').cupboardSlot, isNull);
+    });
+
+    test('rooms on unusual floors (30, 40 ... 90, non-numeric) are one common-rooms filter', () {
+      String f(String room) => RoomKeysController.floorLabelForRoom(room);
+      expect(f('45'), 'Ground');
+      expect(f('G2'), 'Ground');
+      expect(f('204'), 'Floor 2');
+      expect(f('917'), 'Floor 9');
+      for (final room in ['3004', '4001', '6002', '7010', '8003', '9005', 'X-1', 'Library']) {
+        expect(f(room), RoomKeysController.commonRoomsLabel, reason: room);
+      }
+    });
+
+    test('the group filter keeps the rooms of that group and counts as a filter', () async {
+      final c = Get.put(RoomKeysController(roomGroupLoader: () async => {'204': 'Pavitra', '305': 'Param'}));
+      await until(() => !c.isLoading.value, reason: 'room keys load');
+
+      expect(c.availableGroups, ['All', 'Param', 'Pavitra']);
+      expect(c.visibleRooms.map((r) => r.number), ['204', '305', '410']);
+
+      c.selectedGroup.value = 'Param';
+      expect(c.visibleRooms.map((r) => r.number), ['305']);
+      expect(c.activeFilterCount, 1);
+
+      c.selectedGroup.value = 'Pavitra';
+      expect(c.visibleRooms.map((r) => r.number), ['204']);
+
+      c.resetFilters();
+      expect(c.selectedGroup.value, 'All');
+      expect(c.visibleRooms, hasLength(3));
+    });
+
+    test('without a synced phonebook there are no groups to filter by', () async {
+      final c = Get.put(RoomKeysController(roomGroupLoader: () async => throw StateError('no phonebook')));
+      await until(() => !c.isLoading.value, reason: 'room keys load');
+      expect(c.availableGroups, ['All']);
+      expect(c.visibleRooms, hasLength(3));
+    });
+
     test('a failed key list shows the error', () async {
       api.on('GET /room-keys', {'success': false, 'message': 'Server error'}, status: 500);
       final c = Get.put(RoomKeysController());
@@ -389,8 +468,9 @@ void main() {
       await pumpApp(tester, Routes.operatorRoomKeys);
 
       expect(find.text('Room 204'), findsOneWidget);
-      expect(find.textContaining('Door 204 (1)'), findsOneWidget);
-      expect(find.textContaining('Cupboards 1/2'), findsOneWidget);
+      // The card is just the room and its warnings: no summary line, no tile.
+      expect(find.textContaining('Door 204 (1)'), findsNothing);
+      expect(find.textContaining('Cupboards 1/2'), findsNothing);
       // Bhavin (204) and Chirag (305) have no cupboard key yet.
       expect(find.text('1 without cupboard key'), findsNWidgets(2));
       expect(find.text('1 to check'), findsNWidgets(2)); // 305: left the hostel; 410: lost

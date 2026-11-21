@@ -2,19 +2,16 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:get/get.dart';
 import '../../../core/constants/app_colors.dart';
-import '../../../core/constants/app_dimens.dart';
 import '../../../core/constants/app_routes.dart';
 import '../../../core/constants/app_text_styles.dart';
 import '../../../core/models/forms/form_models.dart';
 import '../../../core/utils/date_formatting.dart';
 import '../../shared/widgets/app_button.dart';
 import '../../shared/widgets/empty_state.dart';
-import '../../shared/widgets/meta_text.dart';
 import '../../shared/widgets/phonebook_style_widgets.dart';
 import '../../shared/widgets/staggered_slide_fade.dart';
-import '../../shared/widgets/status_badge.dart';
+import '../../shared/widgets/student_contact_card.dart';
 import '../controllers/forms_list_controller.dart';
-import '../widgets/forms_widgets.dart';
 
 /// Operator → Forms & Polls, styled to match the Hostel Phonebook theme.
 class FormsListScreen extends GetView<FormsListController> {
@@ -267,23 +264,7 @@ class FormsListScreen extends GetView<FormsListController> {
     required bool selected,
     required Color color,
     required VoidCallback onTap,
-  }) => FilterChip(
-    label: Text(label),
-    selected: selected,
-    selectedColor: color,
-    checkmarkColor: Colors.white,
-    labelStyle: TextStyle(
-      color: selected ? Colors.white : const Color(0xFF334155),
-      fontWeight: selected ? FontWeight.w700 : FontWeight.w600,
-      fontSize: 12.5,
-    ),
-    backgroundColor: const Color(0xFFF1F5F9),
-    shape: RoundedRectangleBorder(
-      borderRadius: BorderRadius.circular(12),
-      side: BorderSide(color: selected ? color : PhonebookTheme.border),
-    ),
-    onSelected: (_) => onTap(),
-  );
+  }) => PhonebookTintChip(label: label, selected: selected, color: color, onTap: onTap);
 
   @override
   Widget build(BuildContext context) {
@@ -515,17 +496,15 @@ class FormsListScreen extends GetView<FormsListController> {
                         message: controller.forms.isEmpty
                             ? 'Create a quick poll (e.g. dinner choice) or a form with several questions.'
                             : 'Try another search or filter.',
-                        actionLabel: controller.forms.isEmpty
-                            ? 'New poll or form'
-                            : (hasFilters ? 'Clear Filters' : null),
-                        onAction: controller.forms.isEmpty
-                            ? _edit
-                            : (hasFilters
-                                ? () {
-                                    controller.clearSearch();
-                                    controller.resetFilters();
-                                  }
-                                : null),
+                        // No button when there is nothing yet: the New button
+                        // at the bottom right already does it.
+                        actionLabel: controller.forms.isNotEmpty && hasFilters ? 'Clear Filters' : null,
+                        onAction: controller.forms.isNotEmpty && hasFilters
+                            ? () {
+                                controller.clearSearch();
+                                controller.resetFilters();
+                              }
+                            : null,
                       ),
                     ),
                   );
@@ -576,147 +555,195 @@ class _FormCard extends StatelessWidget {
     required this.onDelete,
   });
 
+  /// The card's colour is its status: green running, blue upcoming, amber
+  /// paused, grey ended.
+  static Color _statusColor(FormStatus status) => switch (status) {
+    FormStatus.active => PhonebookTheme.green,
+    FormStatus.upcoming => PhonebookTheme.blue,
+    FormStatus.disabled => PhonebookTheme.amber,
+    _ => PhonebookTheme.muted,
+  };
+
+  static String _statusLabel(FormStatus status) => switch (status) {
+    FormStatus.active => 'Active',
+    FormStatus.upcoming => 'Upcoming',
+    FormStatus.disabled => 'Paused',
+    FormStatus.expired => 'Ended',
+    FormStatus.unknown => '',
+  };
+
   @override
   Widget build(BuildContext context) {
     final f = form;
+    final accent = _statusColor(f.status);
+    final poll = f.kind == FormKind.poll;
+    final kindColor = poll ? PhonebookTheme.blue : const Color(0xFF6366F1);
     final rate = f.totalTargeted == 0 ? 0 : (f.totalResponded * 100 / f.totalTargeted).round();
-    return PhonebookCard(
-      onTap: onOpen,
-      padding: const EdgeInsets.all(15),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            crossAxisAlignment: CrossAxisAlignment.start,
+    final statusLabel = _statusLabel(f.status);
+
+    return Container(
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: accent.withValues(alpha: 0.3)),
+        boxShadow: [
+          BoxShadow(color: accent.withValues(alpha: 0.08), blurRadius: 12, offset: const Offset(0, 3)),
+        ],
+      ),
+      clipBehavior: Clip.antiAlias,
+      child: Material(
+        color: Colors.transparent,
+        child: InkWell(
+          onTap: onOpen,
+          child: Stack(
             children: [
-              Expanded(
-                child: Wrap(
-                  spacing: AppDimens.gapSm,
-                  runSpacing: AppDimens.gapSm,
+              Positioned(
+                bottom: 0,
+                right: 0,
+                child: CustomPaint(
+                  size: const Size(96, 64),
+                  painter: CornerWavePainter(color: accent.withValues(alpha: 0.12)),
+                ),
+              ),
+              Padding(
+                padding: const EdgeInsets.fromLTRB(16, 14, 6, 14),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    FormKindChip(kind: f.kind),
-                    FormStatusBadge(status: f.status),
-                    if (f.isMandatory)
-                      const StatusBadge(
-                        label: 'Required',
-                        color: PhonebookTheme.red,
-                        icon: Icons.priority_high_rounded,
+                    Row(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Expanded(
+                          child: Padding(
+                            padding: const EdgeInsets.only(top: 4),
+                            child: Text(
+                              f.title,
+                              maxLines: 2,
+                              overflow: TextOverflow.ellipsis,
+                              style: const TextStyle(
+                                fontSize: 16,
+                                fontWeight: FontWeight.w800,
+                                color: PhonebookTheme.ink,
+                                letterSpacing: -0.2,
+                              ),
+                            ),
+                          ),
+                        ),
+                        SizedBox(
+                          width: 36,
+                          height: 32,
+                          child: busy
+                              ? const Center(
+                                  child: SizedBox(
+                                    width: 18,
+                                    height: 18,
+                                    child: CircularProgressIndicator(strokeWidth: 2, color: PhonebookTheme.blue),
+                                  ),
+                                )
+                              : PopupMenuButton<String>(
+                                  tooltip: 'More',
+                                  padding: EdgeInsets.zero,
+                                  icon: const Icon(Icons.more_vert_rounded, size: 20, color: PhonebookTheme.muted),
+                                  onSelected: (v) => switch (v) {
+                                    'results' => onOpen(),
+                                    'edit' => onEdit(),
+                                    'toggle' => onToggle(),
+                                    _ => onDelete(),
+                                  },
+                                  itemBuilder: (_) => [
+                                    _menuItem('results', Icons.insights_rounded, 'Results'),
+                                    _menuItem('edit', Icons.edit_rounded, 'Edit'),
+                                    _menuItem(
+                                      'toggle',
+                                      f.isActive ? Icons.pause_circle_outline_rounded : Icons.play_circle_outline_rounded,
+                                      f.isActive ? 'Pause' : 'Activate',
+                                    ),
+                                    _menuItem('delete', Icons.delete_outline_rounded, 'Delete', color: PhonebookTheme.red),
+                                  ],
+                                ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 8),
+                    Wrap(
+                      spacing: 6,
+                      runSpacing: 4,
+                      children: [
+                        _Tag(
+                          label: poll ? 'Poll' : 'Form',
+                          icon: poll ? Icons.how_to_vote_rounded : Icons.assignment_rounded,
+                          color: kindColor,
+                        ),
+                        if (statusLabel.isNotEmpty) _Tag(label: statusLabel, color: accent),
+                        if (f.isMandatory) const _Tag(label: 'Required', color: PhonebookTheme.red),
+                      ],
+                    ),
+                    if (f.description != null && f.description!.trim().isNotEmpty) ...[
+                      const SizedBox(height: 8),
+                      Text(
+                        f.description!,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: const TextStyle(fontSize: 13, color: PhonebookTheme.slate),
                       ),
+                    ],
+                    const SizedBox(height: 12),
+                    Padding(
+                      padding: const EdgeInsets.only(right: 10),
+                      child: Column(
+                        children: [
+                          Row(
+                            children: [
+                              Text.rich(
+                                TextSpan(
+                                  children: [
+                                    TextSpan(
+                                      text: '${f.totalResponded}',
+                                      style: const TextStyle(color: PhonebookTheme.ink, fontWeight: FontWeight.w800),
+                                    ),
+                                    TextSpan(
+                                      text: ' of ${f.totalTargeted} answered',
+                                      style: const TextStyle(color: PhonebookTheme.muted, fontWeight: FontWeight.w600),
+                                    ),
+                                  ],
+                                ),
+                                style: const TextStyle(fontSize: 12.5),
+                              ),
+                              const Spacer(),
+                              Text(
+                                '$rate%',
+                                style: TextStyle(fontSize: 12.5, fontWeight: FontWeight.w800, color: accent),
+                              ),
+                            ],
+                          ),
+                          const SizedBox(height: 6),
+                          ClipRRect(
+                            borderRadius: BorderRadius.circular(999),
+                            child: LinearProgressIndicator(
+                              value: rate / 100,
+                              minHeight: 6,
+                              backgroundColor: accent.withValues(alpha: 0.14),
+                              valueColor: AlwaysStoppedAnimation(accent),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    const SizedBox(height: 10),
+                    Text(
+                      f.endTime == null
+                          ? f.audience.label
+                          : '${f.audience.label} · closes ${DateFormatting.dateTime(f.endTime!)}',
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: PhonebookTheme.muted),
+                    ),
                   ],
                 ),
               ),
-              SizedBox(
-                width: 32,
-                height: 28,
-                child: busy
-                    ? const Center(
-                        child: SizedBox(
-                          width: 18,
-                          height: 18,
-                          child: CircularProgressIndicator(strokeWidth: 2, color: PhonebookTheme.blue),
-                        ),
-                      )
-                    : PopupMenuButton<String>(
-                        tooltip: 'More',
-                        padding: EdgeInsets.zero,
-                        icon: const Icon(Icons.more_vert_rounded, size: 20, color: PhonebookTheme.muted),
-                        onSelected: (v) => switch (v) {
-                          'results' => onOpen(),
-                          'edit' => onEdit(),
-                          'toggle' => onToggle(),
-                          _ => onDelete(),
-                        },
-                        itemBuilder: (_) => [
-                          _menuItem('results', Icons.insights_rounded, 'Results'),
-                          _menuItem('edit', Icons.edit_rounded, 'Edit'),
-                          _menuItem(
-                            'toggle',
-                            f.isActive ? Icons.pause_circle_outline_rounded : Icons.play_circle_outline_rounded,
-                            f.isActive ? 'Pause' : 'Activate',
-                          ),
-                          _menuItem('delete', Icons.delete_outline_rounded, 'Delete', color: PhonebookTheme.red),
-                        ],
-                      ),
-              ),
             ],
           ),
-          const SizedBox(height: 10),
-          Text(
-            f.title,
-            style: const TextStyle(
-              fontSize: 15.5,
-              fontWeight: FontWeight.w800,
-              color: PhonebookTheme.ink,
-              letterSpacing: -0.2,
-            ),
-            maxLines: 2,
-            overflow: TextOverflow.ellipsis,
-          ),
-          if (f.description != null) ...[
-            const SizedBox(height: 4),
-            Text(
-              f.description!,
-              maxLines: 2,
-              overflow: TextOverflow.ellipsis,
-              style: const TextStyle(fontSize: 13, color: PhonebookTheme.slate),
-            ),
-          ],
-          const SizedBox(height: 12),
-          Row(
-            children: [
-              Text.rich(
-                TextSpan(children: [
-                  TextSpan(
-                    text: '${f.totalResponded}',
-                    style: const TextStyle(color: PhonebookTheme.ink, fontWeight: FontWeight.w800),
-                  ),
-                  TextSpan(
-                    text: ' / ${f.totalTargeted} answered',
-                    style: const TextStyle(color: PhonebookTheme.muted, fontWeight: FontWeight.w600),
-                  ),
-                ]),
-                style: const TextStyle(fontSize: 12.5),
-              ),
-              const Spacer(),
-              Text(
-                '$rate%',
-                style: const TextStyle(
-                  fontSize: 12.5,
-                  fontWeight: FontWeight.w800,
-                  color: PhonebookTheme.green,
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 6),
-          ClipRRect(
-            borderRadius: BorderRadius.circular(999),
-            child: LinearProgressIndicator(
-              value: rate / 100,
-              minHeight: 6,
-              backgroundColor: PhonebookTheme.blueSoft,
-              valueColor: const AlwaysStoppedAnimation(PhonebookTheme.green),
-            ),
-          ),
-          const SizedBox(height: 10),
-          Wrap(
-            spacing: 14,
-            runSpacing: 6,
-            children: [
-              MetaText(icon: Icons.visibility_outlined, text: '${f.totalViewed} viewed'),
-              MetaText(icon: Icons.hourglass_empty_rounded, text: '${f.seenNotAnswered} seen, not answered'),
-              MetaText(icon: Icons.groups_outlined, text: f.audience.label),
-            ],
-          ),
-          if (f.startTime != null && f.endTime != null) ...[
-            const SizedBox(height: 6),
-            MetaText(
-              icon: Icons.event_outlined,
-              maxLines: 2,
-              text: '${DateFormatting.dateTime(f.startTime!)} – ${DateFormatting.dateTime(f.endTime!)}',
-            ),
-          ],
-        ],
+        ),
       ),
     );
   }
@@ -731,4 +758,35 @@ class _FormCard extends StatelessWidget {
       ],
     ),
   );
+}
+
+/// A small coloured tag: soft fill, coloured text.
+class _Tag extends StatelessWidget {
+  final String label;
+  final IconData? icon;
+  final Color color;
+
+  const _Tag({required this.label, required this.color, this.icon});
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 3),
+      decoration: BoxDecoration(
+        color: color.withValues(alpha: 0.1),
+        borderRadius: BorderRadius.circular(999),
+        border: Border.all(color: color.withValues(alpha: 0.28)),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          if (icon != null) ...[
+            Icon(icon, size: 12, color: color),
+            const SizedBox(width: 4),
+          ],
+          Text(label, style: TextStyle(fontSize: 11, fontWeight: FontWeight.w800, color: color)),
+        ],
+      ),
+    );
+  }
 }

@@ -73,6 +73,8 @@ import '../../features/birthday/views/admin_birthday_screen.dart';
 import '../../features/anniversary/bindings/admin_anniversary_binding.dart';
 import '../../features/anniversary/views/admin_anniversary_screen.dart';
 import '../../features/manage_users/bindings/manage_users_binding.dart';
+import '../../features/manage_users/bindings/student_tags_binding.dart';
+import '../../features/manage_users/views/student_tags_screen.dart';
 import '../../features/manage_users/views/manage_users_screen.dart';
 import '../../features/broadcast/bindings/broadcast_bindings.dart';
 import '../../features/broadcast/views/broadcast_compose_screen.dart';
@@ -368,6 +370,11 @@ class AppPages {
       name: Routes.operatorManageUsers,
       page: () => const ManageUsersScreen(),
       binding: ManageUsersBinding(),
+    ),
+    GetPage(
+      name: Routes.operatorStudentTags,
+      page: () => const StudentTagsScreen(),
+      binding: StudentTagsBinding(),
     ),
     GetPage(
       name: Routes.operatorBroadcasts,

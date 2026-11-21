@@ -20,12 +20,22 @@ mixin StudentPickerHost on GetxController {
   final studentsError = RxnString();
   final selectedStudents = <PickableStudent>[].obs;
 
-  Future<void> loadStudents({bool force = false}) async {
-    if (isStudentsLoading.value || (students.isNotEmpty && !force)) return;
+  Future<void>? _loadingStudents;
+
+  /// Loads the students once. A call while one is running waits for it (so
+  /// the picker and a background start share one download); [force] reloads.
+  Future<void> loadStudents({bool force = false}) {
+    final running = _loadingStudents;
+    if (running != null) return running;
+    if (students.isNotEmpty && !force) return Future.value();
+    return _loadingStudents = _fetchStudents(force: force).whenComplete(() => _loadingStudents = null);
+  }
+
+  Future<void> _fetchStudents({required bool force}) async {
     isStudentsLoading.value = true;
     studentsError.value = null;
     try {
-      students.assignAll(await studentSource.load(includeAlumni: includeAlumniInPicker));
+      students.assignAll(await studentSource.load(includeAlumni: includeAlumniInPicker, refresh: force));
     } on ApiException catch (e) {
       studentsError.value = e.message;
     } catch (_) {

@@ -7,6 +7,7 @@ import '../../../core/network/api_exception.dart';
 import '../../../core/network/repository/room_keys/room_keys_repository.dart';
 import '../../../core/network/repository/students/student_picker_source.dart';
 import '../../../core/utils/app_snackbar.dart';
+import '../../phonebook/services/phonebook_database_service.dart';
 
 /// A room on the key register: the students who live there and its keys.
 class KeyRoom {
@@ -44,48 +45,60 @@ class KeyRoom {
     return cupboardKeys.where((k) => !(k.status == KeyStatus.assigned && residentIds.contains(k.studentId))).toList();
   }
 
-  /// Cupboard A key for this room (if any).
-  RoomKey? get cupboardA {
+  /// The cupboard key labelled with [slot] ('A' ... 'G') in this room.
+  RoomKey? cupboardForSlot(String slot) {
     for (final k in cupboardKeys) {
-      if (k.cupboardSlot == 'A') return k;
+      if (k.cupboardSlot == slot) return k;
     }
     return null;
   }
 
-  /// Cupboard B key for this room (if any).
-  RoomKey? get cupboardB {
+  /// The in-office cupboard key for [slot], if any.
+  RoomKey? officeCupboardForSlot(String slot) {
     for (final k in cupboardKeys) {
-      if (k.cupboardSlot == 'B') return k;
+      if (k.status == KeyStatus.office && k.cupboardSlot == slot) return k;
     }
     return null;
   }
 
-  /// In-office cupboard key for slot 'A' (if any).
-  RoomKey? get officeCupboardA {
-    for (final k in cupboardKeys) {
-      if (k.status == KeyStatus.office && k.cupboardSlot == 'A') return k;
-    }
-    return null;
+  RoomKey? get cupboardA => cupboardForSlot('A');
+  RoomKey? get cupboardB => cupboardForSlot('B');
+  RoomKey? get officeCupboardA => officeCupboardForSlot('A');
+  RoomKey? get officeCupboardB => officeCupboardForSlot('B');
+
+  /// The slots this room offers: A and B, or A to G for a common room, a room
+  /// with more than two students, or one that already uses a later letter.
+  List<String> get slotLetters {
+    final wide = students.length > 2 ||
+        RoomKeysController.floorLabelForRoom(number) == RoomKeysController.commonRoomsLabel ||
+        cupboardKeys.any((k) => k.cupboardSlot != null && k.cupboardSlot != 'A' && k.cupboardSlot != 'B');
+    return wide ? cupboardSlotLetters : const ['A', 'B'];
   }
 
-  /// In-office cupboard key for slot 'B' (if any).
-  RoomKey? get officeCupboardB {
-    for (final k in cupboardKeys) {
-      if (k.status == KeyStatus.office && k.cupboardSlot == 'B') return k;
-    }
-    return null;
-  }
-
-  /// The cupboard slot ('A' or 'B') expected for [student].
+  /// The cupboard slot expected for [student]: the one they hold, else the
+  /// letter for their place in the room (A, B, C ...). Letters are handed out
+  /// across the whole room in order, skipping those already held, so no two
+  /// students are expected to take the same one.
   String expectedCupboardSlot(PickableStudent student) {
-    final existing = cupboardOf(student);
-    if (existing != null && existing.cupboardSlot != null) return existing.cupboardSlot!;
-    final aHeld = cupboardKeys.any((k) => k.cupboardSlot == 'A' && k.status == KeyStatus.assigned && k.studentId != student.id);
-    final bHeld = cupboardKeys.any((k) => k.cupboardSlot == 'B' && k.status == KeyStatus.assigned && k.studentId != student.id);
-    if (aHeld && !bHeld) return 'B';
-    if (bHeld && !aHeld) return 'A';
-    final idx = students.indexOf(student);
-    return idx == 1 ? 'B' : 'A';
+    final slots = slotLetters;
+    final used = {
+      for (final k in cupboardKeys)
+        if (k.status == KeyStatus.assigned && k.cupboardSlot != null) k.cupboardSlot!,
+    };
+    for (var i = 0; i < students.length; i++) {
+      final s = students[i];
+      final String slot;
+      final own = cupboardOf(s)?.cupboardSlot;
+      if (own != null) {
+        slot = own;
+      } else {
+        final preferred = slots[i % slots.length];
+        slot = used.contains(preferred) ? slots.firstWhere((l) => !used.contains(l), orElse: () => preferred) : preferred;
+        used.add(slot);
+      }
+      if (s.id == student.id) return slot;
+    }
+    return slots.firstWhere((l) => !used.contains(l), orElse: () => slots.first);
   }
 
   /// The number on this room's door keys (they share one lock).
@@ -107,12 +120,17 @@ enum RoomFilter { all, missing, attention }
 /// who has them. Students come from [StudentPickerSource] (numeric ids only,
 /// never the phonebook cache).
 class RoomKeysController extends GetxController with LoadStateMixin {
-  RoomKeysController({RoomKeysRepository? repository, StudentPickerSource? students})
-    : _repo = repository ?? Get.find<RoomKeysRepository>(),
-      _students = students ?? StudentPickerSource();
+  RoomKeysController({
+    RoomKeysRepository? repository,
+    StudentPickerSource? students,
+    Future<Map<String, String>> Function()? roomGroupLoader,
+  }) : _repo = repository ?? Get.find<RoomKeysRepository>(),
+       _students = students ?? StudentPickerSource(),
+       _roomGroupLoader = roomGroupLoader ?? phonebookRoomGroups;
 
   final RoomKeysRepository _repo;
   final StudentPickerSource _students;
+  final Future<Map<String, String>> Function() _roomGroupLoader;
 
   final keys = <RoomKey>[].obs;
 
@@ -126,6 +144,11 @@ class RoomKeysController extends GetxController with LoadStateMixin {
   final searchController = TextEditingController();
   final filter = RoomFilter.all.obs;
   final selectedFloor = 'All'.obs;
+  final selectedGroup = 'All'.obs;
+
+  /// Group (Param, Pavitra, ...) of each room, from the phonebook synced on
+  /// this phone. Display and filtering only; rooms with no entry have none.
+  final roomGroups = <String, String>{}.obs;
 
   /// Keys with a change in flight.
   final busyIds = <int>{}.obs;
@@ -154,13 +177,23 @@ class RoomKeysController extends GetxController with LoadStateMixin {
     var count = 0;
     if (filter.value != RoomFilter.all) count++;
     if (selectedFloor.value != 'All') count++;
+    if (selectedGroup.value != 'All') count++;
     return count;
   }
 
   void resetFilters() {
     filter.value = RoomFilter.all;
     selectedFloor.value = 'All';
+    selectedGroup.value = 'All';
   }
+
+  /// Label of the one filter that gathers every room that isn't on a normal
+  /// floor (the 30, 40, 60 ... 90 numbers and anything non-numeric).
+  static const commonRoomsLabel = 'Common rooms';
+
+  /// Highest real hostel floor; room numbers above it (3001, 4005 ...) are
+  /// common rooms.
+  static const _topFloor = 9;
 
   static String floorLabelForRoom(String roomNumber) {
     final trimmed = roomNumber.trim().toUpperCase();
@@ -169,11 +202,30 @@ class RoomKeysController extends GetxController with LoadStateMixin {
       final n = int.tryParse(digits);
       if (n != null) {
         if (n < 100) return 'Ground';
-        return 'Floor ${n ~/ 100}';
+        final floor = n ~/ 100;
+        return floor <= _topFloor ? 'Floor $floor' : commonRoomsLabel;
       }
     }
     if (trimmed.startsWith('G')) return 'Ground';
-    return 'Other';
+    return commonRoomsLabel;
+  }
+
+  /// The group of [roomNumber], or null when unknown.
+  String? groupOfRoom(String roomNumber) => roomGroups[normalizeRoom(roomNumber)];
+
+  static const _groupOrder = ['Param', 'Pavitra', 'Pulkit', 'Paramanand'];
+
+  /// 'All' and the groups that have rooms, in the usual wing order.
+  List<String> get availableGroups {
+    final found = roomGroups.values.toSet();
+    final list = found.toList()
+      ..sort((a, b) {
+        final ia = _groupOrder.indexOf(a);
+        final ib = _groupOrder.indexOf(b);
+        if (ia != -1 || ib != -1) return (ia == -1 ? 99 : ia).compareTo(ib == -1 ? 99 : ib);
+        return a.compareTo(b);
+      });
+    return ['All', ...list];
   }
 
   List<String> get availableFloors {
@@ -185,8 +237,8 @@ class RoomKeysController extends GetxController with LoadStateMixin {
       ..sort((a, b) {
         if (a == 'Ground') return -1;
         if (b == 'Ground') return 1;
-        if (a == 'Other') return 1;
-        if (b == 'Other') return -1;
+        if (a == commonRoomsLabel) return 1;
+        if (b == commonRoomsLabel) return -1;
         final na = int.tryParse(a.replaceAll(RegExp(r'\D'), '')) ?? 999;
         final nb = int.tryParse(b.replaceAll(RegExp(r'\D'), '')) ?? 999;
         return na.compareTo(nb);
@@ -201,6 +253,12 @@ class RoomKeysController extends GetxController with LoadStateMixin {
     keys.assignAll(loaded);
     studentsUnavailable.value = people == null;
     residents.assignAll(people ?? const []);
+    // Groups are a nicety: without a synced phonebook the filter just hides.
+    try {
+      roomGroups.assignAll(await _roomGroupLoader());
+    } catch (_) {
+      roomGroups.clear();
+    }
   }, showLoading: showLoading);
 
   // ------------------------------------------------------------------ rooms
@@ -236,10 +294,12 @@ class RoomKeysController extends GetxController with LoadStateMixin {
   List<KeyRoom> get visibleRooms {
     final q = search.value.trim().toLowerCase();
     final floor = selectedFloor.value;
+    final group = selectedGroup.value;
     return rooms.where((r) {
       if (floor != 'All' && floorLabelForRoom(r.number) != floor) {
         return false;
       }
+      if (group != 'All' && groupOfRoom(r.number) != group) return false;
       switch (filter.value) {
         case RoomFilter.missing:
           if (!r.missingKeys) return false;
@@ -399,4 +459,23 @@ int compareRooms(String a, String b) {
   if (na != null && nb == null) return -1;
   if (na == null && nb != null) return 1;
   return a.compareTo(b);
+}
+
+/// Group of each room from the phonebook synced on this phone: the group most
+/// of the room's current residents belong to. Keyed by room number only; it
+/// never identifies a student.
+Future<Map<String, String>> phonebookRoomGroups() async {
+  final students = await PhonebookDatabaseService.instance.searchStudents();
+  final counts = <String, Map<String, int>>{};
+  for (final s in students) {
+    final group = (s.groupName ?? '').trim();
+    final room = normalizeRoom(s.room ?? '');
+    if (s.isAlumni || group.isEmpty || room.isEmpty) continue;
+    final byGroup = counts.putIfAbsent(room, () => {});
+    byGroup[group] = (byGroup[group] ?? 0) + 1;
+  }
+  return {
+    for (final e in counts.entries)
+      e.key: (e.value.entries.toList()..sort((a, b) => b.value.compareTo(a.value))).first.key,
+  };
 }

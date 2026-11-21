@@ -40,8 +40,8 @@ class HomeController extends GetxController with WidgetsBindingObserver {
   }
 
   /// Screen-time monitoring is mandatory for students: send them to the
-  /// setup checklist until Usage Access and the App Blocker (Accessibility, or
-  /// "Display over other apps") are on. Battery
+  /// setup checklist until Usage Access and the App Blocker ("Display over
+  /// other apps") are on. Battery
   /// exemption is asked for once; some ROMs can't grant it.
   Future<void> _enforceSetup() async {
     if (!ScreenTimeService.isSupported || _setupOpen) return;
@@ -57,16 +57,16 @@ class HomeController extends GetxController with WidgetsBindingObserver {
     if (role != UserRole.student) return;
 
     final usage = await ScreenTimeService.hasUsagePermission();
-    final blocker = ScreenTimeService.appBlockerReady(
-      accessibility: await ScreenTimeService.hasAccessibilityPermission(),
-      overlay: await ScreenTimeService.hasOverlayPermission(),
-    );
+    final blocker = await ScreenTimeService.hasOverlayPermission();
     final battery = await ScreenTimeService.isBatteryOptimizationIgnored();
+    // Device admin keeps Force stop / Uninstall disabled; a student who turns
+    // it off is sent back to setup.
+    final admin = await ScreenTimeService.isDeviceAdminActive();
     // The curfew geofence needs "Allow all the time"; a student who revokes it
     // later is sent back to setup instead of silently going untracked.
     final location = await GeofenceDeviceService.locationPermission() == 'always';
 
-    if (!usage || !blocker || !location || (!battery && !_batteryAsked)) {
+    if (!usage || !blocker || !location || !admin || (!battery && !_batteryAsked)) {
       _batteryAsked = true;
       _setupOpen = true;
       await Get.toNamed(Routes.deviceSetup);

@@ -6,7 +6,9 @@ import com.example.hsh_app2.screentime.ForegroundReplay.ACTIVITY_RESUMED
 import com.example.hsh_app2.screentime.ForegroundReplay.KEYGUARD_SHOWN
 import com.example.hsh_app2.screentime.ForegroundReplay.SCREEN_NON_INTERACTIVE
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull
+import org.junit.Assert.assertTrue
 import org.junit.Test
 
 class ForegroundTrackingTest {
@@ -15,8 +17,46 @@ class ForegroundTrackingTest {
     private val launcher = "com.google.android.apps.nexuslauncher"
     private val hsh = "com.avd_hsh.app"
 
+    /** Replays (type, package) events from the app [start] and returns the package in front. */
     private fun replay(start: String?, events: List<Pair<Int, String?>>): String? =
-        events.fold(start) { fg, (type, pkg) -> ForegroundReplay.step(fg, type, pkg) }
+        events.fold(start?.let { ForegroundReplay.Front(it) }) { fg, (type, pkg) ->
+            ForegroundReplay.step(fg, type, pkg)
+        }?.packageName
+
+    private fun front(pkg: String, cls: String) = ForegroundReplay.Front(pkg, cls)
+
+    @Test
+    fun theActivityClassIsKept() {
+        val f = ForegroundReplay.step(null, ACTIVITY_RESUMED, "com.android.settings", "com.android.settings.SubSettings")
+        assertEquals(front("com.android.settings", "com.android.settings.SubSettings"), f)
+    }
+
+    @Test
+    fun aPauseOfAnotherActivityOfTheSameAppKeepsTheFront() {
+        // Settings' list opens the device admin screen: the new one may resume before the old one pauses.
+        val list = "com.android.settings.SubSettings"
+        val admin = "com.android.settings.applications.specialaccess.deviceadmin.DeviceAdminAdd"
+        var f = ForegroundReplay.step(front("com.android.settings", list), ACTIVITY_RESUMED, "com.android.settings", admin)
+        f = ForegroundReplay.step(f, ACTIVITY_PAUSED, "com.android.settings", list)
+        assertEquals(front("com.android.settings", admin), f)
+        assertNull(ForegroundReplay.step(f, ACTIVITY_PAUSED, "com.android.settings", admin))
+    }
+
+    @Test
+    fun theDeviceAdminScreenIsRecognised() {
+        val aosp = "com.android.settings.applications.specialaccess.deviceadmin.DeviceAdminAdd"
+        assertTrue(ProtectedScreens.isDeviceAdminScreen("com.android.settings", aosp))
+        assertTrue(ProtectedScreens.isDeviceAdminScreen("com.android.settings", "com.android.settings.DeviceAdminAdd"))
+        assertTrue(ProtectedScreens.isDeviceAdminScreen("com.samsung.android.settings", "com.samsung.Foo\$DeviceAdminAdd"))
+    }
+
+    @Test
+    fun otherSettingsScreensAndOtherAppsAreLeftAlone() {
+        assertFalse(ProtectedScreens.isDeviceAdminScreen("com.android.settings", "com.android.settings.SubSettings"))
+        assertFalse(ProtectedScreens.isDeviceAdminScreen("com.android.settings", "com.android.settings.DeviceAdminSettings"))
+        assertFalse(ProtectedScreens.isDeviceAdminScreen("com.android.settings", null))
+        assertFalse(ProtectedScreens.isDeviceAdminScreen("com.example.other", "com.example.other.DeviceAdminAdd"))
+    }
 
     @Test
     fun theLastResumedAppIsInFront() {

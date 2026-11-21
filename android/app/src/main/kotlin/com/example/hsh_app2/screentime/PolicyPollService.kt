@@ -42,10 +42,7 @@ import java.util.concurrent.TimeUnit
  * (woken early by screen-on or [requestRefresh]); against a server without
  * long-poll it fetches every [POLL_ACTIVE_MS]; offline it backs off.
  * Every applied change notifies [PolicyStore] listeners, which is what makes
- * [AppBlockerAccessibilityService] re-check the app currently on screen.
- *
- * The service also runs [UsageAppBlocker], which blocks apps from usage
- * events while the accessibility service is off.
+ * [UsageAppBlocker] (run by this service) re-check the app currently on screen.
  *
  * A separate tick handles the curfew geofence and re-checks the foreground
  * app for time-based rules (bedtime start, daily limit reached mid-use).
@@ -105,11 +102,6 @@ class PolicyPollService : Service() {
         fun requestRefresh(context: Context) {
             instance?.wakeSync() ?: start(context)
         }
-
-        /** The accessibility service stopped: let [UsageAppBlocker] check the app on screen now. */
-        fun resumeUsageBlocker() {
-            instance?.usageBlocker?.resume()
-        }
     }
 
     private val handler = Handler(Looper.getMainLooper())
@@ -131,9 +123,8 @@ class PolicyPollService : Service() {
         }
     }
 
-    /** Re-checks the app on screen with whichever blocker is enforcing. */
+    /** Re-checks the app on screen (time-based rules can start while it is open). */
     private fun recheckForeground() {
-        AppBlockerAccessibilityService.recheckForeground()
         usageBlocker?.resume()
     }
 

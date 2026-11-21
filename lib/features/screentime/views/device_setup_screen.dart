@@ -21,16 +21,17 @@ class DeviceSetupScreen extends StatefulWidget {
 
 class _DeviceSetupScreenState extends State<DeviceSetupScreen> with WidgetsBindingObserver {
   bool _usage = false;
-  bool _accessibility = false;
   bool _overlay = false;
   bool _location = false;
   bool _battery = false;
+  bool _admin = false;
   bool _batterySkipped = false;
   bool _checking = true;
   Timer? _poll;
 
-  bool get _blocker => ScreenTimeService.appBlockerReady(accessibility: _accessibility, overlay: _overlay);
-  bool get _requiredDone => _usage && _blocker && _location;
+  /// The app blocker needs "Display over other apps" (plus Usage access, step 1).
+  bool get _blocker => _overlay;
+  bool get _requiredDone => _usage && _blocker && _location && _admin;
   bool get _allDone => _requiredDone && (_battery || _batterySkipped);
 
   @override
@@ -66,17 +67,17 @@ class _DeviceSetupScreenState extends State<DeviceSetupScreen> with WidgetsBindi
   Future<void> _refresh() async {
     final results = await Future.wait([
       ScreenTimeService.hasUsagePermission(),
-      ScreenTimeService.hasAccessibilityPermission(),
-      ScreenTimeService.isBatteryOptimizationIgnored(),
       ScreenTimeService.hasOverlayPermission(),
+      ScreenTimeService.isBatteryOptimizationIgnored(),
+      ScreenTimeService.isDeviceAdminActive(),
     ]);
     final location = await GeofenceDeviceService.locationPermission();
     if (!mounted) return;
     setState(() {
       _usage = results[0];
-      _accessibility = results[1];
+      _overlay = results[1];
       _battery = results[2];
-      _overlay = results[3];
+      _admin = results[3];
       _location = location == 'always';
       _checking = false;
     });
@@ -90,16 +91,9 @@ class _DeviceSetupScreenState extends State<DeviceSetupScreen> with WidgetsBindi
     if (Get.currentRoute.contains('device-setup')) Get.back();
   }
 
-  Future<void> _promptAccessibilityDisclosure() async {
-    final agreed = await AccessibilityProminentDisclosureDialog.show(context);
-    if (mounted && agreed == true) {
-      await ScreenTimeService.openAccessibilitySettings();
-    }
-  }
-
   @override
   Widget build(BuildContext context) {
-    final done = [_usage, _blocker, _location, _battery || _batterySkipped].where((b) => b).length;
+    final done = [_usage, _blocker, _location, _battery || _batterySkipped, _admin].where((b) => b).length;
 
     return PopScope(
       canPop: true,
@@ -138,7 +132,7 @@ class _DeviceSetupScreenState extends State<DeviceSetupScreen> with WidgetsBindi
                       child: ClipRRect(
                         borderRadius: BorderRadius.circular(4),
                         child: LinearProgressIndicator(
-                          value: done / 4,
+                          value: done / 5,
                           minHeight: 6,
                           backgroundColor: AppColors.borderLight,
                           valueColor: const AlwaysStoppedAnimation(AppColors.primary),
@@ -146,7 +140,7 @@ class _DeviceSetupScreenState extends State<DeviceSetupScreen> with WidgetsBindi
                       ),
                     ),
                     const SizedBox(width: 12),
-                    Text('$done of 4', style: AppTextStyles.label.copyWith(color: AppColors.textSecondary)),
+                    Text('$done of 5', style: AppTextStyles.label.copyWith(color: AppColors.textSecondary)),
                   ],
                 ),
                 const SizedBox(height: AppDimens.gapLg),
@@ -178,8 +172,6 @@ class _DeviceSetupScreenState extends State<DeviceSetupScreen> with WidgetsBindi
                         checking: _checking,
                         actionLabel: 'Open settings',
                         onAction: ScreenTimeService.openOverlaySettings,
-                        secondaryLabel: 'Use Accessibility instead',
-                        onSecondary: _promptAccessibilityDisclosure,
                         enabled: true,
                       ),
                       const SizedBox(height: AppDimens.gapMd),
@@ -218,6 +210,21 @@ class _DeviceSetupScreenState extends State<DeviceSetupScreen> with WidgetsBindi
                           // exemption Android won't restart monitoring after a Stop.
                           if (!shown && mounted) setState(() => _batterySkipped = true);
                         },
+                        enabled: true,
+                      ),
+                      const SizedBox(height: AppDimens.gapMd),
+                      _Step(
+                        index: 5,
+                        icon: Icons.admin_panel_settings_rounded,
+                        title: 'Protect from removal',
+                        description: "Makes HSH Connect a device admin app, so it can't be force-stopped or "
+                            'uninstalled while you are signed in. It uses no admin powers (no lock, erase or '
+                            'password changes), is turned off when you log out, and attempts to turn it off are reported to the hostel.',
+                        hint: 'On the next screen, tap "Activate this device admin app".',
+                        done: _admin,
+                        checking: _checking,
+                        actionLabel: 'Activate',
+                        onAction: ScreenTimeService.requestDeviceAdmin,
                         enabled: true,
                       ),
                     ],
@@ -268,8 +275,6 @@ class _Step extends StatelessWidget {
   final bool enabled;
   final String actionLabel;
   final VoidCallback onAction;
-  final String? secondaryLabel;
-  final VoidCallback? onSecondary;
 
   const _Step({
     required this.index,
@@ -283,8 +288,6 @@ class _Step extends StatelessWidget {
     this.enabled = true,
     required this.actionLabel,
     required this.onAction,
-    this.secondaryLabel,
-    this.onSecondary,
   });
 
   @override
@@ -360,61 +363,11 @@ class _Step extends StatelessWidget {
                 ),
                 const SizedBox(height: AppDimens.gapMd),
                 AppButton(label: actionLabel, icon: Icons.open_in_new_rounded, onPressed: onAction),
-                if (secondaryLabel != null && onSecondary != null)
-                  Center(
-                    child: TextButton(onPressed: onSecondary, child: Text(secondaryLabel!)),
-                  ),
               ],
             ],
           ),
         ),
       ),
-    );
-  }
-}
-
-/// Prominent in-app disclosure modal required by Google Play User Data & Accessibility API Policy.
-/// Must be presented before the user is directed to the Android Accessibility settings screen.
-class AccessibilityProminentDisclosureDialog extends StatelessWidget {
-  const AccessibilityProminentDisclosureDialog({super.key, this.preview = false});
-
-  static Future<bool?> show(BuildContext context, {bool preview = false}) {
-    return showDialog<bool>(
-      context: context,
-      barrierDismissible: false,
-      builder: (ctx) => AccessibilityProminentDisclosureDialog(preview: preview),
-    );
-  }
-
-  final bool preview;
-
-  @override
-  Widget build(BuildContext context) {
-    return AlertDialog(
-      scrollable: true,
-      title: const Text('Accessibility for App Blocker'),
-      content: const Text(
-        'HSH Connect uses Android Accessibility to detect which app opens, '
-        'even when HSH Connect is closed. It uses app identifiers and window '
-        'changes to enforce restricted-app rules, time limits, bedtime, '
-        'and device locks.\n\n'
-        'HSH Connect sends blocked-app events to the hostel server. '
-        'Each event includes the app name, app identifier, time, and reason '
-        'for the block.\n\n'
-        'If you decline, Accessibility stays off. App Blocker can use '
-        'Display over other apps instead.',
-      ),
-      actions: [
-        TextButton(
-          onPressed: () => Navigator.of(context).pop(false),
-          child: Text(preview ? 'Close' : 'Decline'),
-        ),
-        if (!preview)
-          FilledButton(
-            onPressed: () => Navigator.of(context).pop(true),
-            child: const Text('Agree and open Settings'),
-          ),
-      ],
     );
   }
 }

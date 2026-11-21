@@ -14,11 +14,10 @@ import android.util.Log
  * Brings monitoring back about 5–10 s after the student taps **Stop** in the
  * Android 13+ Active apps panel (notification shade, "N apps are active").
  *
- * Stop kills the whole process: the poller, both app blockers and curfew
- * location. Unlike Force stop, it keeps the app's alarms and jobs, so this
- * alarm still fires and restarts [PolicyPollService]. Without Accessibility
- * the panel can't be closed (`SelfProtection.offersToStopOwnApp`), so this is
- * the only guard there.
+ * Stop kills the whole process: the poller, the app blocker and curfew
+ * location. Android offers no way for an ordinary app to hide that button.
+ * Unlike Force stop, Stop keeps the app's alarms and jobs, so this alarm still
+ * fires and restarts [PolicyPollService].
  *
  * [PolicyPollService] keeps pushing the alarm back (every 2 s with the screen
  * on), so it never fires while the service is alive. Android 12+ lets the receiver start a

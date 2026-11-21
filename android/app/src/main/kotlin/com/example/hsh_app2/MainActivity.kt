@@ -11,13 +11,12 @@ import android.os.PowerManager
 import android.provider.Settings
 import com.example.hsh_app2.callerid.CallerIdOverlay
 import com.example.hsh_app2.callerid.CallerIdStore
-import com.example.hsh_app2.screentime.AppBlockerAccessibilityService
 import com.example.hsh_app2.screentime.GeofenceEvaluator
+import com.example.hsh_app2.screentime.HshDeviceAdmin
 import com.example.hsh_app2.screentime.LocationSampler
 import com.example.hsh_app2.screentime.PolicyPollService
 import com.example.hsh_app2.screentime.PolicyStore
 import com.example.hsh_app2.screentime.ScreenTimeSync
-import com.example.hsh_app2.screentime.SelfProtection
 import com.example.hsh_app2.screentime.UsageAppBlocker
 import com.example.hsh_app2.screentime.UsageCollector
 import android.Manifest
@@ -88,15 +87,16 @@ class MainActivity : FlutterActivity() {
                         openUsageSettings()
                         result.success(null)
                     }
-                    "hasAccessibilityPermission" -> result.success(AppBlockerAccessibilityService.isEnabled(this))
-                    "openAccessibilitySettings" -> {
-                        openAccessibilitySettings()
-                        result.success(null)
-                    }
-                    // "Display over other apps": lets the block screen open with Accessibility off.
+                    // "Display over other apps": lets the app blocker open its block screen.
                     "hasOverlayPermission" -> result.success(UsageAppBlocker.canShowBlockScreen(this))
                     "openOverlaySettings" -> {
                         openOverlaySettings()
+                        result.success(null)
+                    }
+                    // Device admin: disables Force stop / Uninstall while a student is signed in.
+                    "isDeviceAdminActive" -> result.success(HshDeviceAdmin.isActive(this))
+                    "requestDeviceAdmin" -> {
+                        runCatching { startActivity(HshDeviceAdmin.requestIntent(this)) }
                         result.success(null)
                     }
                     "isBatteryOptimizationIgnored" -> {
@@ -104,11 +104,6 @@ class MainActivity : FlutterActivity() {
                         result.success(pm.isIgnoringBatteryOptimizations(packageName))
                     }
                     "requestIgnoreBatteryOptimizations" -> result.success(requestIgnoreBatteryOptimizations())
-                    // The app is about to open its own App info page: let that through briefly.
-                    "allowAppSettings" -> {
-                        SelfProtection.allowAppSettings()
-                        result.success(null)
-                    }
 
                     // ---- monitoring lifecycle ----
                     "startMonitoring" -> {
@@ -261,12 +256,6 @@ class MainActivity : FlutterActivity() {
         } catch (_: Exception) {
             // Many ROMs don't support the per-app deep link; fall back to the list.
             startActivity(Intent(Settings.ACTION_USAGE_ACCESS_SETTINGS))
-        }
-    }
-
-    private fun openAccessibilitySettings() {
-        runCatching {
-            startActivity(Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
         }
     }
 

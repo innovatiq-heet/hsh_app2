@@ -1,9 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:url_launcher/url_launcher.dart';
-import '../../screentime/views/device_setup_screen.dart';
 
 /// Modal bottom sheet presenting all sensitive institutional disclosures
-/// (AccessibilityService API, Curfew Geofence, Data Sharing & Privacy Policy)
+/// (App Blocker, Curfew Geofence, Data Sharing & Privacy Policy)
 /// in full compliance with Google Play Prominent Disclosure & User Data policies.
 class PrivacyAndDisclosuresSheet extends StatelessWidget {
   const PrivacyAndDisclosuresSheet({super.key});
@@ -112,20 +111,18 @@ class PrivacyAndDisclosuresSheet extends StatelessWidget {
                   ),
                   const SizedBox(height: 16),
 
-                  // Card 1: AccessibilityService API
-                  _DisclosureCard(
+                  // Card 1: App blocker (Usage access + Display over other apps)
+                  const _DisclosureCard(
                     icon: Icons.shield_rounded,
-                    iconColor: const Color(0xFF0284C7),
+                    iconColor: Color(0xFF0284C7),
                     badgeText: 'CORE REQUIREMENT',
-                    badgeColor: const Color(0xFFD97706),
-                    title: 'AccessibilityService API Disclosure',
+                    badgeColor: Color(0xFFD97706),
+                    title: 'App Blocker Disclosure',
                     body:
-                        'HSH Connect uses Android Accessibility to detect which app opens and enforce app restrictions. Blocked-app events are sent to the hostel server.',
-                    actionLabel: 'Read Accessibility disclosure',
-                    actionIcon: Icons.open_in_browser_rounded,
-                    onAction: () {
-                      AccessibilityProminentDisclosureDialog.show(context, preview: true);
-                    },
+                        'HSH Connect uses Usage access to see which app is open and how long each app is used, and Display over other apps to show the block screen over an app restricted by the hostel. '
+                        'Daily app usage and blocked-app events (app name, time, reason) are sent to the hostel server. '
+                        'HSH Connect also becomes a device admin app, with your consent, so it can\'t be force-stopped or uninstalled while you are signed in; it uses no admin powers and is removed when you log out. Attempts to turn it off while signed in are blocked and reported to the hostel. '
+                        'HSH Connect does not use the Accessibility service and does not read screen content, messages or keystrokes.',
                   ),
                   const SizedBox(height: 14),
 
@@ -193,9 +190,6 @@ class _DisclosureCard extends StatelessWidget {
   final Color badgeColor;
   final String title;
   final String body;
-  final String? actionLabel;
-  final IconData? actionIcon;
-  final VoidCallback? onAction;
 
   const _DisclosureCard({
     required this.icon,
@@ -204,9 +198,6 @@ class _DisclosureCard extends StatelessWidget {
     required this.badgeColor,
     required this.title,
     required this.body,
-    this.actionLabel,
-    this.actionIcon,
-    this.onAction,
   });
 
   @override
@@ -270,29 +261,6 @@ class _DisclosureCard extends StatelessWidget {
               height: 1.4,
             ),
           ),
-          if (actionLabel != null && onAction != null) ...[
-            const SizedBox(height: 12),
-            SizedBox(
-              width: double.infinity,
-              child: ElevatedButton.icon(
-                onPressed: onAction,
-                icon: Icon(actionIcon ?? Icons.open_in_new_rounded, size: 16),
-                label: Text(
-                  actionLabel!,
-                  style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w700),
-                ),
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: const Color(0xFF0284C7),
-                  foregroundColor: Colors.white,
-                  elevation: 0,
-                  padding: const EdgeInsets.symmetric(vertical: 10),
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(10),
-                  ),
-                ),
-              ),
-            ),
-          ],
         ],
       ),
     );

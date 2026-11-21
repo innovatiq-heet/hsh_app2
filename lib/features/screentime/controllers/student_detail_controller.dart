@@ -216,7 +216,7 @@ class StudentDetailController extends GetxController
   final RxBool isLoadingAppRequests = false.obs;
 
   /// When the student's phone last reported in, and what it reported about
-  /// its own monitoring health (Usage Access / Accessibility / battery).
+  /// its own monitoring health (Usage Access / app blocker / battery).
   final Rx<DateTime?> lastSeenAt = Rx<DateTime?>(null);
 
   final RxMap<String, dynamic> compliance = <String, dynamic>{}.obs;

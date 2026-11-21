@@ -36,7 +36,7 @@ import java.util.concurrent.TimeUnit
  * Flutter UI is closed.
  *
  * Each ping also carries:
- *  - `compliance`  — whether Usage Access / Accessibility / battery exemption
+ *  - `compliance`  — whether Usage Access / app blocker / battery exemption
  *                    are still on, so the warden can spot tampering;
  *  - `blockEvents` — the audit queue of apps the blocker stopped;
  *  - `icon`        — a small PNG of each app's launcher icon, sent once per
@@ -76,6 +76,8 @@ object ScreenTimeSync {
         wm.cancelUniqueWork(TICK_WORK)
         wm.cancelUniqueWork(WATCHDOG_WORK)
         KeepAliveReceiver.cancel(context)
+        // A logged-out (or alumni) phone must be able to uninstall the app.
+        HshDeviceAdmin.remove(context)
         PolicyStore.clearSession(context)
         // A logged-out phone must not keep enforcing the previous student's rules,
         // nor hand their queued breaches / gate pass to the next login.
@@ -325,20 +327,15 @@ object ScreenTimeSync {
         val lm = context.getSystemService(Context.LOCATION_SERVICE) as? LocationManager
         val locationEnabled = lm?.let { LocationManagerCompat.isLocationEnabled(it) } ?: false
         val battery = getBatteryInfo(context)
-        val accessibility = AppBlockerAccessibilityService.isEnabled(context)
-        // Which blocker can stop restricted apps: the accessibility service, or
-        // UsageAppBlocker (Usage access + "Display over other apps") while it is off.
-        val appBlocker = when {
-            accessibility -> "accessibility"
-            UsageAppBlocker.isReady(context) -> "usage_events"
-            else -> "off"
-        }
+        // UsageAppBlocker needs Usage access + "Display over other apps".
+        val appBlocker = if (UsageAppBlocker.isReady(context)) "usage_events" else "off"
         return JSONObject()
             .put("usageAccess", UsageCollector.hasPermission(context))
-            .put("accessibilityEnabled", accessibility)
             .put("overlayPermission", UsageAppBlocker.canShowBlockScreen(context))
             .put("appBlocker", appBlocker)
             .put("appBlockerActive", appBlocker != "off")
+            // While on, Force stop / Uninstall are disabled on the App info page.
+            .put("deviceAdminActive", HshDeviceAdmin.isActive(context))
             .put("batteryOptimizationIgnored", pm.isIgnoringBatteryOptimizations(context.packageName))
             .put("backgroundDataRestricted", bgDataRestricted)
             .put("policyVersion", policy.version)

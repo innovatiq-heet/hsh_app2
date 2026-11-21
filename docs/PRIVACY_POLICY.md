@@ -30,10 +30,12 @@ This Privacy Policy explains what information HSH Connect collects, why specific
 
 ## 3. Sensitive Permissions & Prominent Disclosures
 
-### 3.1 AccessibilityService API Disclosure (`BIND_ACCESSIBILITY_SERVICE`)
-HSH Connect includes an institutional parental-control and study-hour enforcement service (`AppBlockerAccessibilityService`) enabled **only** for active hostel student devices under hostel admission policy.
-- Reads only the active foreground application package name and window-state events to enforce warden-configured study/curfew app restrictions, daily app time limits, and prevent unauthorized stopping of the hostel policy service.
-- **Never** reads keystrokes, passwords, private messages, banking/financial data, or screen text for advertising, profiling, or third-party sharing.
+### 3.1 App Blocker Disclosure (`PACKAGE_USAGE_STATS`, `SYSTEM_ALERT_WINDOW`)
+HSH Connect includes an institutional parental-control and study-hour app blocker, enabled **only** for active hostel student devices under hostel admission policy. It does **not** use the Android AccessibilityService API.
+- Uses Usage access to see which app is open and how long each app is used, and "Display over other apps" to show a block screen over an app the hostel has restricted (blocked apps, app time limits, daily limit, curfew hours, remote lock).
+- Sends daily app usage and blocked-app events (app name, time, reason) to the hostel server. If the student stops the monitoring service, it restarts itself.
+- With the student's consent in setup, HSH Connect becomes a device admin app so that it can't be force-stopped or uninstalled while the student is signed in. It uses no device admin powers (it cannot lock, erase, or change passwords), and it is removed when the student logs out. While the student is signed in, attempts to turn it off are blocked and reported to the hostel server.
+- **Never** reads keystrokes, passwords, private messages, banking/financial data, or screen content, and nothing is used for advertising, profiling, or third-party sharing.
 
 ### 3.2 Location & Background Location Disclosure (`ACCESS_FINE_LOCATION`, `ACCESS_COARSE_LOCATION`, `ACCESS_BACKGROUND_LOCATION`, `FOREGROUND_SERVICE_LOCATION`)
 For active hostel residents, HSH Connect collects location data **even when the app is closed or not in use** via a persistent foreground service strictly to:
@@ -47,13 +49,14 @@ The curfew geofence **never locks a student's phone**, and location data is neve
 
 | Permission / API | Who Uses It | Purpose |
 | :--- | :--- | :--- |
-| `PACKAGE_USAGE_STATS` | Active Hostel Students | Summarizes daily app usage durations for hostel screen-time reporting and study-hour discipline. |
-| `BIND_ACCESSIBILITY_SERVICE` | Active Hostel Students | Enforces hostel-configured app blocks, time limits, and app-install restrictions during residence. |
+| `PACKAGE_USAGE_STATS` | Active Hostel Students | Summarizes daily app usage durations for hostel screen-time reporting and study-hour discipline, and detects which app is open for the app blocker. |
+| `SYSTEM_ALERT_WINDOW` (Display over other apps) | Active Hostel Students | Shows the hostel block screen over a restricted app (app blocks, time limits, app-install restrictions, curfew, remote lock) and restarts monitoring if it is stopped. |
 | `ACCESS_FINE_LOCATION`, `ACCESS_COARSE_LOCATION`, `ACCESS_BACKGROUND_LOCATION` | Active Hostel Students | Curfew geofence monitoring (including in background when closed) and BLE attendance proximity. |
 | `BLUETOOTH_SCAN`, `BLUETOOTH_CONNECT`, `BLUETOOTH_ADVERTISE` | Students & Wardens | Short-range BLE proximity verification during hostel attendance sessions. |
 | `CAMERA` & Android System Photo Picker | All Users | Only invoked when the user captures a complaint photo, uploads a receipt, or scans a QR code. Broad storage/media permissions (`READ_EXTERNAL_STORAGE`, `READ_MEDIA_IMAGES`, `READ_MEDIA_VIDEO`, `READ_MEDIA_VISUAL_USER_SELECTED`) are explicitly removed (`tools:node="remove"`), using Android's native **System Photo Picker** in full compliance with Google Play's Photo & Video Permissions policy. |
 | `READ_PHONE_STATE`, `READ_PHONE_NUMBERS` | Students & Staff | SIM-assisted sign-in verification and single-device binding to prevent proxy attendance. |
-| `BIND_SCREENING_SERVICE`, `SYSTEM_ALERT_WINDOW` | Authorized Wardens & Admins Only | Hostel Phonebook Caller ID overlay identifying incoming calls from registered students/parents. Disabled for students and alumni. |
+| `BIND_SCREENING_SERVICE`, `SYSTEM_ALERT_WINDOW` | Authorized Wardens & Admins Only | Hostel Phonebook Caller ID overlay identifying incoming calls from registered students/parents. Caller ID is disabled for students and alumni. |
+| `BIND_DEVICE_ADMIN` (Device admin, no policies) | Active Hostel Students | Keeps HSH Connect from being force-stopped or uninstalled during residence; removed on logout. |
 | `FOREGROUND_SERVICE`, `FOREGROUND_SERVICE_SPECIAL_USE`, `RECEIVE_BOOT_COMPLETED`, `POST_NOTIFICATIONS` | Active Hostel Students & Staff | Keeps policy sync, geofence checks, and hostel notifications active across device restarts. |
 
 ---

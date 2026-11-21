@@ -87,6 +87,11 @@ object UsageCollector {
      * within [lookbackMs] (callers fall back to their own tracking).
      */
     fun foregroundPackage(context: Context, lookbackMs: Long = 3 * 60 * 60 * 1000L): String? {
+        return foregroundActivity(context, lookbackMs)?.packageName
+    }
+
+    /** Like [foregroundPackage], with the activity class when Android reports it. */
+    fun foregroundActivity(context: Context, lookbackMs: Long = 3 * 60 * 60 * 1000L): ForegroundReplay.Front? {
         if (!isScreenOn(context) || !hasPermission(context)) return null
         val now = System.currentTimeMillis()
         return replayForeground(context, now - lookbackMs, now, null)
@@ -97,14 +102,19 @@ object UsageCollector {
      * [foreground], the app in front before them. Returns [foreground]
      * unchanged when the events can't be read.
      */
-    fun replayForeground(context: Context, from: Long, to: Long, foreground: String?): String? {
+    fun replayForeground(
+        context: Context,
+        from: Long,
+        to: Long,
+        foreground: ForegroundReplay.Front?,
+    ): ForegroundReplay.Front? {
         val usm = context.getSystemService(Context.USAGE_STATS_SERVICE) as UsageStatsManager
         val events = runCatching { usm.queryEvents(from, to) }.getOrNull() ?: return foreground
         val event = UsageEvents.Event()
         var fg = foreground
         while (events.hasNextEvent()) {
             events.getNextEvent(event)
-            fg = ForegroundReplay.step(fg, event.eventType, event.packageName)
+            fg = ForegroundReplay.step(fg, event.eventType, event.packageName, event.className)
         }
         return fg
     }

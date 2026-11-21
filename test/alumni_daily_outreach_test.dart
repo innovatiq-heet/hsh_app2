@@ -119,6 +119,18 @@ void main() {
       expect(history.groupName, 'Pavitra');
       expect(history.leaderName, 'Aman Patel');
       expect(history.outreachDate, '2026-11-16');
+      expect(history.whatsappReachability, 'not_verified');
+    });
+
+    test('contact status and number use the server values', () {
+      final history = AlumniOutreachHistoryModel.fromJson({
+        'id': 1,
+        'studentId': 99,
+        'whatsappNumber': '+91 90000 00000',
+        'whatsappReachability': 'not_reachable',
+      });
+      expect(history.whatsappNumber, '+91 90000 00000');
+      expect(history.whatsappReachability, 'not_reachable');
     });
   });
 }

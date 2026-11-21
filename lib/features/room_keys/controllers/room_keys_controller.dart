@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import '../../../core/abstracts/mixins/load_state_mixin.dart';
 import '../../../core/models/room_keys/room_key_models.dart';
 import '../../../core/models/students/pickable_student.dart';
@@ -133,6 +134,9 @@ class RoomKeysController extends GetxController with LoadStateMixin {
   final Future<Map<String, String>> Function() _roomGroupLoader;
 
   final keys = <RoomKey>[].obs;
+  static const roomOrderStorageKey = 'room_keys_room_order_v1';
+  final roomOrder = <String>[].obs;
+  Future<void> _orderWrite = Future<void>.value();
 
   /// Current residents (no alumni).
   final residents = <PickableStudent>[].obs;
@@ -247,6 +251,8 @@ class RoomKeysController extends GetxController with LoadStateMixin {
   }
 
   Future<void> load({bool showLoading = true}) => guard(() async {
+    final prefs = await SharedPreferences.getInstance();
+    roomOrder.assignAll(prefs.getStringList(roomOrderStorageKey) ?? const []);
     final students = _students.load().then<List<PickableStudent>?>((s) => s).catchError((_) => null);
     final loaded = await _repo.list();
     final people = await students;
@@ -276,6 +282,15 @@ class RoomKeysController extends GetxController with LoadStateMixin {
       keysByRoom.putIfAbsent(k.roomNumber, () => []).add(k);
     }
     final numbers = {...byRoom.keys, ...keysByRoom.keys}.toList()..sort(compareRooms);
+    final savedPositions = {for (var i = 0; i < roomOrder.length; i++) roomOrder[i]: i};
+    numbers.sort((a, b) {
+      final aPosition = savedPositions[a];
+      final bPosition = savedPositions[b];
+      if (aPosition == null && bPosition == null) return compareRooms(a, b);
+      if (aPosition == null) return 1;
+      if (bPosition == null) return -1;
+      return aPosition.compareTo(bPosition);
+    });
     return [
       for (final n in numbers)
         KeyRoom(number: n, students: byRoom[n] ?? const [], keys: [...?keysByRoom[n]]..sort(_keyOrder)),
@@ -315,6 +330,42 @@ class RoomKeysController extends GetxController with LoadStateMixin {
       }
       return r.students.any((s) => s.name.toLowerCase().contains(q));
     }).toList();
+  }
+
+  /// Moves a visible room while keeping filtered-out rooms in their slots.
+  /// The register order is stored locally because `/room-keys` has no order API.
+  Future<void> reorderVisibleRooms(int oldIndex, int newIndex) async {
+    final visible = visibleRooms.map((r) => r.number).toList();
+    if (oldIndex < 0 || oldIndex >= visible.length || newIndex < 0 || newIndex > visible.length) return;
+    if (newIndex > oldIndex) newIndex--;
+    if (newIndex == oldIndex) return;
+    final moved = visible.removeAt(oldIndex);
+    visible.insert(newIndex, moved);
+    final visibleSet = visible.toSet();
+    final reordered = visible.iterator;
+    final all = [for (final room in rooms) room.number];
+    final next = [
+      for (final room in all)
+        if (visibleSet.contains(room)) (reordered..moveNext()).current else room,
+    ];
+    final before = roomOrder.toList();
+    roomOrder.assignAll(next);
+    final snapshot = List<String>.of(next);
+    try {
+      _orderWrite = _orderWrite.catchError((_) {}).then((_) async {
+        final prefs = await SharedPreferences.getInstance();
+        if (!await prefs.setStringList(roomOrderStorageKey, snapshot)) {
+          throw StateError('Could not save room order');
+        }
+      });
+      await _orderWrite;
+    } catch (_) {
+      if (roomOrder.length == snapshot.length &&
+          List.generate(snapshot.length, (i) => roomOrder[i] == snapshot[i]).every((same) => same)) {
+        roomOrder.assignAll(before);
+      }
+      AppSnackbar.error('Order Not Saved', 'Could not save the room order. Please try again.');
+    }
   }
 
   int roomCount(RoomFilter f) => switch (f) {

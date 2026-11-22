@@ -1,6 +1,6 @@
 # Birthday Wishes
 
-> **Last updated:** 2026-11-21 · **Repos:** `hsh_app2` (admin Template Studio), `hsh_api` (stores the config and sends the WhatsApp wishes).
+> **Last updated:** 2026-11-22 · **Repos:** `hsh_app2` (admin Template Studio), `hsh_api` (stores the config and sends the WhatsApp wishes).
 
 ---
 
@@ -48,6 +48,19 @@ The group comes from the student's `groupName` in the API when present. When the
 Logs (Logs & Test tab) are grouped under date headers (Today, Yesterday, `Thu, 23 Oct 2026`) with sent / failed counts, and a row of date chips filters to one day. A log's date is its `wishDate`, or the IST day of `sentAt`. Each row shows the time sent and whether it went to the Student or the Parent.
 
 The dashboard only carries the most recent logs. **Pick a day** (first chip) opens a calendar and loads every wish logged that day from `GET /whatsapp/birthday/logs` (`AdminBirthdayController.loadLogsForDate`); the day is merged with the recent logs and selected. A day with no wishes shows "No wishes were logged on …".
+
+### Parents' own birthdays (father / mother)
+
+Today and Tomorrow also list **parents whose own birthday it is**, under the students in a "Parents' birthdays" section.
+
+- **Where the list comes from:** `GET /whatsapp/birthday` → `todaysParentBirthdays` / `tomorrowsParentBirthdays` (HAMS_WEB). Each entry has `role`, `parentName`, `phone`, `dob`, `turning`, `students[]` (`studentId`, `name`, `studentCode`, `room`, `groupName`, `status`) and `alreadySentToday`; siblings are merged by the server. With an older API that has no such fields, the app reads the phonebook synced on this phone instead (`ParentBirthday.on`, same rules: month and day, 29 February on 28 February in other years, siblings merged, leaders see their group).
+- **Each card:** the parent's photo (`father/` or `mother/personal/<student aadhar>.jpg`, through the bank code), name, "Father of …", the age they turn, group and room.
+  - Call, and WhatsApp from this phone (the active Father / Mother template, `fillParentTemplate`).
+  - **Send via bot** (today, server list only): asks "Send from" and calls `POST /whatsapp/birthday/send-parent-wish {role, studentId, accountId}`. `studentId` is the first child's numeric `students.id`; `ParentBirthday.fromServer` keeps only positive integers without a leading zero, so a bank code is never sent. It then shows **Wished today**; a 409 (already wished) does the same.
+  - Tomorrow's cards have no bot button: the server would send it today.
+- **"Also wish parents on their own birthday"** (Template Studio, under Target Audience; shown when the server supports it) saves `includeParentBirthdays`. When on, **Send All** and the daily run also wish today's fathers and mothers with the Father / Mother templates, each parent once a day. On a day with only parents, a **Send all** bar appears above the parent cards.
+- **Template Studio** has four kinds in two rows. *On the student's birthday*: **Student** and **To parents**. *On a parent's own birthday*: **Father** and **Mother**. Placeholders for Father / Mother: `{parent_name}`, `{first_name}` (the parent's), `{student_name}` (their child or children), `{age}`, `{room}`.
+- **Where Father / Mother templates are saved:** with the config on the server once `data.config` has the `activeFatherTemplateId` key (`BirthdayConfigModel.supportsParentBirthdays`); never sent to an older API. A copy is kept on this phone (`birthday_parent_templates_v1`) and used until the server holds father / mother templates, so templates written before the upgrade are uploaded, not lost.
 
 ### Several WhatsApp numbers
 
@@ -161,6 +174,10 @@ The app also keeps the library and active picks in `SharedPreferences` (`birthda
 | `lib/core/models/whatsapp/whatsapp_account.dart` | `WhatsAppAccount` (id, label, status, qr, phone) and `WhatsAppAccountsData` (accounts + scheduled-run defaults) |
 | `lib/core/network/repository/whatsapp/whatsapp_accounts_repository.dart` | `/whatsapp/accounts` and per-number status, connect, pair, disconnect |
 | `lib/features/whatsapp_accounts/` | WhatsApp Numbers screen, controller (polling, add / rename / delete / defaults) and the "Send from" sheet (`pickSendFromAccount`) |
+| `lib/features/birthday/models/parent_birthday.dart` | `ParentBirthday`: finds fathers / mothers whose birthday is on a day, merges siblings |
+| `lib/features/birthday/widgets/parent_birthday_section.dart` | "Parents' birthdays" section and cards on Today / Tomorrow |
+| `test/parent_birthdays_test.dart` | Finding parents' birthdays, father / mother templates, never sent to an older API |
+| `test/parent_birthdays_server_test.dart` | Server parent lists, the include setting, `send-parent-wish` request and its 409 / 400 errors, no bank code as an id |
 | `test/whatsapp_accounts_test.dart` | Accounts parsing, `accountId` on sends and linking, admin actions, nothing asked with one number (fake API) |
 | `test/birthday_models_test.dart` | Config, student and dashboard JSON parsing |
 | `test/birthday_api_contract_test.dart` | Template checks matching the API, log merging, save rejection message, logs-by-day request (fake API) |

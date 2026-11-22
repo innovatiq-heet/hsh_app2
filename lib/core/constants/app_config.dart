@@ -30,8 +30,13 @@ class AppConfig {
 
   /// Public student photos: `<base>/<12-digit Aadhar>.jpg`. A student with
   /// no photo answers 403, so callers must fall back to initials.
-  static const String studentPhotoBaseUrl =
-      'https://storage.googleapis.com/hari-saurabh-hostel-78d58.appspot.com/student/personal';
+  static const String studentPhotoBaseUrl = '$photoStorageUrl/student/personal';
+
+  /// Public photo storage. Student, father and mother photos all live in it,
+  /// each named after the **student's** 12-digit Aadhar:
+  /// `student/personal/`, `father/personal/`, `mother/personal/<aadhar>.jpg`.
+  static const String photoStorageUrl =
+      'https://storage.googleapis.com/hari-saurabh-hostel-78d58.appspot.com';
 
   /// Artificial delay used in repositories that serve mock/local data.
   static const Duration mockNetworkDelay = Duration(milliseconds: 600);

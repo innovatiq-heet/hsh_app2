@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
+import 'package:font_awesome_flutter/font_awesome_flutter.dart';
 import 'package:flutter/services.dart';
 import 'package:get/get.dart';
+import '../../../core/utils/student_photo.dart';
 import '../../../core/constants/app_routes.dart';
 import '../../../core/models/anniversary/anniversary_models.dart';
 import '../../../core/utils/app_snackbar.dart';
@@ -749,6 +751,7 @@ class AdminAnniversaryScreen extends GetView<AdminAnniversaryController> {
     required Color bgColor,
     required String recipientType,
   }) {
+    final photoOf = recipientType == 'mother' ? PhotoOf.mother : PhotoOf.father;
     final clean = phone.replaceAll(RegExp(r'\D'), '');
     final hasPhone = clean.length >= 6;
 
@@ -764,28 +767,42 @@ class AdminAnniversaryScreen extends GetView<AdminAnniversaryController> {
         children: [
           Row(
             children: [
-              Icon(icon, size: 15, color: accentColor),
-              const SizedBox(width: 5),
-              Text(
-                title,
-                style: TextStyle(
-                  fontSize: 11.5,
-                  fontWeight: FontWeight.w800,
-                  color: accentColor,
+              // The parent's photo (named after the student's Aadhar), else the icon.
+              StudentAvatar(
+                name: name,
+                bankCode: record.studentCode,
+                photoOf: photoOf,
+                size: 34,
+                background: accentColor.withValues(alpha: 0.14),
+                child: Icon(icon, size: 17, color: accentColor),
+              ),
+              const SizedBox(width: 8),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      title,
+                      style: TextStyle(
+                        fontSize: 11,
+                        fontWeight: FontWeight.w800,
+                        color: accentColor,
+                      ),
+                    ),
+                    Text(
+                      name,
+                      style: const TextStyle(
+                        fontSize: 12.5,
+                        fontWeight: FontWeight.w700,
+                        color: Color(0xFF1E293B),
+                      ),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  ],
                 ),
               ),
             ],
-          ),
-          const SizedBox(height: 4),
-          Text(
-            name,
-            style: const TextStyle(
-              fontSize: 12.5,
-              fontWeight: FontWeight.w700,
-              color: Color(0xFF1E293B),
-            ),
-            maxLines: 1,
-            overflow: TextOverflow.ellipsis,
           ),
           const SizedBox(height: 2),
           Text(
@@ -800,28 +817,27 @@ class AdminAnniversaryScreen extends GetView<AdminAnniversaryController> {
           ),
           const SizedBox(height: 8),
 
-          // Actions: Call, WA, Bot
+          // Actions: Call and WhatsApp (opens this phone's WhatsApp with the wish)
           Row(
             children: [
-              // Call
-              if (hasPhone)
-                InkWell(
-                  onTap: () => controller.callPhone(phone),
-                  borderRadius: BorderRadius.circular(8),
-                  child: Container(
-                    padding: const EdgeInsets.all(6),
-                    decoration: BoxDecoration(
-                      color: accentColor.withValues(alpha: 0.12),
-                      borderRadius: BorderRadius.circular(8),
-                    ),
-                    child: Icon(Icons.phone_rounded, size: 13, color: accentColor),
-                  ),
-                ),
-              if (hasPhone) const SizedBox(width: 6),
-
-              // Device WhatsApp
               Expanded(
-                child: InkWell(
+                child: _ParentActionIcon(
+                  tooltip: 'Call',
+                  icon: Icon(Icons.call_rounded, size: 18, color: hasPhone ? accentColor : const Color(0xFF94A3B8)),
+                  background: hasPhone ? accentColor.withValues(alpha: 0.14) : const Color(0xFFE2E8F0),
+                  onTap: hasPhone ? () => controller.callPhone(phone) : null,
+                ),
+              ),
+              const SizedBox(width: 8),
+              Expanded(
+                child: _ParentActionIcon(
+                  tooltip: 'WhatsApp',
+                  icon: FaIcon(
+                    FontAwesomeIcons.whatsapp,
+                    size: 18,
+                    color: hasPhone ? Colors.white : const Color(0xFF94A3B8),
+                  ),
+                  background: hasPhone ? const Color(0xFF25D366) : const Color(0xFFE2E8F0),
                   onTap: hasPhone
                       ? () => controller.wishViaDeviceWhatsApp(
                             phone: phone,
@@ -829,63 +845,6 @@ class AdminAnniversaryScreen extends GetView<AdminAnniversaryController> {
                             recipientType: recipientType,
                           )
                       : null,
-                  borderRadius: BorderRadius.circular(8),
-                  child: Container(
-                    padding: const EdgeInsets.symmetric(vertical: 6),
-                    decoration: BoxDecoration(
-                      color: hasPhone ? const Color(0xFF25D366) : const Color(0xFFE2E8F0),
-                      borderRadius: BorderRadius.circular(8),
-                    ),
-                    alignment: Alignment.center,
-                    child: Row(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: [
-                        Icon(
-                          Icons.chat_bubble_outline_rounded,
-                          size: 11,
-                          color: hasPhone ? Colors.white : const Color(0xFF94A3B8),
-                        ),
-                        const SizedBox(width: 3),
-                        Text(
-                          'WA',
-                          style: TextStyle(
-                            fontSize: 10.5,
-                            fontWeight: FontWeight.w700,
-                            color: hasPhone ? Colors.white : const Color(0xFF94A3B8),
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                ),
-              ),
-              const SizedBox(width: 6),
-
-              // Server Bot
-              Expanded(
-                child: InkWell(
-                  onTap: hasPhone
-                      ? () => recipientType == 'father'
-                          ? controller.wishFather(record)
-                          : controller.wishMother(record)
-                      : null,
-                  borderRadius: BorderRadius.circular(8),
-                  child: Container(
-                    padding: const EdgeInsets.symmetric(vertical: 6),
-                    decoration: BoxDecoration(
-                      color: hasPhone ? accentColor : const Color(0xFFE2E8F0),
-                      borderRadius: BorderRadius.circular(8),
-                    ),
-                    alignment: Alignment.center,
-                    child: Text(
-                      'Bot',
-                      style: TextStyle(
-                        fontSize: 10.5,
-                        fontWeight: FontWeight.w700,
-                        color: hasPhone ? Colors.white : const Color(0xFF94A3B8),
-                      ),
-                    ),
-                  ),
                 ),
               ),
             ],
@@ -1362,7 +1321,14 @@ class AdminAnniversaryScreen extends GetView<AdminAnniversaryController> {
                   side: const BorderSide(color: Color(0xFFBAE6FD)),
                 ),
                 tileColor: const Color(0xFFF0F9FF),
-                leading: const Icon(Icons.person_rounded, color: Color(0xFF0284C7)),
+                leading: StudentAvatar(
+                  name: record.fatherName,
+                  bankCode: record.studentCode,
+                  photoOf: PhotoOf.father,
+                  size: 38,
+                  background: const Color(0xFFE0F2FE),
+                  child: const Icon(Icons.person_rounded, color: Color(0xFF0284C7), size: 20),
+                ),
                 title: Text(
                   record.fatherName.isNotEmpty ? record.fatherName : 'Father',
                   style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 13),
@@ -1392,7 +1358,14 @@ class AdminAnniversaryScreen extends GetView<AdminAnniversaryController> {
                   side: const BorderSide(color: Color(0xFFF5D0FE)),
                 ),
                 tileColor: const Color(0xFFFDF4FF),
-                leading: const Icon(Icons.face_3_rounded, color: Color(0xFFD946EF)),
+                leading: StudentAvatar(
+                  name: record.motherName,
+                  bankCode: record.studentCode,
+                  photoOf: PhotoOf.mother,
+                  size: 38,
+                  background: const Color(0xFFFAE8FF),
+                  child: const Icon(Icons.face_3_rounded, color: Color(0xFFD946EF), size: 20),
+                ),
                 title: Text(
                   record.motherName.isNotEmpty ? record.motherName : 'Mother',
                   style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 13),
@@ -3264,4 +3237,35 @@ class _HeaderOrbPainter extends CustomPainter {
 
   @override
   bool shouldRepaint(covariant CustomPainter oldDelegate) => false;
+}
+
+/// Icon-only action on a parent box (Call / WhatsApp): equal width, 36 high.
+class _ParentActionIcon extends StatelessWidget {
+  final String tooltip;
+  final Widget icon;
+  final Color background;
+  final VoidCallback? onTap;
+
+  const _ParentActionIcon({
+    required this.tooltip,
+    required this.icon,
+    required this.background,
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Tooltip(
+      message: tooltip,
+      child: Material(
+        color: background,
+        borderRadius: BorderRadius.circular(10),
+        child: InkWell(
+          onTap: onTap,
+          borderRadius: BorderRadius.circular(10),
+          child: SizedBox(height: 36, child: Center(child: icon)),
+        ),
+      ),
+    );
+  }
 }

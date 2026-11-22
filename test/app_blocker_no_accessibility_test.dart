@@ -47,6 +47,68 @@ void main() {
     });
   });
 
+  group('HSH app installed or not (warden screen time)', () {
+    const on = <String, dynamic>{'usageAccess': true, 'deviceAdminActive': true};
+    const off = <String, dynamic>{'usageAccess': true, 'deviceAdminActive': false};
+
+    test('device admin granted means installed, online or not', () {
+      expect(appInstallStatus(compliance: on, online: true), AppInstallStatus.installed);
+      expect(appInstallStatus(compliance: on, online: false), AppInstallStatus.installed);
+    });
+
+    test('device admin turned off means uninstalled', () {
+      expect(appInstallStatus(compliance: off, online: false), AppInstallStatus.uninstalled);
+    });
+
+    test('turned off but still reporting is installed with protection off', () {
+      expect(appInstallStatus(compliance: off, online: true), AppInstallStatus.protectionOff);
+    });
+
+    test('a phone that never reported is not installed', () {
+      expect(appInstallStatus(compliance: null, online: false), AppInstallStatus.notInstalled);
+      expect(appInstallStatus(compliance: const {}, online: false), AppInstallStatus.notInstalled);
+    });
+
+    test('older builds without deviceAdminActive that reported are installed', () {
+      expect(appInstallStatus(compliance: const {'usageAccess': true}, online: false), AppInstallStatus.installed);
+    });
+
+    test('reads a /screen-time/students row', () {
+      expect(appInstallStatusOf({'id': 12, 'isOnline': false, 'compliance': off}), AppInstallStatus.uninstalled);
+      expect(appInstallStatusOf({'id': 13, 'isOnline': false, 'compliance': on}), AppInstallStatus.installed);
+      expect(appInstallStatusOf({'id': 14, 'isOnline': false}), AppInstallStatus.notInstalled);
+    });
+  });
+
+  group('Monitoring section (student screen time)', () {
+    test('lists every permission with its state, in setup order', () {
+      final checks = monitoringChecks({
+        'usageAccess': true,
+        'appBlockerActive': false,
+        'locationPermission': 'foreground',
+        'locationEnabled': true,
+        'batteryOptimizationIgnored': true,
+        'deviceAdminActive': false,
+      });
+      expect(checks.map((c) => c.label).toList(), [
+        'Usage access',
+        'App blocker',
+        'Location "Allow all the time"',
+        'GPS (location service)',
+        'Keep running in background',
+        'Removal protection',
+      ]);
+      expect(checks.where((c) => !c.on).map((c) => c.label).toList(),
+          ['App blocker', 'Location "Allow all the time"', 'Removal protection']);
+    });
+
+    test('a permission the phone did not report is left out, not shown as off', () {
+      final checks = monitoringChecks({'usageAccess': true, 'accessibilityEnabled': true});
+      expect(checks.map((c) => c.label).toList(), ['Usage access', 'App blocker']);
+      expect(checks.every((c) => c.on), isTrue);
+    });
+  });
+
   group('warden compliance', () {
     Map<String, dynamic> report(Map<String, dynamic> blocker) => {
           'usageAccess': true,

@@ -8,6 +8,7 @@ import '../../shared/widgets/app_card.dart';
 import '../controllers/screen_time_utils.dart';
 import 'student_detail_widget.dart';
 import 'app_brand_icon.dart';
+import 'app_install_status_pill.dart';
 
 /// "What is this phone doing right now?" — presence, foreground app, last
 /// report time, and a loud warning if the student switched monitoring off.
@@ -23,7 +24,6 @@ class LiveStatusCard extends StudentDetailWidget {
       final screenOn = controller.isScreenOn.value;
       final app = controller.currentApp.value;
       final lastSeen = controller.lastSeenAt.value;
-      final tampered = controller.isTampered;
       final comp = controller.compliance;
       final battery = controller.batteryLevel.value;
       final charging = controller.isCharging.value;
@@ -88,6 +88,15 @@ class LiveStatusCard extends StudentDetailWidget {
                     style: AppTextStyles.caption.copyWith(color: AppColors.textMuted),
                   ),
               ],
+            ),
+            const SizedBox(height: 10),
+            // One row: HSH app installed? + Monitoring summary (tap to see each permission).
+            _StatusStrip(
+              installStatus: appInstallStatus(
+                compliance: Map<String, dynamic>.from(comp),
+                online: online,
+              ),
+              checks: comp.isEmpty ? const [] : monitoringChecks(Map<String, dynamic>.from(comp)),
             ),
             if (hasInstallPass) ...[
               const SizedBox(height: 12),
@@ -155,50 +164,6 @@ class LiveStatusCard extends StudentDetailWidget {
                           const SizedBox(height: 2),
                           Text(
                             'The student may have turned off Wi-Fi/Mobile Data, switched on Airplane mode, or powered off the phone. Cached curfew & app limits remain active locally.',
-                            style: AppTextStyles.bodySm.copyWith(color: AppColors.textSecondary),
-                          ),
-                        ],
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            ],
-            if (tampered) ...[
-              const SizedBox(height: 12),
-              Container(
-                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-                decoration: BoxDecoration(
-                  color: AppColors.warningOrange.withValues(alpha: 0.1),
-                  borderRadius: BorderRadius.circular(AppDimens.radiusSm),
-                  border: Border.all(color: AppColors.warningOrange.withValues(alpha: 0.35)),
-                ),
-                child: Row(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    const Icon(Icons.gpp_bad_rounded, color: AppColors.warningOrange, size: 20),
-                    const SizedBox(width: 10),
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(
-                            'Monitoring switched off on this phone',
-                            style: AppTextStyles.bodyMd.copyWith(
-                              fontWeight: FontWeight.w700,
-                              color: AppColors.warningOrange,
-                            ),
-                          ),
-                          const SizedBox(height: 2),
-                          Text(
-                            '${[
-                              if (comp['usageAccess'] == false) 'Usage access',
-                              if (isAppBlockerOff(comp)) 'App blocker',
-                              if (comp['deviceAdminActive'] == false) 'Removal protection',
-                              if (comp['batteryOptimizationIgnored'] == false) 'Battery exemption',
-                              if (comp['locationEnabled'] == false) 'GPS location service',
-                              if (comp['locationPermission'] == 'denied' || comp['locationPermission'] == 'foreground') 'Location tracking',
-                            ].join(' • ')} disabled. Usage numbers or geofence alerts below may be incomplete.',
                             style: AppTextStyles.bodySm.copyWith(color: AppColors.textSecondary),
                           ),
                         ],
@@ -357,4 +322,138 @@ class _BatteryPill extends StatelessWidget {
       ),
     );
   }
+}
+
+/// The compact status row under the live status: the HSH app install pill
+/// and a Monitoring chip ("All on" / "2 off"). Tapping the chip opens the list
+/// of every permission HSH needs, on or off, from the phone's last report.
+class _StatusStrip extends StatefulWidget {
+  final AppInstallStatus installStatus;
+  final List<MonitoringCheck> checks;
+
+  const _StatusStrip({required this.installStatus, required this.checks});
+
+  @override
+  State<_StatusStrip> createState() => _StatusStripState();
+}
+
+class _StatusStripState extends State<_StatusStrip> {
+  bool _expanded = false;
+
+  @override
+  Widget build(BuildContext context) {
+    final checks = widget.checks;
+    final off = checks.where((c) => !c.on).length;
+    final chipColor = off == 0 ? AppColors.successGreen : AppColors.errorRed;
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Wrap(
+          spacing: 6,
+          runSpacing: 6,
+          crossAxisAlignment: WrapCrossAlignment.center,
+          children: [
+            AppInstallStatusPill(status: widget.installStatus, compact: true),
+            if (checks.isNotEmpty)
+              Semantics(
+                button: true,
+                expanded: _expanded,
+                label: 'Monitoring permissions',
+                child: InkWell(
+                  onTap: () => setState(() => _expanded = !_expanded),
+                  borderRadius: BorderRadius.circular(6),
+                  child: Container(
+                    padding: const EdgeInsets.fromLTRB(6, 2, 2, 2),
+                    decoration: BoxDecoration(
+                      color: chipColor.withValues(alpha: 0.1),
+                      borderRadius: BorderRadius.circular(6),
+                      border: Border.all(color: chipColor.withValues(alpha: 0.3)),
+                    ),
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Icon(off == 0 ? Icons.verified_user_rounded : Icons.gpp_bad_rounded,
+                            size: 12, color: chipColor),
+                        const SizedBox(width: 3),
+                        Text(
+                          off == 0 ? 'Monitoring: all on' : 'Monitoring: $off off',
+                          style: TextStyle(fontSize: 10.5, fontWeight: FontWeight.w700, color: chipColor),
+                        ),
+                        AnimatedRotation(
+                          turns: _expanded ? 0.5 : 0,
+                          duration: const Duration(milliseconds: 200),
+                          child: Icon(Icons.expand_more_rounded, size: 16, color: chipColor),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              ),
+          ],
+        ),
+        AnimatedSize(
+          duration: const Duration(milliseconds: 200),
+          curve: Curves.easeInOut,
+          alignment: Alignment.topCenter,
+          child: !_expanded || checks.isEmpty
+              ? const SizedBox(width: double.infinity)
+              : Container(
+                  width: double.infinity,
+                  margin: const EdgeInsets.only(top: 8),
+                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                  decoration: BoxDecoration(
+                    color: AppColors.mainBackground,
+                    borderRadius: BorderRadius.circular(AppDimens.radiusSm),
+                  ),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [for (final c in checks) _row(c)],
+                  ),
+                ),
+        ),
+      ],
+    );
+  }
+
+  Widget _row(MonitoringCheck c) =>
+    Padding(
+      padding: const EdgeInsets.symmetric(vertical: 4),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Icon(
+            c.on ? Icons.check_circle_rounded : Icons.cancel_rounded,
+            size: 16,
+            color: c.on ? AppColors.successGreen : AppColors.errorRed,
+          ),
+          const SizedBox(width: 8),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  c.label,
+                  style: AppTextStyles.bodySm.copyWith(
+                    fontWeight: FontWeight.w600,
+                    color: c.on ? AppColors.textPrimary : AppColors.errorRed,
+                  ),
+                ),
+                if (!c.on)
+                  Text(
+                    'Off: ${c.whatItDoes} not working',
+                    style: AppTextStyles.caption.copyWith(color: AppColors.textSecondary),
+                  ),
+              ],
+            ),
+          ),
+          Text(
+            c.on ? 'On' : 'Off',
+            style: AppTextStyles.caption.copyWith(
+              fontWeight: FontWeight.w700,
+              color: c.on ? AppColors.successGreen : AppColors.errorRed,
+            ),
+          ),
+        ],
+      ),
+    );
 }

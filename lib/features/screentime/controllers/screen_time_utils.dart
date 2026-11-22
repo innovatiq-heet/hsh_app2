@@ -70,6 +70,43 @@ Map<String, dynamic>? complianceOf(dynamic s) =>
     s is Map && s['compliance'] is Map ? Map<String, dynamic>.from(
         s['compliance']) : null;
 
+/// Whether HSH is on a student's phone, guessed from its device admin
+/// (removal protection, `compliance.deviceAdminActive`): granted in setup means
+/// installed, turned off means the student is taken to have uninstalled it.
+enum AppInstallStatus {
+  /// Removal protection is on (or an older build that has reported).
+  installed,
+
+  /// Removal protection was turned off, but the phone is still reporting.
+  protectionOff,
+
+  /// Removal protection was turned off and the phone isn't reporting.
+  uninstalled,
+
+  /// This student's phone has never reported: not installed or never set up.
+  notInstalled,
+}
+
+AppInstallStatus appInstallStatus({
+  required Map<String, dynamic>? compliance,
+  required bool online,
+}) {
+  if (compliance == null || compliance.isEmpty) {
+    return online ? AppInstallStatus.installed : AppInstallStatus.notInstalled;
+  }
+  if (compliance['deviceAdminActive'] == false) {
+    return online ? AppInstallStatus.protectionOff : AppInstallStatus.uninstalled;
+  }
+  // `true`, or missing (builds older than 2026-11-22 have reported, so the app is there).
+  return AppInstallStatus.installed;
+}
+
+/// [appInstallStatus] for a `/screen-time/students` row.
+AppInstallStatus appInstallStatusOf(dynamic s) => appInstallStatus(
+      compliance: complianceOf(s),
+      online: isStudentOnline(s),
+    );
+
 /// Whether a phone's compliance report says nothing can block apps. Current
 /// builds send `appBlockerActive` (Usage access + Display over other apps).
 /// Older builds, which blocked through Accessibility, only send
@@ -77,6 +114,36 @@ Map<String, dynamic>? complianceOf(dynamic s) =>
 bool isAppBlockerOff(Map<String, dynamic> c) => c.containsKey('appBlockerActive')
     ? c['appBlockerActive'] == false
     : c['accessibilityEnabled'] == false;
+
+/// One permission in a student's Monitoring section.
+typedef MonitoringCheck = ({String label, String whatItDoes, bool on});
+
+/// Each permission HSH needs, read from the phone's last `compliance` report,
+/// in setup order. A permission the phone didn't report (older builds) is left
+/// out rather than shown as off.
+List<MonitoringCheck> monitoringChecks(Map<String, dynamic> c) {
+  final checks = <MonitoringCheck>[];
+  void add(String label, String whatItDoes, bool? on) {
+    if (on != null) checks.add((label: label, whatItDoes: whatItDoes, on: on));
+  }
+
+  bool? flag(String key) => c[key] is bool ? c[key] as bool : null;
+
+  add('Usage access', 'Screen time and seeing which app is open', flag('usageAccess'));
+  add(
+    'App blocker',
+    'Blocked apps, time limits, bedtime and remote lock',
+    c.containsKey('appBlockerActive') || c.containsKey('accessibilityEnabled') ? !isAppBlockerOff(c) : null,
+  );
+  final locPerm = (c['locationPermission'] ?? '').toString().toLowerCase();
+  add('Location "Allow all the time"', 'Curfew geofence and location in the background',
+      locPerm.isEmpty ? null : locPerm == 'always');
+  add('GPS (location service)', 'Any location at all', flag('locationEnabled'));
+  add('Keep running in background', 'Battery exemption, so Android does not pause monitoring',
+      flag('batteryOptimizationIgnored'));
+  add('Removal protection', 'Stops force-stopping or uninstalling HSH', flag('deviceAdminActive'));
+  return checks;
+}
 
 bool isStudentTampered(dynamic s) {
   final c = complianceOf(s);

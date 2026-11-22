@@ -232,7 +232,7 @@ While HSH is an active **device admin**, Android's App info page disables **Forc
 
 - `res/xml/hsh_device_admin.xml` asks for **no admin policies**: the app cannot lock, wipe, or change passwords through it.
 - Setup step 5 (Protect from removal) opens the system "Activate device admin app?" screen with an explanation (`requestDeviceAdmin`). It is required: `HomeController` sends the student back to setup while it is off.
-- Turning it off shows Android's confirmation with our warning (`onDisableRequested`) and triggers an immediate ping, so `compliance.deviceAdminActive: false` is sent. The warden's tamper flag (`isStudentTampered`) and the "Monitoring switched off" card ("Removal protection") use it.
+- Turning it off shows Android's confirmation with our warning (`onDisableRequested`) and triggers an immediate ping, so `compliance.deviceAdminActive: false` is sent. The student's **Monitoring** section shows "Removal protection: Off", and the install pill shows Uninstalled / Protection off (section 7).
 - Logout and alumni (`ScreenTimeSync.stop`) remove the admin, so the phone can uninstall the app normally.
 - **Turning it off is blocked while signed in**, in two ways:
   - `HshDeviceAdmin.onDisableRequested`: Android calls it when the student taps "Deactivate", before the final confirmation. The app opens the block screen (`BlockReason.ADMIN_PROTECTED`, "Setting Protected") over that dialog, and the block screen then goes home.
@@ -245,7 +245,7 @@ While HSH is an active **device admin**, Android's App info page disables **Forc
 1. `POST /screen-time/ping`: store `blockEvents` (today they are ignored), at least those with `reason: "admin_protected"`: student id from the token, `packageName`, `appName`, `reason`, `at` (epoch ms).
 2. On an `admin_protected` event, or when `compliance.deviceAdminActive` changes to `false`, send a push notification to the student's wardens/leaders ("<name> tried to turn off HSH removal protection") and show it in the Screen Time alerts.
 3. Uninstall can only be inferred: alert when a student with an active session sends no ping for a set time (for example 30 minutes with no ping after the last one had `deviceAdminActive: false`).
-4. Store `compliance` so the warden's "Monitoring switched off" card and Attention filter work.
+4. Keep returning the latest `compliance` on `GET /screen-time/students` and `/live` (already done today): the student's Monitoring section and the install pill read it.
 
 ---
 
@@ -259,6 +259,17 @@ While HSH is an active **device admin**, Android's App info page disables **Forc
 ---
 
 ## 7. Warden dashboard
+
+**Monitoring** (student's Screen Time page, `_StatusStrip` in `live_status_card.dart`, `monitoringChecks` in `screen_time_utils.dart`): every permission HSH needs, On or Off, from the phone's last `compliance`: Usage access, App blocker (Display over other apps; Accessibility on old builds), Location "Allow all the time", GPS, Keep running in background (battery exemption) and Removal protection. Under the live status, one compact row holds the install pill and a Monitoring chip ("Monitoring: all on" / "Monitoring: 2 off"). The list starts collapsed; tapping the chip opens it, and each Off row says what stops working. A permission the phone didn't report (older builds) is left out. The student **list** shows no monitoring status.
+
+**HSH app installed or not** (`appInstallStatus` in `screen_time_utils.dart`, `AppInstallStatusPill`): shown on every student row (compact) and on the student's live status card. A removed app sends nothing, so it is a guess from the device admin (removal protection) in the latest `compliance` (HAMS_WEB `GET /screen-time/students`):
+
+| Status | When |
+| :--- | :--- |
+| Installed | `deviceAdminActive: true` (granted in setup step 5), or an older build without the key that has reported |
+| Protection off | `deviceAdminActive: false`, but the phone is online, so the app is clearly still there |
+| Uninstalled | `deviceAdminActive: false` and the phone is not online: taken as uninstalled, since turning the admin off is the step before uninstalling |
+| Not installed | Never reported (no `compliance`): not installed, or the student never finished setup |
 
 Operator home → **Screen Time** (leaders: Services → Leader Tools, or the profile hub). Allowed app roles: `canViewScreenTime` (admin, warden, leader); allowed backend roles: operator, platform-admin, leader, wing-leader.
 
@@ -367,7 +378,7 @@ All checks passed. Native code compiles; `flutter analyze` is clean.
 
 ## 13. Known limitations
 
-- **Telemetry the backend ignores:** the ping carries `compliance` (usage access, app blocker, battery exemption, app version…), `blockEvents`, app icons, `deviceTime` and `currentPackage`, but the backend doesn't store them. The dashboard's **Attention** (tamper) filter therefore never matches.
+- **Telemetry the backend ignores:** HAMS_WEB stores the ping's `compliance` (latest per day, returned on `/students`), but not `blockEvents`, app icons, `deviceTime` or `currentPackage`.
 - **Night minutes:** the phone never sends `nightScreenTimeMinutes`, so night minutes stay 0 and the **Night** filter shows nobody.
 - **Old app builds and bank codes:** a warden phone still on a build from before 2026-10-06 sends the bank code when opening Screen Time from the phonebook. Codes with a leading zero (`0001`–`0999`) are now rejected (nothing opens). Codes `1000` and up are plain numbers, so the backend reads them as a student id and can still open the wrong student until that phone updates.
 - **Single backend process for instant delivery.** The change signal is in-process. With several API processes, changes still arrive, but up to 25 s later.

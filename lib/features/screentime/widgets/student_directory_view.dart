@@ -11,6 +11,7 @@ import '../controllers/screen_time_directory_controller.dart';
 import '../controllers/screen_time_utils.dart';
 import '../../../core/utils/string_formatting.dart';
 import 'app_brand_icon.dart';
+import 'app_install_status_pill.dart';
 import 'app_requests_banner.dart';
 import '../../shared/widgets/student_avatar.dart';
 
@@ -1035,7 +1036,6 @@ class _StudentRow extends GetView<ScreenTimeDirectoryController> {
     final nightMins = extractStudentNightMinutes(student);
     final locked = isStudentLocked(student);
     final restricted = blockedOf(student).length;
-    final tampered = isStudentTampered(student);
     final lastSeen = lastSeenOf(student);
     final currentApp = (student['currentApp'] ?? '').toString();
     final currentPkg = (student['currentPackage'] ?? '').toString();
@@ -1094,24 +1094,17 @@ class _StudentRow extends GetView<ScreenTimeDirectoryController> {
               .toUpperCase()
         : 'S';
 
-    final avatarBg = tampered
-        ? const Color(0xFFFEF3C7)
-        : (locked ? const Color(0xFFFEF2F2) : const Color(0xFFE0F2FE));
-    final avatarBorder = tampered
-        ? const Color(0xFFFDE68A)
-        : (locked ? const Color(0xFFFCA5A5) : const Color(0xFFBAE6FD));
-    final avatarText = tampered
-        ? const Color(0xFFD97706)
-        : (locked ? const Color(0xFFDC2626) : const Color(0xFF0284C7));
+    // Monitoring status (permissions) is shown on the student's own page only.
+    final avatarBg = locked ? const Color(0xFFFEF2F2) : const Color(0xFFE0F2FE);
+    final avatarBorder = locked ? const Color(0xFFFCA5A5) : const Color(0xFFBAE6FD);
+    final avatarText = locked ? const Color(0xFFDC2626) : const Color(0xFF0284C7);
 
     return Container(
       decoration: BoxDecoration(
         color: Colors.white,
         borderRadius: BorderRadius.circular(16),
         border: Border.all(
-          color: locked
-              ? const Color(0xFFFCA5A5)
-              : (tampered ? const Color(0xFFFDE68A) : const Color(0xFFE2E8F0)),
+          color: locked ? const Color(0xFFFCA5A5) : const Color(0xFFE2E8F0),
           width: 1,
         ),
         boxShadow: [
@@ -1251,7 +1244,9 @@ class _StudentRow extends GetView<ScreenTimeDirectoryController> {
                           ],
                         ],
                       ),
-                      if (locked || restricted > 0 || tampered || hasInstallPass || lowBattery || isDisconnected || extendedOffline) ...[
+                      const SizedBox(height: 4),
+                      AppInstallStatusPill(status: appInstallStatusOf(student), compact: true),
+                      if (locked || restricted > 0 || hasInstallPass || lowBattery || isDisconnected || extendedOffline) ...[
                         const SizedBox(height: 6),
                         Wrap(
                           spacing: 6,
@@ -1288,13 +1283,6 @@ class _StudentRow extends GetView<ScreenTimeDirectoryController> {
                                 label: 'Install pass',
                                 color: Color(0xFF0284C7),
                                 bg: Color(0xFFE0F2FE),
-                              ),
-                            if (tampered)
-                              const _Tag(
-                                icon: Icons.gpp_bad_rounded,
-                                label: 'Monitoring off',
-                                color: Color(0xFFD97706),
-                                bg: Color(0xFFFEF3C7),
                               ),
                             if (locked)
                               const _Tag(

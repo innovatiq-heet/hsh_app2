@@ -254,9 +254,6 @@ class StudentDetailController extends GetxController
     return diff > 0 ? (diff / 60000).ceil() : 0;
   }
 
-  /// Monitoring on the selected student's phone has been switched off.
-  bool get isTampered => isStudentTampered({'compliance': compliance});
-
   /// Share of the daily allowance used on the selected day (0 when unlimited).
   double get limitProgress => dailyLimitMinutes.value > 0
       ? (selectedDayTotalMinutes / dailyLimitMinutes.value).clamp(0.0, 1.0)

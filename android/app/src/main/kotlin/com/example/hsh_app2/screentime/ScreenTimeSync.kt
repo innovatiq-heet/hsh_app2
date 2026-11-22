@@ -275,9 +275,39 @@ object ScreenTimeSync {
             body.put("apps", breakdown)
             body.put("usage_logs", breakdown)
         }
-        if (blockEvents.length() > 0) body.put("blockEvents", blockEvents)
         if (geofenceEvents.length() > 0) body.put("geofenceEvents", geofenceEvents)
 
+        // Block events are optional for the server. If a ping carrying them fails
+        // with a server error, send it again without them, so a server that can't
+        // store them never freezes this phone's last report (the warden would see
+        // it offline all day). They stay queued for the next ping.
+        var sentBlockEvents = blockEvents.length()
+        if (sentBlockEvents > 0) body.put("blockEvents", blockEvents)
+        var result = sendPing(baseUrl, token, body)
+        if (sentBlockEvents > 0 && result.code >= 500) {
+            Log.w(TAG, "ping with ${blockEvents.length()} block events failed (${result.code}); retrying without them")
+            body.remove("blockEvents")
+            sentBlockEvents = 0
+            result = sendPing(baseUrl, token, body)
+        }
+
+        if (result.code in 200..299) {
+            PolicyStore.markIconsSent(context, iconsInThisPing)
+            PolicyStore.dropBlockEvents(context, sentBlockEvents)
+            PolicyStore.dropGeofenceEvents(context, geofenceEvents.length())
+            // The ping response echoes the current policy (older servers don't:
+            // fetch it then). A stale echo is discarded inside applyPolicyJson.
+            val resp = result.body
+            if (resp != null && resp.has("policy")) PolicyStore.applyPolicyJson(context, resp)
+            else fetchAndSavePolicy(context)
+        }
+        return result.code
+    }
+
+    private class PingResult(val code: Int, val body: JSONObject?)
+
+    /** One `POST /screen-time/ping`. Code -1 when the request didn't complete. */
+    private fun sendPing(baseUrl: String, token: String, body: JSONObject): PingResult {
         var conn: HttpURLConnection? = null
         return try {
             conn = (URL("$baseUrl/screen-time/ping").openConnection() as HttpURLConnection).apply {
@@ -291,22 +321,16 @@ object ScreenTimeSync {
             }
             conn.outputStream.use { it.write(body.toString().toByteArray(Charsets.UTF_8)) }
             val code = conn.responseCode
-            if (code in 200..299) {
-                PolicyStore.markIconsSent(context, iconsInThisPing)
-                PolicyStore.dropBlockEvents(context, blockEvents.length())
-                PolicyStore.dropGeofenceEvents(context, geofenceEvents.length())
-                // The ping response echoes the current policy (older servers don't:
-                // fetch it then). A stale echo is discarded inside applyPolicyJson.
-                val resp = runCatching {
-                    JSONObject(conn.inputStream.bufferedReader().use { it.readText() })
-                }.getOrNull()
-                if (resp != null && resp.has("policy")) PolicyStore.applyPolicyJson(context, resp)
-                else fetchAndSavePolicy(context)
+            if (code !in 200..299) Log.w(TAG, "ping rejected: HTTP $code")
+            val json = if (code in 200..299) {
+                runCatching { JSONObject(conn.inputStream.bufferedReader().use { it.readText() }) }.getOrNull()
+            } else {
+                null
             }
-            code
+            PingResult(code, json)
         } catch (e: Exception) {
             Log.w(TAG, "ping failed: ${e.message}")
-            -1
+            PingResult(-1, null)
         } finally {
             conn?.disconnect()
         }

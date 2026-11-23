@@ -468,9 +468,13 @@ class _ManageUsersHeaderDelegate extends SliverPersistentHeaderDelegate {
                 bottom: 12,
                 child: Opacity(
                   opacity: expandedOpacity,
+                  child: ClipRect(
+                  child: SingleChildScrollView(
+                  physics: const NeverScrollableScrollPhysics(),
+                  reverse: true,
                   child: Column(
+                    mainAxisSize: MainAxisSize.min,
                     crossAxisAlignment: CrossAxisAlignment.start,
-                    mainAxisAlignment: MainAxisAlignment.end,
                     children: [
                       Container(
                         width: 28,
@@ -528,6 +532,8 @@ class _ManageUsersHeaderDelegate extends SliverPersistentHeaderDelegate {
                         ],
                       ),
                     ],
+                  ),
+                  ),
                   ),
                 ),
               ),

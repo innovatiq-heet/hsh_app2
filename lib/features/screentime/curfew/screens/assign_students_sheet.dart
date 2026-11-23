@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../models.dart';
 import '../screen_time_api.dart';
+import '../widgets/common.dart';
 
 /// Picks students from the app's own picker (e.g. a search over
 /// `GET /screen-time/students?search=`). Must return numeric `students.id`s.
@@ -19,22 +20,15 @@ Future<int?> showAssignStudentsSheet(
   Map<int, String> tagOptions = const {},
   StudentPicker? pickStudents,
 }) {
-  return showModalBottomSheet<int>(
-    context: context,
-    isScrollControlled: true,
-    showDragHandle: true,
-    builder: (_) => DraggableScrollableSheet(
-      expand: false,
-      initialChildSize: 0.85,
-      builder: (c, scroll) => _AssignSheet(
-        api: api,
-        session: session,
-        floorOptions: floorOptions,
-        groupOptions: groupOptions,
-        tagOptions: tagOptions,
-        pickStudents: pickStudents,
-        scroll: scroll,
-      ),
+  return showStSheet<int>(
+    context,
+    _AssignSheet(
+      api: api,
+      session: session,
+      floorOptions: floorOptions,
+      groupOptions: groupOptions,
+      tagOptions: tagOptions,
+      pickStudents: pickStudents,
     ),
   );
 }
@@ -47,7 +41,6 @@ class _AssignSheet extends StatefulWidget {
     required this.groupOptions,
     required this.tagOptions,
     required this.pickStudents,
-    required this.scroll,
   });
 
   final ScreenTimeApi api;
@@ -56,7 +49,6 @@ class _AssignSheet extends StatefulWidget {
   final List<String> groupOptions;
   final Map<int, String> tagOptions;
   final StudentPicker? pickStudents;
-  final ScrollController scroll;
 
   @override
   State<_AssignSheet> createState() => _AssignSheetState();
@@ -119,125 +111,196 @@ class _AssignSheetState extends State<_AssignSheet> {
     }
   }
 
+  Widget _chipGroup(String label, List<Widget> chips) => Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          FieldLabel(label),
+          Wrap(spacing: 6, runSpacing: 6, children: chips),
+        ],
+      );
+
   @override
   Widget build(BuildContext context) {
-    final theme = Theme.of(context);
     final p = _preview;
-    return Column(children: [
-      Expanded(
-        child: ListView(controller: widget.scroll, padding: const EdgeInsets.symmetric(horizontal: 20), children: [
-          Text('Add students to ${widget.session.name}', style: theme.textTheme.titleLarge),
-          Text(widget.session.scheduleText, style: theme.textTheme.bodySmall),
-          const SizedBox(height: 12),
-          SwitchListTile(
-            contentPadding: EdgeInsets.zero,
-            title: const Text('All residents'),
-            subtitle: const Text('Every current hostel resident'),
-            value: _all,
-            onChanged: (v) {
-              setState(() => _all = v);
-              _refreshPreview();
-            },
-          ),
-          if (!_all) ...[
-            if (widget.pickStudents != null) ...[
-              const _Heading('Students'),
-              Wrap(spacing: 6, runSpacing: 6, children: [
-                for (final s in _picked)
-                  InputChip(
-                    label: Text(s.name ?? '#${s.id}'),
-                    onDeleted: () {
-                      setState(() => _picked.remove(s));
-                      _refreshPreview();
-                    },
-                  ),
-                ActionChip(
-                  avatar: const Icon(Icons.person_add_alt, size: 18),
-                  label: const Text('Pick students'),
-                  onPressed: () async {
-                    final more = await widget.pickStudents!(context);
-                    if (more == null || !mounted) return;
-                    setState(() {
-                      for (final s in more) {
-                        if (!_picked.any((x) => x.id == s.id)) _picked.add(s);
-                      }
-                    });
+    return SizedBox(
+      height: MediaQuery.of(context).size.height * 0.85,
+      child: Column(children: [
+        Expanded(
+          child: ListView(padding: const EdgeInsets.fromLTRB(20, 8, 20, 16), children: [
+            SheetTitle(
+              icon: Icons.group_add_outlined,
+              title: 'Add students',
+              subtitle: '${widget.session.name} · ${widget.session.scheduleText}',
+            ),
+            const SizedBox(height: 16),
+            Container(
+              padding: const EdgeInsets.fromLTRB(14, 6, 6, 6),
+              decoration: BoxDecoration(
+                color: _all ? StPalette.accentSoft : StPalette.bg,
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(color: _all ? StPalette.accentBorder : StPalette.border),
+              ),
+              child: Row(children: [
+                const Expanded(
+                  child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                    Text('All residents', style: TextStyle(fontWeight: FontWeight.w700, color: StPalette.ink)),
+                    Text('Every current hostel resident', style: TextStyle(fontSize: 12, color: StPalette.textSecondary)),
+                  ]),
+                ),
+                Switch(
+                  value: _all,
+                  activeThumbColor: Colors.white,
+                  activeTrackColor: StPalette.accent,
+                  onChanged: (v) {
+                    setState(() => _all = v);
                     _refreshPreview();
                   },
                 ),
               ]),
-            ],
-            if (widget.floorOptions.isNotEmpty) ...[
-              const _Heading('Floors'),
-              Wrap(spacing: 6, runSpacing: 6, children: [
-                for (final f in widget.floorOptions)
-                  FilterChip(label: Text(f == 0 ? 'Ground' : 'Floor $f'), selected: _floors.contains(f), onSelected: (on) => _toggle(_floors, f, on)),
-              ]),
-            ],
-            if (widget.groupOptions.isNotEmpty) ...[
-              const _Heading('Groups'),
-              Wrap(spacing: 6, runSpacing: 6, children: [
-                for (final g in widget.groupOptions)
-                  FilterChip(label: Text(g), selected: _groups.contains(g), onSelected: (on) => _toggle(_groups, g, on)),
-              ]),
-            ],
-            if (widget.tagOptions.isNotEmpty) ...[
-              const _Heading('Tags'),
-              Wrap(spacing: 6, runSpacing: 6, children: [
-                for (final t in widget.tagOptions.entries)
-                  FilterChip(label: Text(t.value), selected: _tags.contains(t.key), onSelected: (on) => _toggle(_tags, t.key, on)),
-              ]),
-            ],
-          ],
-          const SizedBox(height: 16),
-          if (_busy) const LinearProgressIndicator(),
-          if (_error != null) Text(_error!, style: TextStyle(color: theme.colorScheme.error)),
-          if (p != null && !_busy) ...[
-            Card(
-              child: Padding(
-                padding: const EdgeInsets.all(12),
-                child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                  Text('${p.toAddCount} will be added', style: theme.textTheme.titleMedium),
-                  if (p.alreadyAssignedCount > 0) Text('${p.alreadyAssignedCount} already in this session'),
-                  if (p.noDeviceCount > 0) Text('${p.noDeviceCount} have no phone linked yet (it applies once they log in)'),
-                  if (p.invalidStudentIds.isNotEmpty)
-                    Text('${p.invalidStudentIds.length} picked student(s) have left or are inactive',
-                        style: TextStyle(color: theme.colorScheme.error)),
-                  if (p.sample.isNotEmpty) ...[
-                    const SizedBox(height: 8),
-                    Text('For example:', style: theme.textTheme.bodySmall),
-                    for (final s in p.sample) Text('• ${s.name ?? '#${s.id}'}  ${s.subtitle}'),
-                  ],
-                ]),
-              ),
             ),
-          ],
-        ]),
-      ),
-      SafeArea(
-        child: Padding(
-          padding: const EdgeInsets.fromLTRB(20, 8, 20, 12),
-          child: SizedBox(
-            width: double.infinity,
-            child: FilledButton(
-              onPressed: _busy || p == null || p.toAddCount == 0 || p.invalidStudentIds.isNotEmpty ? null : _confirm,
-              child: Text(p == null ? 'Choose students' : 'Add ${p.toAddCount} students'),
+            if (!_all) ...[
+              if (widget.pickStudents != null)
+                _chipGroup('Students', [
+                  for (final s in _picked)
+                    Container(
+                      padding: const EdgeInsets.fromLTRB(12, 6, 4, 6),
+                      decoration: BoxDecoration(
+                        color: StPalette.accentSoft,
+                        borderRadius: BorderRadius.circular(20),
+                        border: Border.all(color: StPalette.accentBorder),
+                      ),
+                      child: Row(mainAxisSize: MainAxisSize.min, children: [
+                        Text(s.name ?? '#${s.id}',
+                            style: const TextStyle(fontSize: 12.5, fontWeight: FontWeight.w700, color: StPalette.accentDark)),
+                        InkWell(
+                          customBorder: const CircleBorder(),
+                          onTap: () {
+                            setState(() => _picked.remove(s));
+                            _refreshPreview();
+                          },
+                          child: const Padding(
+                            padding: EdgeInsets.all(2),
+                            child: Icon(Icons.close_rounded, size: 15, color: StPalette.accentDark),
+                          ),
+                        ),
+                      ]),
+                    ),
+                  StChoice(
+                    label: 'Pick students',
+                    icon: Icons.person_add_alt_rounded,
+                    selected: false,
+                    onTap: () async {
+                      final more = await widget.pickStudents!(context);
+                      if (more == null || !mounted) return;
+                      setState(() {
+                        for (final s in more) {
+                          if (!_picked.any((x) => x.id == s.id)) _picked.add(s);
+                        }
+                      });
+                      _refreshPreview();
+                    },
+                  ),
+                ]),
+              if (widget.floorOptions.isNotEmpty)
+                _chipGroup('Floors', [
+                  for (final f in widget.floorOptions)
+                    StChoice(
+                      label: f == 0 ? 'Ground' : 'Floor $f',
+                      selected: _floors.contains(f),
+                      onTap: () => _toggle(_floors, f, !_floors.contains(f)),
+                    ),
+                ]),
+              if (widget.groupOptions.isNotEmpty)
+                _chipGroup('Groups', [
+                  for (final g in widget.groupOptions)
+                    StChoice(label: g, selected: _groups.contains(g), onTap: () => _toggle(_groups, g, !_groups.contains(g))),
+                ]),
+              if (widget.tagOptions.isNotEmpty)
+                _chipGroup('Tags', [
+                  for (final t in widget.tagOptions.entries)
+                    StChoice(
+                      label: t.value,
+                      selected: _tags.contains(t.key),
+                      onTap: () => _toggle(_tags, t.key, !_tags.contains(t.key)),
+                    ),
+                ]),
+            ],
+            const SizedBox(height: 18),
+            if (_busy)
+              const ClipRRect(
+                borderRadius: BorderRadius.all(Radius.circular(4)),
+                child: LinearProgressIndicator(minHeight: 4, color: StPalette.accent, backgroundColor: StPalette.accentSoft),
+              ),
+            if (_error != null) NoteBox(text: _error!, icon: Icons.error_outline_rounded, color: StPalette.red),
+            if (p != null && !_busy) _PreviewCard(preview: p),
+          ]),
+        ),
+        Container(
+          decoration: const BoxDecoration(
+            color: StPalette.card,
+            border: Border(top: BorderSide(color: StPalette.border)),
+          ),
+          child: SafeArea(
+            top: false,
+            child: Padding(
+              padding: const EdgeInsets.fromLTRB(20, 12, 20, 12),
+              child: StPrimaryButton(
+                label: p == null ? 'Choose students above' : 'Add ${p.toAddCount} students',
+                busy: _busy && p != null,
+                onPressed: p == null || p.toAddCount == 0 || p.invalidStudentIds.isNotEmpty ? null : _confirm,
+              ),
             ),
           ),
         ),
-      ),
-    ]);
+      ]),
+    );
   }
 }
 
-class _Heading extends StatelessWidget {
-  const _Heading(this.text);
+class _PreviewCard extends StatelessWidget {
+  const _PreviewCard({required this.preview});
 
-  final String text;
+  final SelectionPreview preview;
 
   @override
-  Widget build(BuildContext context) => Padding(
-        padding: const EdgeInsets.only(top: 12, bottom: 6),
-        child: Text(text, style: Theme.of(context).textTheme.labelLarge),
-      );
+  Widget build(BuildContext context) {
+    final p = preview;
+    Widget line(IconData icon, String text, Color color) => Padding(
+          padding: const EdgeInsets.only(top: 6),
+          child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+            Icon(icon, size: 15, color: color),
+            const SizedBox(width: 8),
+            Expanded(child: Text(text, style: const TextStyle(fontSize: 12.5, color: StPalette.text))),
+          ]),
+        );
+    return SurfaceCard(
+      color: StPalette.bg,
+      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+        Row(children: [
+          Text('${p.toAddCount}',
+              style: const TextStyle(fontSize: 24, fontWeight: FontWeight.w800, color: StPalette.accent, height: 1)),
+          const SizedBox(width: 8),
+          const Text('will be added', style: TextStyle(fontSize: 14, fontWeight: FontWeight.w700, color: StPalette.ink)),
+        ]),
+        if (p.alreadyAssignedCount > 0)
+          line(Icons.check_circle_outline_rounded, '${p.alreadyAssignedCount} already in this session', StPalette.green),
+        if (p.noDeviceCount > 0)
+          line(Icons.phonelink_off_rounded, '${p.noDeviceCount} have no phone linked yet (it applies once they log in)',
+              StPalette.amber),
+        if (p.invalidStudentIds.isNotEmpty)
+          line(Icons.error_outline_rounded, '${p.invalidStudentIds.length} picked student(s) have left or are inactive',
+              StPalette.red),
+        if (p.sample.isNotEmpty) ...[
+          const SizedBox(height: 10),
+          const Text('For example', style: TextStyle(fontSize: 11.5, fontWeight: FontWeight.w700, color: StPalette.textMuted)),
+          for (final s in p.sample)
+            Padding(
+              padding: const EdgeInsets.only(top: 4),
+              child: Text('${s.name ?? '#${s.id}'}${s.subtitle.isEmpty ? '' : '  ·  ${s.subtitle}'}',
+                  style: const TextStyle(fontSize: 12.5, color: StPalette.text)),
+            ),
+        ],
+      ]),
+    );
+  }
 }

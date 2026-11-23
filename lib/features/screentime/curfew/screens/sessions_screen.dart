@@ -53,6 +53,45 @@ Future<bool?> _confirm(BuildContext context, {required String title, required St
       ),
     );
 
+/// New curfew: its times, then straight into "who gets it". True when one
+/// was created (used by this screen and the Screen Time page's Night Curfew card).
+Future<bool> createCurfewSession(BuildContext context, ScreenTimeAdminConfig config) async {
+  final draft = await showSessionEditor(context);
+  if (draft == null || !context.mounted) return false;
+  CurfewSession? created;
+  final ok = await runWithFeedback(context, () async => created = await config.api.createSession(draft));
+  if (!ok || !context.mounted) return ok;
+  final added = await showAssignStudentsSheet(
+    context,
+    api: config.api,
+    session: created!,
+    floorOptions: config.floorOptions,
+    groupOptions: config.groupOptions,
+    tagOptions: config.tagOptions,
+    pickStudents: config.pickStudents,
+  );
+  if (added != null && context.mounted) {
+    await runWithFeedback(context, () async {}, success: '${created!.name}: $added students added');
+  }
+  return true;
+}
+
+/// Switches a curfew on or off (asks first before switching off). True when
+/// the server took the change.
+Future<bool> toggleCurfewSession(BuildContext context, ScreenTimeApi api, CurfewSession s, bool on) async {
+  if (!on) {
+    final sure = await _confirm(
+      context,
+      title: 'Switch off ${s.name}?',
+      message: '${s.studentCount} phones stop enforcing it right away. Students stay assigned, '
+          'so you can switch it back on later.',
+      action: 'Switch off',
+    );
+    if (sure != true || !context.mounted) return false;
+  }
+  return runWithFeedback(context, () => api.setSessionActive(s.id, on), success: '${s.name} switched ${on ? 'on' : 'off'}');
+}
+
 /// Screen Time → Curfew sessions: every session with an on/off switch.
 class SessionsScreen extends StatefulWidget {
   const SessionsScreen({super.key, required this.config});
@@ -71,41 +110,13 @@ class _SessionsScreenState extends State<SessionsScreen> {
   void _reload() => setState(() => _listKey = UniqueKey());
 
   Future<void> _create() async {
-    final draft = await showSessionEditor(context);
-    if (draft == null || !mounted) return;
-    CurfewSession? created;
-    final ok = await runWithFeedback(context, () async => created = await _api.createSession(draft));
-    if (!ok || !mounted) return;
-    _reload();
-    // Straight into "who gets it".
-    final added = await showAssignStudentsSheet(
-      context,
-      api: _api,
-      session: created!,
-      floorOptions: widget.config.floorOptions,
-      groupOptions: widget.config.groupOptions,
-      tagOptions: widget.config.tagOptions,
-      pickStudents: widget.config.pickStudents,
-    );
-    if (added != null && mounted) {
-      await runWithFeedback(context, () async {}, success: '${created!.name}: $added students added');
-      _reload();
-    }
+    await createCurfewSession(context, widget.config);
+    if (mounted) _reload();
   }
 
   Future<void> _toggle(CurfewSession s, bool on) async {
-    if (!on) {
-      final sure = await _confirm(
-        context,
-        title: 'Switch off ${s.name}?',
-        message: '${s.studentCount} phones stop enforcing it right away. Students stay assigned, '
-            'so you can switch it back on later.',
-        action: 'Switch off',
-      );
-      if (sure != true || !mounted) return;
-    }
-    await runWithFeedback(context, () => _api.setSessionActive(s.id, on), success: '${s.name} switched ${on ? 'on' : 'off'}');
-    _reload();
+    await toggleCurfewSession(context, _api, s, on);
+    if (mounted) _reload();
   }
 
   Future<void> _open(CurfewSession s) async {

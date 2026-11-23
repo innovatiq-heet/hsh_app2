@@ -54,6 +54,7 @@ test/                  unit tests (offline); tag tests that hit real APIs with @
 - Broadcast recipients and Forms & Polls `target_student_ids` send numeric `students.id` only: the shared `StudentPickerSource` / `studentIdOf` reads a row's `id` (positive integer, no leading zero), never `student_id` / `student_code`, and never the phonebook cache.
 - Room Keys gives a key to a student by numeric `students.id` only, from `StudentPickerSource`; never the phonebook cache or a bank code. `PUT /room-keys/:id` is a partial update.
 - Exception, display only: birthday cards borrow a student's group/status from the synced phonebook by bank code (`PhonebookDatabaseService.groupInfoByBankCode`). Never use that lookup to pick a student for an action.
+- A phonebook screen that must save something for a student (tags, an alumnus's current address & work) gets the numeric `students.id` through `StudentIdResolver`: the id the opener already has (e.g. Daily Alumni Connect), else the **exact 12-digit Aadhar** when exactly one student in `/students?all=true` has it, else the admin confirms the student from a list. Never by bank code, never by name alone.
 
 **Parental control / screen time**
 

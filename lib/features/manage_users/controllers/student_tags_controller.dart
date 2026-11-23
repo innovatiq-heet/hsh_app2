@@ -1,3 +1,4 @@
+import 'package:flutter/widgets.dart';
 import 'package:get/get.dart';
 import '../../../core/abstracts/mixins/load_state_mixin.dart';
 import '../../../core/models/tags/student_tag_model.dart';
@@ -22,10 +23,35 @@ class StudentTagsController extends GetxController with LoadStateMixin {
   /// Tags with a delete request in flight.
   final busyIds = <int>{}.obs;
 
+  /// Search box above the list: matches a tag's name or description.
+  final searchController = TextEditingController();
+  final query = ''.obs;
+
+  /// [tags] matching [query] (all of them when it is empty).
+  List<StudentTag> get visibleTags {
+    final q = query.value.trim().toLowerCase();
+    if (q.isEmpty) return tags;
+    return tags
+        .where((t) => t.name.toLowerCase().contains(q) || (t.description ?? '').toLowerCase().contains(q))
+        .toList();
+  }
+
+  void clearSearch() {
+    searchController.clear();
+    query.value = '';
+  }
+
   @override
   void onInit() {
     super.onInit();
+    searchController.addListener(() => query.value = searchController.text);
     load();
+  }
+
+  @override
+  void onClose() {
+    searchController.dispose();
+    super.onClose();
   }
 
   Future<void> load({bool showLoading = true}) => guard(() async {

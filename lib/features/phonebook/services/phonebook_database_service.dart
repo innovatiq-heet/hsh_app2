@@ -30,7 +30,7 @@ class PhonebookDatabaseService {
 
     return await openDatabase(
       path,
-      version: 7,
+      version: 8,
       onUpgrade: _onUpgrade,
       onCreate: (db, version) async {
         await db.execute('''
@@ -60,6 +60,9 @@ class PhonebookDatabaseService {
             mother_dob TEXT,
             mother_business TEXT,
             anniversary TEXT,
+            course TEXT,
+            semester TEXT,
+            study_institute TEXT,
             city TEXT,
             district TEXT,
             state TEXT,
@@ -164,6 +167,15 @@ class PhonebookDatabaseService {
         } catch (_) {}
       }
     }
+
+    if (oldVersion < 8) {
+      // Education (Education details card): branch, semester and college.
+      for (final col in ['course TEXT', 'semester TEXT', 'study_institute TEXT']) {
+        try {
+          await db.execute('ALTER TABLE student_cache ADD COLUMN $col');
+        } catch (_) {}
+      }
+    }
   }
 
   /// Everything caller ID needs, one row per phone number.
@@ -221,6 +233,9 @@ class PhonebookDatabaseService {
             'mother_dob': r['mother_dob'],
             'mother_business': r['mother_business'],
             'anniversary': r['anniversary'],
+            'course': r['course'],
+            'semester': r['semester'],
+            'study_institute': r['study_institute'],
             'city': r['city'],
             'district': r['district'],
             'state': r['state'],
@@ -455,6 +470,9 @@ class PhonebookDatabaseService {
           'mother_dob': row['mother_dob'],
           'mother_business': row['mother_business'],
           'anniversary': row['anniversary'],
+          'course': row['course'],
+          'semester': row['semester'],
+          'study_institute': row['study_institute'],
           'city': row['city'],
           'district': row['district'],
           'state': row['state'],

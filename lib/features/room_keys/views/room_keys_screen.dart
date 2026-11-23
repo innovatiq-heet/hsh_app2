@@ -27,42 +27,7 @@ class RoomKeysScreen extends GetView<RoomKeysController> {
 
   /// A room with no students yet (or not in the list): ask for its number.
   Future<void> _openOtherRoom() async {
-    final text = TextEditingController();
-    final room = await Get.dialog<String>(
-      Builder(
-        builder: (ctx) => AlertDialog(
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-          title: const Text(
-            'Open another room',
-            style: TextStyle(fontWeight: FontWeight.w800, color: _ink),
-          ),
-          content: TextField(
-            controller: text,
-            autofocus: true,
-            textCapitalization: TextCapitalization.characters,
-            decoration: InputDecoration(
-              labelText: 'Room number',
-              hintText: 'e.g. 204',
-              border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
-            ),
-            onSubmitted: (v) => Navigator.of(ctx).pop(v),
-          ),
-          actions: [
-            TextButton(onPressed: () => Navigator.of(ctx).pop(), child: const Text('Cancel')),
-            ElevatedButton(
-              onPressed: () => Navigator.of(ctx).pop(text.text),
-              style: ElevatedButton.styleFrom(
-                backgroundColor: _blue,
-                foregroundColor: Colors.white,
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-              ),
-              child: const Text('Open'),
-            ),
-          ],
-        ),
-      ),
-    );
-    text.dispose();
+    final room = await Get.dialog<String>(const _OpenRoomDialog());
     final number = normalizeRoom(room);
     if (number.isNotEmpty) _openRoom(number);
   }
@@ -704,15 +669,14 @@ class RoomKeysScreen extends GetView<RoomKeysController> {
                 }
                 return SliverPadding(
                   padding: const EdgeInsets.fromLTRB(20, 0, 20, 110),
-                  sliver: SliverReorderableList(
+                  // Rooms in room-number order; not draggable.
+                  sliver: SliverList.builder(
                     itemCount: rooms.length,
-                    onReorder: controller.reorderVisibleRooms,
                     itemBuilder: (_, i) => Padding(
                       key: ValueKey('room-${rooms[i].number}'),
                       padding: const EdgeInsets.only(bottom: 10),
                       child: _RoomCard(
                         room: rooms[i],
-                        dragIndex: i,
                         group: controller.groupOfRoom(rooms[i].number),
                         onTap: () => _openRoom(rooms[i].number),
                       ),
@@ -896,13 +860,12 @@ class _FilterPillTab extends StatelessWidget {
 
 class _RoomCard extends StatelessWidget {
   final KeyRoom room;
-  final int dragIndex;
 
   /// The room's group (Param, Pavitra, ...) when the phonebook knows it.
   final String? group;
   final VoidCallback onTap;
 
-  const _RoomCard({required this.room, required this.dragIndex, required this.onTap, this.group});
+  const _RoomCard({required this.room, required this.onTap, this.group});
 
   /// The card's colour says how the room stands: red when keys need checking,
   /// amber when keys are missing, green when it is complete.
@@ -1028,16 +991,6 @@ class _RoomCard extends StatelessWidget {
                             ),
                           ],
                         ],
-                      ),
-                    ),
-                    ReorderableDragStartListener(
-                      index: dragIndex,
-                      child: Semantics(
-                        label: 'Drag to reorder room ${room.number}',
-                        child: const Padding(
-                          padding: EdgeInsets.all(8),
-                          child: Icon(Icons.drag_handle_rounded, color: Color(0xFF64748B), size: 23),
-                        ),
                       ),
                     ),
                   ],
@@ -1280,4 +1233,61 @@ class _RoomKeysOrbPainter extends CustomPainter {
 
   @override
   bool shouldRepaint(covariant CustomPainter oldDelegate) => false;
+}
+
+/// "Open another room": asks for a room number. It owns its text controller,
+/// so the controller lives until the dialog has finished closing (disposing
+/// it as soon as the dialog returned threw "used after being disposed").
+class _OpenRoomDialog extends StatefulWidget {
+  const _OpenRoomDialog();
+
+  @override
+  State<_OpenRoomDialog> createState() => _OpenRoomDialogState();
+}
+
+class _OpenRoomDialogState extends State<_OpenRoomDialog> {
+  final _text = TextEditingController();
+
+  @override
+  void dispose() {
+    _text.dispose();
+    super.dispose();
+  }
+
+  void _open() => Navigator.of(context).pop(_text.text);
+
+  @override
+  Widget build(BuildContext context) {
+    return AlertDialog(
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+      title: const Text(
+        'Open another room',
+        style: TextStyle(fontWeight: FontWeight.w800, color: Color(0xFF0F172A)),
+      ),
+      content: TextField(
+        controller: _text,
+        autofocus: true,
+        textCapitalization: TextCapitalization.characters,
+        textInputAction: TextInputAction.go,
+        decoration: InputDecoration(
+          labelText: 'Room number',
+          hintText: 'e.g. 204',
+          border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+        ),
+        onSubmitted: (_) => _open(),
+      ),
+      actions: [
+        TextButton(onPressed: () => Navigator.of(context).pop(), child: const Text('Cancel')),
+        ElevatedButton(
+          onPressed: _open,
+          style: ElevatedButton.styleFrom(
+            backgroundColor: const Color(0xFF0284C7),
+            foregroundColor: Colors.white,
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+          ),
+          child: const Text('Open'),
+        ),
+      ],
+    );
+  }
 }

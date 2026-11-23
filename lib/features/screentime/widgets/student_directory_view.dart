@@ -10,6 +10,7 @@ import '../../shared/widgets/skeleton_loader.dart';
 import '../controllers/screen_time_directory_controller.dart';
 import '../controllers/screen_time_utils.dart';
 import '../curfew/curfew_admin_entry.dart';
+import '../curfew/widgets/night_curfew_card.dart';
 import '../../../core/utils/string_formatting.dart';
 import 'app_brand_icon.dart';
 import 'app_install_status_pill.dart';
@@ -35,7 +36,12 @@ class StudentDirectoryView extends GetView<ScreenTimeDirectoryController> {
             children: [
               const _DashboardEntries(),
               const SizedBox(height: 10),
-              const _GlobalCurfewBanner(),
+              // Wardens / admins: every curfew with its own on/off switch
+              // (phone locking), the geofence window as its last line.
+              // Leaders keep the geofence window only.
+              Obx(() => controller.currentRole.value.canOperate
+                  ? const NightCurfewCard(footer: _GlobalCurfewBanner(embedded: true))
+                  : const _GlobalCurfewBanner()),
               const SizedBox(height: 10),
               AppRequestsBanner(host: controller),
               _SummaryStrip(),
@@ -1478,7 +1484,11 @@ class _EntryButton extends StatelessWidget {
 }
 
 class _GlobalCurfewBanner extends GetView<ScreenTimeDirectoryController> {
-  const _GlobalCurfewBanner();
+  const _GlobalCurfewBanner({this.embedded = false});
+
+  /// Shown as the last line of the Night Curfew card: no card of its own,
+  /// and named for what it does (location alerts, not phone locking).
+  final bool embedded;
 
   @override
   Widget build(BuildContext context) {
@@ -1488,19 +1498,21 @@ class _GlobalCurfewBanner extends GetView<ScreenTimeDirectoryController> {
       final isUpdating = controller.isUpdatingCurfew.value;
 
       return Container(
-        decoration: BoxDecoration(
-          color: Colors.white,
-          borderRadius: BorderRadius.circular(14),
-          border: Border.all(color: const Color(0xFFE2E8F0)),
-          boxShadow: [
-            BoxShadow(
-              color: const Color(0xFF0F172A).withValues(alpha: 0.03),
-              blurRadius: 8,
-              offset: const Offset(0, 2),
-            ),
-          ],
-        ),
-        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+        decoration: embedded
+            ? null
+            : BoxDecoration(
+                color: Colors.white,
+                borderRadius: BorderRadius.circular(14),
+                border: Border.all(color: const Color(0xFFE2E8F0)),
+                boxShadow: [
+                  BoxShadow(
+                    color: const Color(0xFF0F172A).withValues(alpha: 0.03),
+                    blurRadius: 8,
+                    offset: const Offset(0, 2),
+                  ),
+                ],
+              ),
+        padding: embedded ? EdgeInsets.zero : const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
         child: Row(
           children: [
             Container(
@@ -1526,12 +1538,16 @@ class _GlobalCurfewBanner extends GetView<ScreenTimeDirectoryController> {
                 children: [
                   Row(
                     children: [
-                      const Text(
-                        'Night Curfew',
-                        style: TextStyle(
-                          fontSize: 14,
-                          fontWeight: FontWeight.w700,
-                          color: Color(0xFF0F172A),
+                      Flexible(
+                        child: Text(
+                          embedded ? 'Campus geofence (location alerts)' : 'Night Curfew',
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: TextStyle(
+                            fontSize: embedded ? 12.5 : 14,
+                            fontWeight: FontWeight.w700,
+                            color: const Color(0xFF0F172A),
+                          ),
                         ),
                       ),
                       const SizedBox(width: 8),

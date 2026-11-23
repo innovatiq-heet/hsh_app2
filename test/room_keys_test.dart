@@ -210,25 +210,13 @@ void main() {
       expect(c.keyCount(KeyStatus.lost), 1);
     });
 
-    test('reordered rooms persist after reloading', () async {
+    test('rooms are always in room order; an old hand-made order is dropped', () async {
+      // An order saved by the old drag-to-reorder.
+      await (await SharedPreferences.getInstance())
+          .setStringList(RoomKeysController.roomOrderStorageKey, ['410', '204', '305']);
       final c = await loaded();
       expect(c.visibleRooms.map((r) => r.number), ['204', '305', '410']);
-      await c.reorderVisibleRooms(2, 0);
-      expect(c.visibleRooms.map((r) => r.number), ['410', '204', '305']);
-      expect((await SharedPreferences.getInstance()).getStringList(RoomKeysController.roomOrderStorageKey),
-          ['410', '204', '305']);
-      await c.load();
-      expect(c.visibleRooms.map((r) => r.number), ['410', '204', '305']);
-    });
-
-    test('reordering a filtered list keeps hidden rooms in place', () async {
-      final c = await loaded();
-      c.filter.value = RoomFilter.attention;
-      expect(c.visibleRooms.map((r) => r.number), ['305', '410']);
-      await c.reorderVisibleRooms(1, 0);
-      expect(c.rooms.map((r) => r.number), ['204', '410', '305']);
-      c.filter.value = RoomFilter.all;
-      expect(c.visibleRooms.map((r) => r.number), ['204', '410', '305']);
+      expect((await SharedPreferences.getInstance()).containsKey(RoomKeysController.roomOrderStorageKey), isFalse);
     });
 
     test('filters and search by room, key number or name', () async {

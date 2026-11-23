@@ -283,6 +283,15 @@ class PhonebookSyncService {
             ? rawMotherBiz
             : null;
 
+        // Education: branch (course), semester and college (studyInstitute).
+        String? clean(dynamic v) {
+          final t = v?.toString().trim();
+          return (t == null || t.isEmpty || t.toLowerCase() == 'null') ? null : t;
+        }
+        final course = clean(s['course']);
+        final semester = clean(s['semester']);
+        final studyInstitute = clean(s['studyInstitute'] ?? s['study_institute']);
+
         final rawAnniversary = s['anniversary']?.toString().trim();
         final anniversary = (rawAnniversary != null && rawAnniversary.isNotEmpty && rawAnniversary != 'null')
             ? rawAnniversary
@@ -331,6 +340,9 @@ class PhonebookSyncService {
             'mother_dob': motherDob,
             'mother_business': motherBusiness,
             'anniversary': anniversary,
+            'course': course,
+            'semester': semester,
+            'study_institute': studyInstitute,
             'city': city,
             'district': district,
             'state': state,
@@ -377,6 +389,9 @@ class PhonebookSyncService {
             'mother_dob': motherDob,
             'mother_business': motherBusiness,
             'anniversary': anniversary,
+            'course': course,
+            'semester': semester,
+            'study_institute': studyInstitute,
             'city': city,
             'district': district,
             'state': state,
@@ -421,6 +436,9 @@ class PhonebookSyncService {
             'mother_dob': motherDob,
             'mother_business': motherBusiness,
             'anniversary': anniversary,
+            'course': course,
+            'semester': semester,
+            'study_institute': studyInstitute,
             'city': city,
             'district': district,
             'state': state,

@@ -159,11 +159,24 @@ class StudentPhotoCacheService {
       final segments = uri.pathSegments.where((s) => s.trim().isNotEmpty).toList();
       if (segments.isNotEmpty) {
         final last = segments.last.trim();
-        // The folder that says whose photo it is: `<who>/personal/<file>`.
+        // The folders say whose file it is and what it is:
+        // `<who>/<kind>/<aadhar>.jpg` (kind: personal, aadhar, pan, signature).
+        // Student photos keep the bare name (already cached on phones); a
+        // parent's photo is `father_<aadhar>.jpg`; any other kind gets both,
+        // e.g. `student_aadhar_<aadhar>.jpg`, so a document never takes the
+        // place of a photo in the cache.
         String prefix = '';
-        if (segments.length >= 3 && segments[segments.length - 2].toLowerCase() == 'personal') {
+        if (segments.length >= 3) {
           final who = segments[segments.length - 3].toLowerCase();
-          if (who != 'student' && RegExp(r'^[a-z0-9_\-]+$').hasMatch(who)) prefix = '${who}_';
+          final kind = segments[segments.length - 2].toLowerCase();
+          final safe = RegExp(r'^[a-z0-9_\-]+$');
+          if (safe.hasMatch(who) && safe.hasMatch(kind)) {
+            if (kind == 'personal') {
+              if (who != 'student') prefix = '${who}_';
+            } else {
+              prefix = '${who}_${kind}_';
+            }
+          }
         }
         if (RegExp(r'^\d{12}\.(jpg|jpeg|png)$', caseSensitive: false).hasMatch(last)) {
           return '$prefix${last.toLowerCase()}';

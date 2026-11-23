@@ -618,7 +618,7 @@ class _AlumnusCard extends StatelessWidget {
     final created = !Get.isRegistered<PhonebookController>();
     if (created) Get.put(PhonebookController());
     try {
-      await Navigator.of(context).push(MaterialPageRoute<void>(builder: (_) => StudentDetailScreen(student: match)));
+      await Navigator.of(context).push(MaterialPageRoute<void>(builder: (_) => StudentDetailScreen(student: match, studentId: student.studentId > 0 ? student.studentId : null)));
     } finally {
       if (created && Get.isRegistered<PhonebookController>()) Get.delete<PhonebookController>();
     }

@@ -254,6 +254,8 @@ While HSH is an active **device admin**, Android's App info page disables **Forc
 
 Wardens group students into named **curfew sessions** (e.g. "Night Curfew" 22:00–06:00 every day, "Afternoon Study" 14:00–16:00 Mon–Fri). Every policy response (`GET /policies/me`, the long-poll and the `POST /ping` echo) carries `policy.curfew_sessions`: only the sessions that are on and not paused for this student, plus the personal bedtime (`source: "personal"`). The server filters; the phone just enforces the list.
 
+On the Screen Time page, wardens and admins see these sessions in the **Night Curfew** card (`NightCurfewCard`): every curfew with its times, days, state and its own on/off switch, plus **Add curfew** (times, then students, the same flow as the Curfew sessions screen: `createCurfewSession`, `toggleCurfewSession`). Tapping one opens its details. The card's last line is the **campus geofence** window ("Campus geofence (location alerts)"), which only reports leaving the campus and never locks phones. Leaders keep only the geofence line.
+
 - `PolicyStore.applyPolicyJson` stores the list in `DevicePolicy.curfews`. A payload without the key keeps the stored list; an empty list means no curfew. `clearStudentState()` (logout) clears it.
 - `DevicePolicy.effectiveCurfews` is that list, or, while the server has never sent it (older backend), the single legacy `bedtime_start/end` every day.
 - `CurfewSchedule` (same maths as the backend and `lib/features/screentime/curfew/curfew_schedule.dart`): times are **IST** whatever the phone's time zone; a window that ends before it starts crosses midnight and belongs to the day it **starts** (Monday-only 22:00–06:00 runs Mon 22:00 → Tue 06:00); the phone blocks while **any** window runs.

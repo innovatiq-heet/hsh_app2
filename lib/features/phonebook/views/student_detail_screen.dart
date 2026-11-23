@@ -2,11 +2,11 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:font_awesome_flutter/font_awesome_flutter.dart';
 import 'package:get/get.dart';
-import 'package:intl/intl.dart' show DateFormat;
 import '../../../core/constants/app_colors.dart';
 import '../../../core/constants/app_dimens.dart';
 import '../../../core/constants/app_routes.dart';
 import '../../../core/constants/app_text_styles.dart';
+import '../../../core/utils/date_formatting.dart';
 import '../../../core/models/tags/student_tag_model.dart';
 import '../../shared/widgets/icon_badge.dart';
 import '../../shared/widgets/phonebook_style_widgets.dart';
@@ -19,6 +19,8 @@ import '../models/phonebook_models.dart';
 import '../services/phone_number_normalizer.dart';
 import '../services/phonebook_database_service.dart';
 import '../widgets/add_contact_number_sheet.dart';
+import '../widgets/current_details_card.dart';
+import '../widgets/documents_gallery.dart';
 import '../widgets/manage_contacts_sheet.dart';
 import '../widgets/student_tag_sheet.dart';
 
@@ -27,7 +29,12 @@ import '../widgets/student_tag_sheet.dart';
 /// copy, WhatsApp, message and call actions.
 class StudentDetailScreen extends StatefulWidget {
   final PhonebookStudent student;
-  const StudentDetailScreen({super.key, required this.student});
+
+  /// The numeric `students.id`, when the opener knows it (Daily Alumni
+  /// Connect). The phonebook itself has none.
+  final int? studentId;
+
+  const StudentDetailScreen({super.key, required this.student, this.studentId});
 
   @override
   State<StudentDetailScreen> createState() => _StudentDetailScreenState();
@@ -121,7 +128,9 @@ class _StudentDetailScreenState extends State<StudentDetailScreen> {
     'tags',
     'hostel',
     'personal',
+    'education',
     'family_contacts',
+    'documents',
   ];
 
   bool get _allExpanded => _availableSections.every(_expandedSections.contains);
@@ -282,7 +291,16 @@ class _StudentDetailScreenState extends State<StudentDetailScreen> {
                   const SizedBox(height: AppDimens.gapMd),
                   _personalCard(),
                   const SizedBox(height: AppDimens.gapMd),
+                  _educationCard(),
+                  const SizedBox(height: AppDimens.gapMd),
                   _familyContactsSection(),
+                  // Alumni: where they live and work now, noted by admins.
+                  if (student.isAlumni) ...[
+                    const SizedBox(height: AppDimens.gapMd),
+                    CurrentDetailsCard(student: student, knownStudentId: widget.studentId),
+                  ],
+                  const SizedBox(height: AppDimens.gapMd),
+                  _documentsCard(),
                   const SizedBox(height: AppDimens.gapLg),
                   // Side by side. Alumni have no hostel phone to monitor (Screen
                   // Time lists residents only), so they only get Share.
@@ -562,6 +580,62 @@ class _StudentDetailScreenState extends State<StudentDetailScreen> {
     );
   }
 
+  /// Branch, semester and college from the directory; "-" when not given.
+  Widget _educationCard() {
+    String show(String? v) => _has(v) ? v!.trim() : '-';
+    final semester = _has(student.semester) ? student.semester!.trim() : null;
+    final semesterText = semester == null
+        ? '-'
+        : (RegExp(r'^\d+$').hasMatch(semester) ? 'Semester $semester' : semester);
+    return _DetailCard(
+      title: 'Education',
+      icon: Icons.school_rounded,
+      accentColor: const Color(0xFF4F46E5),
+      isExpanded: _expandedSections.contains('education'),
+      onToggle: () => _toggleSection('education'),
+      summary: _has(student.course) ? student.course!.trim() : null,
+      children: [
+        _DetailRow(
+          icon: Icons.account_tree_outlined,
+          label: 'Branch',
+          value: show(student.course),
+          muted: !_has(student.course),
+          iconColor: const Color(0xFF4F46E5),
+        ),
+        _DetailRow(
+          icon: Icons.timeline_rounded,
+          label: 'Semester',
+          value: semesterText,
+          muted: semester == null,
+          iconColor: const Color(0xFF4F46E5),
+        ),
+        _DetailRow(
+          icon: Icons.apartment_rounded,
+          label: 'College',
+          value: show(student.studyInstitute),
+          muted: !_has(student.studyInstitute),
+          iconColor: const Color(0xFF4F46E5),
+        ),
+      ],
+    );
+  }
+
+  /// Aadhar card, PAN card and signature of the student and parents, shown
+  /// like the photos. Loaded only when opened.
+  Widget _documentsCard() {
+    return _DetailCard(
+      title: 'Documents',
+      icon: Icons.folder_copy_rounded,
+      accentColor: const Color(0xFF0F766E),
+      isExpanded: _expandedSections.contains('documents'),
+      onToggle: () => _toggleSection('documents'),
+      summary: 'Aadhar · PAN · Signature',
+      children: [
+        DocumentsGallery(studentAadhar: student.aadhar, studentName: student.name),
+      ],
+    );
+  }
+
   Widget _personalCard() {
     final personalSummary = student.hasDob
         ? '${student.formattedDob}${_has(student.bloodGroup) ? ' · ${student.bloodGroup}' : ''}'
@@ -578,9 +652,8 @@ class _StudentDetailScreenState extends State<StudentDetailScreen> {
         _DetailRow(
           icon: Icons.cake_rounded,
           label: 'Date of birth',
-          value: student.hasDob
-              ? '${student.formattedDob}${student.ageText.isNotEmpty ? ' (${student.ageText})' : ''}'
-              : 'Not registered',
+          // Same helper as the parents' dates below: "12 Mar 2005 (19 yrs)".
+          value: student.hasDob ? DateFormatting.calendarDateWithYears(student.dob) : 'Not registered',
           muted: !student.hasDob,
           iconColor: const Color(0xFFD97706),
         ),
@@ -920,15 +993,6 @@ class _StudentDetailScreenState extends State<StudentDetailScreen> {
     return cards;
   }
 
-  /// "19 Mar 1971" from an ISO date or epoch milliseconds; anything else as is.
-  static String _formatDate(String raw) {
-    final ms = int.tryParse(raw);
-    final dt = (ms != null && ms > 0)
-        ? DateTime.fromMillisecondsSinceEpoch(ms, isUtc: true).add(const Duration(hours: 5, minutes: 30))
-        : DateTime.tryParse(raw);
-    return dt == null ? raw : DateFormat('d MMM yyyy').format(dt);
-  }
-
   List<_CardAction> _actionsForPhone(String phone, String copyLabel) => [
         _CardAction(
           icon: const Icon(Icons.content_copy_rounded, size: 19),
@@ -998,14 +1062,16 @@ class _StudentDetailScreenState extends State<StudentDetailScreen> {
         _DetailRow(
           icon: Icons.cake_outlined,
           label: 'Date of birth',
-          value: _formatDate(cleanDob),
+          // Like the student's: "19 Mar 1971 (54 yrs)".
+          value: DateFormatting.calendarDateWithYears(cleanDob),
           iconColor: color,
         ),
       if (student.hasAnniversary && showAnniversary)
         _DetailRow(
           icon: Icons.favorite_border_rounded,
           label: 'Anniversary',
-          value: student.anniversaryFormatted,
+          // "22 Nov 1998 (28 yrs)": years married.
+          value: DateFormatting.calendarDateWithYears(student.anniversary),
           iconColor: const Color(0xFFE11D48),
         ),
     ];
@@ -2369,11 +2435,17 @@ class _CollapsibleContactCard extends StatelessWidget {
         AppDimens.cardPadding,
         AppDimens.gapSm,
         AppDimens.cardPadding,
-        AppDimens.gapMd,
+        AppDimens.gapSm,
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
+          // Call / WhatsApp / Message / Gmail first, above the student's
+          // contact details: the most used actions on this screen.
+          const SizedBox(height: AppDimens.gapSm),
+          actions,
+          const SizedBox(height: AppDimens.gapSm),
+          const Divider(height: 1, color: AppColors.borderLight),
           // One row: title with what the card holds, then Add / Manage as
           // round icon buttons and the chevron. Icons keep it on one line
           // on a phone, where the labelled links did not fit.
@@ -2456,10 +2528,6 @@ class _CollapsibleContactCard extends StatelessWidget {
                 ? Column(children: lines)
                 : const SizedBox(width: double.infinity),
           ),
-          const SizedBox(height: AppDimens.gapXs),
-          const Divider(height: 1, color: AppColors.borderLight),
-          const SizedBox(height: AppDimens.gapSm),
-          actions,
         ],
       ),
     );

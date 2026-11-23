@@ -72,6 +72,11 @@ class PhonebookStudent {
   final String? motherDob;
   final String? motherBusiness;
   final String? anniversary;
+
+  /// Education from the directory: branch, semester, college.
+  final String? course;
+  final String? semester;
+  final String? studyInstitute;
   final String? city;
   final String? district;
   final String? state;
@@ -107,6 +112,9 @@ class PhonebookStudent {
     this.motherDob,
     this.motherBusiness,
     this.anniversary,
+    this.course,
+    this.semester,
+    this.studyInstitute,
     this.city,
     this.district,
     this.state,
@@ -143,6 +151,9 @@ class PhonebookStudent {
     String? motherDob,
     String? motherBusiness,
     String? anniversary,
+    String? course,
+    String? semester,
+    String? studyInstitute,
     String? city,
     String? district,
     String? state,
@@ -182,6 +193,9 @@ class PhonebookStudent {
       motherDob: motherDob ?? this.motherDob,
       motherBusiness: motherBusiness ?? this.motherBusiness,
       anniversary: anniversary ?? this.anniversary,
+      course: course ?? this.course,
+      semester: semester ?? this.semester,
+      studyInstitute: studyInstitute ?? this.studyInstitute,
       city: city ?? this.city,
       district: district ?? this.district,
       state: state ?? this.state,
@@ -484,6 +498,9 @@ class PhonebookStudent {
       motherDob: cleanMotherDob,
       motherBusiness: cleanMotherBiz,
       anniversary: cleanAnniversary,
+      course: _cleanText(json['course']),
+      semester: _cleanText(json['semester']),
+      studyInstitute: _cleanText(json['study_institute'] ?? json['studyInstitute']),
       city: cleanCity,
       district: cleanDistrict,
       state: cleanState,
@@ -537,6 +554,11 @@ class PhonebookStudent {
   bool get hasMotherDob => motherDob != null && motherDob!.trim().isNotEmpty;
   bool get hasMotherBusiness =>
       motherBusiness != null && motherBusiness!.trim().isNotEmpty;
+  static String? _cleanText(dynamic v) {
+    final t = v?.toString().trim();
+    return (t == null || t.isEmpty || t.toLowerCase() == 'null') ? null : t;
+  }
+
   bool get hasAnniversary =>
       anniversary != null && anniversary!.trim().isNotEmpty;
   bool get hasHometown => hometown.isNotEmpty;

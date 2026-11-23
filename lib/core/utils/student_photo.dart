@@ -15,3 +15,22 @@ String? familyPhotoUrl(String? studentAadhar, PhotoOf who) {
   if (digits.length != 12) return null;
   return '${AppConfig.photoStorageUrl}/${who.name}/personal/$digits.jpg';
 }
+
+/// Document images kept next to the photos, one folder per kind.
+enum FamilyDocument {
+  aadhar('Aadhar card'),
+  pan('PAN card'),
+  signature('Signature');
+
+  final String label;
+  const FamilyDocument(this.label);
+}
+
+/// A document of the student or a parent: `<who>/<kind>/<student aadhar>.jpg`
+/// (e.g. `father/pan/342374115218.jpg`), named after the **student's**
+/// Aadhar like the photos. Null unless [studentAadhar] has 12 digits.
+String? familyDocumentUrl(String? studentAadhar, PhotoOf who, FamilyDocument document) {
+  final digits = (studentAadhar ?? '').replaceAll(RegExp(r'\D'), '');
+  if (digits.length != 12) return null;
+  return '${AppConfig.photoStorageUrl}/${who.name}/${document.name}/$digits.jpg';
+}

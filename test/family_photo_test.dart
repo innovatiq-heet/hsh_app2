@@ -20,4 +20,11 @@ void main() {
       expect(familyPhotoUrl(bad, PhotoOf.mother), isNull, reason: '$bad');
     }
   });
+
+  test('documents: <who>/<kind>/<student aadhar>.jpg', () {
+    expect(familyDocumentUrl('342374115218', PhotoOf.student, FamilyDocument.aadhar), '$base/student/aadhar/342374115218.jpg');
+    expect(familyDocumentUrl('342374115218', PhotoOf.father, FamilyDocument.pan), '$base/father/pan/342374115218.jpg');
+    expect(familyDocumentUrl('3423 7411 5218', PhotoOf.mother, FamilyDocument.signature), '$base/mother/signature/342374115218.jpg');
+    expect(familyDocumentUrl('0768', PhotoOf.student, FamilyDocument.aadhar), isNull);
+  });
 }

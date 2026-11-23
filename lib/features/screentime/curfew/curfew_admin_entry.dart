@@ -22,7 +22,8 @@ class CurfewAdminEntry {
   /// Floor ids for bulk assignment (`students.floor_id`; 0 is the ground floor).
   static const floorIds = [0, 1, 2, 3, 4, 5, 6, 7, 8];
 
-  static Future<ScreenTimeAdminConfig> _config() async {
+  /// The admin screens' setup (API, floors, groups, tags, student picker).
+  static Future<ScreenTimeAdminConfig> adminConfig() async {
     var tags = <int, String>{};
     try {
       final list = await Get.find<TagsRepository>().getTags();
@@ -56,7 +57,7 @@ class CurfewAdminEntry {
   /// Wardens and admins also get the moon icon for curfew sessions; leaders
   /// see their own group only (the server scopes it).
   static Future<void> openOverview(BuildContext context, {required bool canManageSessions}) async {
-    final config = await _config();
+    final config = await adminConfig();
     if (!context.mounted) return;
     await Navigator.of(context).push(MaterialPageRoute<void>(
       builder: (_) => ScreenTimeOverviewScreen(
@@ -71,7 +72,7 @@ class CurfewAdminEntry {
 
   /// Curfew sessions list (wardens and admins only).
   static Future<void> openSessions(BuildContext context) async {
-    final config = await _config();
+    final config = await adminConfig();
     if (!context.mounted) return;
     await Navigator.of(context).push(MaterialPageRoute<void>(builder: (_) => SessionsScreen(config: config)));
   }

@@ -4,13 +4,12 @@ import '../../../core/constants/app_colors.dart';
 import '../../../core/constants/app_text_styles.dart';
 import '../../../core/models/tags/student_tag_model.dart';
 import '../../../core/network/api_exception.dart';
-import '../../../core/models/students/pickable_student.dart';
 import '../../../core/network/repository/screentime/screen_time_repository.dart';
-import '../../../core/network/repository/students/student_picker_source.dart';
 import '../../../core/network/repository/tags/tags_repository.dart';
 import '../../../core/utils/app_snackbar.dart';
 import '../controllers/phonebook_controller.dart';
 import '../models/phonebook_models.dart';
+import '../services/student_id_resolver.dart';
 
 class StudentTagSheet extends StatefulWidget {
   final PhonebookStudent student;
@@ -176,44 +175,13 @@ class _StudentTagSheetState extends State<StudentTagSheet> {
     return int.tryParse((picked?['id'] ?? '').toString().trim());
   }
 
-  /// Alumni: the Screen Time directory lists residents only, so look the
-  /// name up in the full student list (`/students?all=true`, alumni included)
-  /// and let the admin confirm which one it is. Never chosen automatically:
-  /// a name is not an identity (AGENTS.md, student identity).
+  /// Alumni: the Screen Time directory lists residents only. Find them in
+  /// the full student list by exact Aadhar, else let the admin confirm by
+  /// name. Never chosen by name automatically (AGENTS.md, student identity).
   Future<int?> _pickAlumniFromStudents() async {
-    final List<PickableStudent> all;
-    try {
-      all = await StudentPickerSource(tags: _repo).load(includeAlumni: true);
-    } catch (_) {
-      return null;
-    }
-    final words = widget.student.name.toLowerCase().split(RegExp(r'\s+')).where((w) => w.length > 1).toList();
-    if (words.isEmpty || !mounted) return null;
-    // Every word of the phonebook name appears in the student's name.
-    final candidates = all.where((s) {
-      final n = s.name.toLowerCase();
-      return words.every(n.contains);
-    }).take(20).toList();
-    if (candidates.isEmpty) return null;
-
-    final picked = await showDialog<PickableStudent>(
-      context: context,
-      builder: (ctx) => SimpleDialog(
-        title: const Text('Confirm the student'),
-        children: [
-          for (final c in candidates)
-            SimpleDialogOption(
-              onPressed: () => Navigator.of(ctx).pop(c),
-              child: Text('${c.name} · ${c.isAlumni ? 'Alumni' : 'Room ${c.room}'}'),
-            ),
-          SimpleDialogOption(
-            onPressed: () => Navigator.of(ctx).pop(),
-            child: const Text('None of these', style: TextStyle(color: AppColors.textSecondary)),
-          ),
-        ],
-      ),
-    );
-    return picked?.id;
+    final byAadhar = await StudentIdResolver.byAadhar(widget.student);
+    if (byAadhar != null || !mounted) return byAadhar;
+    return StudentIdResolver.confirmFromList(context, widget.student.name);
   }
 
   Future<void> _toggleTag(StudentTag tag) async {

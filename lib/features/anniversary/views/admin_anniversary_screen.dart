@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:font_awesome_flutter/font_awesome_flutter.dart';
 import 'package:flutter/services.dart';
 import 'package:get/get.dart';
+import '../../../core/utils/date_formatting.dart';
 import '../../../core/utils/student_photo.dart';
 import '../../../core/constants/app_routes.dart';
 import '../../../core/models/anniversary/anniversary_models.dart';
@@ -620,7 +621,7 @@ class AdminAnniversaryScreen extends GetView<AdminAnniversaryController> {
               if (record.anniversaryDate.isNotEmpty)
                 _buildCelebrantLightChip(
                   icon: Icons.event_rounded,
-                  text: record.anniversaryDate,
+                  text: DateFormatting.calendarDate(record.anniversaryDate),
                   bgColor: const Color(0xFFF0F9FF),
                   borderColor: const Color(0xFFBAE6FD),
                   textColor: const Color(0xFF0284C7),
@@ -1238,7 +1239,7 @@ class AdminAnniversaryScreen extends GetView<AdminAnniversaryController> {
                     if (s.anniversaryDate.isNotEmpty)
                       _buildTag(
                         icon: Icons.volunteer_activism_rounded,
-                        text: s.anniversaryDate,
+                        text: DateFormatting.calendarDate(s.anniversaryDate),
                         color: const Color(0xFFE11D48),
                       ),
                   ],

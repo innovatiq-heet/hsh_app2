@@ -91,7 +91,22 @@ class StudentTagsScreen extends GetView<StudentTagsController> {
                                 ],
                               ),
                             ),
-                            if (tags.isEmpty)
+                            if (tags.isNotEmpty) ...[
+                              _TagSearchField(controller: controller),
+                              const SizedBox(height: AppDimens.gapMd),
+                            ],
+                            if (tags.isNotEmpty && controller.visibleTags.isEmpty)
+                              AppCard(
+                                child: EmptyState(
+                                  icon: Icons.search_off_rounded,
+                                  title: 'No matching tags',
+                                  message: 'No tag matches "${controller.query.value.trim()}".',
+                                  actionLabel: 'Clear search',
+                                  actionIcon: Icons.close_rounded,
+                                  onAction: controller.clearSearch,
+                                ),
+                              )
+                            else if (tags.isEmpty)
                               AppCard(
                                 child: EmptyState(
                                   icon: Icons.label_off_outlined,
@@ -103,12 +118,12 @@ class StudentTagsScreen extends GetView<StudentTagsController> {
                                 ),
                               )
                             else
-                              for (int i = 0; i < tags.length; i++)
+                              for (final (i, tag) in controller.visibleTags.indexed)
                                 StaggeredSlideFade(
                                   index: i,
                                   child: Padding(
                                     padding: const EdgeInsets.only(bottom: AppDimens.gapMd),
-                                    child: _StudentTagCard(tag: tags[i]),
+                                    child: _StudentTagCard(tag: tag),
                                   ),
                                 ),
                           ],
@@ -136,6 +151,51 @@ class StudentTagsScreen extends GetView<StudentTagsController> {
         ),
       ),
     );
+  }
+}
+
+/// Search box for the tag list (name or description).
+class _TagSearchField extends StatelessWidget {
+  final StudentTagsController controller;
+
+  const _TagSearchField({required this.controller});
+
+  @override
+  Widget build(BuildContext context) {
+    return Obx(() {
+      final hasText = controller.query.value.isNotEmpty;
+      return TextField(
+        controller: controller.searchController,
+        textInputAction: TextInputAction.search,
+        decoration: InputDecoration(
+          hintText: 'Search tags by name or description',
+          prefixIcon: const Icon(Icons.search_rounded, color: Color(0xFF64748B), size: 21),
+          suffixIcon: hasText
+              ? IconButton(
+                  tooltip: 'Clear',
+                  icon: const Icon(Icons.close_rounded, size: 18),
+                  onPressed: controller.clearSearch,
+                )
+              : null,
+          filled: true,
+          fillColor: Colors.white,
+          isDense: true,
+          contentPadding: const EdgeInsets.symmetric(vertical: 12, horizontal: 14),
+          border: OutlineInputBorder(
+            borderRadius: BorderRadius.circular(14),
+            borderSide: const BorderSide(color: Color(0xFFE2E8F0)),
+          ),
+          enabledBorder: OutlineInputBorder(
+            borderRadius: BorderRadius.circular(14),
+            borderSide: const BorderSide(color: Color(0xFFE2E8F0)),
+          ),
+          focusedBorder: OutlineInputBorder(
+            borderRadius: BorderRadius.circular(14),
+            borderSide: const BorderSide(color: Color(0xFF4F46E5), width: 1.5),
+          ),
+        ),
+      );
+    });
   }
 }
 

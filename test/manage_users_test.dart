@@ -239,6 +239,28 @@ void main() {
       expect(c.tags.map((t) => t.name), ['Regular', 'Karyakarta']);
     });
 
+    test('search filters by name or description, case-insensitive', () async {
+      api.on('GET /tags', {
+        'success': true,
+        'data': [
+          tagJson(1, 'Regular', system: true),
+          tagJson(12, 'Karyakarta'),
+          {...tagJson(13, 'Wing Leader'), 'description': 'Leads a floor wing'},
+        ],
+      });
+      final c = Get.put(StudentTagsController());
+      await until(() => !c.isLoading.value, reason: 'tags load');
+
+      c.searchController.text = 'KARYA';
+      expect(c.visibleTags.map((t) => t.name), ['Karyakarta']);
+      c.searchController.text = 'floor';
+      expect(c.visibleTags.map((t) => t.name), ['Wing Leader']);
+      c.searchController.text = 'nothing like this';
+      expect(c.visibleTags, isEmpty);
+      c.clearSearch();
+      expect(c.visibleTags, hasLength(3));
+    });
+
     test('a failed load shows the error with a way to retry', () async {
       api.on('GET /tags', {'success': false, 'message': 'Server error'}, status: 500);
       final c = Get.put(StudentTagsController());

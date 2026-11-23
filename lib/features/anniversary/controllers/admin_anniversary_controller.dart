@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:intl/intl.dart';
@@ -94,9 +95,23 @@ class AdminAnniversaryController extends GetxController {
   final RxString searchQuery = ''.obs;
 
   // Settings & Template Controllers
+  /// Body of the template open in the editor (see [editingTemplateId]).
   final TextEditingController templateController = TextEditingController();
+
+  /// Name of the template open in the editor.
+  final TextEditingController templateNameController = TextEditingController();
   final FocusNode templateFocus = FocusNode();
   final TextEditingController sendTimeController = TextEditingController();
+
+  // Template library (saved with the settings, like the birthday Template Studio).
+  static const maxTemplates = 50;
+  static const maxTemplateBodyLength = 4000;
+  static const maxTemplateNameLength = 100;
+  final RxList<AnniversaryTemplate> templates = <AnniversaryTemplate>[].obs;
+  final RxnString activeTemplateId = RxnString();
+  final RxnString editingTemplateId = RxnString();
+  bool _loadingEditor = false;
+  String _savedTemplatesSnapshot = '';
   final RxBool isAnniversaryEnabled = true.obs;
   final RxString previewRecipientType = 'both'.obs; // 'both', 'father', 'mother'
   final TextEditingController testPhoneController = TextEditingController();
@@ -127,6 +142,8 @@ class AdminAnniversaryController extends GetxController {
     if (isLeader.value && leaderGroup.value != null && leaderGroup.value!.isNotEmpty) {
       selectedGroup.value = leaderGroup.value!;
     }
+    templateController.addListener(_onEditorChanged);
+    templateNameController.addListener(_onEditorChanged);
     loadDashboard();
     searchController.addListener(() {
       searchQuery.value = searchController.text.trim();
@@ -137,6 +154,7 @@ class AdminAnniversaryController extends GetxController {
   void onClose() {
     searchController.dispose();
     templateController.dispose();
+    templateNameController.dispose();
     templateFocus.dispose();
     sendTimeController.dispose();
     testPhoneController.dispose();
@@ -344,7 +362,7 @@ class AdminAnniversaryController extends GetxController {
       );
       dashboard.value = data;
       isAnniversaryEnabled.value = data.config.anniversaryEnabled;
-      templateController.text = data.config.anniversaryMessageTemplate;
+      _loadTemplates(data.config);
       sendTimeController.text = data.config.sendTime;
       logs.value = data.recentLogs;
     } catch (e) {
@@ -707,9 +725,133 @@ class AdminAnniversaryController extends GetxController {
   }
 
   /// Save settings & message template.
+  // ============================================================
+  // Template library
+  // ============================================================
+
+  AnniversaryTemplate? _findTemplate(String? id) {
+    for (final t in templates) {
+      if (t.id == id) return t;
+    }
+    return null;
+  }
+
+  bool isActiveTemplate(AnniversaryTemplate t) => activeTemplateId.value == t.id;
+
+  /// Body of the active template, trimmed ('' if none): what the server sends.
+  String get activeBody => _findTemplate(activeTemplateId.value)?.body.trim() ?? '';
+
+  String _templatesSnapshot() => jsonEncode({
+        'active': activeTemplateId.value,
+        'templates': templates.map((t) => t.toJson()).toList(),
+      });
+
+  bool get hasUnsavedTemplateChanges => _templatesSnapshot() != _savedTemplatesSnapshot;
+
+  /// Fills the library from the server. A server with no saved library yet (or an older one)
+  /// shows its single message as the first, active template.
+  void _loadTemplates(AnniversaryConfigModel config) {
+    var list = List<AnniversaryTemplate>.from(config.templates);
+    var active = config.activeTemplateId;
+    if (list.isEmpty) {
+      list = [
+        AnniversaryTemplate(
+          id: _newTemplateId(),
+          name: 'Anniversary wish 1',
+          body: config.anniversaryMessageTemplate,
+        ),
+      ];
+      active = list.first.id;
+    } else if (!list.any((t) => t.id == active)) {
+      active = list.first.id;
+    }
+    templates.assignAll(list);
+    activeTemplateId.value = active;
+    _openEditor(active);
+    _savedTemplatesSnapshot = _templatesSnapshot();
+  }
+
+  String _newTemplateId() => 'atpl_${DateTime.now().microsecondsSinceEpoch}';
+
+  void addTemplate() {
+    if (templates.length >= maxTemplates) {
+      AppSnackbar.warning('Too Many Templates', 'You can keep up to $maxTemplates templates. Delete one you no longer use.');
+      return;
+    }
+    final template = AnniversaryTemplate(
+      id: _newTemplateId(),
+      name: 'Anniversary wish ${templates.length + 1}',
+      body: 'Dear {parents_names}, 💍🎉 Wishing you a very Happy Marriage Anniversary from Hari Saurabh Hostel family! 🌟✨ - HSH Warden Team',
+    );
+    templates.add(template);
+    activeTemplateId.value ??= template.id;
+    _openEditor(template.id);
+  }
+
+  void editTemplate(String id) => _openEditor(id);
+
+  void setActiveTemplate(String id) {
+    if (_findTemplate(id) == null) return;
+    activeTemplateId.value = id;
+  }
+
+  void deleteTemplate(String id) {
+    final template = _findTemplate(id);
+    if (template == null) return;
+    if (isActiveTemplate(template)) {
+      AppSnackbar.warning('Template Is Active', 'Set another template as active before deleting this one.');
+      return;
+    }
+    templates.removeWhere((t) => t.id == id);
+    if (editingTemplateId.value == id) _openEditor(activeTemplateId.value);
+  }
+
+  void _openEditor(String? id) {
+    final template = _findTemplate(id);
+    editingTemplateId.value = template?.id;
+    _loadingEditor = true;
+    templateNameController.text = template?.name ?? '';
+    templateController.text = template?.body ?? '';
+    _loadingEditor = false;
+  }
+
+  /// Copies the editor text into the template being edited.
+  void _onEditorChanged() {
+    if (_loadingEditor) return;
+    final i = templates.indexWhere((t) => t.id == editingTemplateId.value);
+    if (i < 0) return;
+    final current = templates[i];
+    final name = templateNameController.text;
+    final body = templateController.text;
+    if (current.name == name && current.body == body) return;
+    templates[i] = current.copyWith(name: name, body: body);
+  }
+
+  /// Why the library can't be saved yet, or null. Mirrors the checks hsh_api makes.
+  String? _templateProblem() {
+    if (activeBody.isEmpty) {
+      return 'The active template is empty. Write a message or pick another template.';
+    }
+    if (templates.length > maxTemplates) {
+      return 'You can keep up to $maxTemplates templates. Delete the ones you no longer use.';
+    }
+    for (final t in templates) {
+      final name = t.name.trim().isEmpty ? 'A template' : '"${t.name.trim()}"';
+      if (t.name.length > maxTemplateNameLength) {
+        return 'The name $name is too long. Keep it under $maxTemplateNameLength characters.';
+      }
+      if (t.body.length > maxTemplateBodyLength) {
+        return '$name is too long. Keep it under $maxTemplateBodyLength characters.';
+      }
+    }
+    return null;
+  }
+
   Future<void> saveSettings() async {
-    if (templateController.text.trim().isEmpty) {
-      AppSnackbar.warning('Empty Template', 'Please enter an anniversary message template.');
+    FocusManager.instance.primaryFocus?.unfocus();
+    final problem = _templateProblem();
+    if (problem != null) {
+      AppSnackbar.warning('Check Templates', problem);
       return;
     }
 
@@ -719,9 +861,12 @@ class AdminAnniversaryController extends GetxController {
         AnniversaryConfigModel(
           anniversaryEnabled: isAnniversaryEnabled.value,
           sendTime: sendTimeController.text.trim().isNotEmpty ? sendTimeController.text.trim() : '08:30',
-          anniversaryMessageTemplate: templateController.text.trim(),
+          anniversaryMessageTemplate: activeBody,
+          templates: templates.toList(),
+          activeTemplateId: activeTemplateId.value,
         ),
       );
+      _savedTemplatesSnapshot = _templatesSnapshot();
       dashboard.value = dashboard.value != null
           ? AnniversaryDashboardData(
               config: updated,

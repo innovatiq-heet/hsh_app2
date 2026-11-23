@@ -1,6 +1,6 @@
 # Birthday Wishes
 
-> **Last updated:** 2026-11-22 · **Repos:** `hsh_app2` (admin Template Studio), `hsh_api` (stores the config and sends the WhatsApp wishes).
+> **Last updated:** 2026-11-23 · **Repos:** `hsh_app2` (admin Template Studio), `hsh_api` (stores the config and sends the WhatsApp wishes).
 
 ---
 
@@ -181,3 +181,18 @@ The app also keeps the library and active picks in `SharedPreferences` (`birthda
 | `test/whatsapp_accounts_test.dart` | Accounts parsing, `accountId` on sends and linking, admin actions, nothing asked with one number (fake API) |
 | `test/birthday_models_test.dart` | Config, student and dashboard JSON parsing |
 | `test/birthday_api_contract_test.dart` | Template checks matching the API, log merging, save rejection message, logs-by-day request (fake API) |
+| `test/anniversary_templates_test.dart` | Anniversary template library JSON (parse, send, older server), `splitPersonName` |
+
+---
+
+## 5. Parents' anniversary: template library and variables
+
+The anniversary screen's **Template Studio** tab keeps several saved greetings, like the birthday one, but with a single audience (the parents of a student).
+
+- **Library:** `GET /whatsapp/anniversary` returns `data.config.anniversaryTemplates` (`[{id, name, body}]`) and `activeAnniversaryTemplateId`; `POST /whatsapp/anniversary/config` accepts both plus `anniversaryMessageTemplate`, `anniversaryEnabled`, `sendTime`. A field that is not sent is left as it is; sending `anniversaryTemplates` replaces the whole list. At most 50 templates, name at most 100 characters, body at most 4000, unique ids, and the active template must exist and not be empty (400 otherwise).
+- **Kept apart from birthday templates:** stored in their own columns (`anniversary_templates`, `active_anniversary_template_id`), never in the birthday `templates` list: the birthday screen reads unknown audiences as "student" and would corrupt them. A birthday save never touches the anniversary library.
+- **What gets sent:** the active template's body is stored as `anniversaryMessageTemplate`, which the scheduled run, "Send All", single wishes and test wishes use. The server derives it from the active template when the library is saved, so the two cannot disagree. An older app that only edits `anniversaryMessageTemplate` updates the active template's body too.
+- **No library yet:** the app shows the server's single message as the first, active template and saves it into the library on the next **Save Configuration**.
+- **Variables** (case-insensitive): `{parents_names}`, `{father_name}`, `{mother_name}`, `{recipient_name}`, `{student_name}`, `{first_name}`, `{years}`, `{room}`, `{student_code}`, and `{father_first_name}`, `{father_middle_name}`, `{father_last_name}`, `{mother_first_name}`, `{mother_middle_name}`, `{mother_last_name}`. A name splits as first word / words between / last word (a one-word name has no middle or last name; missing parts are empty). `splitPersonName` exists in both repos and must stay identical.
+- **Editor:** tapping a variable inserts it at the cursor (replacing a selection); the preview fills the template with today's first celebrant, or a sample family.
+- **Code:** `lib/features/anniversary/controllers/admin_anniversary_controller.dart` (library, `insertTemplateVariable`, `formatMessage`), `lib/features/anniversary/views/admin_anniversary_screen.dart` (template tiles and editor), `lib/core/models/anniversary/anniversary_models.dart` (`AnniversaryTemplate`, `AnniversaryConfigModel`, `splitPersonName`). Backend: `src/services/birthdayWishes.ts` (`saveBirthdayConfig`, `validateAnniversaryTemplates`, `formatAnniversaryMessage`).

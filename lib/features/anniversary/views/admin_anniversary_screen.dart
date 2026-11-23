@@ -1915,6 +1915,28 @@ class AdminAnniversaryScreen extends GetView<AdminAnniversaryController> {
               ),
               const SizedBox(height: 14),
 
+              // Saved templates: tap to edit, "Set active" picks the one that is sent
+              _buildTemplateLibrary(context),
+              const SizedBox(height: 14),
+
+              // Name of the template being edited
+              TextField(
+                controller: controller.templateNameController,
+                maxLength: AdminAnniversaryController.maxTemplateNameLength,
+                style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w700, color: Color(0xFF1E293B)),
+                decoration: InputDecoration(
+                  labelText: 'Template name',
+                  isDense: true,
+                  counterText: '',
+                  border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+                  focusedBorder: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(12),
+                    borderSide: const BorderSide(color: Color(0xFFE11D48), width: 1.5),
+                  ),
+                ),
+              ),
+              const SizedBox(height: 12),
+
               // Variable Chips
               const Text(
                 'Available Variables (tap to insert):',
@@ -2160,7 +2182,7 @@ class AdminAnniversaryScreen extends GetView<AdminAnniversaryController> {
                         }
                         final customMsg = controller.customWishMessageController.text.trim().isNotEmpty
                             ? controller.customWishMessageController.text.trim()
-                            : controller.templateController.text.trim();
+                            : controller.activeBody;
                         controller.openWhatsAppDirect(phone, customText: customMsg);
                       },
                       style: ElevatedButton.styleFrom(
@@ -2207,6 +2229,172 @@ class AdminAnniversaryScreen extends GetView<AdminAnniversaryController> {
         ),
       ],
     );
+  }
+
+  static const _rose = Color(0xFFE11D48);
+
+  Widget _buildTemplateLibrary(BuildContext context) {
+    return Obx(() {
+      final list = controller.templates.toList();
+      final editingId = controller.editingTemplateId.value;
+      final activeId = controller.activeTemplateId.value;
+      return Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Text(
+            'My templates (${list.length})',
+            style: const TextStyle(fontSize: 11.5, fontWeight: FontWeight.w700, color: Color(0xFF475569)),
+          ),
+          const SizedBox(height: 6),
+          for (final t in list)
+            _buildTemplateTile(
+              context,
+              template: t,
+              isActive: t.id == activeId,
+              isEditing: t.id == editingId,
+            ),
+          OutlinedButton.icon(
+            onPressed: controller.addTemplate,
+            icon: const Icon(Icons.add_rounded, size: 18),
+            label: const Text('New template'),
+            style: OutlinedButton.styleFrom(
+              foregroundColor: _rose,
+              side: const BorderSide(color: Color(0xFFFECDD3)),
+              padding: const EdgeInsets.symmetric(vertical: 12),
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+              textStyle: const TextStyle(fontWeight: FontWeight.w700, fontSize: 13),
+            ),
+          ),
+        ],
+      );
+    });
+  }
+
+  Widget _buildTemplateTile(
+    BuildContext context, {
+    required AnniversaryTemplate template,
+    required bool isActive,
+    required bool isEditing,
+  }) {
+    final name = template.name.trim().isEmpty ? 'Untitled template' : template.name.trim();
+    final body = template.body.trim().isEmpty ? 'Empty message' : template.body.trim().replaceAll('\n', ' ');
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 8),
+      child: Material(
+        color: isEditing ? const Color(0xFFFFF1F2) : Colors.white,
+        borderRadius: BorderRadius.circular(14),
+        child: InkWell(
+          onTap: () => controller.editTemplate(template.id),
+          borderRadius: BorderRadius.circular(14),
+          child: Container(
+            padding: const EdgeInsets.fromLTRB(12, 10, 4, 10),
+            decoration: BoxDecoration(
+              borderRadius: BorderRadius.circular(14),
+              border: Border.all(
+                color: isEditing ? _rose : const Color(0xFFE2E8F0),
+                width: isEditing ? 1.5 : 1,
+              ),
+            ),
+            child: Row(
+              children: [
+                Icon(
+                  isActive ? Icons.check_circle_rounded : Icons.radio_button_unchecked_rounded,
+                  size: 20,
+                  color: isActive ? const Color(0xFF16A34A) : const Color(0xFF94A3B8),
+                ),
+                const SizedBox(width: 10),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Row(
+                        children: [
+                          Flexible(
+                            child: Text(
+                              name,
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: const TextStyle(
+                                fontSize: 13,
+                                fontWeight: FontWeight.w700,
+                                color: Color(0xFF0F172A),
+                              ),
+                            ),
+                          ),
+                          if (isActive) ...[
+                            const SizedBox(width: 6),
+                            Container(
+                              padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                              decoration: BoxDecoration(
+                                color: const Color(0xFFDCFCE7),
+                                borderRadius: BorderRadius.circular(6),
+                              ),
+                              child: const Text(
+                                'ACTIVE',
+                                style: TextStyle(
+                                  fontSize: 9.5,
+                                  fontWeight: FontWeight.w800,
+                                  letterSpacing: 0.4,
+                                  color: Color(0xFF15803D),
+                                ),
+                              ),
+                            ),
+                          ],
+                        ],
+                      ),
+                      const SizedBox(height: 2),
+                      Text(
+                        body,
+                        maxLines: 2,
+                        overflow: TextOverflow.ellipsis,
+                        style: const TextStyle(fontSize: 11.5, height: 1.3, color: Color(0xFF64748B)),
+                      ),
+                    ],
+                  ),
+                ),
+                if (!isActive)
+                  TextButton(
+                    onPressed: () => controller.setActiveTemplate(template.id),
+                    style: TextButton.styleFrom(
+                      foregroundColor: _rose,
+                      padding: const EdgeInsets.symmetric(horizontal: 8),
+                      textStyle: const TextStyle(fontSize: 12, fontWeight: FontWeight.w700),
+                    ),
+                    child: const Text('Set active'),
+                  ),
+                IconButton(
+                  onPressed: isActive ? null : () => _confirmDeleteTemplate(context, template),
+                  tooltip: isActive ? "The active template can't be deleted" : 'Delete template',
+                  icon: const Icon(Icons.delete_outline_rounded, size: 20),
+                  color: Colors.redAccent,
+                  disabledColor: const Color(0xFFCBD5E1),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  Future<void> _confirmDeleteTemplate(BuildContext context, AnniversaryTemplate template) async {
+    final name = template.name.trim().isEmpty ? 'this template' : '"${template.name.trim()}"';
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Delete template?'),
+        content: Text('Delete $name? It is removed for good when you save.'),
+        actions: [
+          TextButton(onPressed: () => Navigator.of(ctx).pop(false), child: const Text('Cancel')),
+          TextButton(
+            onPressed: () => Navigator.of(ctx).pop(true),
+            style: TextButton.styleFrom(foregroundColor: Colors.redAccent),
+            child: const Text('Delete'),
+          ),
+        ],
+      ),
+    );
+    if (confirmed == true) controller.deleteTemplate(template.id);
   }
 
   Widget _buildVariableChip(String tag) {

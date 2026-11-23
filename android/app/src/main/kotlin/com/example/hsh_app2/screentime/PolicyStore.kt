@@ -339,6 +339,9 @@ object PolicyStore {
     fun addPolicyListener(l: () -> Unit) = synchronized(listeners) { listeners.add(l) }
     fun removePolicyListener(l: () -> Unit) = synchronized(listeners) { listeners.remove(l) }
 
+    /** Date whose "already sent" baseline was lined up with the server for this login. */
+    private const val KEY_SENT_CONFIRMED_DATE = "sent_confirmed_date"
+
     private const val KEY_LAST_SENT_YESTERDAY = "last_sent_yesterday"
     private const val KEY_SYNCED_PAST_DATES = "synced_past_dates"
 
@@ -366,6 +369,18 @@ object PolicyStore {
             .putLong(KEY_SENT_CURFEW_MILLIS, curfewMillis)
             .apply()
     }
+
+    /**
+     * The date whose baseline matches what the server counts for the student
+     * now logged in. Anything else (a new login, a reinstall, a new day) makes
+     * [ScreenTimeSync] re-read the server's numbers before reporting.
+     */
+    fun sentConfirmedDate(context: Context): String? = prefs(context).getString(KEY_SENT_CONFIRMED_DATE, null)
+
+    fun confirmSent(context: Context, date: String) =
+        prefs(context).edit().putString(KEY_SENT_CONFIRMED_DATE, date).apply()
+
+    fun unconfirmSent(context: Context) = prefs(context).edit().remove(KEY_SENT_CONFIRMED_DATE).apply()
 
     fun lastSentYesterday(context: Context): String? = prefs(context).getString(KEY_LAST_SENT_YESTERDAY, null)
 
@@ -526,6 +541,8 @@ object PolicyStore {
             .remove(KEY_POLICY_VERSION_NUM)
             .remove(KEY_LAST_SENT_YESTERDAY)
             .remove(KEY_SYNCED_PAST_DATES)
+            // The next login may be another student: line up with the server again.
+            .remove(KEY_SENT_CONFIRMED_DATE)
             .remove(KEY_APP_LIMITS)
             .remove(KEY_CURFEWS)
             .apply()

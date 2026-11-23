@@ -88,10 +88,10 @@ class _AssignTagSheetState extends State<AssignTagSheet> {
     if (id == null || _busyIds.contains(id) || _assignedIds.contains(id)) return;
     setState(() => _busyIds.add(id));
     try {
-      await _tags.assignTag(studentId: id, tagId: widget.tag.id);
+      final result = await _tags.assignTag(studentId: id, tagId: widget.tag.id);
       _assignedIds.add(id);
       widget.onAssigned?.call();
-      AppSnackbar.success('Tag Assigned', '"${widget.tag.name}" assigned to $name.');
+      AppSnackbar.success('Tag Assigned', result.addTo('"${widget.tag.name}" assigned to $name.'));
     } on ApiException catch (e) {
       AppSnackbar.error('Assign Failed', e.message);
     } catch (_) {

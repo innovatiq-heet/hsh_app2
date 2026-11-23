@@ -7,6 +7,7 @@ import 'package:hsh_app2/core/network/repository/broadcasts/broadcasts_repositor
 import 'package:hsh_app2/core/network/repository/tags/tags_repository.dart';
 import 'package:hsh_app2/core/storage/session_store.dart';
 import 'package:hsh_app2/features/broadcast/controllers/broadcast_compose_controller.dart';
+import 'package:hsh_app2/features/broadcast/utils/tag_members.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import 'support/fake_api.dart';
@@ -82,6 +83,8 @@ void main() {
     c.titleController.text = '  Water supply ';
     c.messageController.text = ' No water 2-4 pm today. ';
     c.toggleTag(3);
+    // With a tag, who in it gets the broadcast has to be chosen.
+    c.setTagScope(TagMemberScope.all);
     await settle();
   }
 
@@ -273,5 +276,87 @@ void main() {
     expect(c.canSend, isTrue, reason: 'retry fixed it');
 
     expect(await Future.value(api.called('POST /broadcasts')), isEmpty);
+  });
+
+  group('who in the tags gets it', () {
+    Map<String, dynamic> row(int id, {bool active = true, String room = '204', String status = 'renewed-admission', List<int> tags = const [3]}) => {
+          'id': id,
+          'name': 'Student $id',
+          'is_active': active ? 1 : 0,
+          'room_number': room,
+          'student_status': status,
+          'tags': [for (final t in tags) {'id': t, 'name': 'T$t'}],
+        };
+
+    void studentsReturn(List<Map<String, dynamic>> rows) =>
+        api.on('GET /students', {'success': true, 'data': rows});
+
+    test('members split like the server: current, alumni, cancelled never', () {
+      final m = TagMembers.of([
+        row(1),
+        row(2, active: false, room: 'N/A', status: 'left'),
+        row(3, active: false, room: '', status: 'left'),
+        row(4, status: 'cancel-admission'),
+        row(5, active: false, room: 'alumni', status: 'rejected-admission'),
+        row(6, tags: [7]), // another tag
+        row(7, active: true, status: 'left', room: '305'), // left but still has a room: neither
+        {'id': '0812', 'is_active': 1, 'room_number': '2', 'tags': [{'id': 3}]}, // a bank code, not an id
+      ], {3});
+      expect(m.current, [1]);
+      expect(m.alumni, [2, 3]);
+      expect(m.idsFor(TagMemberScope.all), [1, 2, 3]);
+    });
+
+    test('a tag needs a choice before sending', () async {
+      previewReturns(3);
+      studentsReturn([row(1), row(2, active: false, room: 'N/A', status: 'left')]);
+      c.titleController.text = 'Meeting';
+      c.messageController.text = 'Hall at 7 pm.';
+      c.toggleTag(3);
+      await settle();
+      expect(c.canSend, isFalse, reason: 'who in the tag is not chosen yet');
+      c.setTagScope(TagMemberScope.all);
+      await settle();
+      expect(c.canSend, isTrue);
+    });
+
+    test('alumni only sends those students by id, not the tag; individual picks stay', () async {
+      previewReturns(2);
+      studentsReturn([
+        row(1),
+        row(2, active: false, room: 'N/A', status: 'left'),
+        row(3, active: false, room: '', status: 'left'),
+      ]);
+      api.on('POST /broadcasts', {'success': true, 'data': broadcastJson()});
+      c.titleController.text = 'Alumni meet';
+      c.messageController.text = 'Sunday 10 am.';
+      c.toggleTag(3);
+      c.setTagScope(TagMemberScope.alumni);
+      await settle();
+
+      expect(c.tagMembers.value.current, [1]);
+      expect(c.tagMembers.value.alumni, [2, 3]);
+      final preview = api.last('POST /broadcasts/preview').data as Map;
+      expect(preview['tag_ids'], isEmpty);
+      expect(preview['student_ids'], [2, 3]);
+
+      await c.send();
+      final sent = api.last('POST /broadcasts').data as Map;
+      expect(sent['tag_ids'], isEmpty);
+      expect(sent['student_ids'], [2, 3]);
+    });
+
+    test('current & alumni keeps sending the tag itself', () async {
+      previewReturns(3);
+      studentsReturn([row(1)]);
+      c.titleController.text = 'All';
+      c.messageController.text = 'Everyone.';
+      c.toggleTag(3);
+      c.setTagScope(TagMemberScope.all);
+      await settle();
+      final preview = api.last('POST /broadcasts/preview').data as Map;
+      expect(preview['tag_ids'], [3]);
+      expect(preview['student_ids'], isEmpty);
+    });
   });
 }

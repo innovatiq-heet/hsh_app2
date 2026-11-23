@@ -72,7 +72,7 @@ class StudentTagsController extends GetxController with LoadStateMixin {
       if (idx != -1) {
         tags[idx] = updated;
       }
-      AppSnackbar.success('Tag Updated', 'Tag "${updated.name}" updated successfully.');
+      AppSnackbar.success('Tag Updated', _tagsRepo.lastWrite.addTo('Tag "${updated.name}" updated successfully.'));
       return true;
     } on ApiException catch (e) {
       AppSnackbar.error('Update Failed', e.message);
@@ -91,9 +91,9 @@ class StudentTagsController extends GetxController with LoadStateMixin {
     if (busyIds.contains(tag.id)) return;
     busyIds.add(tag.id);
     try {
-      await _tagsRepo.deleteTag(tag.id);
+      final result = await _tagsRepo.deleteTag(tag.id);
       tags.removeWhere((t) => t.id == tag.id);
-      AppSnackbar.success('Tag Deleted', 'Tag "${tag.name}" was removed.');
+      AppSnackbar.success('Tag Deleted', result.addTo('Tag "${tag.name}" was removed.'));
     } on ApiException catch (e) {
       AppSnackbar.error('Delete Failed', e.message);
     } catch (_) {

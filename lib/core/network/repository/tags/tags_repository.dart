@@ -1,5 +1,5 @@
 import 'package:dio/dio.dart';
-import 'package:get/get.dart';
+import 'package:get/get.dart' hide Response;
 import '../../api_client.dart';
 import '../../api_exception.dart';
 import '../base_repository.dart';
@@ -24,9 +24,46 @@ class StudentTagsResult {
   ];
 }
 
+/// What the server says after a tag change (assign, remove, rename, delete).
+///
+/// The student list (`GET /students`) is cached on the server, so a change can
+/// take up to [refreshInSeconds] to show there. [notice] is the server's
+/// message for the admin ("Saved. The student list may take up to 18 seconds
+/// to show this change."), or null when nothing is cached.
+class TagWriteResult {
+  final int refreshInSeconds;
+  final String? notice;
+
+  const TagWriteResult({this.refreshInSeconds = 0, this.notice});
+
+  static const none = TagWriteResult();
+
+  factory TagWriteResult.fromBody(dynamic body) {
+    if (body is! Map) return none;
+    final raw = body['refresh_in_seconds'];
+    final seconds = raw is num ? raw.toInt() : int.tryParse('${raw ?? ''}') ?? 0;
+    final notice = body['notice'];
+    final text = notice is String && notice.trim().isNotEmpty ? notice.trim() : null;
+    return TagWriteResult(refreshInSeconds: seconds < 0 ? 0 : seconds, notice: text);
+  }
+
+  /// [message] followed by the server's notice, when there is one.
+  String addTo(String message) => notice == null ? message : '$message\n$notice';
+
+  /// The later of two waits (several writes in a row, e.g. a bulk assign).
+  TagWriteResult laterOf(TagWriteResult other) =>
+      other.refreshInSeconds > refreshInSeconds ? other : this;
+}
+
 /// Repository for the student tag subsystem (`/tags`).
 class TagsRepository extends BaseRepository {
   Dio get _dio => Get.find<ApiClient>().dio;
+
+  /// The result of the most recent tag change (also for [updateTag], which
+  /// returns the tag itself).
+  TagWriteResult lastWrite = TagWriteResult.none;
+
+  TagWriteResult _remember(Response response) => lastWrite = TagWriteResult.fromBody(response.data);
 
   Future<T> _guard<T>(Future<T> Function() call) async {
     try {
@@ -81,6 +118,7 @@ class TagsRepository extends BaseRepository {
           if (color != null && color.isNotEmpty) 'color': color.trim(),
           if (description != null) 'description': description.trim(),
         });
+        _remember(response);
         final body = response.data;
         final data = body is Map ? body['data'] : null;
         if (data is! Map) throw const ApiException('Unexpected server response');
@@ -88,8 +126,8 @@ class TagsRepository extends BaseRepository {
       });
 
   /// Deletes a custom tag (Admin only).
-  Future<void> deleteTag(int tagId) => _guard(() async {
-        await _dio.delete('/tags/$tagId');
+  Future<TagWriteResult> deleteTag(int tagId) => _guard(() async {
+        return _remember(await _dio.delete('/tags/$tagId'));
       });
 
   /// Fetches tags assigned to a student along with dynamic system tag.
@@ -122,34 +160,34 @@ class TagsRepository extends BaseRepository {
       });
 
   /// Assigns a tag to a student.
-  Future<void> assignTag({
+  Future<TagWriteResult> assignTag({
     required int studentId,
     required int tagId,
   }) =>
       _guard(() async {
-        await _dio.post('/tags/student/$studentId', data: {
+        return _remember(await _dio.post('/tags/student/$studentId', data: {
           'tag_id': tagId,
-        });
+        }));
       });
 
   /// Assigns multiple tags to a student in one batch request.
-  Future<void> assignTags({
+  Future<TagWriteResult> assignTags({
     required int studentId,
     required List<int> tagIds,
   }) =>
       _guard(() async {
-        await _dio.post('/tags/student/$studentId', data: {
+        return _remember(await _dio.post('/tags/student/$studentId', data: {
           'tag_ids': tagIds,
-        });
+        }));
       });
 
   /// Removes an assigned tag from a student.
-  Future<void> removeTag({
+  Future<TagWriteResult> removeTag({
     required int studentId,
     required int tagId,
   }) =>
       _guard(() async {
-        await _dio.delete('/tags/student/$studentId/$tagId');
+        return _remember(await _dio.delete('/tags/student/$studentId/$tagId'));
       });
 
   /// Fetches all students with their assigned tags and room information.

@@ -1,6 +1,6 @@
 # Parental Control & Screen Time
 
-> **Last updated:** 2026-11-22 · **Repos:** `hsh_app2` (Flutter + native Android) and `hsh_api` (Node/Express/MySQL)
+> **Last updated:** 2026-11-24 · **Repos:** `hsh_app2` (Flutter + native Android) and `hsh_api` (Node/Express/MySQL)
 >
 > Paths starting with `lib/` or `android/` are in this repo; paths starting with `hsh_api/` are in the backend repo. Location tracking and curfew breaches are documented separately in [GEOFENCING_DOCS.md](GEOFENCING_DOCS.md).
 
@@ -264,6 +264,7 @@ Wardens group students into named **curfew sessions** (e.g. "Night Curfew" 22:00
 
 - `UsageCollector` rebuilds per-app foreground time from raw usage events (RESUMED/PAUSED pairs, closed by screen-off, keyguard or shutdown), clamped to local midnight.
 - `ScreenTimeSync` sends **only new whole minutes** per app (leftover seconds carry over), so the backend can add deltas without double-counting. After midnight it first flushes the tail of the previous day.
+- **The "already reported" baseline is lined up with the server before it is trusted.** It lives on the phone, so a reinstall or cleared app data loses it, and a new login may be another student. Without a check, the phone re-sent the whole day and the server added it again (2h 12m became 4h 24m). Now every login (`ScreenTimeSync.start`, which also runs at each app launch), every logout (`clearStudentState`) and every new day leaves the baseline unconfirmed (`PolicyStore.sentConfirmedDate`). Before the next report, the phone reads `GET /screen-time/live` (its own today: `date`, `appUsageBreakdown[].minutes`, `nightScreenTimeMinutes`) and uses those numbers as the baseline (`UsageBaseline`). Only minutes beyond what the server already counts are sent. If that read fails, nothing is sent until the next tick. When the server's day (IST) differs from the phone's, the phone keeps its own baseline. The previous day's tail is flushed only when that day's baseline was confirmed for this login.
 - Each ping writes everything in **one transaction**. The phone only advances its "already reported" counters and drops its geofence-event queue after a 2xx, so a failed or retried ping never double-counts or loses data.
 - "Online" on the dashboard means a ping within the last 10 minutes.
 

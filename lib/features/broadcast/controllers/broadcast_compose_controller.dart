@@ -12,6 +12,7 @@ import '../../../core/network/repository/students/student_picker_source.dart';
 import '../../../core/network/repository/tags/tags_repository.dart';
 import '../../../core/utils/app_snackbar.dart';
 import '../../shared/utils/student_picker_host.dart';
+import '../utils/tag_members.dart';
 import 'broadcast_admin_gate.dart';
 
 /// A random UUID v4, used as `client_request_id` so a retried send is never
@@ -66,6 +67,22 @@ class BroadcastComposeController extends GetxController
   final tags = <StudentTag>[].obs;
   final isTagsLoading = false.obs;
   final selectedTagIds = <int>{}.obs;
+
+  /// Who in the selected tags gets it: current students, alumni, or both.
+  /// Must be chosen (null until then) before a broadcast with tags is sent.
+  final tagScope = Rxn<TagMemberScope>();
+
+  /// The selected tags' members, split current / alumni (for the counts and
+  /// for sending to one group only).
+  final tagMembers = TagMembers.empty.obs;
+  final isMembersLoading = false.obs;
+  final membersError = RxnString();
+
+  /// Every student with their tags (`GET /students?all=true`), loaded once.
+  List<Map<String, dynamic>>? _studentRows;
+
+  /// The server takes at most this many individual students per broadcast.
+  static const maxStudentIds = 500;
 
   final preview = BroadcastPreview.empty.obs;
   final isPreviewLoading = false.obs;
@@ -124,6 +141,7 @@ class BroadcastComposeController extends GetxController
       titleValid &&
       messageValid &&
       hasAudience &&
+      (selectedTagIds.isEmpty || tagScope.value != null) &&
       !isPreviewLoading.value &&
       previewError.value == null &&
       preview.value.recipientCount > 0 &&
@@ -144,7 +162,50 @@ class BroadcastComposeController extends GetxController
 
   void toggleTag(int tagId) {
     if (!selectedTagIds.remove(tagId)) selectedTagIds.add(tagId);
+    if (selectedTagIds.isEmpty) tagScope.value = null;
+    _refreshMembers();
     _schedulePreview();
+  }
+
+  void setTagScope(TagMemberScope scope) {
+    tagScope.value = scope;
+    _schedulePreview();
+  }
+
+  /// Recounts the selected tags' members, loading the student list once.
+  Future<void> _refreshMembers() async {
+    if (selectedTagIds.isEmpty) {
+      tagMembers.value = TagMembers.empty;
+      return;
+    }
+    if (_studentRows == null) {
+      isMembersLoading.value = true;
+      membersError.value = null;
+      try {
+        _studentRows = await _tagsRepo.getStudentsForAssignment();
+      } catch (_) {
+        membersError.value = "Couldn't load the tags' students";
+      } finally {
+        isMembersLoading.value = false;
+      }
+    }
+    final rows = _studentRows;
+    tagMembers.value = rows == null ? TagMembers.empty : TagMembers.of(rows, selectedTagIds.toSet());
+    // A choice of one group depends on these numbers.
+    if (tagScope.value != null && tagScope.value != TagMemberScope.all) _schedulePreview();
+  }
+
+  /// What is sent: the tags themselves for everyone in them, or, for one
+  /// group only, that group's students (numeric students.id) plus individual
+  /// picks. Null with a reason when it can't be worked out yet.
+  ({List<int> tagIds, List<int> studentIds})? _audience() {
+    final scope = tagScope.value;
+    if (selectedTagIds.isEmpty || scope == null || scope == TagMemberScope.all) {
+      return (tagIds: _tagIds, studentIds: _studentIds);
+    }
+    if (_studentRows == null) return null;
+    final ids = <int>{...tagMembers.value.idsFor(scope), ..._studentIds}.toList()..sort();
+    return (tagIds: const <int>[], studentIds: ids);
   }
 
   // --- reach preview ---
@@ -169,10 +230,29 @@ class BroadcastComposeController extends GetxController
     final seq = ++_previewSeq;
     isPreviewLoading.value = true;
     previewError.value = null;
+    final audience = _audience();
+    if (audience == null) {
+      // Still loading the tags' students: _refreshMembers previews again when done.
+      if (isMembersLoading.value) return;
+      previewError.value = membersError.value ?? "Couldn't load the tags' students";
+      isPreviewLoading.value = false;
+      return;
+    }
+    if (audience.studentIds.length > maxStudentIds) {
+      previewError.value = 'That is ${audience.studentIds.length} students; one broadcast can reach at most '
+          '$maxStudentIds picked one by one. Choose "Current & alumni" or fewer tags.';
+      isPreviewLoading.value = false;
+      return;
+    }
+    if (audience.tagIds.isEmpty && audience.studentIds.isEmpty) {
+      preview.value = BroadcastPreview.empty;
+      isPreviewLoading.value = false;
+      return;
+    }
     try {
       final result = await _repo.preview(
-        tagIds: _tagIds,
-        studentIds: _studentIds,
+        tagIds: audience.tagIds,
+        studentIds: audience.studentIds,
       );
       if (seq != _previewSeq) return;
       preview.value = result;
@@ -197,6 +277,8 @@ class BroadcastComposeController extends GetxController
   /// [clientRequestId].
   Future<Broadcast?> send() async {
     if (!canSend) return null;
+    final audience = _audience();
+    if (audience == null) return null;
     isSending.value = true;
     try {
       return await _repo.send(
@@ -204,8 +286,8 @@ class BroadcastComposeController extends GetxController
         title: trimmedTitle.isNotEmpty ? trimmedTitle : null,
         message: trimmedMessage,
         channels: selectedChannel.value.name,
-        tagIds: _tagIds,
-        studentIds: _studentIds,
+        tagIds: audience.tagIds,
+        studentIds: audience.studentIds,
       );
     } on ApiException catch (e) {
       AppSnackbar.error('Broadcast Not Sent', e.message);

@@ -11,6 +11,7 @@ import '../../shared/widgets/phonebook_style_widgets.dart';
 import '../../shared/widgets/student_picker_sheet.dart';
 import '../../shared/widgets/tag_choice_chip.dart';
 import '../controllers/broadcast_compose_controller.dart';
+import '../utils/tag_members.dart';
 
 /// Admin → Broadcast → New: write the message, choose the audience, send.
 class BroadcastComposeScreen extends GetView<BroadcastComposeController> {
@@ -375,6 +376,7 @@ class _AudienceCard extends StatelessWidget {
           const _SubHeading(icon: Icons.sell_rounded, title: 'By tag'),
           const SizedBox(height: AppDimens.gapMd),
           _TagChips(controller: controller),
+          _TagScope(controller: controller),
           const Padding(
             padding: EdgeInsets.symmetric(vertical: AppDimens.gapLg),
             child: Divider(height: 1, color: PhonebookTheme.border),
@@ -439,6 +441,79 @@ class _SubHeading extends StatelessWidget {
         ],
       ),
     );
+  }
+}
+
+/// With tags selected: who in them gets it (current students, alumni or
+/// both), with how many each. Has to be chosen before sending.
+class _TagScope extends StatelessWidget {
+  final BroadcastComposeController controller;
+
+  const _TagScope({required this.controller});
+
+  @override
+  Widget build(BuildContext context) {
+    return Obx(() {
+      if (controller.selectedTagIds.isEmpty) return const SizedBox.shrink();
+      final scope = controller.tagScope.value;
+      final members = controller.tagMembers.value;
+      final loading = controller.isMembersLoading.value;
+      final error = controller.membersError.value;
+      String count(int n) => loading ? '…' : '$n';
+
+      return Padding(
+        padding: const EdgeInsets.only(top: AppDimens.gapLg),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              'Send to',
+              style: AppTextStyles.bodySm.copyWith(color: PhonebookTheme.ink, fontWeight: FontWeight.w700),
+            ),
+            const SizedBox(height: AppDimens.gapSm),
+            Wrap(
+              spacing: AppDimens.gapSm,
+              runSpacing: AppDimens.gapSm,
+              children: [
+                PhonebookTintChip(
+                  label: 'Current & alumni · ${count(members.current.length + members.alumni.length)}',
+                  icon: Icons.groups_rounded,
+                  selected: scope == TagMemberScope.all,
+                  onTap: () => controller.setTagScope(TagMemberScope.all),
+                ),
+                PhonebookTintChip(
+                  label: 'Current only · ${count(members.current.length)}',
+                  icon: Icons.school_rounded,
+                  color: PhonebookTheme.green,
+                  selected: scope == TagMemberScope.current,
+                  onTap: () => controller.setTagScope(TagMemberScope.current),
+                ),
+                PhonebookTintChip(
+                  label: 'Alumni only · ${count(members.alumni.length)}',
+                  icon: Icons.workspace_premium_rounded,
+                  color: PhonebookTheme.purple,
+                  selected: scope == TagMemberScope.alumni,
+                  onTap: () => controller.setTagScope(TagMemberScope.alumni),
+                ),
+              ],
+            ),
+            if (error != null)
+              Padding(
+                padding: const EdgeInsets.only(top: AppDimens.gapSm),
+                child: Text(error, style: AppTextStyles.bodySm.copyWith(color: PhonebookTheme.red)),
+              )
+            else if (scope == null)
+              Padding(
+                padding: const EdgeInsets.only(top: AppDimens.gapSm),
+                child: Text(
+                  'Choose who in these tags should get it.',
+                  style: AppTextStyles.bodySm.copyWith(color: PhonebookTheme.amber, fontWeight: FontWeight.w600),
+                ),
+              ),
+          ],
+        ),
+      );
+    });
   }
 }
 

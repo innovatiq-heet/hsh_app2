@@ -671,6 +671,7 @@ class PhonebookController extends GetxController {
 
   /// Updates student tags in memory and SQLite cache without full reload
   void updateStudentTagsInList(String studentId, List<StudentTag> newTags) {
+    if (studentId.trim().isEmpty) return;
     final idx = students.indexWhere((s) => s.id == studentId || s.studentId == studentId);
     if (idx != -1) {
       students[idx] = students[idx].copyWith(tags: newTags);

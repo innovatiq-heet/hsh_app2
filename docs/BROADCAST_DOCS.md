@@ -1,6 +1,6 @@
 # Broadcast Messages
 
-> **Last updated:** 2026-11-15 · **Repos:** `hsh_app2` (Flutter) and `hsh_api` (Node/Express/MySQL). **Status:** the app side is built and tested offline against the contract below. The backend is being built from [BROADCAST_BACKEND_PROMPT.md](BROADCAST_BACKEND_PROMPT.md), and until it ships, the screens show their load errors.
+> **Last updated:** 2026-11-24 · **Repos:** `hsh_app2` (Flutter) and `hsh_api` (Node/Express/MySQL). **Status:** the app side is built and tested offline against the contract below. The backend is being built from [BROADCAST_BACKEND_PROMPT.md](BROADCAST_BACKEND_PROMPT.md), and until it ships, the screens show their load errors.
 
 ---
 
@@ -26,8 +26,9 @@ Entry points:
 5. **No double send:** a `client_request_id` (UUID v4) is created when Compose opens and reused for every retry. Send is disabled while sending.
 6. **Confirmation first:** "Send to N students?". When some students have no device or no phone, the dialog adds reach warnings.
 7. **A failed send keeps the form**, shows the server's `message` as-is, and lets the admin retry with the same id. `201` (new) and `200` (known request id) are both success.
-8. **Send is enabled only when** title is valid (empty or <= 100 chars), message is non-empty, at least one tag or student is picked, the preview has finished without error, and it reaches more than 0 students.
+8. **Send is enabled only when** title is valid (empty or <= 100 chars), message is non-empty, at least one tag or student is picked, who in the tags is chosen (rule 10), the preview has finished without error, and it reaches more than 0 students.
 9. **The preview is debounced by 400 ms**, and only the newest reply is kept. An empty audience shows 0 without a request.
+10. **Who in the tags:** with a tag selected, the admin must choose **Current & alumni**, **Current only** or **Alumni only** (each with its count) before Send is enabled. *Current & alumni* sends the tags (`tag_ids`) as before. *Current only* / *Alumni only* send that group's members as `student_ids` (numeric `students.id`, plus any individual picks) and no `tag_ids`, so the history lists them as individuals. Members come from `GET /students?all=true` (each row's `tags`) and are split like the server's `ACTIVE_STUDENT_SQL` (`TagMembers.of`): current = active and not left / cancelled / rejected; alumni = no room (empty, `N/A`, `alumni`, ...) and not cancelled / rejected. More than 500 students picked this way is refused with a hint to use *Current & alumni*.
 
 ## 3. API contract
 

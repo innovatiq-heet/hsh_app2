@@ -35,6 +35,12 @@ import java.util.concurrent.TimeUnit
  * double-counted). Runs entirely natively so it keeps working while the
  * Flutter UI is closed.
  *
+ * That baseline is only trusted for the login and day it was lined up with
+ * the server ([PolicyStore.sentConfirmedDate]). After a new login, a reinstall
+ * or a new day, the phone first reads what the server already counts
+ * (`GET /screen-time/live`, [UsageBaseline]) and continues from there, so the
+ * day is never reported twice.
+ *
  * Each ping also carries:
  *  - `compliance`  — whether Usage Access / app blocker / battery exemption
  *                    are still on, so the warden can spot tampering;
@@ -65,6 +71,9 @@ object ScreenTimeSync {
 
     fun start(context: Context, token: String, baseUrl: String) {
         PolicyStore.saveSession(context, token, baseUrl)
+        // This login may be another student, or the same one after the server
+        // already counted part of today: line the baseline up before reporting.
+        PolicyStore.unconfirmSent(context)
         schedule(context)
         java.util.concurrent.Executors.newSingleThreadExecutor().execute {
             syncNow(context)
@@ -142,10 +151,14 @@ object ScreenTimeSync {
         return try {
             // Day rolled over since the last successful sync: flush the tail of
             // the previous day first so the minutes before midnight aren't lost.
+            // Only when that baseline was lined up with the server for this login:
+            // otherwise it may belong to another student (or the server already has
+            // those minutes), and the tail is not worth a double count.
             val sentDate = PolicyStore.sentDate(context)
             if (sentDate != null && sentDate != today) {
                 val prevStart = runCatching { dateFormat().parse(sentDate)?.time }.getOrNull()
-                if (prevStart != null && todayStart - prevStart <= 2 * 24 * 60 * MINUTE_MS) {
+                val trusted = PolicyStore.sentConfirmedDate(context) == sentDate
+                if (trusted && prevStart != null && todayStart - prevStart <= 2 * 24 * 60 * MINUTE_MS) {
                     val snap = UsageCollector.collect(context, prevStart, UsageCollector.nextDayStart(prevStart))
                     val status = sendDeltas(
                         context, baseUrl, token, sentDate, snap, PolicyStore.sentMillis(context),
@@ -154,6 +167,12 @@ object ScreenTimeSync {
                     if (status != STATUS_OK) return status
                 }
                 PolicyStore.saveSent(context, today, emptyMap())
+            }
+
+            // New login, reinstall or new day: start from what the server already counts.
+            if (PolicyStore.sentConfirmedDate(context) != today) {
+                val aligned = alignWithServer(context, baseUrl, token, today)
+                if (aligned != STATUS_OK) return aligned
             }
 
             val snap = UsageCollector.collect(context, todayStart, UsageCollector.nextDayStart(todayStart))
@@ -181,11 +200,7 @@ object ScreenTimeSync {
         dayEnd: Long,
         sentCurfew: Long,
     ): String {
-        val deltaMinutes = LinkedHashMap<String, Int>()
-        for ((pkg, millis) in snap.appMillis) {
-            val delta = ((millis - (sent[pkg] ?: 0L)) / MINUTE_MS).toInt()
-            if (delta > 0) deltaMinutes[pkg] = delta
-        }
+        val deltaMinutes = UsageBaseline.deltas(snap.appMillis, sent)
         // The server adds `nightScreenTimeMinutes` up, like the app minutes:
         // send only the whole new minutes of screen time inside any curfew.
         val curfewMillis = curfewMillis(context, dayStart, dayEnd)
@@ -225,6 +240,74 @@ object ScreenTimeSync {
                 UsageCollector.collect(context, run.first, run.last + 1)
                     .appMillis.filterKeys { it != context.packageName }.values.sum()
             }.getOrDefault(0L)
+        }
+    }
+
+    /**
+     * Reads what the server already counts for [today] (`GET /screen-time/live`,
+     * the student's own data) and makes it the "already sent" baseline, then
+     * marks the baseline confirmed for this login. Without this, a reinstall
+     * (baseline lost) re-sent the whole day and the server added it again.
+     *
+     * A failed read sends nothing this round (it retries on the next tick):
+     * waiting a few minutes is better than doubling the day.
+     */
+    private fun alignWithServer(context: Context, baseUrl: String, token: String, today: String): String {
+        val result = getJson("$baseUrl/screen-time/live", token)
+        if (handleAuth(context, result.code)) return STATUS_UNAUTHORIZED
+        val body = result.body
+        if (result.code !in 200..299 || body == null) {
+            Log.w(TAG, "baseline check failed (HTTP ${result.code}); not reporting yet")
+            return STATUS_ERROR
+        }
+        val data = body.optJSONObject("data") ?: body
+
+        val apps = LinkedHashMap<String, Int>()
+        val breakdown = data.optJSONArray("appUsageBreakdown") ?: JSONArray()
+        for (i in 0 until breakdown.length()) {
+            val row = breakdown.optJSONObject(i) ?: continue
+            val pkg = row.optString("packageName", row.optString("package_name", ""))
+            val minutes = row.optDouble("minutes", row.optDouble("usage_minutes", 0.0)).toInt()
+            if (pkg.isNotBlank()) apps[pkg] = (apps[pkg] ?: 0) + minutes
+        }
+        val curfew = data.optDouble("nightScreenTimeMinutes", 0.0).toInt()
+        val serverDate = data.optString("date", "").takeIf { it.isNotBlank() && it != "null" }
+
+        val baseline = UsageBaseline.fromServer(serverDate, today, apps, curfew)
+        if (baseline != null) {
+            PolicyStore.saveSent(context, today, baseline.appMillis, baseline.curfewMillis)
+            Log.i(TAG, "baseline lined up with the server: ${apps.values.sum()} min in ${apps.size} apps")
+        } else {
+            // The server's day (IST) is not this phone's day: keep our own baseline.
+            if (PolicyStore.sentDate(context) != today) PolicyStore.saveSent(context, today, emptyMap())
+            Log.w(TAG, "server date $serverDate != phone date $today; keeping the phone's baseline")
+        }
+        PolicyStore.confirmSent(context, today)
+        return STATUS_OK
+    }
+
+    private fun getJson(url: String, token: String): PingResult {
+        var conn: HttpURLConnection? = null
+        return try {
+            conn = (URL(url).openConnection() as HttpURLConnection).apply {
+                requestMethod = "GET"
+                connectTimeout = 20_000
+                readTimeout = 20_000
+                setRequestProperty("Accept", "application/json")
+                setRequestProperty("Authorization", "Bearer $token")
+            }
+            val code = conn.responseCode
+            val json = if (code in 200..299) {
+                runCatching { JSONObject(conn.inputStream.bufferedReader().use { it.readText() }) }.getOrNull()
+            } else {
+                null
+            }
+            PingResult(code, json)
+        } catch (e: Exception) {
+            Log.w(TAG, "GET failed: ${e.message}")
+            PingResult(-1, null)
+        } finally {
+            conn?.disconnect()
         }
     }
 

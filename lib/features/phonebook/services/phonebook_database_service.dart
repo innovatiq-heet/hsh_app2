@@ -538,6 +538,8 @@ class PhonebookDatabaseService {
 
   /// Updates tags in the local cache for a specific student.
   Future<void> updateStudentTags(String studentId, List<StudentTag> tags) async {
+    // A blank key would match every row without a bank code.
+    if (studentId.trim().isEmpty) return;
     try {
       final db = await database;
       final tagsJson = jsonEncode(tags.map((t) => t.toJson()).toList());

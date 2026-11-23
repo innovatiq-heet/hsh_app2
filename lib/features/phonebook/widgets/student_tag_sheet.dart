@@ -4,7 +4,9 @@ import '../../../core/constants/app_colors.dart';
 import '../../../core/constants/app_text_styles.dart';
 import '../../../core/models/tags/student_tag_model.dart';
 import '../../../core/network/api_exception.dart';
+import '../../../core/models/students/pickable_student.dart';
 import '../../../core/network/repository/screentime/screen_time_repository.dart';
+import '../../../core/network/repository/students/student_picker_source.dart';
 import '../../../core/network/repository/tags/tags_repository.dart';
 import '../../../core/utils/app_snackbar.dart';
 import '../controllers/phonebook_controller.dart';
@@ -14,16 +16,22 @@ class StudentTagSheet extends StatefulWidget {
   final PhonebookStudent student;
   final ValueChanged<List<StudentTag>>? onTagsUpdated;
 
+  /// The numeric `students.id` when the caller already knows it (Assign Tag
+  /// screen). Used as is, so alumni (not in the Screen Time directory) work.
+  final int? studentId;
+
   const StudentTagSheet({
     super.key,
     required this.student,
     this.onTagsUpdated,
+    this.studentId,
   });
 
   static Future<List<StudentTag>?> show(
     BuildContext context,
     PhonebookStudent student, {
     ValueChanged<List<StudentTag>>? onTagsUpdated,
+    int? studentId,
   }) {
     return showModalBottomSheet<List<StudentTag>>(
       context: context,
@@ -32,6 +40,7 @@ class StudentTagSheet extends StatefulWidget {
       builder: (ctx) => StudentTagSheet(
         student: student,
         onTagsUpdated: onTagsUpdated,
+        studentId: studentId,
       ),
     );
   }
@@ -67,11 +76,14 @@ class _StudentTagSheetState extends State<StudentTagSheet> {
       // 1. Resolve the numeric students.id. Phonebook ids / bank codes are not
       // students.id, so only the Screen Time directory (or the warden's pick
       // from it) is trusted.
-      int? numId = _resolvedStudentId;
+      int? numId = _resolvedStudentId ?? (widget.studentId != null && widget.studentId! > 0 ? widget.studentId : null);
       if (numId == null && Get.isRegistered<PhonebookController>()) {
         numId = await Get.find<PhonebookController>().resolveStudentIdForTags(widget.student);
       }
       numId ??= await _pickStudentFromDirectory();
+      // Alumni are not in the Screen Time directory (residents only): pick
+      // them from the full student list instead, always confirmed by hand.
+      numId ??= await _pickAlumniFromStudents();
 
       if (numId == null || numId == 0) {
         throw const ApiException('Could not find this student\'s account. Tap Retry to pick the student.');
@@ -96,11 +108,9 @@ class _StudentTagSheetState extends State<StudentTagSheet> {
         _currentTags.add(studentRes.systemTag!);
       }
 
-      // Also incorporate tags already stored on PhonebookStudent if not empty
-      for (final t in widget.student.tags) {
-        _assignedTagIds.add(t.id);
-        _currentTags.add(t);
-      }
+      // The server's answer is the truth. The phone's saved copy
+      // (widget.student.tags) can still hold a tag that was removed, which
+      // made a removed tag show up again, so it is not merged in.
       final unique = dedupeTags(_currentTags);
       _currentTags
         ..clear()
@@ -166,6 +176,46 @@ class _StudentTagSheetState extends State<StudentTagSheet> {
     return int.tryParse((picked?['id'] ?? '').toString().trim());
   }
 
+  /// Alumni: the Screen Time directory lists residents only, so look the
+  /// name up in the full student list (`/students?all=true`, alumni included)
+  /// and let the admin confirm which one it is. Never chosen automatically:
+  /// a name is not an identity (AGENTS.md, student identity).
+  Future<int?> _pickAlumniFromStudents() async {
+    final List<PickableStudent> all;
+    try {
+      all = await StudentPickerSource(tags: _repo).load(includeAlumni: true);
+    } catch (_) {
+      return null;
+    }
+    final words = widget.student.name.toLowerCase().split(RegExp(r'\s+')).where((w) => w.length > 1).toList();
+    if (words.isEmpty || !mounted) return null;
+    // Every word of the phonebook name appears in the student's name.
+    final candidates = all.where((s) {
+      final n = s.name.toLowerCase();
+      return words.every(n.contains);
+    }).take(20).toList();
+    if (candidates.isEmpty) return null;
+
+    final picked = await showDialog<PickableStudent>(
+      context: context,
+      builder: (ctx) => SimpleDialog(
+        title: const Text('Confirm the student'),
+        children: [
+          for (final c in candidates)
+            SimpleDialogOption(
+              onPressed: () => Navigator.of(ctx).pop(c),
+              child: Text('${c.name} · ${c.isAlumni ? 'Alumni' : 'Room ${c.room}'}'),
+            ),
+          SimpleDialogOption(
+            onPressed: () => Navigator.of(ctx).pop(),
+            child: const Text('None of these', style: TextStyle(color: AppColors.textSecondary)),
+          ),
+        ],
+      ),
+    );
+    return picked?.id;
+  }
+
   Future<void> _toggleTag(StudentTag tag) async {
     if (_busyTagIds.contains(tag.id) || _resolvedStudentId == null) return;
 
@@ -193,15 +243,15 @@ class _StudentTagSheetState extends State<StudentTagSheet> {
 
     try {
       if (isAssigned) {
-        await _repo.removeTag(studentId: _resolvedStudentId!, tagId: tag.id);
+        final result = await _repo.removeTag(studentId: _resolvedStudentId!, tagId: tag.id);
         _assignedTagIds.remove(tag.id);
         _currentTags.removeWhere((t) => t.id == tag.id);
-        AppSnackbar.success('Tag Removed', 'Tag "${tag.name}" removed from ${widget.student.name}.');
+        AppSnackbar.success('Tag Removed', result.addTo('Tag "${tag.name}" removed from ${widget.student.name}.'));
       } else {
-        await _repo.assignTag(studentId: _resolvedStudentId!, tagId: tag.id);
+        final result = await _repo.assignTag(studentId: _resolvedStudentId!, tagId: tag.id);
         _assignedTagIds.add(tag.id);
         _currentTags.add(tag);
-        AppSnackbar.success('Tag Assigned', 'Tag "${tag.name}" assigned to ${widget.student.name}.');
+        AppSnackbar.success('Tag Assigned', result.addTo('Tag "${tag.name}" assigned to ${widget.student.name}.'));
       }
 
       // Sync back with PhonebookController
@@ -472,7 +522,7 @@ class _StudentTagSheetState extends State<StudentTagSheet> {
                       color: selectedHex,
                       description: descCtrl.text.trim().isNotEmpty ? descCtrl.text.trim() : null,
                     );
-                    AppSnackbar.success('Tag Updated', 'Tag "${updatedTag.name}" updated successfully.');
+                    AppSnackbar.success('Tag Updated', _repo.lastWrite.addTo('Tag "${updatedTag.name}" updated successfully.'));
                     if (ctx.mounted) Navigator.pop(ctx, true);
                   } on ApiException catch (e) {
                     AppSnackbar.error('Update Failed', e.message);

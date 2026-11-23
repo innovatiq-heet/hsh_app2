@@ -111,6 +111,35 @@ class _AssignTagScreenState extends State<AssignTagScreen> {
 
   final Set<int> _busyIds = {};
 
+  /// Tags this screen just changed, per student, kept over the server's list
+  /// until the server says its cached list is fresh again
+  /// ([TagWriteResult.refreshInSeconds]). Without this, reloading right after
+  /// a change showed the old tags again.
+  final Map<int, ({List<StudentTag> tags, DateTime until})> _recentTagChanges = {};
+
+  void _rememberChange(int studentId, List<StudentTag> tags, TagWriteResult result) {
+    if (result.refreshInSeconds <= 0) {
+      _recentTagChanges.remove(studentId);
+      return;
+    }
+    _recentTagChanges[studentId] = (
+      tags: List<StudentTag>.of(tags),
+      until: DateTime.now().add(Duration(seconds: result.refreshInSeconds + 1)),
+    );
+  }
+
+  /// [list] with this screen's recent changes on top of the server's (maybe
+  /// still cached) tags.
+  List<TagAssignableStudent> _withRecentChanges(List<TagAssignableStudent> list) {
+    final now = DateTime.now();
+    _recentTagChanges.removeWhere((_, change) => change.until.isBefore(now));
+    if (_recentTagChanges.isEmpty) return list;
+    return [
+      for (final s in list)
+        if (_recentTagChanges[s.id] case final change?) s.copyWith(tags: change.tags) else s,
+    ];
+  }
+
   /// Multi-select: students ticked to get the chosen tags in one go.
   bool _selecting = false;
   bool _bulkBusy = false;
@@ -311,7 +340,7 @@ class _AssignTagScreenState extends State<AssignTagScreen> {
         } catch (_) {}
       }
 
-      _allStudents = parsedList;
+      _allStudents = _withRecentChanges(parsedList);
       _applyFilterAndSort();
     } catch (e) {
       if (mounted) {
@@ -558,22 +587,23 @@ class _AssignTagScreenState extends State<AssignTagScreen> {
     var done = 0;
     var failed = 0;
     String? firstError;
+    var wait = TagWriteResult.none;
 
     Future<void> run((TagAssignableStudent, List<StudentTag>) job) async {
       final (st, missing) = job;
       try {
         final ids = missing.map((t) => t.id).toList();
-        if (ids.length == 1) {
-          await _tagsRepo.assignTag(studentId: st.id, tagId: ids.first);
-        } else {
-          await _tagsRepo.assignTags(studentId: st.id, tagIds: ids);
-        }
+        final result = ids.length == 1
+            ? await _tagsRepo.assignTag(studentId: st.id, tagId: ids.first)
+            : await _tagsRepo.assignTags(studentId: st.id, tagIds: ids);
+        wait = wait.laterOf(result);
         final updated = [...st.tags, ...missing];
+        _rememberChange(st.id, updated, result);
         final i = _allStudents.indexWhere((x) => x.id == st.id);
         if (i != -1) _allStudents[i] = _allStudents[i].copyWith(tags: updated);
         done++;
         try {
-          await PhonebookDatabaseService.instance.updateStudentTags(st.id.toString(), updated);
+          await _updatePhonebookCopy(st, updated);
         } catch (_) {}
       } on ApiException catch (e) {
         failed++;
@@ -608,7 +638,7 @@ class _AssignTagScreenState extends State<AssignTagScreen> {
 
     final tagText = tags.length == 1 ? '"${tags.first.name}"' : '${tags.length} tags';
     if (failed == 0) {
-      AppSnackbar.success('Tags Assigned', '$tagText assigned to $done student${done == 1 ? '' : 's'}.');
+      AppSnackbar.success('Tags Assigned', wait.addTo('$tagText assigned to $done student${done == 1 ? '' : 's'}.'));
     } else {
       AppSnackbar.error(
         'Some Failed',
@@ -620,6 +650,18 @@ class _AssignTagScreenState extends State<AssignTagScreen> {
   // ===========================================================================
   // ASSIGN & UNASSIGN ACTIONS
   // ===========================================================================
+
+  /// Keeps the phonebook saved on this phone in step (display only). It is
+  /// found by the student's own bank code: a numeric `students.id` must never
+  /// be matched against bank codes, where it hit another student ("812" is
+  /// also bank code "0812") and left the right one showing a removed tag.
+  Future<void> _updatePhonebookCopy(TagAssignableStudent student, List<StudentTag> tags) async {
+    final code = student.studentCode.trim();
+    if (code.isEmpty) return;
+    try {
+      await PhonebookDatabaseService.instance.updateStudentTags(code, tags);
+    } catch (_) {}
+  }
 
   Future<void> _assignTag(TagAssignableStudent student) async {
     if (_busyIds.contains(student.id)) return;
@@ -643,11 +685,9 @@ class _AssignTagScreenState extends State<AssignTagScreen> {
 
     try {
       final tagIds = tagsToAssign.map((t) => t.id).toList();
-      if (tagIds.length == 1) {
-        await _tagsRepo.assignTag(studentId: student.id, tagId: tagIds.first);
-      } else {
-        await _tagsRepo.assignTags(studentId: student.id, tagIds: tagIds);
-      }
+      final result = tagIds.length == 1
+          ? await _tagsRepo.assignTag(studentId: student.id, tagId: tagIds.first)
+          : await _tagsRepo.assignTags(studentId: student.id, tagIds: tagIds);
       HapticFeedback.mediumImpact();
 
       // Update in memory
@@ -668,17 +708,16 @@ class _AssignTagScreenState extends State<AssignTagScreen> {
         _displayedStudents[idxDisp] = _displayedStudents[idxDisp].copyWith(tags: updatedTags);
       }
 
+      _rememberChange(student.id, updatedTags, result);
+
       // Update SQLite cache
-      await PhonebookDatabaseService.instance.updateStudentTags(
-        student.id.toString(),
-        updatedTags,
-      );
+      await _updatePhonebookCopy(student, updatedTags);
 
       widget.onAssigned?.call();
       final tagNames = tagsToAssign.map((t) => '"${t.name}"').join(', ');
       AppSnackbar.success(
         'Tag${tagsToAssign.length > 1 ? 's' : ''} Assigned',
-        '$tagNames assigned to ${student.name}.',
+        result.addTo('$tagNames assigned to ${student.name}.'),
       );
     } on ApiException catch (e) {
       AppSnackbar.error('Assign Failed', e.message);
@@ -761,7 +800,7 @@ class _AssignTagScreenState extends State<AssignTagScreen> {
     setState(() => _busyIds.add(student.id));
 
     try {
-      await _tagsRepo.removeTag(studentId: student.id, tagId: tagToRemove.id);
+      final result = await _tagsRepo.removeTag(studentId: student.id, tagId: tagToRemove.id);
       HapticFeedback.mediumImpact();
 
       final updatedTags = List<StudentTag>.from(student.tags)
@@ -777,15 +816,13 @@ class _AssignTagScreenState extends State<AssignTagScreen> {
         _displayedStudents[idxDisp] = _displayedStudents[idxDisp].copyWith(tags: updatedTags);
       }
 
-      await PhonebookDatabaseService.instance.updateStudentTags(
-        student.id.toString(),
-        updatedTags,
-      );
+      _rememberChange(student.id, updatedTags, result);
+      await _updatePhonebookCopy(student, updatedTags);
 
       widget.onAssigned?.call();
       AppSnackbar.success(
         'Tag Removed',
-        '"${tagToRemove.name}" removed from ${student.name}.',
+        result.addTo('"${tagToRemove.name}" removed from ${student.name}.'),
       );
     } on ApiException catch (e) {
       AppSnackbar.error('Remove Failed', e.message);
@@ -1029,7 +1066,7 @@ class _AssignTagScreenState extends State<AssignTagScreen> {
                             color: selectedHex,
                             description: descCtrl.text.trim().isNotEmpty ? descCtrl.text.trim() : null,
                           );
-                          AppSnackbar.success('Tag Updated', 'Tag "${res.name}" updated successfully.');
+                          AppSnackbar.success('Tag Updated', _tagsRepo.lastWrite.addTo('Tag "${res.name}" updated successfully.'));
                           if (ctx.mounted) Navigator.pop(ctx, res);
                         } on ApiException catch (e) {
                           AppSnackbar.error('Update Failed', e.message);
@@ -1567,8 +1604,10 @@ class _AssignTagScreenState extends State<AssignTagScreen> {
   Future<void> _openStudentTagSheet(TagAssignableStudent student) async {
     final updated = await StudentTagSheet.show(
       context,
+      // Keyed by the bank code: the sheet saves tags to the phonebook copy
+      // under this id, and a students.id there would hit another student.
       PhonebookStudent(
-        id: student.id.toString(),
+        id: student.studentCode,
         studentId: student.studentCode,
         name: student.name,
         enrollmentNumber: '',
@@ -1580,7 +1619,11 @@ class _AssignTagScreenState extends State<AssignTagScreen> {
         tags: student.tags,
         phones: [],
       ),
+      studentId: student.id,
       onTagsUpdated: (newTags) {
+        // The sheet used the same repository: its last write says how long
+        // the server's list may still show the old tags.
+        _rememberChange(student.id, newTags, _tagsRepo.lastWrite);
         final idxAll = _allStudents.indexWhere((s) => s.id == student.id);
         if (idxAll != -1) {
           _allStudents[idxAll] = _allStudents[idxAll].copyWith(tags: newTags);

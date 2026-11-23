@@ -1931,6 +1931,12 @@ class AdminAnniversaryScreen extends GetView<AdminAnniversaryController> {
                   _buildVariableChip('{student_name}'),
                   _buildVariableChip('{years}'),
                   _buildVariableChip('{room}'),
+                  _buildVariableChip('{father_first_name}'),
+                  _buildVariableChip('{father_middle_name}'),
+                  _buildVariableChip('{father_last_name}'),
+                  _buildVariableChip('{mother_first_name}'),
+                  _buildVariableChip('{mother_middle_name}'),
+                  _buildVariableChip('{mother_last_name}'),
                 ],
               ),
               const SizedBox(height: 12),
@@ -1938,6 +1944,7 @@ class AdminAnniversaryScreen extends GetView<AdminAnniversaryController> {
               // Template TextField
               TextField(
                 controller: controller.templateController,
+                focusNode: controller.templateFocus,
                 maxLines: 4,
                 style: const TextStyle(fontSize: 13, height: 1.4, color: Color(0xFF1E293B)),
                 decoration: InputDecoration(
@@ -1953,6 +1960,50 @@ class AdminAnniversaryScreen extends GetView<AdminAnniversaryController> {
                     borderSide: const BorderSide(color: Color(0xFFE11D48), width: 1.5),
                   ),
                 ),
+              ),
+              const SizedBox(height: 12),
+
+              // Live preview, filled with a real celebrant (or a sample)
+              ValueListenableBuilder<TextEditingValue>(
+                valueListenable: controller.templateController,
+                builder: (context, value, _) {
+                  final record = controller.previewRecord;
+                  final text = value.text.trim();
+                  final rendered = text.isEmpty
+                      ? 'Your message preview will appear here.'
+                      : controller.formatMessage(text, record, 'father');
+                  return Container(
+                    width: double.infinity,
+                    padding: const EdgeInsets.all(12),
+                    decoration: BoxDecoration(
+                      color: const Color(0xFFECFDF5),
+                      borderRadius: BorderRadius.circular(12),
+                      border: Border.all(color: const Color(0xFFA7F3D0)),
+                    ),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          'Message preview · ${record.name}',
+                          style: const TextStyle(
+                            fontSize: 11,
+                            fontWeight: FontWeight.w800,
+                            color: Color(0xFF047857),
+                          ),
+                        ),
+                        const SizedBox(height: 6),
+                        Text(
+                          rendered,
+                          style: TextStyle(
+                            fontSize: 13,
+                            height: 1.4,
+                            color: text.isEmpty ? const Color(0xFF64748B) : const Color(0xFF064E3B),
+                          ),
+                        ),
+                      ],
+                    ),
+                  );
+                },
               ),
               const SizedBox(height: 16),
 
@@ -2160,10 +2211,7 @@ class AdminAnniversaryScreen extends GetView<AdminAnniversaryController> {
 
   Widget _buildVariableChip(String tag) {
     return InkWell(
-      onTap: () {
-        final text = controller.templateController.text;
-        controller.templateController.text = '$text $tag';
-      },
+      onTap: () => controller.insertTemplateVariable(tag),
       borderRadius: BorderRadius.circular(8),
       child: Container(
         padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),

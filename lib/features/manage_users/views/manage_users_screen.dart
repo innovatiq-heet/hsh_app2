@@ -74,9 +74,6 @@ class ManageUsersScreen extends GetView<ManageUsersController> {
                                     title: 'No staff users yet',
                                     message:
                                         'Add complaint solvers and laundry staff. They sign in passwordless with their mobile number.',
-                                    actionLabel: 'Add staff user',
-                                    actionIcon: Icons.person_add_alt_1_rounded,
-                                    onAction: () => StaffUserFormSheet.show(),
                                   ),
                                 ),
                               ] else ...[

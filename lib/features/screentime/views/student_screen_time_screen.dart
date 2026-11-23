@@ -295,12 +295,17 @@ class _ScreenTimeHeaderDelegate extends SliverPersistentHeaderDelegate {
                       const SizedBox(width: 8),
                     ],
 
-                    // Refresh button (collapsed state only; expanded state
-                    // shows it in the content row below)
-                    Opacity(
-                      opacity: collapsedTitleOpacity,
-                      child: IgnorePointer(ignoring: collapsedTitleOpacity < 0.5, child: refreshButton()),
-                    ),
+                    // Refresh button. With an opened student it always sits here,
+                    // in line with the back / all-students buttons. On the list
+                    // it shows only once collapsed (expanded, it is in the
+                    // content row below).
+                    if (selected != null)
+                      refreshButton()
+                    else
+                      Opacity(
+                        opacity: collapsedTitleOpacity,
+                        child: IgnorePointer(ignoring: collapsedTitleOpacity < 0.5, child: refreshButton()),
+                      ),
                   ],
                 ),
               ),
@@ -405,9 +410,11 @@ class _ScreenTimeHeaderDelegate extends SliverPersistentHeaderDelegate {
                             ),
                           ),
                         ),
-                        const SizedBox(width: 12),
-                        // Aligned with the pills row at the bottom of the content
-                        refreshButton(),
+                        if (selected == null) ...[
+                          const SizedBox(width: 12),
+                          // Aligned with the pills row at the bottom of the content
+                          refreshButton(),
+                        ],
                       ],
                     ),
                   ),

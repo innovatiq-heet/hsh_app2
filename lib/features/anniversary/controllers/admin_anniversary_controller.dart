@@ -95,6 +95,7 @@ class AdminAnniversaryController extends GetxController {
 
   // Settings & Template Controllers
   final TextEditingController templateController = TextEditingController();
+  final FocusNode templateFocus = FocusNode();
   final TextEditingController sendTimeController = TextEditingController();
   final RxBool isAnniversaryEnabled = true.obs;
   final RxString previewRecipientType = 'both'.obs; // 'both', 'father', 'mother'
@@ -136,6 +137,7 @@ class AdminAnniversaryController extends GetxController {
   void onClose() {
     searchController.dispose();
     templateController.dispose();
+    templateFocus.dispose();
     sendTimeController.dispose();
     testPhoneController.dispose();
     customWishPhoneController.dispose();
@@ -402,10 +404,52 @@ class AdminAnniversaryController extends GetxController {
 
   // --- Message Formatting ---
 
+  /// Inserts [tag] into the template where the cursor is (replacing any
+  /// selected text); at the end only when the field was never focused.
+  void insertTemplateVariable(String tag) {
+    final c = templateController;
+    final text = c.text;
+    final sel = c.selection;
+    var start = sel.isValid ? sel.start : text.length;
+    var end = sel.isValid ? sel.end : text.length;
+    if (start < 0 || end < 0) {
+      start = end = text.length;
+    }
+    final before = text.substring(0, start);
+    final after = text.substring(end);
+    final wordChar = RegExp(r'[\p{L}\p{N}]', unicode: true);
+    final lead = before.isNotEmpty && wordChar.hasMatch(before[before.length - 1]) ? ' ' : '';
+    final trail = after.isNotEmpty && wordChar.hasMatch(after[0]) ? ' ' : '';
+    final insert = '$lead$tag$trail';
+    final caret = before.length + lead.length + tag.length + trail.length;
+    c.value = TextEditingValue(
+      text: '$before$insert$after',
+      selection: TextSelection.collapsed(offset: caret),
+    );
+    templateFocus.requestFocus();
+  }
+
+  /// A real celebrant for the template preview, else a sample one.
+  AnniversaryStudentRecord get previewRecord {
+    final today = dashboard.value?.todaysAnniversaries;
+    if (today != null && today.isNotEmpty) return today.first;
+    return const AnniversaryStudentRecord(
+      studentId: 0,
+      name: 'Aarav Patel',
+      studentCode: '0000',
+      room: '101',
+      fatherName: 'Ramesh Kumar Patel',
+      motherName: 'Sunita Patel',
+      anniversaryDate: '2000-01-01',
+    );
+  }
+
   String formatMessage(String template, AnniversaryStudentRecord record, String recipientType) {
     final firstName = record.name.trim().split(RegExp(r'\s+')).first;
     final fName = record.fatherName.trim();
     final mName = record.motherName.trim();
+    final father = splitPersonName(fName);
+    final mother = splitPersonName(mName);
     final parentsNames = fName.isNotEmpty && mName.isNotEmpty
         ? '$fName & $mName'
         : (fName.isNotEmpty ? fName : (mName.isNotEmpty ? mName : 'Parents of ${record.name}'));
@@ -417,6 +461,12 @@ class AdminAnniversaryController extends GetxController {
     final years = record.yearsOfMarriage?.toString() ?? '';
 
     return template
+        .replaceAll(RegExp(r'\{father_first_name\}', caseSensitive: false), father.first)
+        .replaceAll(RegExp(r'\{father_middle_name\}', caseSensitive: false), father.middle)
+        .replaceAll(RegExp(r'\{father_last_name\}', caseSensitive: false), father.last)
+        .replaceAll(RegExp(r'\{mother_first_name\}', caseSensitive: false), mother.first)
+        .replaceAll(RegExp(r'\{mother_middle_name\}', caseSensitive: false), mother.middle)
+        .replaceAll(RegExp(r'\{mother_last_name\}', caseSensitive: false), mother.last)
         .replaceAll(RegExp(r'\{parents_names\}', caseSensitive: false), parentsNames)
         .replaceAll(RegExp(r'\{father_name\}', caseSensitive: false), fName.isNotEmpty ? fName : 'Father')
         .replaceAll(RegExp(r'\{mother_name\}', caseSensitive: false), mName.isNotEmpty ? mName : 'Mother')

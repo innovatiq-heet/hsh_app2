@@ -1149,7 +1149,9 @@ class _HistoryRow extends StatelessWidget {
                 ),
                 const SizedBox(height: 2),
                 Text(
-                  'Room ${item.pastRoom} · by ${item.leaderName}',
+                  item.leaderName.isEmpty
+                      ? 'Room ${item.pastRoom}'
+                      : 'Room ${item.pastRoom} · by ${item.leaderName}',
                   style: const TextStyle(fontSize: 12, color: _C.muted),
                 ),
                 const SizedBox(height: 8),

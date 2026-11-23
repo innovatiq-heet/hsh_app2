@@ -2,20 +2,12 @@ import 'package:flutter/material.dart';
 
 import '../curfew_schedule.dart';
 import '../models.dart';
+import '../widgets/common.dart';
 
 /// Create (existing == null) or edit a session. Returns the draft to save,
 /// or null when cancelled. For an edit only the changed fields are set.
-Future<SessionDraft?> showSessionEditor(BuildContext context, {CurfewSession? existing}) {
-  return showModalBottomSheet<SessionDraft>(
-    context: context,
-    isScrollControlled: true,
-    showDragHandle: true,
-    builder: (_) => Padding(
-      padding: EdgeInsets.only(bottom: MediaQuery.of(context).viewInsets.bottom),
-      child: _SessionEditor(existing: existing),
-    ),
-  );
-}
+Future<SessionDraft?> showSessionEditor(BuildContext context, {CurfewSession? existing}) =>
+    showStSheet<SessionDraft>(context, _SessionEditor(existing: existing));
 
 class _SessionEditor extends StatefulWidget {
   const _SessionEditor({this.existing});
@@ -51,10 +43,20 @@ class _SessionEditorState extends State<_SessionEditor> {
     final picked = await showTimePicker(
       context: context,
       initialTime: start ? _start : _end,
-      builder: (c, child) => MediaQuery(data: MediaQuery.of(c).copyWith(alwaysUse24HourFormat: true), child: child!),
+      builder: (c, child) => MediaQuery(
+        data: MediaQuery.of(c).copyWith(alwaysUse24HourFormat: true),
+        child: Theme(
+          data: Theme.of(c).copyWith(colorScheme: Theme.of(c).colorScheme.copyWith(primary: StPalette.accent)),
+          child: child!,
+        ),
+      ),
     );
     if (picked != null) setState(() => start ? _start = picked : _end = picked);
   }
+
+  void _setDays(Iterable<String> days) => setState(() => _days
+    ..clear()
+    ..addAll(days));
 
   void _save() {
     final name = _name.text.trim();
@@ -84,60 +86,92 @@ class _SessionEditorState extends State<_SessionEditor> {
   Widget build(BuildContext context) {
     final overnight = _end.hour * 60 + _end.minute < _start.hour * 60 + _start.minute;
     final days = kDayKeys.where(_days.contains).toList();
+    final isNew = widget.existing == null;
     return SafeArea(
       child: SingleChildScrollView(
-        padding: const EdgeInsets.fromLTRB(20, 0, 20, 20),
+        padding: const EdgeInsets.fromLTRB(20, 8, 20, 20),
         child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
-          Text(widget.existing == null ? 'New curfew session' : 'Edit session', style: Theme.of(context).textTheme.titleLarge),
-          const SizedBox(height: 16),
+          SheetTitle(
+            title: isNew ? 'New curfew session' : 'Edit session',
+            subtitle: isNew ? 'Phones block apps during this time' : 'Assigned phones update in a few seconds',
+          ),
+          const SizedBox(height: 20),
           TextField(
             controller: _name,
             maxLength: 60,
-            decoration: const InputDecoration(labelText: 'Name', hintText: 'e.g. Night Curfew, Afternoon Study'),
+            style: const TextStyle(fontWeight: FontWeight.w600, color: StPalette.ink),
+            decoration: stInputDecoration(label: 'Name', hint: 'e.g. Night Curfew, Afternoon Study'),
+          ),
+          const FieldLabel('Time (IST)'),
+          Row(children: [
+            Expanded(child: _TimeButton(label: 'Starts', icon: Icons.nightlight_outlined, time: _fmt(_start), onTap: () => _pick(true))),
+            const Padding(
+              padding: EdgeInsets.symmetric(horizontal: 8),
+              child: Icon(Icons.arrow_forward_rounded, color: StPalette.textMuted, size: 18),
+            ),
+            Expanded(child: _TimeButton(label: 'Ends', icon: Icons.wb_sunny_outlined, time: _fmt(_end), onTap: () => _pick(false))),
+          ]),
+          if (overnight) ...[
+            const SizedBox(height: 8),
+            const NoteBox(text: 'Ends the next morning. It counts under the day it starts.', icon: Icons.bedtime_outlined),
+          ],
+          FieldLabel(
+            'Days',
+            trailing: Wrap(spacing: 4, children: [
+              _QuickDays(label: 'Every day', onTap: () => _setDays(kDayKeys)),
+              _QuickDays(label: 'Mon–Fri', onTap: () => _setDays(kDayKeys.take(5))),
+              _QuickDays(label: 'Weekend', onTap: () => _setDays(kDayKeys.skip(5))),
+            ]),
           ),
           Row(children: [
-            Expanded(child: _TimeButton(label: 'Starts', time: _fmt(_start), onTap: () => _pick(true))),
-            const SizedBox(width: 12),
-            Expanded(child: _TimeButton(label: 'Ends', time: _fmt(_end), onTap: () => _pick(false))),
-          ]),
-          if (overnight)
-            Padding(
-              padding: const EdgeInsets.only(top: 8),
-              child: Text('Ends the next morning. It counts under the day it starts.',
-                  style: Theme.of(context).textTheme.bodySmall),
-            ),
-          const SizedBox(height: 16),
-          Text('Days', style: Theme.of(context).textTheme.labelLarge),
-          const SizedBox(height: 8),
-          Wrap(spacing: 6, runSpacing: 6, children: [
-            for (var i = 0; i < 7; i++)
-              FilterChip(
-                label: Text(kDayLabels[i]),
-                selected: _days.contains(kDayKeys[i]),
-                onSelected: (on) => setState(() => on ? _days.add(kDayKeys[i]) : _days.remove(kDayKeys[i])),
+            for (var i = 0; i < 7; i++) ...[
+              if (i > 0) const SizedBox(width: 6),
+              Expanded(
+                child: _DayButton(
+                  label: kDayLabels[i].substring(0, 1),
+                  selected: _days.contains(kDayKeys[i]),
+                  onTap: () => setState(() => _days.contains(kDayKeys[i]) ? _days.remove(kDayKeys[i]) : _days.add(kDayKeys[i])),
+                ),
               ),
+            ],
           ]),
-          Wrap(spacing: 8, children: [
-            TextButton(onPressed: () => setState(() => _days..clear()..addAll(kDayKeys)), child: const Text('Every day')),
-            TextButton(onPressed: () => setState(() => _days..clear()..addAll(kDayKeys.take(5))), child: const Text('Mon–Fri')),
-            TextButton(onPressed: () => setState(() => _days..clear()..addAll(kDayKeys.skip(5))), child: const Text('Weekend')),
-          ]),
-          SwitchListTile(
-            contentPadding: EdgeInsets.zero,
-            title: const Text('Session on'),
-            subtitle: const Text('When off, no phone enforces it. Students stay assigned.'),
-            value: _active,
-            onChanged: (v) => setState(() => _active = v),
-          ),
-          Text('Phones block apps ${_fmt(_start)}–${_fmt(_end)} ${describeDays(days)}.',
-              style: Theme.of(context).textTheme.bodyMedium),
-          if (_error != null)
-            Padding(
-              padding: const EdgeInsets.only(top: 8),
-              child: Text(_error!, style: TextStyle(color: Theme.of(context).colorScheme.error)),
-            ),
           const SizedBox(height: 16),
-          FilledButton(onPressed: _save, child: Text(widget.existing == null ? 'Create' : 'Save')),
+          Container(
+            padding: const EdgeInsets.fromLTRB(14, 6, 6, 6),
+            decoration: BoxDecoration(
+              color: StPalette.bg,
+              borderRadius: BorderRadius.circular(12),
+              border: Border.all(color: StPalette.border),
+            ),
+            child: Row(children: [
+              const Expanded(
+                child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                  Text('Session on', style: TextStyle(fontWeight: FontWeight.w700, color: StPalette.ink)),
+                  Text('When off, no phone enforces it. Students stay assigned.',
+                      style: TextStyle(fontSize: 12, color: StPalette.textSecondary)),
+                ]),
+              ),
+              Switch(
+                value: _active,
+                activeThumbColor: Colors.white,
+                activeTrackColor: StPalette.accent,
+                onChanged: (v) => setState(() => _active = v),
+              ),
+            ]),
+          ),
+          const SizedBox(height: 12),
+          NoteBox(
+            icon: Icons.schedule_rounded,
+            text: days.isEmpty
+                ? 'Pick at least one day.'
+                : 'Phones block apps ${_fmt(_start)}–${_fmt(_end)} ${describeDays(days)}.',
+          ),
+          if (_error != null) ...[
+            const SizedBox(height: 8),
+            NoteBox(text: _error!, icon: Icons.error_outline_rounded, color: StPalette.red),
+          ],
+          const SizedBox(height: 18),
+          StPrimaryButton(label: isNew ? 'Create session' : 'Save changes', onPressed: _save),
         ]),
       ),
     );
@@ -145,19 +179,82 @@ class _SessionEditorState extends State<_SessionEditor> {
 }
 
 class _TimeButton extends StatelessWidget {
-  const _TimeButton({required this.label, required this.time, required this.onTap});
+  const _TimeButton({required this.label, required this.icon, required this.time, required this.onTap});
 
   final String label;
+  final IconData icon;
   final String time;
   final VoidCallback onTap;
 
   @override
-  Widget build(BuildContext context) => OutlinedButton(
-        onPressed: onTap,
-        style: OutlinedButton.styleFrom(padding: const EdgeInsets.symmetric(vertical: 14)),
-        child: Column(children: [
-          Text(label, style: Theme.of(context).textTheme.bodySmall),
-          Text(time, style: Theme.of(context).textTheme.titleLarge),
-        ]),
+  Widget build(BuildContext context) => Material(
+        color: StPalette.bg,
+        borderRadius: BorderRadius.circular(12),
+        child: InkWell(
+          borderRadius: BorderRadius.circular(12),
+          onTap: onTap,
+          child: Container(
+            padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 12),
+            decoration: BoxDecoration(
+              borderRadius: BorderRadius.circular(12),
+              border: Border.all(color: StPalette.border),
+            ),
+            child: Row(children: [
+              Icon(icon, size: 18, color: StPalette.accent),
+              const SizedBox(width: 8),
+              Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                Text(label, style: const TextStyle(fontSize: 11.5, fontWeight: FontWeight.w600, color: StPalette.textSecondary)),
+                Text(time, style: const TextStyle(fontSize: 20, fontWeight: FontWeight.w800, color: StPalette.ink)),
+              ]),
+            ]),
+          ),
+        ),
+      );
+}
+
+class _DayButton extends StatelessWidget {
+  const _DayButton({required this.label, required this.selected, required this.onTap});
+
+  final String label;
+  final bool selected;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) => InkWell(
+        borderRadius: BorderRadius.circular(10),
+        onTap: onTap,
+        child: AnimatedContainer(
+          duration: const Duration(milliseconds: 150),
+          height: 40,
+          alignment: Alignment.center,
+          decoration: BoxDecoration(
+            color: selected ? StPalette.accent : StPalette.card,
+            borderRadius: BorderRadius.circular(10),
+            border: Border.all(color: selected ? StPalette.accent : StPalette.border),
+          ),
+          child: Text(label,
+              style: TextStyle(
+                fontWeight: FontWeight.w800,
+                fontSize: 13,
+                color: selected ? Colors.white : StPalette.textSecondary,
+              )),
+        ),
+      );
+}
+
+class _QuickDays extends StatelessWidget {
+  const _QuickDays({required this.label, required this.onTap});
+
+  final String label;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) => InkWell(
+        borderRadius: BorderRadius.circular(8),
+        onTap: onTap,
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+          child: Text(label, style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w700, color: StPalette.accent)),
+        ),
       );
 }

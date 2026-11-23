@@ -103,8 +103,9 @@ class FilteredStudentsScreen extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(title: Text(titles[filter] ?? 'Students')),
+    return CurfewPage(
+      title: titles[filter] ?? 'Students',
+      subtitle: 'Tap a student for their summary',
       body: AsyncView<List<Map<String, dynamic>>>(
         load: () async {
           final data = await config.api.students(filter: filter);
@@ -113,22 +114,33 @@ class FilteredStudentsScreen extends StatelessWidget {
         },
         builder: (context, rows, reload) {
           if (rows.isEmpty) {
-            return ListView(children: const [SizedBox(height: 80), Center(child: Text('Nobody here.'))]);
+            return const EmptyBlock(icon: Icons.people_outline_rounded, title: 'Nobody here');
           }
           return ListView.separated(
+            padding: const EdgeInsets.fromLTRB(16, 12, 16, 32),
             itemCount: rows.length,
-            separatorBuilder: (_, _) => const Divider(height: 1),
+            separatorBuilder: (_, _) => const SizedBox(height: 8),
             itemBuilder: (context, i) {
               final r = rows[i];
               final id = studentIdOf(r);
               final status = '${r['connectionStatus'] ?? r['connection_status'] ?? ''}';
               final room = r['roomNumber'] ?? r['room_number'] ?? r['room'];
-              return ListTile(
-                leading: status.isEmpty ? null : ConnectionDot(status: status),
-                title: Text('${r['name'] ?? 'Student'}'),
-                subtitle: room == null ? null : Text('Room $room'),
-                trailing: const Icon(Icons.chevron_right),
+              final name = '${r['name'] ?? 'Student'}';
+              return SurfaceCard(
                 onTap: id == null ? null : () => config.openStudent(context, id),
+                padding: const EdgeInsets.fromLTRB(12, 10, 8, 10),
+                child: Row(children: [
+                  InitialsAvatar(name: name, status: status.isEmpty ? null : status),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                      Text(name, style: const TextStyle(fontSize: 14.5, fontWeight: FontWeight.w700)),
+                      if (room != null)
+                        Text('Room $room', style: const TextStyle(fontSize: 12.5, color: StPalette.textSecondary)),
+                    ]),
+                  ),
+                  const Icon(Icons.chevron_right_rounded, color: StPalette.textLight),
+                ]),
               );
             },
           );

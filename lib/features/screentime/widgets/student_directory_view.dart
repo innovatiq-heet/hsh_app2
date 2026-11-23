@@ -9,6 +9,7 @@ import '../../shared/widgets/empty_state.dart';
 import '../../shared/widgets/skeleton_loader.dart';
 import '../controllers/screen_time_directory_controller.dart';
 import '../controllers/screen_time_utils.dart';
+import '../curfew/curfew_admin_entry.dart';
 import '../../../core/utils/string_formatting.dart';
 import 'app_brand_icon.dart';
 import 'app_install_status_pill.dart';
@@ -32,6 +33,8 @@ class StudentDirectoryView extends GetView<ScreenTimeDirectoryController> {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
+              const _DashboardEntries(),
+              const SizedBox(height: 10),
               const _GlobalCurfewBanner(),
               const SizedBox(height: 10),
               AppRequestsBanner(host: controller),
@@ -1397,6 +1400,83 @@ class _Tag extends StatelessWidget {
 }
 
 /// Hostel-wide Curfew status & quick 1-tap global control banner for wardens.
+/// Overview (every supervisor; leaders see their group) and Curfew sessions
+/// (wardens and admins only).
+class _DashboardEntries extends GetView<ScreenTimeDirectoryController> {
+  const _DashboardEntries();
+
+  @override
+  Widget build(BuildContext context) {
+    return Obx(() {
+      final canManage = controller.currentRole.value.canOperate;
+      return Row(
+        children: [
+          Expanded(
+            child: _EntryButton(
+              key: const ValueKey('screentime_overview_entry'),
+              icon: Icons.dashboard_outlined,
+              label: 'Overview',
+              onTap: () => CurfewAdminEntry.openOverview(context, canManageSessions: canManage),
+            ),
+          ),
+          if (canManage) ...[
+            const SizedBox(width: 8),
+            Expanded(
+              child: _EntryButton(
+                key: const ValueKey('screentime_sessions_entry'),
+                icon: Icons.nightlight_outlined,
+                label: 'Curfew sessions',
+                onTap: () => CurfewAdminEntry.openSessions(context),
+              ),
+            ),
+          ],
+        ],
+      );
+    });
+  }
+}
+
+class _EntryButton extends StatelessWidget {
+  const _EntryButton({super.key, required this.icon, required this.label, required this.onTap});
+
+  final IconData icon;
+  final String label;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return Material(
+      color: Colors.white,
+      borderRadius: BorderRadius.circular(14),
+      child: InkWell(
+        borderRadius: BorderRadius.circular(14),
+        onTap: onTap,
+        child: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(14),
+            border: Border.all(color: const Color(0xFFE2E8F0)),
+          ),
+          child: Row(
+            children: [
+              Icon(icon, size: 20, color: const Color(0xFF4F46E5)),
+              const SizedBox(width: 8),
+              Expanded(
+                child: Text(
+                  label,
+                  overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 13.5, color: Color(0xFF0F172A)),
+                ),
+              ),
+              const Icon(Icons.chevron_right_rounded, size: 18, color: Color(0xFF94A3B8)),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
 class _GlobalCurfewBanner extends GetView<ScreenTimeDirectoryController> {
   const _GlobalCurfewBanner();
 

@@ -194,8 +194,25 @@ bool isStudentLowBattery(dynamic s) {
   return !isCharging;
 }
 
+/// `online` (checked in ≤ 10 min ago), `quiet` (10–60 min) or `offline`.
+/// Uses the server's `connectionStatus` when sent; older servers: derived
+/// from `isOnline` and the last check-in.
+String connectionStatusOf(dynamic s) {
+  if (s is! Map) return 'offline';
+  final server = (s['connectionStatus'] ?? s['connection_status'])?.toString();
+  if (server == 'online' || server == 'quiet' || server == 'offline') return server!;
+  if (isStudentOnline(s)) return 'online';
+  final lastSeen = lastSeenOf(s);
+  if (lastSeen != null && DateTime.now().difference(lastSeen).inMinutes <= 60) return 'quiet';
+  return 'offline';
+}
+
 bool isStudentDisconnected(dynamic s) {
   if (s is! Map) return false;
+  final server = (s['connectionStatus'] ?? s['connection_status'])?.toString();
+  // The server's status has no gap between online and disconnected.
+  if (server == 'offline') return true;
+  if (server == 'online' || server == 'quiet') return false;
   if (isStudentOnline(s)) return false;
   if (s['isDisconnected'] == true || s['is_disconnected'] == true) return true;
   final lastSeen = lastSeenOf(s);

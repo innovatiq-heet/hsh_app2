@@ -177,7 +177,7 @@ graph TD
 2a. `restrictAppInstalls` and the package is an app store or installer (`PolicyEvaluator.INSTALLER_PACKAGES`: Play Store, Galaxy Store, Mi/Oppo/Vivo/Huawei stores, package installers) → `INSTALLER_BLOCKED`, unless an install pass is running (`installPassUntil` in the future). `restrictAppInstalls` defaults to **false** on the phone when the backend has never sent it, so the Play Store is available by default until a warden blocks it.
 3. Package in `blockedPackages` → `APP_BLOCKED`.
 4. Package has its own daily limit and that app's minutes today ≥ the limit → `APP_LIMIT` ("App Time Over"; opens again tomorrow). The limits are the `daily_limit_minutes` of the app rules in `GET /policies/me` (`data.apps`), kept in `DevicePolicy.appLimits` (only limits above 0; `AppLimits.fromRules`). The ping echo carries no `apps`, so it leaves the stored limits alone. Per-app minutes come from the same `UsageCollector` snapshot as the daily total (cached 60 s), and the service's tick re-checks the app on screen, so a limit reached mid-use blocks the app within a minute or two. `clearStudentState()` (logout) clears the limits.
-5. Inside the bedtime window (overnight wrap supported) → `BEDTIME`.
+5. Inside **any curfew** → `BEDTIME` (see 5.8). Automatic network time turned off counts as inside (fail closed).
 6. Daily limit set and today's minutes ≥ limit → `DAILY_LIMIT`.
 
 **Protected packages (never blocked):** dialers, in-call UI, emergency, system UI, Settings (incl. Samsung), permission controller, package installer, Google Play services, plus every enabled keyboard, home launcher and dialer discovered at runtime.
@@ -250,6 +250,16 @@ While HSH is an active **device admin**, Android's App info page disables **Forc
 
 ---
 
+### 5.8 Curfew sessions (`CurfewSchedule`)
+
+Wardens group students into named **curfew sessions** (e.g. "Night Curfew" 22:00–06:00 every day, "Afternoon Study" 14:00–16:00 Mon–Fri). Every policy response (`GET /policies/me`, the long-poll and the `POST /ping` echo) carries `policy.curfew_sessions`: only the sessions that are on and not paused for this student, plus the personal bedtime (`source: "personal"`). The server filters; the phone just enforces the list.
+
+- `PolicyStore.applyPolicyJson` stores the list in `DevicePolicy.curfews`. A payload without the key keeps the stored list; an empty list means no curfew. `clearStudentState()` (logout) clears it.
+- `DevicePolicy.effectiveCurfews` is that list, or, while the server has never sent it (older backend), the single legacy `bedtime_start/end` every day.
+- `CurfewSchedule` (same maths as the backend and `lib/features/screentime/curfew/curfew_schedule.dart`): times are **IST** whatever the phone's time zone; a window that ends before it starts crosses midnight and belongs to the day it **starts** (Monday-only 22:00–06:00 runs Mon 22:00 → Tue 06:00); the phone blocks while **any** window runs.
+- No alarm is needed for start and end: `UsageAppBlocker` re-evaluates the app on screen every second.
+- `nightScreenTimeMinutes` in the ping is now **screen time inside any curfew** (the dashboards' "session use"): `ScreenTimeSync` reads usage for each curfew run of the day (`CurfewSchedule.curfewIntervals`, overlaps merged) and sends only the new whole minutes, like the app minutes (the server adds them up).
+
 ## 6. Usage telemetry
 
 - `UsageCollector` rebuilds per-app foreground time from raw usage events (RESUMED/PAUSED pairs, closed by screen-off, keyguard or shutdown), clamped to local midnight.
@@ -287,6 +297,15 @@ Operator home → **Screen Time** (leaders: Services → Leader Tools, or the pr
 - Each action is applied optimistically and rolled back with an error message if the server rejects it. A policy read that was requested before such a change is not shown when it lands, so it can't put the old rules back on screen.
 - **Requests while a student is open:** the live status every 2 minutes and on resume (`include_history=1` on open and pull-to-refresh). The 30-day history is fetched again only when it is older than 15 minutes. Past days are asked for one by one (`/history/:id?date=`) only for days with usage, at most once per opened student, and not at all after the server answers one without an app list (today's API keeps only daily totals for past days).
 
+### 7.1 Overview and curfew sessions (`lib/features/screentime/curfew/`)
+
+Two buttons at the top of the warden's Screen Time page:
+
+- **Overview** (`ScreenTimeOverviewScreen`, every supervisor; leaders get their own group from the server): right now (using phone in curfew, in curfew, protection removed, locked), phones (online / quiet / offline / never connected), needs attention, today, last 7 days. A tile opens the students behind it (`GET /students?filter=`), and a student opens the summary (`GET /students/:id/summary`).
+- **Curfew sessions** (`SessionsScreen`, wardens and admins only; hidden for leaders, the server answers 403): list with an on/off switch, create / edit (partial `PATCH`), add students (all residents, picked students from the shared `StudentPickerSource`, floors, groups, tags, with a live preview), pause one student, remove, live view and history.
+- HTTP goes through the app's `ApiClient` Dio (`ScreenTimeApi`); students are numeric `students.id` only. `curfew_admin_entry.dart` wires groups, tags and the picker.
+- Online status: when the server sends `connectionStatus` (`online` ≤ 10 min, `quiet` 10–60 min, `offline`), `isStudentDisconnected` follows it, so there is no gap between "online" and "disconnected".
+
 ---
 
 ## 8. API reference
@@ -302,6 +321,10 @@ Mounted at both `/api/screen-time/...` and `/screen-time/...`; all require a Bea
 | `GET /students?search=` | Supervisor | Directory (max 100) |
 | `GET /policies/:id?` | Self or supervisor | `{ policy, apps, blockedPackages, geofence }`. Long-poll with `?wait=<s ≤ 25>&since=<version>` (self only); response has `longPoll`. |
 | `PUT /policies/:id` | Supervisor | **Partial:** any of `is_locked`, `daily_limit_minutes` (0–1440), `bedtime_start`/`bedtime_end` (`HH:mm`, or `''`/`null` to clear both), `blockedPackages` (complete set), `restrict_app_installs` (boolean, Play Store blocked), `install_pass_until` (epoch ms, `0` = none). camelCase accepted. `GET /policies/:id`, `GET /policies/me` and the ping echo must return `restrict_app_installs` and `install_pass_until` inside `policy`. |
+| `GET/POST /sessions`, `PATCH/DELETE /sessions/:id` | Warden/admin | Curfew sessions. `PATCH` is partial (`name`, `start_time`, `end_time`, `days`, `is_active`). |
+| `POST /sessions/:id/students[/preview]`, `DELETE /sessions/:id/students`, `PATCH /sessions/:id/students/:sid` | Warden/admin | Bulk add / preview / remove by `student_ids`, `floor_ids`, `groups`, `tag_ids`, `all_active`; `{is_paused}` per student. |
+| `GET /sessions/:id/live`, `GET /sessions[/:id]/history` | Warden/admin | Running now and who is using the phone; change log with the warden's name. |
+| `GET /overview`, `GET /attention?type=`, `GET /students/:id/summary?range=` | Supervisor | Dashboard; leaders limited to their group. |
 | `POST /apps/rule` | Supervisor | `{ student_id, package_name, app_name?, is_blocked, daily_limit_minutes? }`. One app; version bump + rule in one transaction. |
 
 **Supervisor** = `requireRole('operator', 'leader', 'wing-leader')`: the operator console token, platform-admin staff and student leaders (`GET /students` also returns the leader's `leaderGroupName`). A student, leaders included, can never change the policy of their own phone. Students can no longer change their own policy (previously a student could unlock themselves).

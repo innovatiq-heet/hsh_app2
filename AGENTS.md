@@ -66,6 +66,7 @@ test/                  unit tests (offline); tag tests that hit real APIs with @
 - **One exception inside SystemUI:** `SelfProtection.offersToStopOwnApp` closes the Android 13+ Active apps panel (notification shade, "N apps are active") only while it shows a Stop button in the same row as *this app's* name. Never close the shade for anything else: other apps' rows and notification actions must stay usable.
 - Per-app time limits are enforced on the phone: `PolicyStore` keeps each app's `daily_limit_minutes` from the `apps` rules of `/policies/me` (`DevicePolicy.appLimits`), and a payload without `apps` (the ping echo) must keep the stored limits. The warden UI reads a limit from the loaded policy (`appLimitFor`), not from the usage row, whose `dailyLimitMinutes` is 0 for every app without a rule.
 - A `null` bedtime means "no bedtime" (never a 23:00–05:00 default).
+- Curfews come from `policy.curfew_sessions` (sessions on and not paused, plus the personal bedtime), times in **IST**; an overnight window belongs to the day it starts; block while **any** runs. A payload without the key keeps the stored list; an empty list means no curfew; only a server that never sent it falls back to `bedtime_start/end`. Kotlin `CurfewSchedule` and Dart `curfew_schedule.dart` must stay identical to the backend.
 - A missing `restrict_app_installs` means the Play Store (and other stores/installers) is **allowed** by default; only an explicit `true` restricts it. The warden switch sends only that field.
 
 **Geofence and location**

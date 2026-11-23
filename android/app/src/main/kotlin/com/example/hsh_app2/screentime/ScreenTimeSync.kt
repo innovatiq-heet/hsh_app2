@@ -147,15 +147,23 @@ object ScreenTimeSync {
                 val prevStart = runCatching { dateFormat().parse(sentDate)?.time }.getOrNull()
                 if (prevStart != null && todayStart - prevStart <= 2 * 24 * 60 * MINUTE_MS) {
                     val snap = UsageCollector.collect(context, prevStart, UsageCollector.nextDayStart(prevStart))
-                    val status = sendDeltas(context, baseUrl, token, sentDate, snap, PolicyStore.sentMillis(context))
+                    val status = sendDeltas(
+                        context, baseUrl, token, sentDate, snap, PolicyStore.sentMillis(context),
+                        prevStart, UsageCollector.nextDayStart(prevStart), PolicyStore.sentCurfewMillis(context),
+                    )
                     if (status != STATUS_OK) return status
                 }
                 PolicyStore.saveSent(context, today, emptyMap())
             }
 
             val snap = UsageCollector.collect(context, todayStart, UsageCollector.nextDayStart(todayStart))
-            val sent = if (PolicyStore.sentDate(context) == today) PolicyStore.sentMillis(context) else emptyMap()
-            sendDeltas(context, baseUrl, token, today, snap, sent)
+            val sameDay = PolicyStore.sentDate(context) == today
+            val sent = if (sameDay) PolicyStore.sentMillis(context) else emptyMap()
+            val sentCurfew = if (sameDay) PolicyStore.sentCurfewMillis(context) else 0L
+            sendDeltas(
+                context, baseUrl, token, today, snap, sent,
+                todayStart, UsageCollector.nextDayStart(todayStart), sentCurfew,
+            )
         } catch (e: Exception) {
             Log.w(TAG, "sync failed", e)
             STATUS_ERROR
@@ -169,12 +177,19 @@ object ScreenTimeSync {
         date: String,
         snap: UsageSnapshot,
         sent: Map<String, Long>,
+        dayStart: Long,
+        dayEnd: Long,
+        sentCurfew: Long,
     ): String {
         val deltaMinutes = LinkedHashMap<String, Int>()
         for ((pkg, millis) in snap.appMillis) {
             val delta = ((millis - (sent[pkg] ?: 0L)) / MINUTE_MS).toInt()
             if (delta > 0) deltaMinutes[pkg] = delta
         }
+        // The server adds `nightScreenTimeMinutes` up, like the app minutes:
+        // send only the whole new minutes of screen time inside any curfew.
+        val curfewMillis = curfewMillis(context, dayStart, dayEnd)
+        val curfewDelta = ((curfewMillis - sentCurfew) / MINUTE_MS).toInt().coerceAtLeast(0)
 
         val code = post(
             context, baseUrl, token, date,
@@ -182,6 +197,7 @@ object ScreenTimeSync {
             isScreenOn = snap.isScreenOn,
             currentPackage = snap.currentPackage,
             totalMinutes = deltaMinutes.values.sum(),
+            curfewMinutes = curfewDelta,
         )
         if (handleAuth(context, code)) return STATUS_UNAUTHORIZED
         if (code !in 200..299) return STATUS_ERROR
@@ -191,9 +207,25 @@ object ScreenTimeSync {
         for ((pkg, minutes) in deltaMinutes) {
             newSent[pkg] = (sent[pkg] ?: 0L) + minutes * MINUTE_MS
         }
-        PolicyStore.saveSent(context, date, newSent)
+        PolicyStore.saveSent(context, date, newSent, sentCurfew + curfewDelta * MINUTE_MS)
         PolicyEvaluator.invalidateUsage()
         return STATUS_OK
+    }
+
+    /**
+     * Foreground millis inside any curfew between [dayStart] and [dayEnd] (up
+     * to now): usage read for each curfew run of the day.
+     */
+    private fun curfewMillis(context: Context, dayStart: Long, dayEnd: Long): Long {
+        val windows = PolicyStore.policy(context).effectiveCurfews
+        if (windows.isEmpty()) return 0L
+        val to = minOf(dayEnd, System.currentTimeMillis())
+        return CurfewSchedule.curfewIntervals(windows, dayStart, to).sumOf { run ->
+            runCatching {
+                UsageCollector.collect(context, run.first, run.last + 1)
+                    .appMillis.filterKeys { it != context.packageName }.values.sum()
+            }.getOrDefault(0L)
+        }
     }
 
     /** Token rejected: stop syncing until the app hands us a fresh one. */
@@ -215,6 +247,7 @@ object ScreenTimeSync {
         isScreenOn: Boolean,
         currentPackage: String?,
         totalMinutes: Int = appMinutes.values.sum(),
+        curfewMinutes: Int = 0,
     ): Int {
         val alreadySentIcons = PolicyStore.sentIcons(context)
         val iconsInThisPing = ArrayList<String>()
@@ -256,6 +289,8 @@ object ScreenTimeSync {
             .put("totalMinutes", totalMinutes)
             .put("total_minutes", totalMinutes)
             .put("usage_minutes", totalMinutes)
+            // Screen time inside any curfew session (the dashboards' "session use").
+            .put("nightScreenTimeMinutes", curfewMinutes)
             .put("isScreenOn", isScreenOn)
             .put("is_screen_on", isScreenOn)
             .put("currentApp", currentLabel)

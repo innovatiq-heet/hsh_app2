@@ -25,8 +25,25 @@ data class DevicePolicy(
     val installPassUntil: Long = 0L,
     /** Per-app daily allowance in minutes (package → minutes; only apps with a limit). */
     val appLimits: Map<String, Int> = emptyMap(),
+    /**
+     * Every curfew to enforce, from `policy.curfew_sessions` (warden sessions
+     * plus the personal bedtime). Null when the server never sent the list
+     * (older backend): then the single legacy bedtime applies.
+     */
+    val curfews: List<CurfewWindow>? = null,
 ) {
     val hasBedtime: Boolean get() = bedtimeStart.isNotBlank() && bedtimeEnd.isNotBlank()
+
+    /** The windows the phone blocks in: [curfews], or the legacy bedtime every day. */
+    val effectiveCurfews: List<CurfewWindow>
+        get() = curfews ?: run {
+            val s = CurfewSchedule.parseMinutes(bedtimeStart)
+            val e = CurfewSchedule.parseMinutes(bedtimeEnd)
+            if (s == null || e == null || s == e) emptyList()
+            else listOf(CurfewWindow(s, e, CurfewSchedule.DAY_KEYS.indices.toSet(), "Curfew"))
+        }
+
+    val hasCurfew: Boolean get() = effectiveCurfews.isNotEmpty()
     val hasActiveInstallPass: Boolean get() = installPassUntil > System.currentTimeMillis()
 }
 
@@ -71,6 +88,8 @@ object PolicyStore {
     private const val KEY_BEDTIME_START = "bedtime_start"
     private const val KEY_BEDTIME_END = "bedtime_end"
     private const val KEY_APP_LIMITS = "app_limits"
+    private const val KEY_CURFEWS = "curfew_sessions"
+    private const val KEY_SENT_CURFEW_MILLIS = "sent_curfew_millis"
     private const val KEY_POLICY_VERSION = "policy_version"
     private const val KEY_POLICY_APPLIED_AT = "policy_applied_at"
     private const val KEY_POLICY_VERSION_NUM = "policy_version_num"
@@ -171,6 +190,7 @@ object PolicyStore {
             restrictAppInstalls = p.getBoolean(KEY_RESTRICT_APP_INSTALLS, false),
             installPassUntil = p.getLong(KEY_INSTALL_PASS_UNTIL, 0L),
             appLimits = readIntMap(p.getString(KEY_APP_LIMITS, null)),
+            curfews = CurfewSchedule.fromStorage(p.getString(KEY_CURFEWS, null)),
         ).also { policyCache = it }
     }
 
@@ -191,6 +211,10 @@ object PolicyStore {
             .putBoolean(KEY_RESTRICT_APP_INSTALLS, policy.restrictAppInstalls)
             .putLong(KEY_INSTALL_PASS_UNTIL, policy.installPassUntil)
             .putString(KEY_APP_LIMITS, JSONObject(policy.appLimits as Map<*, *>).toString())
+            .also { e ->
+                val c = policy.curfews
+                if (c == null) e.remove(KEY_CURFEWS) else e.putString(KEY_CURFEWS, CurfewSchedule.toStorage(c))
+            }
             .putLong(KEY_POLICY_APPLIED_AT, System.currentTimeMillis())
             .also { if (versionNumber != null) it.putInt(KEY_POLICY_VERSION_NUM, versionNumber) }
             .apply()
@@ -222,7 +246,7 @@ object PolicyStore {
             "is_locked", "isLocked", "blockedPackages", "blocked_packages",
             "daily_limit_minutes", "dailyLimitMinutes", "bedtime_start", "bedtimeStart",
             "restrict_app_installs", "restrictAppInstalls", "install_pass_until", "installPassUntil",
-            "apps", "app_limits", "appLimits",
+            "apps", "app_limits", "appLimits", "curfew_sessions", "curfewSessions",
         ).any { pol.has(it) || data.has(it) }
         if (!hasAny) return null
 
@@ -272,6 +296,12 @@ object PolicyStore {
             // `/policies/me` sends every app rule; the ping echo sends none, so
             // the stored limits stay until the next full policy.
             appLimits = parseAppLimits(data, pol) ?: current.appLimits,
+            // Sent on `/policies/me`, the long-poll and the ping echo; a payload
+            // without the key keeps the stored list.
+            curfews = (pol.optJSONArray("curfew_sessions") ?: pol.optJSONArray("curfewSessions")
+                ?: data.optJSONArray("curfew_sessions") ?: data.optJSONArray("curfewSessions"))
+                ?.let { CurfewSchedule.fromBackend(it) }
+                ?: current.curfews,
         )
         savePolicy(context, updated, incomingVersion)
         return updated
@@ -326,10 +356,14 @@ object PolicyStore {
         }
     }
 
-    fun saveSent(context: Context, date: String, sent: Map<String, Long>) {
+    /** Curfew-time millis of [sentDate] already reported as `nightScreenTimeMinutes`. */
+    fun sentCurfewMillis(context: Context): Long = prefs(context).getLong(KEY_SENT_CURFEW_MILLIS, 0L)
+
+    fun saveSent(context: Context, date: String, sent: Map<String, Long>, curfewMillis: Long = 0L) {
         prefs(context).edit()
             .putString(KEY_SENT_DATE, date)
             .putString(KEY_SENT_MILLIS, JSONObject(sent as Map<*, *>).toString())
+            .putLong(KEY_SENT_CURFEW_MILLIS, curfewMillis)
             .apply()
     }
 
@@ -493,9 +527,10 @@ object PolicyStore {
             .remove(KEY_LAST_SENT_YESTERDAY)
             .remove(KEY_SYNCED_PAST_DATES)
             .remove(KEY_APP_LIMITS)
+            .remove(KEY_CURFEWS)
             .apply()
         geoPolicyCache = null
-        policyCache = policyCache?.copy(appLimits = emptyMap())
+        policyCache = policyCache?.copy(appLimits = emptyMap(), curfews = null)
     }
 
     fun recordGeofenceEvent(context: Context, event: JSONObject) {

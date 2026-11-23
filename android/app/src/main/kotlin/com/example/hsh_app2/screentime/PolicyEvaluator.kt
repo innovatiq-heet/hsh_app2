@@ -8,7 +8,6 @@ import android.content.pm.PackageManager
 import android.os.Build
 import android.provider.Settings
 import android.view.inputmethod.InputMethodManager
-import java.util.Calendar
 
 /** Why an app was stopped — surfaced on the block screen and in the audit log. */
 enum class BlockReason(val wireName: String, val tag: String, val title: String, val message: String) {
@@ -127,7 +126,7 @@ object PolicyEvaluator {
         ) {
             return BlockReason.APP_LIMIT
         }
-        if (policy.hasBedtime && isInBedtime(policy, context = context)) return BlockReason.BEDTIME
+        if (policy.hasCurfew && isInBedtime(policy, context = context)) return BlockReason.BEDTIME
         if (policy.dailyLimitMinutes > 0 && todayMinutes(context) >= policy.dailyLimitMinutes) {
             return BlockReason.DAILY_LIMIT
         }
@@ -139,16 +138,19 @@ object PolicyEvaluator {
         usageCacheAt = 0L
     }
 
-    // ---------- Bedtime ----------
+    // ---------- Curfew (sessions + personal bedtime) ----------
 
+    /**
+     * Whether any curfew in [DevicePolicy.effectiveCurfews] is running at
+     * [nowMillis] (IST, see [CurfewSchedule]).
+     */
     fun isInBedtime(
         policy: DevicePolicy,
-        now: Calendar = Calendar.getInstance(),
+        nowMillis: Long = System.currentTimeMillis(),
         context: Context? = null,
     ): Boolean {
-        val start = parseMinutes(policy.bedtimeStart) ?: return false
-        val end = parseMinutes(policy.bedtimeEnd) ?: return false
-        if (start == end) return false
+        val windows = policy.effectiveCurfews
+        if (windows.isEmpty()) return false
 
         // Anti-tamper: If user disabled automatic network time in Settings, fail closed
         if (context != null) {
@@ -158,18 +160,7 @@ object PolicyEvaluator {
             if (autoTime == 0) return true
         }
 
-        val cur = now.get(Calendar.HOUR_OF_DAY) * 60 + now.get(Calendar.MINUTE)
-        // Overnight window (e.g. 23:00 → 05:00) wraps past midnight.
-        return if (start < end) cur in start until end else cur >= start || cur < end
-    }
-
-    private fun parseMinutes(hhmm: String): Int? {
-        val parts = hhmm.trim().split(":")
-        if (parts.size < 2) return null
-        val h = parts[0].toIntOrNull() ?: return null
-        val m = parts[1].take(2).toIntOrNull() ?: return null
-        if (h !in 0..23 || m !in 0..59) return null
-        return h * 60 + m
+        return CurfewSchedule.isInCurfew(windows, nowMillis)
     }
 
     // ---------- Daily limit ----------

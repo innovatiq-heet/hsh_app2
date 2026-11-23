@@ -15,6 +15,7 @@ import com.example.hsh_app2.screentime.GeofenceEvaluator
 import com.example.hsh_app2.screentime.HshDeviceAdmin
 import com.example.hsh_app2.screentime.LocationSampler
 import com.example.hsh_app2.screentime.PolicyPollService
+import com.example.hsh_app2.screentime.CurfewSchedule
 import com.example.hsh_app2.screentime.PolicyStore
 import com.example.hsh_app2.screentime.ScreenTimeSync
 import com.example.hsh_app2.screentime.UsageAppBlocker
@@ -144,6 +145,11 @@ class MainActivity : FlutterActivity() {
                                 "dailyLimitMinutes" to p.dailyLimitMinutes,
                                 "bedtimeStart" to p.bedtimeStart,
                                 "bedtimeEnd" to p.bedtimeEnd,
+                                "curfewSessions" to p.effectiveCurfews.map {
+                                    mapOf("startMinutes" to it.startMinutes, "endMinutes" to it.endMinutes,
+                                        "days" to it.days.sorted(), "name" to it.name)
+                                },
+                                "inCurfewNow" to CurfewSchedule.isInCurfew(p.effectiveCurfews, System.currentTimeMillis()),
                                 "version" to p.version,
                                 "appliedAt" to PolicyStore.policyAppliedAt(applicationContext),
                             ),

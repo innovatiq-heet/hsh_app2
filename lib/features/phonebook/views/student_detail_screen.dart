@@ -254,6 +254,7 @@ class _StudentDetailScreenState extends State<StudentDetailScreen> {
                 student: student,
                 topPadding: MediaQuery.of(context).padding.top,
                 contentWidth: MediaQuery.of(context).size.width - 40,
+                textScaler: MediaQuery.textScalerOf(context),
                 onBack: () => Navigator.of(context).pop(),
                 onCopyCode: () =>
                     _c.copyToClipboard(student.bankCode ?? '', 'Student code'),
@@ -1804,6 +1805,7 @@ class _StudentDetailHeaderDelegate extends SliverPersistentHeaderDelegate {
   final PhonebookStudent student;
   final double topPadding;
   final double contentWidth;
+  final TextScaler textScaler;
   final VoidCallback onBack;
   final VoidCallback onCopyCode;
 
@@ -1811,6 +1813,7 @@ class _StudentDetailHeaderDelegate extends SliverPersistentHeaderDelegate {
     required this.student,
     required this.topPadding,
     required this.contentWidth,
+    required this.textScaler,
     required this.onBack,
     required this.onCopyCode,
   });
@@ -1832,6 +1835,7 @@ class _StudentDetailHeaderDelegate extends SliverPersistentHeaderDelegate {
     final painter = TextPainter(
       text: TextSpan(text: student.name, style: _nameStyle),
       maxLines: 2,
+      textScaler: textScaler,
       textDirection: TextDirection.ltr,
     )..layout(maxWidth: contentWidth - _photoSpace);
     return painter.height;
@@ -1842,11 +1846,57 @@ class _StudentDetailHeaderDelegate extends SliverPersistentHeaderDelegate {
   /// Width the photo takes from the name and pills (photo + gap); 0 without one.
   double get _photoSpace => student.photoUrl == null ? 0 : _photoSize + 12;
 
-  // top bar (52) + gap (6) + the taller of [name + gap (12) + pills (26)] and
+  /// Texts of the pills `_nameAndPills` shows, in order (for measuring).
+  List<String> get _pillTexts {
+    final hasRoom = student.room != null && student.room!.isNotEmpty;
+    final hasCode = student.bankCode != null && student.bankCode!.isNotEmpty;
+    return [
+      if (student.isAlumni) 'Alumni / Left',
+      if (!student.isAlumni && hasRoom) 'Room ${student.room}',
+      if (student.groupName != null && student.groupName!.isNotEmpty) student.groupName!,
+      if (hasCode) 'Code: ${student.bankCode}',
+    ];
+  }
+
+  /// Height of the pill Wrap. The pills wrap onto a second row on narrow
+  /// screens or with long group names, so measure them instead of assuming one.
+  double get _pillsHeight {
+    final texts = _pillTexts;
+    if (texts.isEmpty) return 0;
+    const spacing = 8.0, runSpacing = 6.0;
+    var pillHeight = 26.0;
+    final maxWidth = contentWidth - _photoSpace;
+    var rows = 1;
+    var rowWidth = 0.0;
+    for (final t in texts) {
+      final tp = TextPainter(
+        text: TextSpan(
+          text: t,
+          style: const TextStyle(fontSize: 11.5, fontWeight: FontWeight.w600),
+        ),
+        maxLines: 1,
+        textScaler: textScaler,
+        textDirection: TextDirection.ltr,
+      )..layout();
+      // text height + padding 8 + border 2 (the text grows with the font size)
+      pillHeight = tp.height + 10;
+      // padding 20 + border 2 + icon 13 + gap 5, plus a little slack for font differences
+      final w = tp.width + 20 + 2 + 13 + 5 + 4;
+      if (rowWidth > 0 && rowWidth + spacing + w > maxWidth) {
+        rows++;
+        rowWidth = w;
+      } else {
+        rowWidth += (rowWidth > 0 ? spacing : 0) + w;
+      }
+    }
+    return rows * pillHeight + (rows - 1) * runSpacing;
+  }
+
+  // top bar (52) + gap (6) + the taller of [name + gap (12) + pills] and
   // the photo + bottom (18)
   @override
   double get maxExtent {
-    final text = _nameHeight + 12 + 26;
+    final text = _nameHeight + 12 + _pillsHeight;
     final content = student.photoUrl == null ? text : (text > _photoSize ? text : _photoSize);
     return topPadding + 52 + 6 + content + 18;
   }
@@ -2087,7 +2137,8 @@ class _StudentDetailHeaderDelegate extends SliverPersistentHeaderDelegate {
   bool shouldRebuild(covariant _StudentDetailHeaderDelegate oldDelegate) =>
       oldDelegate.student != student ||
       oldDelegate.topPadding != topPadding ||
-      oldDelegate.contentWidth != contentWidth;
+      oldDelegate.contentWidth != contentWidth ||
+      oldDelegate.textScaler != textScaler;
 }
 
 class _DetailOrbPainter extends CustomPainter {

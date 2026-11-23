@@ -324,14 +324,14 @@ class _SummaryStrip extends GetView<ScreenTimeDirectoryController> {
             _divider(),
             item(
               filter: 'Locked',
-              count: '$locked',
+              count: controller.directoryCountIsPartial('Locked') ? '$locked+' : '$locked',
               label: 'Locked',
               dotColor: locked > 0 ? const Color(0xFFDC2626) : null,
             ),
             _divider(),
             item(
               filter: 'Attention',
-              count: '$attention',
+              count: controller.directoryCountIsPartial('Attention') ? '$attention+' : '$attention',
               label: 'Attention',
               dotColor: attention > 0 ? const Color(0xFFD97706) : null,
             ),

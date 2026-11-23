@@ -464,13 +464,27 @@ class ScreenTimeDirectoryController extends GetxController with WidgetsBindingOb
   @visibleForTesting
   void captureServerCountsForTest(dynamic body) => _captureServerCounts(body);
 
+  bool get _hasActiveDirectoryFilter =>
+      selectedGroup.value != 'All' ||
+      selectedFloor.value != 'All' ||
+      selectedStatus.value != 'All' ||
+      searchText.value.trim().isNotEmpty;
+
+  /// True when [directoryCount] for [filter] only counts the rows loaded so
+  /// far (the API sends no Locked / Attention totals and the directory loads
+  /// 20 students at a time), so the tile can read "12+" instead of a number
+  /// that then climbs while scrolling.
+  bool directoryCountIsPartial(String filter) {
+    _countsVersion.value;
+    if (!hasMoreStudents.value) return false;
+    if (filter != 'Locked' && filter != 'Attention') return false;
+    return _hasActiveDirectoryFilter || serverCounts[filter] == null;
+  }
+
   int directoryCount(String filter) {
     _countsVersion.value; // rebuild when the cache is invalidated
     final counts = _directoryCounts ??= _computeDirectoryCounts();
-    final hasActiveFilter = selectedGroup.value != 'All' ||
-        selectedFloor.value != 'All' ||
-        selectedStatus.value != 'All' ||
-        searchText.value.trim().isNotEmpty;
+    final hasActiveFilter = _hasActiveDirectoryFilter;
 
     // If an active filter is applied, return the count matching that filter
     if (hasActiveFilter) {
@@ -1064,6 +1078,39 @@ class ScreenTimeDirectoryController extends GetxController with WidgetsBindingOb
     if (directoryFilter.value != 'All' || query.isNotEmpty) {
       unawaited(_fillViewport());
     }
+    if (query.isEmpty && refresh) unawaited(_loadRemainingInBackground());
+  }
+
+  /// Bumped on every fresh load so an older background load stops.
+  int _loadGeneration = 0;
+  bool _backgroundLoading = false;
+  bool _moreFetchFailed = false;
+
+  /// The API sends no Locked / Attention totals, so those tiles are counted
+  /// from loaded rows. Pull the remaining pages right after the first one
+  /// (without growing the visible list) so the counts are complete without
+  /// the user having to scroll.
+  Future<void> _loadRemainingInBackground() async {
+    if (_backgroundLoading) return;
+    _backgroundLoading = true;
+    final generation = ++_loadGeneration;
+    try {
+      var pages = 0;
+      while (hasMoreStudents.value &&
+          generation == _loadGeneration &&
+          searchFilterController.text.trim().isEmpty &&
+          pages++ < 100) {
+        if (isLoadingStudents.value || isLoadingMore.value) {
+          await Future<void>.delayed(const Duration(milliseconds: 250));
+          continue;
+        }
+        _moreFetchFailed = false;
+        await fetchMoreStudents(background: true);
+        if (_moreFetchFailed) break;
+      }
+    } finally {
+      _backgroundLoading = false;
+    }
   }
 
   /// Merges all hostel residents with an allocated room from the local Phonebook SQLite database
@@ -1241,7 +1288,7 @@ class ScreenTimeDirectoryController extends GetxController with WidgetsBindingOb
     }
   }
 
-  Future<void> fetchMoreStudents() async {
+  Future<void> fetchMoreStudents({bool background = false}) async {
     if (isLoadingMore.value || !hasMoreStudents.value) return;
     isLoadingMore.value = true;
     try {
@@ -1274,13 +1321,18 @@ class ScreenTimeDirectoryController extends GetxController with WidgetsBindingOb
               ..addAll(allStudents);
           }
           filterStudents(searchFilterController.text);
-          visibleStudentCount.value =
-              (visibleStudentCount.value + uiBatchSize).clamp(
-                  0, filteredStudents.length);
+          if (!background) {
+            visibleStudentCount.value =
+                (visibleStudentCount.value + uiBatchSize).clamp(
+                    0, filteredStudents.length);
+          }
         }
       }
     } catch (e) {
       debugPrint('[ScreenTime] fetchMoreStudents error: $e');
+      // Lets the background load stop instead of retrying a failing page forever
+      // (scrolling can still retry it).
+      _moreFetchFailed = true;
     } finally {
       isLoadingMore.value = false;
     }

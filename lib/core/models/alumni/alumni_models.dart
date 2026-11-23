@@ -739,7 +739,7 @@ class AlumniOutreachHistoryModel {
     this.outreachDate = '',
     this.contactedAt,
     this.message = '',
-    this.leaderName = 'Leader',
+    this.leaderName = '',
   });
 
   factory AlumniOutreachHistoryModel.fromJson(Map<String, dynamic> json) {
@@ -760,7 +760,25 @@ class AlumniOutreachHistoryModel {
       outreachDate: json['outreachDate']?.toString() ?? '',
       contactedAt: json['contactedAt']?.toString(),
       message: json['message']?.toString() ?? '',
-      leaderName: json['leaderName']?.toString() ?? 'Leader',
+      // Who sent it (a leader or an admin/warden). Empty when the API doesn't say.
+      leaderName: _firstNonEmpty(json, const [
+        'leaderName',
+        'sentByName',
+        'sent_by_name',
+        'senderName',
+        'sender_name',
+        'contactedByName',
+        'contacted_by_name',
+        'adminName',
+      ]),
     );
+  }
+
+  static String _firstNonEmpty(Map<String, dynamic> json, List<String> keys) {
+    for (final k in keys) {
+      final v = json[k]?.toString().trim() ?? '';
+      if (v.isNotEmpty) return v;
+    }
+    return '';
   }
 }

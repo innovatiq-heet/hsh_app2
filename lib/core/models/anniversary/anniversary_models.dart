@@ -29,6 +29,20 @@ class ParentAdditionalPhone {
 
 /// Student model for Parents' Marriage Anniversary greetings.
 /// Contains both Father and Mother details and phone numbers.
+/// A full name split for the `{father_first_name}` / `{mother_last_name}`
+/// style template variables. First word = first name, last word = last name,
+/// anything between = middle name. A one-word name has no middle or last name.
+({String first, String middle, String last}) splitPersonName(String fullName) {
+  final parts = fullName.trim().split(RegExp(r'\s+')).where((p) => p.isNotEmpty).toList();
+  if (parts.isEmpty) return (first: '', middle: '', last: '');
+  if (parts.length == 1) return (first: parts[0], middle: '', last: '');
+  return (
+    first: parts.first,
+    middle: parts.sublist(1, parts.length - 1).join(' '),
+    last: parts.last,
+  );
+}
+
 class AnniversaryStudentRecord {
   final int studentId;
   final String name;

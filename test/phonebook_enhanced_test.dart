@@ -10,14 +10,14 @@ void main() {
     test(
       'Correctly computes age, formattedDob, maskedAadhar, and motherName',
       () {
-        final student = PhonebookStudent(
+        const student = PhonebookStudent(
           id: '101',
           studentId: '101',
           name: 'Rudra Ketanbhai Patel',
           enrollmentNumber: 'EN101',
           department: 'B.Tech IT',
           batch: 'ACTIVE',
-          phones: const [
+          phones: [
             PhonebookContact(
               phone: '9876543210',
               phoneNormalized: '9876543210',
@@ -77,7 +77,7 @@ void main() {
     );
 
     test('Returns Not Provided for address when explicit address is empty', () {
-      final student = const PhonebookStudent(
+      const student = PhonebookStudent(
         id: '102',
         studentId: '102',
         name: 'Aakash Sharma',
@@ -305,7 +305,7 @@ void main() {
         expect(mAbroad.isFatherContact, isFalse);
         expect(mAbroad.isMotherContact, isTrue);
 
-        final student = const PhonebookStudent(
+        const student = PhonebookStudent(
           id: '269',
           studentId: 'HSH-0353',
           name: 'Anand Kamleshbhai Patel',
@@ -360,7 +360,7 @@ void main() {
         expect(PhonebookController.statusOptions, ['All', 'Active Residents', 'Alumni']);
         expect(PhonebookController.statusOptions, isNot(contains('Alumni / Left')));
 
-        final student = PhonebookStudent(
+        const student = PhonebookStudent(
           id: '101',
           studentId: '101',
           name: 'Rahul Patel',

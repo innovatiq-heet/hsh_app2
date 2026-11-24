@@ -84,12 +84,12 @@ void main() {
     });
 
     await tester.pumpWidget(
-      MaterialApp(
+      const MaterialApp(
         home: Scaffold(
           body: StudentPhoto(
             url: url,
             name: 'Taksh Patel',
-            letter: const Text('TP'),
+            letter: Text('TP'),
           ),
         ),
       ),

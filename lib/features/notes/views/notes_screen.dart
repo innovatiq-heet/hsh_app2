@@ -348,7 +348,7 @@ class NotesScreen extends GetView<NotesController> {
                   delegate: SliverChildListDelegate([
                     // Pinned Section
                     if (pinned.isNotEmpty) ...[
-                      _SectionTitle(
+                      const _SectionTitle(
                         icon: Icons.push_pin_rounded,
                         label: 'PINNED',
                         color: AppColors.primary,

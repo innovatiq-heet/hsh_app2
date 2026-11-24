@@ -325,7 +325,7 @@ class _AlumniAdminHubScreenState extends State<AlumniAdminHubScreen>
                     children: [
                       Row(
                         children: [
-                          IconBadge(icon: Icons.volunteer_activism_rounded, color: const Color(0xFFEC4899), size: 36),
+                          const IconBadge(icon: Icons.volunteer_activism_rounded, color: Color(0xFFEC4899), size: 36),
                           const SizedBox(width: AppDimens.gapSm),
                           Expanded(
                             child: Column(

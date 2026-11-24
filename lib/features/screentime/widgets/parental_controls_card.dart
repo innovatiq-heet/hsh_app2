@@ -257,7 +257,7 @@ class ParentalControlsCard extends StudentDetailWidget {
     final ok = await Get.dialog<bool>(
       AlertDialog(
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(AppDimens.radiusLg)),
-        title: Text('Grant 15-min install pass?'),
+        title: const Text('Grant 15-min install pass?'),
         content: Text(
           'Google Play Store will be temporarily unlocked on $name\'s phone for 15 minutes to allow downloading or updating apps. '
           'It will automatically lock again when the 15 minutes expire.',

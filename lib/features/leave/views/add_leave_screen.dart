@@ -377,7 +377,7 @@ class _DateTimePickerRow extends StatelessWidget {
               ],
             ),
           ),
-          Icon(
+          const Icon(
             Icons.chevron_right_rounded,
             size: 20,
             color: AppColors.textMuted,

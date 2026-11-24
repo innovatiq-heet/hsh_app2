@@ -84,7 +84,7 @@ void main() {
 
   test('UserSession.isAlumni detects ID 345, empty room, or N/A room as Alumni', () {
     // 1. Student Krutarth with ID 0345 / 345
-    final krutarthSession = UserSession(
+    const krutarthSession = UserSession(
       token: 'jwt_token',
       role: UserRole.student,
       id: '177211',
@@ -95,7 +95,7 @@ void main() {
     expect(krutarthSession.isAlumni, isTrue);
 
     // 2. Student with room explicitly set to N/A or na
-    final naSession = UserSession(
+    const naSession = UserSession(
       token: 'jwt_token',
       role: UserRole.student,
       id: '888',
@@ -105,7 +105,7 @@ void main() {
     );
     expect(naSession.isAlumni, isTrue);
 
-    final lowercaseNaSession = UserSession(
+    const lowercaseNaSession = UserSession(
       token: 'jwt_token',
       role: UserRole.student,
       studentCode: '0999',
@@ -113,7 +113,7 @@ void main() {
     );
     expect(lowercaseNaSession.isAlumni, isTrue);
 
-    final noneRoomSession = UserSession(
+    const noneRoomSession = UserSession(
       token: 'jwt_token',
       role: UserRole.student,
       studentCode: '0777',
@@ -121,7 +121,7 @@ void main() {
     );
     expect(noneRoomSession.isAlumni, isTrue);
 
-    final zeroRoomSession = UserSession(
+    const zeroRoomSession = UserSession(
       token: 'jwt_token',
       role: UserRole.student,
       studentCode: '0666',
@@ -130,7 +130,7 @@ void main() {
     expect(zeroRoomSession.isAlumni, isTrue);
 
     // 3. Regular active student with assigned room
-    final activeHostelStudent = UserSession(
+    const activeHostelStudent = UserSession(
       token: 'jwt_token',
       role: UserRole.student,
       id: '9999',
@@ -141,7 +141,7 @@ void main() {
     expect(activeHostelStudent.isAlumni, isFalse);
 
     // 4. Admin or staff is never considered alumni
-    final adminSession = UserSession(
+    const adminSession = UserSession(
       token: 'jwt_token',
       role: UserRole.admin,
       id: '1',

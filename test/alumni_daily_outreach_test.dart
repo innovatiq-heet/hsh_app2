@@ -61,7 +61,7 @@ void main() {
       expect(data.progressRatio, 0.4);
       expect(data.isAllCompleted, false);
 
-      final completedData = AlumniDailyOutreachDataModel(
+      const completedData = AlumniDailyOutreachDataModel(
         groupName: 'Param',
         date: '2026-11-16',
         targetDailyCount: 5,
@@ -75,7 +75,7 @@ void main() {
       const template =
           'Jai Swaminarayan {first_name} bhai! 🙏 Greetings from Hari Saurabh Hostel ({group_name} Group, past room {room}). - {leader_name}';
 
-      final student = const AlumniOutreachStudentModel(
+      const student = AlumniOutreachStudentModel(
         studentId: 501,
         name: 'Pratik Patel',
         pastRoom: '305',

@@ -187,7 +187,7 @@ void main() {
     test('the next page continues from what is already loaded', () async {
       replies['GET /screen-time/students'] = (o) {
         final offset = o.queryParameters['offset'] as int;
-        final size = ScreenTimeDirectoryController.pageSize;
+        const size = ScreenTimeDirectoryController.pageSize;
         return {
           'success': true,
           'data': {

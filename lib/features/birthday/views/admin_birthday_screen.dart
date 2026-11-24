@@ -245,9 +245,9 @@ class AdminBirthdayScreen extends GetView<AdminBirthdayController> {
                       color: const Color(0xFF0284C7),
                       borderRadius: BorderRadius.circular(10),
                     ),
-                    child: Row(
+                    child: const Row(
                       mainAxisSize: MainAxisSize.min,
-                      children: const [
+                      children: [
                         Icon(Icons.link_rounded, color: Colors.white, size: 15),
                         SizedBox(width: 5),
                         Text(
@@ -1328,10 +1328,10 @@ class AdminBirthdayScreen extends GetView<AdminBirthdayController> {
                     ),
                   ),
                   const SizedBox(width: 12),
-                  Expanded(
+                  const Expanded(
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
-                      children: const [
+                      children: [
                         Text(
                           'Daily Send Time (IST)',
                           style: TextStyle(

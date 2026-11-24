@@ -556,16 +556,16 @@ class _AddPhotoButton extends StatelessWidget {
           borderRadius: BorderRadius.circular(14),
           border: Border.all(color: PhonebookTheme.border, width: 1.2),
         ),
-        child: Column(
+        child: const Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            const Icon(
+            Icon(
               Icons.add_a_photo_outlined,
               size: 24,
               color: PhonebookTheme.blue,
             ),
-            const SizedBox(height: 6),
-            const Text(
+            SizedBox(height: 6),
+            Text(
               'Add photo',
               style: TextStyle(
                 color: PhonebookTheme.slate,

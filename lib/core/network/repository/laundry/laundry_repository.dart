@@ -23,7 +23,7 @@ class LaundryRepository {
 
   Map<String, dynamic> _extractMap(dynamic body, String key) {
     if (body is! Map) {
-      throw ApiException('Unexpected server response format');
+      throw const ApiException('Unexpected server response format');
     }
     final bodyMap = body is Map<String, dynamic>
         ? body
@@ -163,7 +163,7 @@ class LaundryRepository {
         }
         return LaundryBalanceModel.fromJson(bodyMap);
       }
-      throw ApiException('Unexpected server response format');
+      throw const ApiException('Unexpected server response format');
     } on DioException catch (e) {
       developer.log(
         'GET /laundry/balance error: ${e.message}',

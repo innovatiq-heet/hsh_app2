@@ -27,7 +27,7 @@ class LaundryModuleScreen extends GetView<LaundryModuleController> {
       ),
       bottomNavigationBar: Obx(
         () => Container(
-          decoration: BoxDecoration(
+          decoration: const BoxDecoration(
             color: AppColors.surface,
             border: Border(
               top: BorderSide(color: AppColors.border, width: 1),

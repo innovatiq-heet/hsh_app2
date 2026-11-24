@@ -68,7 +68,7 @@ class ManageUsersScreen extends GetView<ManageUsersController> {
                           children: [
                             ...[
                               if (users.isEmpty) ...[
-                                AppCard(
+                                const AppCard(
                                   child: EmptyState(
                                     icon: Icons.manage_accounts_outlined,
                                     title: 'No staff users yet',

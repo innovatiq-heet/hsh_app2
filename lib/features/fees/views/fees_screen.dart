@@ -620,7 +620,7 @@ class _DebitsTab extends StatelessWidget {
                 return AppCard(
                   child: Row(
                     children: [
-                      IconBadge(
+                      const IconBadge(
                         icon: Icons.receipt_long_rounded,
                         color: AppColors.primary,
                       ),

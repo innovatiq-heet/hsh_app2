@@ -317,15 +317,15 @@ class _FiltersCard extends GetView<ComplainOrdersController> {
             ),
             if (controller.categories.length > 1) ...[
               const SizedBox(height: 14),
-              Row(
+              const Row(
                 children: [
-                  const Icon(
+                  Icon(
                     Icons.category_outlined,
                     size: 15,
                     color: Color(0xFF64748B),
                   ),
-                  const SizedBox(width: 6),
-                  const Text(
+                  SizedBox(width: 6),
+                  Text(
                     'Category',
                     style: TextStyle(
                       fontSize: 12,

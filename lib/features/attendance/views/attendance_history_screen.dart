@@ -231,7 +231,7 @@ class _HistoryCard extends StatelessWidget {
     final timeStr = DateFormat('hh:mm a').format(entry.time.toLocal());
 
     // Status indicator color (Default to Present/Success Green for marked records)
-    final Color statusColor = AppColors.successGreen;
+    const Color statusColor = AppColors.successGreen;
     final String methodLabel = entry.viaCode ? 'Dynamic QR' : 'BLE Proximity';
     final IconData methodIcon = entry.viaCode ? Icons.qr_code_2_rounded : Icons.bluetooth_rounded;
 
@@ -295,7 +295,7 @@ class _HistoryCard extends StatelessWidget {
                                   ),
                                 ),
                                 const Spacer(),
-                                StatusBadge(
+                                const StatusBadge(
                                   label: 'Present',
                                   color: statusColor,
                                   icon: Icons.check_circle_rounded,

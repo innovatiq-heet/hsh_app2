@@ -359,7 +359,7 @@ class _AttendanceScreenState extends State<AttendanceScreen>
                   Container(
                     width: 62,
                     height: 62,
-                    decoration: BoxDecoration(
+                    decoration: const BoxDecoration(
                       color: AppColors.primarySoft,
                       shape: BoxShape.circle,
                     ),

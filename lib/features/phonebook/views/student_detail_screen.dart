@@ -720,8 +720,8 @@ class _StudentDetailScreenState extends State<StudentDetailScreen> {
                     padding: const EdgeInsets.symmetric(vertical: AppDimens.gapSm),
                     child: Row(
                       children: [
-                        Expanded(
-                          child: const _SectionTitle(
+                        const Expanded(
+                          child: _SectionTitle(
                             'FAMILY CONTACTS',
                             icon: Icons.family_restroom_rounded,
                             color: Color(0xFFE11D48),
@@ -764,14 +764,14 @@ class _StudentDetailScreenState extends State<StudentDetailScreen> {
                       width: 0.8,
                     ),
                   ),
-                  child: Row(
+                  child: const Row(
                     mainAxisSize: MainAxisSize.min,
                     children: [
-                      const Icon(Icons.edit_outlined, size: 12.5, color: Color(0xFF64748B)),
-                      const SizedBox(width: 3.5),
+                      Icon(Icons.edit_outlined, size: 12.5, color: Color(0xFF64748B)),
+                      SizedBox(width: 3.5),
                       Text(
                         'Manage',
-                        style: const TextStyle(
+                        style: TextStyle(
                           color: Color(0xFF64748B),
                           fontWeight: FontWeight.w700,
                           fontSize: 11.5,
@@ -1203,8 +1203,8 @@ class _StudentDetailTagsCardState extends State<_StudentDetailTagsCard> {
                     padding: const EdgeInsets.symmetric(vertical: AppDimens.gapSm),
                     child: Row(
                       children: [
-                        Expanded(
-                          child: const _SectionTitle(
+                        const Expanded(
+                          child: _SectionTitle(
                             'TAGS & ROLES',
                             icon: Icons.local_offer_rounded,
                             color: Color(0xFF8B5CF6),

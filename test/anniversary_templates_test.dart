@@ -37,10 +37,10 @@ void main() {
     });
 
     test('toJson sends the library, the active id and the active body, never an audience', () {
-      final config = AnniversaryConfigModel(
+      const config = AnniversaryConfigModel(
         sendTime: '08:00',
         anniversaryMessageTemplate: 'Short body',
-        templates: const [
+        templates: [
           AnniversaryTemplate(id: 'a1', name: 'Warm', body: 'Warm body'),
           AnniversaryTemplate(id: 'a2', name: 'Short', body: 'Short body'),
         ],

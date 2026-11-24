@@ -22,7 +22,7 @@ class CampusMapView extends StatefulWidget {
 
 class _CampusMapViewState extends State<CampusMapView> {
   final MapController _mapController = MapController();
-  static final ll.LatLng _campusCenter = const ll.LatLng(22.5565, 72.9185);
+  static const ll.LatLng _campusCenter = ll.LatLng(22.5565, 72.9185);
 
   @override
   Widget build(BuildContext context) {

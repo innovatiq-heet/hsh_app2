@@ -389,11 +389,11 @@ class AdminGeofenceScreen extends StatelessWidget {
                       ),
                     ),
                     const SizedBox(width: 12),
-                    Expanded(
+                    const Expanded(
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          const Text(
+                          Text(
                             'Curfew Schedule',
                             style: TextStyle(
                               fontSize: 15,
@@ -402,8 +402,8 @@ class AdminGeofenceScreen extends StatelessWidget {
                               letterSpacing: -0.2,
                             ),
                           ),
-                          const SizedBox(height: 1),
-                          const Text(
+                          SizedBox(height: 1),
+                          Text(
                             'Night hours for geofence enforcement',
                             style: TextStyle(
                               fontSize: 12,

@@ -212,7 +212,7 @@ void main() {
       expect(a.label, 'Anniversary'); // label still from the list
 
       // Once scanned, the number turns open and polling for it can stop.
-      api.routes['GET /whatsapp/status'] = (_) => FakeReply(200, {
+      api.routes['GET /whatsapp/status'] = (_) => const FakeReply(200, {
             'success': true,
             'data': {'status': 'open', 'user': {'phone': '919811111111', 'name': 'x'}},
           });

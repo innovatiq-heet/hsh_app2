@@ -1,4 +1,4 @@
-﻿import 'package:flutter/material.dart';
+import 'package:flutter/material.dart';
 import '../../../core/constants/app_colors.dart';
 import '../../../core/constants/app_dimens.dart';
 import '../../../core/utils/date_formatting.dart';
@@ -149,7 +149,7 @@ class StepperTimeline extends StatelessWidget {
                   color: AppColors.primarySoft,
                   borderRadius: BorderRadius.circular(AppDimens.radiusPill),
                 ),
-                child: Text(
+                child: const Text(
                   'Current',
                   style: TextStyle(
                     fontSize: 9,

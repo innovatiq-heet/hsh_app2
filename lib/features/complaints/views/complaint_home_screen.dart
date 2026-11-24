@@ -760,12 +760,12 @@ class _ComplainHomeShimmer extends StatelessWidget {
                 AppCard(
                   child: Row(
                     children: [
-                      Expanded(
+                      const Expanded(
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
                             SkeletonLoader(height: 14, width: 90),
-                            const SizedBox(height: 8),
+                            SizedBox(height: 8),
                             SkeletonLoader(height: 32, width: 60),
                           ],
                         ),
@@ -776,12 +776,12 @@ class _ComplainHomeShimmer extends StatelessWidget {
                         color: AppColors.border,
                       ),
                       const SizedBox(width: AppDimens.gapLg),
-                      Expanded(
+                      const Expanded(
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
                             SkeletonLoader(height: 14, width: 90),
-                            const SizedBox(height: 8),
+                            SizedBox(height: 8),
                             SkeletonLoader(height: 32, width: 70),
                           ],
                         ),
@@ -793,16 +793,16 @@ class _ComplainHomeShimmer extends StatelessWidget {
                 // Queue Breakdown Shimmer
                 const SkeletonLoader(height: 18, width: 140),
                 const SizedBox(height: AppDimens.gapSm),
-                Row(
-                  children: const [
+                const Row(
+                  children: [
                     Expanded(child: SkeletonLoader(height: 90, borderRadius: BorderRadius.all(Radius.circular(16)))),
                     SizedBox(width: AppDimens.gapMd),
                     Expanded(child: SkeletonLoader(height: 90, borderRadius: BorderRadius.all(Radius.circular(16)))),
                   ],
                 ),
                 const SizedBox(height: AppDimens.gapMd),
-                Row(
-                  children: const [
+                const Row(
+                  children: [
                     Expanded(child: SkeletonLoader(height: 90, borderRadius: BorderRadius.all(Radius.circular(16)))),
                     SizedBox(width: AppDimens.gapMd),
                     Expanded(child: SkeletonLoader(height: 90, borderRadius: BorderRadius.all(Radius.circular(16)))),

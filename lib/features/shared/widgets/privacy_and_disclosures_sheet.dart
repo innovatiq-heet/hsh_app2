@@ -127,11 +127,11 @@ class PrivacyAndDisclosuresSheet extends StatelessWidget {
                   const SizedBox(height: 14),
 
                   // Card 2: Curfew Location Tracking
-                  _DisclosureCard(
+                  const _DisclosureCard(
                     icon: Icons.my_location_rounded,
-                    iconColor: const Color(0xFF059669),
+                    iconColor: Color(0xFF059669),
                     badgeText: 'SAFETY & CURFEW',
-                    badgeColor: const Color(0xFF059669),
+                    badgeColor: Color(0xFF059669),
                     title: 'Background Location Disclosure',
                     body:
                         'For active hostel residents, location is periodically collected all day—including when the app is closed or in the background—strictly to verify campus curfew compliance and warden-issued gate passes.\n\n'
@@ -141,11 +141,11 @@ class PrivacyAndDisclosuresSheet extends StatelessWidget {
                   const SizedBox(height: 14),
 
                   // Card 3: Data Protection & Deletion
-                  _DisclosureCard(
+                  const _DisclosureCard(
                     icon: Icons.lock_outline_rounded,
-                    iconColor: const Color(0xFF6366F1),
+                    iconColor: Color(0xFF6366F1),
                     badgeText: 'DATA GUARANTEE',
-                    badgeColor: const Color(0xFF6366F1),
+                    badgeColor: Color(0xFF6366F1),
                     title: 'Data Privacy & Deletion Requests',
                     body:
                         'All resident telemetry is encrypted via HTTPS/TLS and strictly role-gated. All monitoring stops immediately when a student signs out or becomes an alumni.\n\n'

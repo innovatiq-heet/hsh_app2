@@ -352,7 +352,7 @@ class _ScreenTimeHeaderDelegate extends SliverPersistentHeaderDelegate {
                                       const SizedBox(height: 6),
                                       Text(
                                         selected != null ? 'PARENTAL CONTROL' : 'PARENTAL CONTROL & DEVICE USAGE',
-                                        style: TextStyle(
+                                        style: const TextStyle(
                                           fontSize: 11,
                                           fontWeight: FontWeight.w800,
                                           color: Color(0xFFF59E0B),

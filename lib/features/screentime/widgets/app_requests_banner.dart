@@ -350,16 +350,16 @@ class _AppRequestsSheetState extends State<_AppRequestsSheet> {
                       ),
                     ),
                     const SizedBox(width: 10),
-                    Expanded(
+                    const Expanded(
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          const Text(
+                          Text(
                             'App Requests',
                             style: TextStyle(fontSize: 18, fontWeight: FontWeight.w800, color: Color(0xFF0F172A)),
                           ),
-                          const SizedBox(height: 1),
-                          const Text(
+                          SizedBox(height: 1),
+                          Text(
                             'Students requesting approval to install apps',
                             style: TextStyle(fontSize: 12, color: Color(0xFF64748B), fontWeight: FontWeight.w500),
                           ),

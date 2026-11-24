@@ -50,16 +50,16 @@ class AttendanceQrDisplayScreen
                   ),
                   _buildMenuButton(context),
                 ],
-                child: SingleChildScrollView(
+                child: const SingleChildScrollView(
                   scrollDirection: Axis.horizontal,
                   child: Row(
                     children: [
-                      const HeaderPill(
+                      HeaderPill(
                         icon: Icons.timer_outlined,
                         label: 'Rotates every 20s (30s TTL)',
                       ),
-                      const SizedBox(width: AppDimens.gapSm),
-                      const HeaderPill(
+                      SizedBox(width: AppDimens.gapSm),
+                      HeaderPill(
                         icon: Icons.security_rounded,
                         label: 'Anti-Proxy Signature',
                       ),
@@ -560,7 +560,7 @@ class AttendanceQrDisplayScreen
                 ),
               ),
               const PopupMenuDivider(),
-              PopupMenuItem(
+              const PopupMenuItem(
                 value: 'logout',
                 child: Row(
                   children: [
@@ -569,7 +569,7 @@ class AttendanceQrDisplayScreen
                       size: 20,
                       color: AppColors.cancelledRed,
                     ),
-                    const SizedBox(width: 10),
+                    SizedBox(width: 10),
                     Text(
                       'Log Out',
                       style: TextStyle(

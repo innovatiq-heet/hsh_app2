@@ -46,7 +46,7 @@ class StudentDirectoryView extends GetView<ScreenTimeDirectoryController> {
               AppRequestsBanner(host: controller),
               _SummaryStrip(),
               const SizedBox(height: 10),
-              _SearchField(),
+              const _SearchField(),
               const _LeaderGroupBanner(),
               const _GroupQuickFilter(),
               const SizedBox(height: 12),

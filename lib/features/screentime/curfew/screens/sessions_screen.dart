@@ -437,7 +437,7 @@ class _LiveTab extends StatelessWidget {
             ),
           ]),
           if (running) ...[
-            SectionHeader('Using the phone now', icon: Icons.phone_android_rounded),
+            const SectionHeader('Using the phone now', icon: Icons.phone_android_rounded),
             if (live.usingPhone.isEmpty)
               const SurfaceCard(
                 child: Row(children: [

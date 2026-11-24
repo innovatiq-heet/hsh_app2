@@ -584,11 +584,11 @@ class _StudentTagSheetState extends State<StudentTagSheet> {
               borderRadius: BorderRadius.circular(12),
               border: Border.all(color: const Color(0xFFE2E8F0)),
             ),
-            child: Row(
+            child: const Row(
               children: [
-                const Icon(Icons.info_outline_rounded, size: 16, color: Color(0xFF64748B)),
-                const SizedBox(width: 8),
-                const Expanded(
+                Icon(Icons.info_outline_rounded, size: 16, color: Color(0xFF64748B)),
+                SizedBox(width: 8),
+                Expanded(
                   child: Text(
                     'Tap a tag to assign or remove it. Max 3 manual tags per student.',
                     style: TextStyle(fontSize: 11.5, color: Color(0xFF475569)),

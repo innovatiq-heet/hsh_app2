@@ -113,6 +113,7 @@ class BroadcastDetailScreen extends GetView<BroadcastDetailController> {
                                   height: 1.5,
                                 ),
                               ),
+                              BroadcastImage(url: b.imageUrl),
                               if (b.tags.isNotEmpty || b.studentIds.isNotEmpty) ...[
                                 const SizedBox(height: 14),
                                 BroadcastAudience(broadcast: b),

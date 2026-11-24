@@ -1,8 +1,10 @@
 import 'dart:async';
+import 'dart:io';
 import 'dart:math';
 
 import 'package:flutter/widgets.dart';
 import 'package:get/get.dart';
+import 'package:image_picker/image_picker.dart';
 import '../../../core/models/broadcasts/broadcast_models.dart';
 import '../../../core/models/tags/student_tag_model.dart';
 import '../../../core/network/api_exception.dart';
@@ -11,6 +13,7 @@ import '../../../core/network/repository/screentime/screen_time_repository.dart'
 import '../../../core/network/repository/students/student_picker_source.dart';
 import '../../../core/network/repository/tags/tags_repository.dart';
 import '../../../core/utils/app_snackbar.dart';
+import '../../../core/utils/image_type.dart';
 import '../../shared/utils/student_picker_host.dart';
 import '../utils/tag_members.dart';
 import 'broadcast_admin_gate.dart';
@@ -90,6 +93,13 @@ class BroadcastComposeController extends GetxController
 
   final isSending = false.obs;
 
+  /// Optional picture. It uploads as soon as it is chosen, so [send] only
+  /// carries the returned id (and a retried send never uploads twice).
+  final image = Rxn<File>();
+  final uploadedImage = Rxn<BroadcastImageUpload>();
+  final isImageUploading = false.obs;
+  int _imageSeq = 0;
+
   /// Delivery channel: 'both' (app + whatsapp), 'app' (in-app only), or 'whatsapp' (whatsapp only).
   final selectedChannel = BroadcastChannel.both.obs;
 
@@ -145,6 +155,7 @@ class BroadcastComposeController extends GetxController
       !isPreviewLoading.value &&
       previewError.value == null &&
       preview.value.recipientCount > 0 &&
+      !isImageUploading.value &&
       !isSending.value;
 
   // --- audience ---
@@ -206,6 +217,78 @@ class BroadcastComposeController extends GetxController
     if (_studentRows == null) return null;
     final ids = <int>{...tagMembers.value.idsFor(scope), ..._studentIds}.toList()..sort();
     return (tagIds: const <int>[], studentIds: ids);
+  }
+
+  // --- picture ---
+
+  /// `imageQuality` makes image_picker re-encode to JPEG, which also turns
+  /// iPhone HEIC photos into something the API accepts.
+  Future<void> pickImage([ImageSource source = ImageSource.gallery]) async {
+    try {
+      final picked = await ImagePicker().pickImage(
+        source: source,
+        imageQuality: 85,
+        maxWidth: 1600,
+        maxHeight: 1600,
+      );
+      if (picked == null) return;
+      await attachImage(File(picked.path));
+    } catch (e) {
+      AppSnackbar.error('Picture', 'Could not select picture: $e');
+    }
+  }
+
+  /// Checks [file] the way the API will (JPEG / PNG / WebP by content, at most
+  /// 5 MB), then uploads it. A newer pick or [removeImage] wins over a slower
+  /// upload still in flight.
+  Future<void> attachImage(File file) async {
+    final error = await validateImage(file);
+    if (error != null) {
+      AppSnackbar.warning('Picture not added', error);
+      return;
+    }
+    final seq = ++_imageSeq;
+    image.value = file;
+    uploadedImage.value = null;
+    isImageUploading.value = true;
+    try {
+      final uploaded = await _repo.uploadImage(file);
+      if (seq != _imageSeq) return;
+      uploadedImage.value = uploaded;
+    } on ApiException catch (e) {
+      if (seq != _imageSeq) return;
+      image.value = null;
+      AppSnackbar.error('Picture Not Uploaded', e.message);
+    } catch (_) {
+      if (seq != _imageSeq) return;
+      image.value = null;
+      AppSnackbar.error('Picture Not Uploaded', 'Something went wrong, try again.');
+    } finally {
+      if (seq == _imageSeq) isImageUploading.value = false;
+    }
+  }
+
+  void removeImage() {
+    _imageSeq++; // drop any upload still in flight
+    image.value = null;
+    uploadedImage.value = null;
+    isImageUploading.value = false;
+  }
+
+  /// Why the API would reject [file], or `null` if it is fine.
+  static Future<String?> validateImage(File file) async {
+    if (await file.length() > ImageType.maxUploadBytes) {
+      return 'Picture must be 5 MB or smaller.';
+    }
+    final raf = await file.open();
+    try {
+      if (ImageType.sniffMimeType(await raf.read(16)) == null) {
+        return 'Please choose a JPEG, PNG or WebP picture.';
+      }
+    } finally {
+      await raf.close();
+    }
+    return null;
   }
 
   // --- reach preview ---
@@ -285,6 +368,7 @@ class BroadcastComposeController extends GetxController
         clientRequestId: clientRequestId,
         title: trimmedTitle.isNotEmpty ? trimmedTitle : null,
         message: trimmedMessage,
+        imageId: uploadedImage.value?.imageId,
         channels: selectedChannel.value.name,
         tagIds: audience.tagIds,
         studentIds: audience.studentIds,

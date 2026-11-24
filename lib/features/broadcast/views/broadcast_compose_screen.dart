@@ -203,6 +203,9 @@ class BroadcastComposeScreen extends GetView<BroadcastComposeController> {
                     ),
                   ),
                   const SizedBox(height: 18),
+                  const PhonebookSectionHeader(title: 'Picture (Optional)'),
+                  _PictureCard(controller: controller),
+                  const SizedBox(height: 18),
                   const PhonebookSectionHeader(title: 'Audience'),
                   _AudienceCard(controller: controller),
                   const SizedBox(height: 18),
@@ -213,6 +216,84 @@ class BroadcastComposeScreen extends GetView<BroadcastComposeController> {
           ],
         ),
       ),
+    );
+  }
+}
+
+/// Optional picture: shows "Add a picture", then the chosen one with an
+/// upload spinner and a remove button.
+class _PictureCard extends StatelessWidget {
+  final BroadcastComposeController controller;
+
+  const _PictureCard({required this.controller});
+
+  @override
+  Widget build(BuildContext context) {
+    return PhonebookCard(
+      child: Obx(() {
+        final file = controller.image.value;
+        if (file == null) {
+          return InkWell(
+            borderRadius: BorderRadius.circular(14),
+            onTap: controller.pickImage,
+            child: Container(
+              width: double.infinity,
+              padding: const EdgeInsets.symmetric(vertical: 22),
+              decoration: BoxDecoration(
+                color: PhonebookTheme.bg,
+                borderRadius: BorderRadius.circular(14),
+                border: Border.all(color: PhonebookTheme.border),
+              ),
+              child: const Column(
+                children: [
+                  Icon(Icons.add_photo_alternate_outlined, color: PhonebookTheme.blue, size: 30),
+                  SizedBox(height: 6),
+                  Text(
+                    'Add a picture',
+                    style: TextStyle(color: PhonebookTheme.ink, fontWeight: FontWeight.w600),
+                  ),
+                  SizedBox(height: 2),
+                  Text(
+                    'Sent with the message on WhatsApp and in the push',
+                    style: TextStyle(color: PhonebookTheme.muted, fontSize: 12),
+                  ),
+                ],
+              ),
+            ),
+          );
+        }
+        final uploading = controller.isImageUploading.value;
+        return Stack(
+          children: [
+            ClipRRect(
+              borderRadius: BorderRadius.circular(14),
+              child: Image.file(file, width: double.infinity, height: 180, fit: BoxFit.cover),
+            ),
+            if (uploading)
+              Positioned.fill(
+                child: DecoratedBox(
+                  decoration: BoxDecoration(
+                    color: Colors.black38,
+                    borderRadius: BorderRadius.circular(14),
+                  ),
+                  child: const Center(child: CircularProgressIndicator(color: Colors.white)),
+                ),
+              ),
+            Positioned(
+              top: 8,
+              right: 8,
+              child: GestureDetector(
+                onTap: controller.removeImage,
+                child: Container(
+                  padding: const EdgeInsets.all(6),
+                  decoration: const BoxDecoration(color: PhonebookTheme.red, shape: BoxShape.circle),
+                  child: const Icon(Icons.close, size: 16, color: Colors.white),
+                ),
+              ),
+            ),
+          ],
+        );
+      }),
     );
   }
 }

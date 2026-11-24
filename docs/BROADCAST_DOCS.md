@@ -9,6 +9,7 @@
 | Part | Who | Summary |
 | :--- | :--- | :--- |
 | **Compose** | Admin | Channels: **Both** (App + WhatsApp), **In-App Only**, or **WhatsApp Only**. Title (optional, max 100 characters) and message (1–2000 characters). Audience = students with **any** selected tag ∪ students picked individually. A live "Will reach N students" count with channel breakdown, a confirmation dialog, then Send. |
+| **Picture** | Admin → students | One optional picture per broadcast (JPEG, PNG or WebP, up to 5 MB). WhatsApp sends the picture with the message as its caption, the push shows it as the big picture, and the student's inbox shows it under the message (tap to zoom). |
 | **History** | Admin | Sent broadcasts, newest first, paged. Each shows channel badge, status (*Sending…* / *Sent* / *Failed*), and recipient / pushed / WhatsApp / read counts. It refreshes every 5 s while any broadcast is sending. |
 | **Detail** | Admin | Full message, delivery channels, audience, counts (Push and WhatsApp stats) and the recipient list. Each recipient shows push & WhatsApp status and read time, with a filter: All / Read / Unread / No device. |
 | **Announcements** | Students, leaders | Inbox of broadcasts addressed to them. Displays optional custom title or fallback heading. Opening one marks it read. A push notification opens the message directly. |
@@ -30,6 +31,8 @@ Entry points:
 9. **The preview is debounced by 400 ms**, and only the newest reply is kept. An empty audience shows 0 without a request.
 10. **Who in the tags:** with a tag selected, the admin must choose **Current & alumni**, **Current only** or **Alumni only** (each with its count) before Send is enabled. *Current & alumni* sends the tags (`tag_ids`) as before. *Current only* / *Alumni only* send that group's members as `student_ids` (numeric `students.id`, plus any individual picks) and no `tag_ids`, so the history lists them as individuals. Members come from `GET /students?all=true` (each row's `tags`) and are split like the server's `ACTIVE_STUDENT_SQL` (`TagMembers.of`): current = active and not left / cancelled / rejected; alumni = no room (empty, `N/A`, `alumni`, ...) and not cancelled / rejected. More than 500 students picked this way is refused with a hint to use *Current & alumni*.
 
+11. **Picture (optional):** chosen in Compose (`image_picker`, re-encoded to JPEG at 85 %, max 1600 px, so iPhone HEIC works) and **uploaded at once** with `POST /broadcasts/image`, so Send only carries the returned `image_id`. It is checked on the phone the way the API checks it (type by content, at most 5 MB). A refused upload clears the picture and the broadcast can still go out as text. Send is disabled while a picture is uploading. A newer pick or Remove wins over an upload still in flight. Never send an image URL: only an `image_id` from the upload.
+
 ## 3. API contract
 
 All responses use `{ success, data }`, or `{ success: false, message }` on errors. Dates are ISO 8601 UTC, shown in IST via `DateFormatting`.
@@ -37,18 +40,19 @@ All responses use `{ success, data }`, or `{ success: false, message }` on error
 | Method & path | Who | Request | Response `data` |
 | :--- | :--- | :--- | :--- |
 | `POST /broadcasts/preview` | admin | `{ tag_ids: int[], student_ids: int[] }` | `{ recipient_count, no_device_count, no_whatsapp_count, whatsapp_connected, sample: [{ id, name, room }] }` |
-| `POST /broadcasts` | admin | `{ client_request_id, title?, message, channels: 'both'|'app'|'whatsapp', tag_ids, student_ids }` | `<Broadcast>`: `201` new, `200` repeat |
+| `POST /broadcasts/image` | admin | multipart, field `image` (JPEG / PNG / WebP, ≤ 5 MB, real type in the part) | `201` `{ image_id, image_url }`; `413` too big, `400` not an image |
+| `POST /broadcasts` | admin | `{ client_request_id, title?, message, image_id?, channels: 'both'|'app'|'whatsapp', tag_ids, student_ids }` | `<Broadcast>`: `201` new, `200` repeat; `400` for an unknown `image_id` |
 | `GET /broadcasts?limit&offset` | admin | — | `[<Broadcast>]`, plus top-level `total` |
 | `GET /broadcasts/:id` | admin | — | `<Broadcast>` + `recipients: [{ student_id, name, room, matched_by, push_status, whatsapp_status, whatsapp_phone, read_at }]` |
-| `GET /me/broadcasts?limit&offset` | student | — | `[{ id, title, message, sender_name, created_at, read_at }]`, plus `total` and `unread_count` |
+| `GET /me/broadcasts?limit&offset` | student | — | `[{ id, title, message, image_url?, sender_name, created_at, read_at }]`, plus `total` and `unread_count` |
 | `POST /me/broadcasts/:id/read` | student | — | `{ id, read_at }` (idempotent) |
 
-`<Broadcast>` = `{ id, title?, message, channels: 'both'|'app'|'whatsapp', tags: [{ id, name, color }], student_ids, status: sending|sent|failed, recipient_count, push_sent, push_failed, no_device, whatsapp_sent, whatsapp_failed, no_whatsapp, read_count, sender: { id, name }, created_at, completed_at }`.
+`<Broadcast>` = `{ id, title?, message, image_url?, channels: 'both'|'app'|'whatsapp', tags: [{ id, name, color }], student_ids, status: sending|sent|failed, recipient_count, push_sent, push_failed, no_device, whatsapp_sent, whatsapp_failed, no_whatsapp, read_count, sender: { id, name }, created_at, completed_at }`.
 
 - Errors: `400` validation, `403` wrong role, `404` not found, and `422` "No active students match this audience.".
 - Parsing is defensive: numbers may arrive as strings, and an unknown `status` is shown without a badge.
 
-**Push:** FCM data `{ type: "broadcast", broadcast_id, title, body }` (all strings).
+**Push:** FCM data `{ type: "broadcast", broadcast_id, title, body, image_url? }` (all strings). `image_url` is a full link; Android shows it as the notification's big picture without app code. iOS shows it only with a Notification Service Extension (the API already sends `mutable-content`), otherwise the picture is in the inbox only. `image_url` is `null` / absent for a text-only broadcast, and older app builds ignore it.
 - In `PushNotificationService._navigateFromPayload`, students open **Announcements** at that message, and admins open the broadcast detail (`broadcastTarget`).
 - **Cold start:** a tap while splash is showing is held (`mustWaitForStartup`), and splash replays it 400 ms after routing to the user's home (`openPendingNotification`). Without this, splash's `Get.offAllNamed` would wipe the opened screen. The hold applies to every notification type, not just broadcasts.
 

@@ -1,5 +1,8 @@
+import 'dart:io';
+
 import 'package:dio/dio.dart';
-import 'package:get/get.dart';
+import 'package:get/get.dart' hide FormData, MultipartFile;
+import '../../../utils/image_type.dart';
 import '../../api_client.dart';
 import '../../api_exception.dart';
 import '../base_repository.dart';
@@ -59,12 +62,14 @@ class BroadcastsRepository extends BaseRepository {
     required List<int> tagIds,
     required List<int> studentIds,
     String channels = 'both',
+    String? imageId,
   }) =>
       _guard(() async {
         final payload = <String, dynamic>{
           'client_request_id': clientRequestId,
           if (title != null && title.trim().isNotEmpty) 'title': title.trim(),
           'message': message,
+          if (imageId != null && imageId.isNotEmpty) 'image_id': imageId,
           'channels': channels,
           'tag_ids': tagIds,
           'student_ids': studentIds,
@@ -72,6 +77,34 @@ class BroadcastsRepository extends BaseRepository {
         final res = await _dio.post('/broadcasts', data: payload);
         return Broadcast.fromJson(_data(res.data));
       });
+
+  /// Uploads the picture for a broadcast (`POST /broadcasts/image`, admin
+  /// only). The API checks the declared type against the file's bytes, so the
+  /// part carries the real type. Send the returned id as `imageId` to [send].
+  Future<BroadcastImageUpload> uploadImage(File file) => _guard(() async {
+        final mimeType = ImageType.sniffMimeType(await _header(file));
+        if (mimeType == null) {
+          throw const ApiException('Picture must be a JPEG, PNG or WebP image');
+        }
+        final form = FormData.fromMap({
+          'image': await MultipartFile.fromFile(
+            file.path,
+            filename: 'broadcast.${mimeType.split('/').last}',
+            contentType: DioMediaType.parse(mimeType),
+          ),
+        });
+        final res = await _dio.post('/broadcasts/image', data: form);
+        return BroadcastImageUpload.fromJson(_data(res.data));
+      });
+
+  static Future<List<int>> _header(File file) async {
+    final raf = await file.open();
+    try {
+      return await raf.read(16);
+    } finally {
+      await raf.close();
+    }
+  }
 
   /// This admin's sent broadcasts, newest first.
   Future<BroadcastPage> history({int limit = 20, int offset = 0}) => _guard(() async {

@@ -8,6 +8,67 @@ import '../../shared/widgets/meta_text.dart';
 import '../../shared/widgets/phonebook_style_widgets.dart';
 import '../../shared/widgets/status_badge.dart';
 
+/// The picture of a broadcast (inbox message, admin detail). Draws nothing
+/// when [url] is null, so it can sit under every message. Tap to zoom.
+class BroadcastImage extends StatelessWidget {
+  final String? url;
+  final double maxHeight;
+
+  const BroadcastImage({super.key, required this.url, this.maxHeight = 240});
+
+  @override
+  Widget build(BuildContext context) {
+    final u = url;
+    if (u == null || u.isEmpty) return const SizedBox.shrink();
+    return Padding(
+      padding: const EdgeInsets.only(top: 12),
+      child: GestureDetector(
+        onTap: () => Navigator.of(context).push(
+          MaterialPageRoute<void>(builder: (_) => _BroadcastImageViewer(url: u)),
+        ),
+        child: ClipRRect(
+          borderRadius: BorderRadius.circular(14),
+          child: ConstrainedBox(
+            constraints: BoxConstraints(maxHeight: maxHeight),
+            child: Image.network(
+              u,
+              width: double.infinity,
+              fit: BoxFit.cover,
+              loadingBuilder: (c, child, progress) => progress == null
+                  ? child
+                  : SizedBox(
+                      height: maxHeight / 2,
+                      child: const Center(child: CircularProgressIndicator(strokeWidth: 2)),
+                    ),
+              errorBuilder: (c, e, s) => const SizedBox(
+                height: 56,
+                child: Center(child: Text('Picture unavailable')),
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _BroadcastImageViewer extends StatelessWidget {
+  final String url;
+
+  const _BroadcastImageViewer({required this.url});
+
+  @override
+  Widget build(BuildContext context) => Scaffold(
+        backgroundColor: Colors.black,
+        appBar: AppBar(
+          backgroundColor: Colors.black,
+          foregroundColor: Colors.white,
+          elevation: 0,
+        ),
+        body: Center(child: InteractiveViewer(child: Image.network(url))),
+      );
+}
+
 /// Sending… / Sent / Failed.
 class BroadcastStatusBadge extends StatelessWidget {
   final BroadcastStatus status;

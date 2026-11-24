@@ -13,6 +13,12 @@ DateTime? _date(dynamic v) =>
 
 String _str(dynamic v) => v?.toString() ?? '';
 
+/// `image_url` as sent by the API: a full URL, or null / empty for no picture.
+String? _imageUrl(dynamic v) {
+  final s = v?.toString().trim() ?? '';
+  return s.isEmpty ? null : s;
+}
+
 enum BroadcastStatus { sending, sent, failed, unknown }
 
 BroadcastStatus _status(dynamic v) {
@@ -178,6 +184,9 @@ class Broadcast {
   final int id;
   final String? title;
   final String message;
+
+  /// Full URL of the attached picture, or null for a text-only broadcast.
+  final String? imageUrl;
   final BroadcastChannel channels;
   final List<StudentTag> tags;
   final List<int> studentIds;
@@ -201,6 +210,7 @@ class Broadcast {
     required this.id,
     this.title,
     required this.message,
+    this.imageUrl,
     this.channels = BroadcastChannel.both,
     this.tags = const [],
     this.studentIds = const [],
@@ -249,6 +259,7 @@ class Broadcast {
       id: _int(json['id']),
       title: (rawTitle != null && rawTitle.trim().isNotEmpty) ? rawTitle.trim() : null,
       message: _str(json['message']),
+      imageUrl: _imageUrl(json['image_url']),
       channels: _channel(json['channels']),
       tags: tags,
       studentIds: ids,
@@ -282,6 +293,9 @@ class InboxBroadcast {
   final int id;
   final String? title;
   final String message;
+
+  /// Full URL of the attached picture, or null for a text-only message.
+  final String? imageUrl;
   final String senderName;
   final DateTime? createdAt;
   final DateTime? readAt;
@@ -290,6 +304,7 @@ class InboxBroadcast {
     required this.id,
     this.title,
     required this.message,
+    this.imageUrl,
     this.senderName = '',
     this.createdAt,
     this.readAt,
@@ -305,6 +320,7 @@ class InboxBroadcast {
         id: id,
         title: title,
         message: message,
+        imageUrl: imageUrl,
         senderName: senderName,
         createdAt: createdAt,
         readAt: clearRead ? null : (readAt ?? this.readAt),
@@ -316,6 +332,7 @@ class InboxBroadcast {
       id: _int(json['id']),
       title: (rawTitle != null && rawTitle.trim().isNotEmpty) ? rawTitle.trim() : null,
       message: _str(json['message']),
+      imageUrl: _imageUrl(json['image_url']),
       senderName: _str(json['sender_name']),
       createdAt: _date(json['created_at']),
       readAt: _date(json['read_at']),
@@ -330,4 +347,18 @@ class InboxPage {
   final int unreadCount;
 
   const InboxPage(this.items, this.total, this.unreadCount);
+}
+
+/// Result of `POST /broadcasts/image`: send [imageId] with the broadcast.
+class BroadcastImageUpload {
+  /// Goes in `image_id` of `POST /broadcasts`.
+  final String imageId;
+
+  /// Public link, usable as a preview.
+  final String imageUrl;
+
+  const BroadcastImageUpload({required this.imageId, required this.imageUrl});
+
+  factory BroadcastImageUpload.fromJson(Map<String, dynamic> json) =>
+      BroadcastImageUpload(imageId: _str(json['image_id']), imageUrl: _str(json['image_url']));
 }

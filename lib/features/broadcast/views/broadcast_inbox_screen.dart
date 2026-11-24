@@ -7,6 +7,7 @@ import '../../shared/widgets/empty_state.dart';
 import '../../shared/widgets/student_contact_card.dart'
     show CelebrantLightChip, CornerWavePainter;
 import '../controllers/broadcast_inbox_controller.dart';
+import '../widgets/broadcast_widgets.dart' show BroadcastImage;
 
 /// Student → More → Announcements: official broadcasts from hostel office,
 /// styled with the signature executive deep navy header, organic orbs,
@@ -154,6 +155,7 @@ class _BroadcastInboxScreenState extends State<BroadcastInboxScreen> {
                         letterSpacing: -0.1,
                       ),
                     ),
+                    BroadcastImage(url: item.imageUrl),
                     const SizedBox(height: 28),
                     SizedBox(
                       width: double.infinity,

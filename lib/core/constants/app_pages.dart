@@ -1,3 +1,6 @@
+import '../../features/amenities/bindings/amenities_binding.dart';
+import '../../features/amenities/views/amenities_home_screen.dart';
+import '../../features/amenities/views/location_screen.dart';
 import '../../features/alumni/bindings/alumni_binding.dart';
 import '../../features/alumni/views/alumni_hub_screen.dart';
 import '../../features/alumni/views/alumni_admin_hub_screen.dart';
@@ -87,9 +90,6 @@ import '../../features/forms/bindings/forms_bindings.dart';
 import '../../features/forms/views/form_analytics_screen.dart';
 import '../../features/forms/views/form_editor_screen.dart';
 import '../../features/forms/views/forms_list_screen.dart';
-import '../../features/room_keys/bindings/room_keys_binding.dart';
-import '../../features/room_keys/views/room_keys_room_screen.dart';
-import '../../features/room_keys/views/room_keys_screen.dart';
 import '../../features/forms/views/student_form_fill_screen.dart';
 import '../../features/forms/views/student_forms_screen.dart';
 import '../../features/shared/screens/no_internet_screen.dart';
@@ -414,14 +414,18 @@ class AppPages {
       binding: FormEditorBinding(),
     ),
     GetPage(
+      name: Routes.operatorAmenities,
+      page: () => const AmenitiesHomeScreen(),
+      binding: AmenitiesBinding(),
+    ),
+    GetPage(
       name: Routes.operatorRoomKeys,
-      page: () => const RoomKeysScreen(),
-      binding: RoomKeysBinding(),
+      page: () => const AmenitiesHomeScreen(),
+      binding: AmenitiesBinding(),
     ),
     GetPage(
       name: Routes.operatorRoomKeysRoom,
-      page: () => RoomKeysRoomScreen(room: Get.arguments?.toString() ?? ''),
-      binding: RoomKeysBinding(),
+      page: () => LocationScreen(roomNumber: Get.arguments?.toString() ?? ''),
     ),
     GetPage(
       name: Routes.operatorFormAnalytics,

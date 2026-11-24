@@ -1,6 +1,6 @@
 # Amenities Management — product spec
 
-> **Status:** proposed · **Replaces:** Rooms & Keys · **Repos:** `HAMS_WEB` (backend), `hsh_app2` (app). Build prompts: [AMENITIES_BACKEND_PROMPT.md](AMENITIES_BACKEND_PROMPT.md), [AMENITIES_APP_PROMPT.md](AMENITIES_APP_PROMPT.md).
+> **Last updated:** 2026-11-24 · **Status:** app Phase 1 built (`lib/features/amenities/`); backend module not built yet, so every screen shows the server's error until `/api/amenities` exists · **Replaces:** Rooms & Keys (removed from the app) · **Repos:** `HAMS_WEB` (backend), `hsh_app2` (app). Build prompts: [AMENITIES_BACKEND_PROMPT.md](AMENITIES_BACKEND_PROMPT.md), [AMENITIES_APP_PROMPT.md](AMENITIES_APP_PROMPT.md).
 
 ## 1. Goal
 

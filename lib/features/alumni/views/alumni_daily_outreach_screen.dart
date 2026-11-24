@@ -1078,8 +1078,9 @@ class _HistoryRow extends StatelessWidget {
         ),
       );
     } catch (e) {
-      if (context.mounted)
+      if (context.mounted) {
         ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Could not load number changes: $e')));
+      }
     }
   }
 

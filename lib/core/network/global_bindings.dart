@@ -4,7 +4,6 @@ import './network_controller.dart';
 import './repository/attendance/attendance_repository.dart';
 import './repository/broadcasts/broadcasts_repository.dart';
 import './repository/forms/forms_repository.dart';
-import './repository/room_keys/room_keys_repository.dart';
 import './repository/authentication/auth_repository.dart';
 import './repository/complaints/complaints_repository.dart';
 import './repository/fees/fees_repository.dart';
@@ -54,7 +53,6 @@ class GlobalBindings extends Bindings {
     Get.put(StudentContactsRepository(), permanent: true);
     Get.put(BroadcastsRepository(), permanent: true);
     Get.put(FormsRepository(), permanent: true);
-    Get.put(RoomKeysRepository(), permanent: true);
 
     // Services (depend on repositories above)
     Get.put(AadharService(), permanent: true);

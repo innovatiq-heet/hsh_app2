@@ -85,6 +85,65 @@ void main() {
   );
 
   testWidgets(
+    'StudentDetailScreen header leaves the name below the back button when the pills wrap beside the photo',
+    (tester) async {
+      SharedPreferences.setMockInitialValues({
+        'auth_token': 'token',
+        'user_session': jsonEncode({'role': 'admin', 'token': 'token', 'name': 'Admin'}),
+      });
+      Get.testMode = true;
+      Get.put(SessionStore());
+      final controller = Get.put<PhonebookController>(_TestPhonebookController());
+      tester.view.physicalSize = const Size(390 * 3, 844 * 3);
+      tester.view.devicePixelRatio = 3;
+      addTearDown(tester.view.reset);
+
+      try {
+        // Room, group and code don't fit on one row next to the photo.
+        const student = PhonebookStudent(
+          id: '876',
+          studentId: '876',
+          name: 'Aadi Niraj Pandya',
+          enrollmentNumber: '876',
+          department: 'Param • Room 717',
+          batch: 'ACTIVE',
+          room: '717',
+          groupName: 'Param',
+          bankCode: '0876',
+          aadhar: '123456789012', // 12 digits: the student has a photo
+          phones: [],
+        );
+
+        await tester.pumpWidget(
+          const GetMaterialApp(home: StudentDetailScreen(student: student)),
+        );
+        await tester.pump();
+
+        final back = tester.getRect(find.byIcon(Icons.arrow_back_rounded));
+        // The large name (the collapsed-title copy is the one in the top bar).
+        final names = find.text('Aadi Niraj Pandya');
+        final nameTops = [
+          for (final e in names.evaluate()) tester.getRect(find.byWidget(e.widget)).top,
+        ]..sort();
+        expect(nameTops.last, greaterThanOrEqualTo(back.bottom),
+            reason: 'the name must not overlap the back button row');
+
+        final code = tester.getRect(find.text('Code: 0876'));
+        final room = tester.getRect(find.text('Room 717').first); // the header pill
+        expect(room.top, greaterThanOrEqualTo(back.bottom));
+        expect(code.bottom, greaterThan(room.top));
+
+        // Let the photo loader's timers finish.
+        await tester.pumpWidget(const SizedBox());
+        await tester.pump(const Duration(seconds: 30));
+      } finally {
+        controller.onClose();
+        Get.reset();
+      }
+    },
+  );
+
+  testWidgets(
     'StudentDetailScreen defaults to collapsed view and master toggle shows Expand all',
     (tester) async {
       SharedPreferences.setMockInitialValues({

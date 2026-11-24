@@ -188,6 +188,13 @@ class _ScreenTimeHeaderDelegate extends SliverPersistentHeaderDelegate {
         ),
       );
 
+      // With a back button the top bar is a row of round buttons, so refresh
+      // sits there too (always, level with back and "All students"). Without
+      // one (the Safety tab's list) the top bar is empty while expanded and
+      // refresh sits beside the title instead.
+      final hasBack = selected != null || (showBackButton && Navigator.canPop(context));
+      final refreshInTopBar = hasBack;
+
       return Container(
         decoration: BoxDecoration(
           gradient: const LinearGradient(
@@ -223,7 +230,7 @@ class _ScreenTimeHeaderDelegate extends SliverPersistentHeaderDelegate {
                 height: 46,
                 child: Row(
                   children: [
-                    if (selected != null || (showBackButton && Navigator.canPop(context))) ...[
+                    if (hasBack) ...[
                       Material(
                         color: Colors.transparent,
                         child: InkWell(
@@ -295,12 +302,16 @@ class _ScreenTimeHeaderDelegate extends SliverPersistentHeaderDelegate {
                       const SizedBox(width: 8),
                     ],
 
-                    // Refresh button (collapsed state only; expanded state
-                    // shows it in the content row below)
-                    Opacity(
-                      opacity: collapsedTitleOpacity,
-                      child: IgnorePointer(ignoring: collapsedTitleOpacity < 0.5, child: refreshButton()),
-                    ),
+                    // Refresh: always here when there is a back button;
+                    // otherwise fades in on collapse (the expanded state
+                    // shows it beside the title).
+                    if (refreshInTopBar)
+                      refreshButton()
+                    else
+                      Opacity(
+                        opacity: collapsedTitleOpacity,
+                        child: IgnorePointer(ignoring: collapsedTitleOpacity < 0.5, child: refreshButton()),
+                      ),
                   ],
                 ),
               ),
@@ -308,15 +319,10 @@ class _ScreenTimeHeaderDelegate extends SliverPersistentHeaderDelegate {
               // Expanded content (Amber dash, Overline, Large Title, Subtitle, Frosted pills)
               if (expandedOpacity > 0.05)
                 Positioned(
-                  top: topPadding +
-                      (selected != null
-                          ? 54
-                          : (showBackButton && Navigator.canPop(context) ? 56 : 20)),
+                  top: topPadding + (selected != null ? 54 : (hasBack ? 56 : 20)),
                   left: 20,
                   right: 20,
-                  bottom: selected != null
-                      ? 12
-                      : (showBackButton && Navigator.canPop(context) ? 18 : 24),
+                  bottom: selected != null ? 12 : (hasBack ? 18 : 24),
                   child: Opacity(
                     opacity: expandedOpacity,
                     child: Row(
@@ -405,9 +411,10 @@ class _ScreenTimeHeaderDelegate extends SliverPersistentHeaderDelegate {
                             ),
                           ),
                         ),
-                        const SizedBox(width: 12),
-                        // Aligned with the pills row at the bottom of the content
-                        refreshButton(),
+                        if (!refreshInTopBar) ...[
+                          const SizedBox(width: 12),
+                          refreshButton(),
+                        ],
                       ],
                     ),
                   ),

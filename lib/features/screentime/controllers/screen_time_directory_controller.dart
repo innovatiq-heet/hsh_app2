@@ -499,6 +499,22 @@ class ScreenTimeDirectoryController extends GetxController with WidgetsBindingOb
     return count;
   }
 
+  /// True while [filter]'s tile can't be told yet: the API sent no count for
+  /// it and the rest of the directory is still loading, so the loaded rows
+  /// would under-count it (Attention used to climb as the list was scrolled).
+  bool isDirectoryCountPending(String filter) {
+    if (filter == 'All') return false;
+    if (selectedGroup.value != 'All' ||
+        selectedFloor.value != 'All' ||
+        selectedStatus.value != 'All' ||
+        searchText.value.trim().isNotEmpty) {
+      return false;
+    }
+    if (serverCounts[filter] != null) return false;
+    return hasMoreStudents.value &&
+        (isLoadingStudents.value || isLoadingAllStudents.value);
+  }
+
   static bool _matchesDirectoryFilter(dynamic s, String filter, {bool allowWithoutRoom = false}) {
     if (!allowWithoutRoom && !hasValidRoom(s)) return false;
 
@@ -567,6 +583,19 @@ class ScreenTimeDirectoryController extends GetxController with WidgetsBindingOb
   final RxBool isLoadingMore = false.obs;
 
   final RxBool hasMoreStudents = true.obs;
+
+  /// The rest of the directory is loading in the background (see
+  /// [_loadRemainingStudents]).
+  final RxBool isLoadingAllStudents = false.obs;
+
+  /// Rows per request when loading the rest of the directory or refreshing
+  /// the loaded rows (the API's cap), so that takes one or two requests, not
+  /// one per [pageSize].
+  static const int _bulkPageSize = 1000;
+
+  /// Bumped by every full reload of the list, so a background load started
+  /// before it stops instead of merging rows at stale offsets.
+  int _listGeneration = 0;
 
   final RxInt visibleStudentCount = 20.obs;
 
@@ -1003,6 +1032,7 @@ class ScreenTimeDirectoryController extends GetxController with WidgetsBindingOb
     }
     if (!silent) isLoadingStudents.value = true;
     if (refresh) {
+      _listGeneration++;
       _serverLoadedCount = 0;
       hasMoreStudents.value = true;
       visibleStudentCount.value = uiBatchSize;
@@ -1061,7 +1091,66 @@ class ScreenTimeDirectoryController extends GetxController with WidgetsBindingOb
     if (query.isEmpty && !hasMoreStudents.value) {
       await _mergeHostelStudentsFromDirectory();
     }
-    if (directoryFilter.value != 'All' || query.isNotEmpty) {
+    if (query.isEmpty && hasMoreStudents.value) {
+      unawaited(_loadRemainingStudents());
+    } else if (directoryFilter.value != 'All' || query.isNotEmpty) {
+      unawaited(_fillViewport());
+    }
+  }
+
+  /// Loads the rest of the unfiltered directory in the background right after
+  /// its first page, in [_bulkPageSize] requests. The summary tiles (Attention,
+  /// Online, Locked) are counted from the loaded rows when the API sends no
+  /// count, so with only the first page they were too low and only went up as
+  /// the list was scrolled. The list itself still grows [uiBatchSize] rows at
+  /// a time ([visibleStudentCount]).
+  Future<void> _loadRemainingStudents() async {
+    if (isLoadingAllStudents.value || isLoadingMore.value) return;
+    final generation = _listGeneration;
+    bool stale() =>
+        generation != _listGeneration || searchFilterController.text.trim().isNotEmpty;
+
+    isLoadingAllStudents.value = true;
+    try {
+      for (var i = 0; i < 10 && hasMoreStudents.value && !stale(); i++) {
+        final page = await _repo.students(
+          limit: _bulkPageSize,
+          offset: _serverLoadedCount,
+          group: _groupScope,
+        );
+        if (stale()) return;
+        if (!page.hasPayload) break;
+
+        final loaded = page.students;
+        _serverLoadedCount += loaded.length;
+        if (page.totalReported && page.total > 0) {
+          totalStudentsCount.value = page.total;
+        }
+        if (loaded.isEmpty) {
+          hasMoreStudents.value = false;
+        } else if (page.totalReported && page.total > 0) {
+          hasMoreStudents.value = _serverLoadedCount < page.total;
+        } else {
+          hasMoreStudents.value = loaded.length >= _bulkPageSize;
+        }
+        if (loaded.isEmpty) break;
+
+        _mergeServerStudents(loaded, isRefresh: false);
+        _baseStudents
+          ..clear()
+          ..addAll(allStudents);
+        filterStudents(searchFilterController.text);
+      }
+    } catch (e) {
+      debugPrint('[ScreenTime] _loadRemainingStudents error: $e');
+    } finally {
+      isLoadingAllStudents.value = false;
+    }
+
+    if (!stale() && !hasMoreStudents.value) {
+      await _mergeHostelStudentsFromDirectory();
+    }
+    if (!stale() && directoryFilter.value != 'All') {
       unawaited(_fillViewport());
     }
   }
@@ -1242,7 +1331,7 @@ class ScreenTimeDirectoryController extends GetxController with WidgetsBindingOb
   }
 
   Future<void> fetchMoreStudents() async {
-    if (isLoadingMore.value || !hasMoreStudents.value) return;
+    if (isLoadingMore.value || isLoadingAllStudents.value || !hasMoreStudents.value) return;
     isLoadingMore.value = true;
     try {
       final query = searchFilterController.text.trim();
@@ -1296,6 +1385,7 @@ class ScreenTimeDirectoryController extends GetxController with WidgetsBindingOb
     while (hasMoreStudents.value &&
         !isLoadingStudents.value &&
         !isLoadingMore.value &&
+        !isLoadingAllStudents.value &&
         filteredStudents.length < uiBatchSize &&
         pages++ < 5) {
       await fetchMoreStudents();
@@ -1305,6 +1395,8 @@ class ScreenTimeDirectoryController extends GetxController with WidgetsBindingOb
   /// Silent periodic refresh: re-fetches the pages already loaded and updates
   /// them in place, so the list keeps its length and scroll position.
   Future<void> _refreshLoadedStudents() async {
+    // The rows being loaded in the background are fresh already.
+    if (isLoadingAllStudents.value) return;
     if (searchFilterController.text.trim().isNotEmpty ||
         _serverLoadedCount == 0 ||
         isLoadingMore.value) {
@@ -1313,8 +1405,11 @@ class ScreenTimeDirectoryController extends GetxController with WidgetsBindingOb
     }
     try {
       final end = _serverLoadedCount;
-      for (var offset = 0; offset < end; offset += _requestSize) {
-        final page = await _fetchPage(offset: offset);
+      // Large chunks: the whole directory is loaded now (see
+      // [_loadRemainingStudents]), so one request per 20 rows is too many.
+      for (var offset = 0; offset < end; offset += _bulkPageSize) {
+        final page = await _repo.students(
+            limit: _bulkPageSize, offset: offset, group: _groupScope);
         if (offset == 0) _captureServerCounts(page.body);
         if (page.students.isEmpty) break;
         _mergeServerStudents(page.students, isRefresh: false);
@@ -1325,6 +1420,10 @@ class ScreenTimeDirectoryController extends GetxController with WidgetsBindingOb
       filterStudents(searchFilterController.text);
     } catch (e) {
       debugPrint('[ScreenTime] _refreshLoadedStudents error: $e');
+    }
+    // A background load that failed earlier: try the rest again.
+    if (hasMoreStudents.value && searchFilterController.text.trim().isEmpty) {
+      unawaited(_loadRemainingStudents());
     }
   }
 

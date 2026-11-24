@@ -339,6 +339,31 @@ void main() {
     expect(controller.directoryCount('Online'), 1);
   });
 
+  test('tiles without an API count show as pending while the rest of the directory loads', () {
+    final controller = ScreenTimeDirectoryController();
+    controller.allStudents.assignAll([
+      {'id': 1, 'name': 'Alpha', 'room': '101', 'isOnline': 1},
+    ]);
+    controller.hasMoreStudents.value = true;
+    controller.isLoadingAllStudents.value = true;
+    controller.captureServerCountsForTest({
+      'data': {'students': [], 'total': 340, 'summary': {'online': 12}},
+    });
+
+    // The API counted Online; Attention is only known once every row is in.
+    expect(controller.isDirectoryCountPending('All'), isFalse);
+    expect(controller.isDirectoryCountPending('Online'), isFalse);
+    expect(controller.isDirectoryCountPending('Attention'), isTrue);
+    expect(controller.isDirectoryCountPending('Locked'), isTrue);
+
+    // Loaded (or the load gave up): the real count shows.
+    controller.isLoadingAllStudents.value = false;
+    expect(controller.isDirectoryCountPending('Attention'), isFalse);
+    controller.isLoadingAllStudents.value = true;
+    controller.hasMoreStudents.value = false;
+    expect(controller.isDirectoryCountPending('Attention'), isFalse);
+  });
+
   test('Offline tile is total minus online while only some pages are loaded', () {
     final controller = ScreenTimeDirectoryController();
     controller.allStudents.assignAll([

@@ -1,10 +1,12 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
+import 'package:super_sliver_list/super_sliver_list.dart';
 import 'package:url_launcher/url_launcher.dart';
 import '../../../core/models/geofence/student_location.dart';
 import '../../../core/network/repository/geofence/geofence_repository.dart';
 import '../../../core/utils/app_snackbar.dart';
+import '../../phonebook/widgets/alpha_scroll_rail.dart';
 
 /// Warden view of every student's last reported phone location.
 ///
@@ -24,8 +26,13 @@ class StudentLocationsController extends GetxController {
   final Rx<LocationStatus?> filter = Rx<LocationStatus?>(null);
 
   final searchController = TextEditingController();
+  final scrollController = ScrollController();
+  final listController = ListController();
 
   final RxBool isMapView = false.obs;
+  final RxBool sortByName = false.obs;
+  final RxMap<String, int> alphaIndex = <String, int>{}.obs;
+  final RxList<RailEntry> railEntries = <RailEntry>[].obs;
   final Rx<StudentLocation?> selectedStudent = Rx<StudentLocation?>(null);
   final RxList<Map<String, dynamic>> selectedStudentTrail = <Map<String, dynamic>>[].obs;
   final RxBool isLoadingTrail = false.obs;
@@ -124,12 +131,19 @@ class StudentLocationsController extends GetxController {
     }
     load();
     _timer = Timer.periodic(_refreshInterval, (_) => load(silent: true));
+
+    ever(students, (_) => _rebuildAlphaIndex());
+    ever(filter, (_) => _rebuildAlphaIndex());
+    ever(sortByName, (_) => _rebuildAlphaIndex());
+    debounce(query, (_) => _rebuildAlphaIndex(), time: const Duration(milliseconds: 150));
   }
 
   @override
   void onClose() {
     _timer?.cancel();
     searchController.dispose();
+    scrollController.dispose();
+    listController.dispose();
     super.onClose();
   }
 
@@ -143,14 +157,23 @@ class StudentLocationsController extends GetxController {
       if (students.isEmpty) loadError.value = 'Could not load student locations. Pull to retry.';
     } finally {
       isLoading.value = false;
+      _rebuildAlphaIndex();
     }
   }
 
-  void setFilter(LocationStatus? status) => filter.value = status;
+  void setFilter(LocationStatus? status) {
+    filter.value = status;
+    _rebuildAlphaIndex();
+  }
+
+  void toggleSortByName() {
+    sortByName.toggle();
+    _rebuildAlphaIndex();
+  }
 
   int countOf(LocationStatus status) => students.where((s) => s.status == status).length;
 
-  /// Filtered by status and search; students outside campus first, then by name.
+  /// Filtered by status and search; students outside campus first, then by name (or A-Z if sortByName).
   List<StudentLocation> get visible {
     final q = query.value.trim().toLowerCase();
     final f = filter.value;
@@ -163,10 +186,61 @@ class StudentLocationsController extends GetxController {
           s.phone.contains(q);
     }).toList()
       ..sort((a, b) {
+        if (sortByName.value) {
+          return a.name.toLowerCase().compareTo(b.name.toLowerCase());
+        }
         final byStatus = a.status.index.compareTo(b.status.index);
         return byStatus != 0 ? byStatus : a.name.toLowerCase().compareTo(b.name.toLowerCase());
       });
     return list;
+  }
+
+  String letterOf(String name) {
+    final trimmed = name.trimLeft();
+    if (trimmed.isEmpty) return '#';
+    final first = trimmed[0].toUpperCase();
+    final code = first.codeUnitAt(0);
+    if (code >= 65 && code <= 90) return first;
+    return '#';
+  }
+
+  void _rebuildAlphaIndex() {
+    final list = visible;
+    final Map<String, int> index = {};
+    for (int i = 0; i < list.length; i++) {
+      final s = list[i];
+      final letter = letterOf(s.name);
+      index.putIfAbsent(letter, () => i);
+    }
+    alphaIndex.assignAll(index);
+
+    final letters = index.keys.toList();
+    letters.sort((a, b) {
+      if (a == '#') return 1;
+      if (b == '#') return -1;
+      return a.compareTo(b);
+    });
+
+    railEntries.assignAll(
+      letters.map((l) => RailEntry(l, alumni: false)),
+    );
+  }
+
+  /// Jumps straight to the first student of a rail letter.
+  void scrollToRailEntry(RailEntry entry) {
+    if (!sortByName.value) {
+      sortByName.value = true;
+      _rebuildAlphaIndex();
+    }
+    final index = alphaIndex[entry.letter];
+    if (index == null || !scrollController.hasClients) return;
+    if (listController.isAttached) {
+      listController.jumpToItem(
+        index: index,
+        scrollController: scrollController,
+        alignment: 0,
+      );
+    }
   }
 
   Future<void> openInMaps(StudentLocation student) async {

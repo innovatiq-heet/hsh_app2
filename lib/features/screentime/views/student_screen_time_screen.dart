@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:get/get.dart';
+import '../../phonebook/widgets/alpha_scroll_rail.dart';
 import '../controllers/screen_time_directory_controller.dart';
 import '../widgets/student_overview_body.dart';
 import '../widgets/student_directory_view.dart';
@@ -38,41 +39,61 @@ class StudentScreenTimeScreen extends GetView<ScreenTimeDirectoryController> {
           },
           child: Scaffold(
             backgroundColor: const Color(0xFFF8FAFC),
-            body: RefreshIndicator(
-              onRefresh: controller.refreshAll,
-              color: const Color(0xFF0284C7),
-              backgroundColor: Colors.white,
-              child: NotificationListener<ScrollNotification>(
-                onNotification: (scrollInfo) {
-                  if (selected == null &&
-                      scrollInfo is ScrollUpdateNotification &&
-                      scrollInfo.metrics.extentAfter < 600) {
-                    controller.loadMoreItems();
-                  }
-                  return false;
-                },
-                child: CustomScrollView(
-                  controller: controller.pageScrollController,
-                  key: ValueKey(detail != null ? 'detail_${detail.tag}' : 'directory'),
-                  physics: const AlwaysScrollableScrollPhysics(parent: BouncingScrollPhysics()),
-                  slivers: [
-                    SliverPersistentHeader(
-                      pinned: true,
-                      delegate: _ScreenTimeHeaderDelegate(
-                        controller: controller,
-                        topPadding: MediaQuery.of(context).padding.top,
-                        showBackButton: showBackButton,
+            body: Stack(
+              children: [
+                RefreshIndicator(
+                  onRefresh: controller.refreshAll,
+                  color: const Color(0xFF0284C7),
+                  backgroundColor: Colors.white,
+                  child: NotificationListener<ScrollNotification>(
+                    onNotification: (scrollInfo) {
+                      if (selected == null &&
+                          scrollInfo is ScrollUpdateNotification &&
+                          scrollInfo.metrics.extentAfter < 600) {
+                        controller.loadMoreItems();
+                      }
+                      return false;
+                    },
+                    child: CustomScrollView(
+                      controller: controller.pageScrollController,
+                      key: ValueKey(detail != null ? 'detail_${detail.tag}' : 'directory'),
+                      physics: const AlwaysScrollableScrollPhysics(parent: BouncingScrollPhysics()),
+                      slivers: [
+                        SliverPersistentHeader(
+                          pinned: true,
+                          delegate: _ScreenTimeHeaderDelegate(
+                            controller: controller,
+                            topPadding: MediaQuery.of(context).padding.top,
+                            showBackButton: showBackButton,
+                          ),
+                        ),
+                        SliverPadding(
+                          padding: const EdgeInsets.fromLTRB(16, 12, 16, 16),
+                          sliver: detail == null
+                              ? const StudentDirectoryView()
+                              : SliverToBoxAdapter(child: StudentOverviewBody(controller: detail)),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+                if (detail == null &&
+                    selected == null &&
+                    controller.searchText.value.isEmpty &&
+                    controller.railEntries.length > 1)
+                  Positioned(
+                    right: 4,
+                    top: MediaQuery.of(context).padding.top + 68.0,
+                    bottom: MediaQuery.of(context).padding.bottom + 24.0,
+                    child: Align(
+                      alignment: Alignment.centerRight,
+                      child: AlphaScrollRail(
+                        entries: controller.railEntries,
+                        onSelected: controller.scrollToRailEntry,
                       ),
                     ),
-                    SliverPadding(
-                      padding: const EdgeInsets.fromLTRB(16, 12, 16, 16),
-                      sliver: detail == null
-                          ? const StudentDirectoryView()
-                          : SliverToBoxAdapter(child: StudentOverviewBody(controller: detail)),
-                    ),
-                  ],
-                ),
-              ),
+                  ),
+              ],
             ),
           ),
         );

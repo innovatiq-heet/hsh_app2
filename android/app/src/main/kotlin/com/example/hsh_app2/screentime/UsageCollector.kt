@@ -196,12 +196,15 @@ object UsageCollector {
 
         // Fallback: If queryEvents had no events (e.g. past days or cleared OS event logs)
         // or total calculated time is 0, query Android's aggregated daily stats.
+        // We only use this as a fallback because queryUsageStats daily buckets do NOT
+        // align with local midnight (often UTC / 24h rolling) and contain yesterday's data.
         if (perApp.isEmpty() || perApp.values.sum() == 0L) {
             val stats = runCatching {
                 usm.queryUsageStats(UsageStatsManager.INTERVAL_DAILY, dayStart, end)
             }.getOrNull()
             if (!stats.isNullOrEmpty()) {
                 for (stat in stats) {
+                    if (stat.lastTimeStamp <= dayStart) continue
                     val pkg = stat.packageName
                     val time = stat.totalTimeInForeground
                     if (time > 0 && pkg !in ignored) {

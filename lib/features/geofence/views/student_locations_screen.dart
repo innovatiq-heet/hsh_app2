@@ -1,8 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:get/get.dart';
+import 'package:super_sliver_list/super_sliver_list.dart';
 import '../../../core/models/geofence/student_location.dart';
 import '../../../core/utils/date_formatting.dart';
+import '../../phonebook/widgets/alpha_scroll_rail.dart';
 import '../../shared/widgets/empty_state.dart';
 import '../../shared/widgets/staggered_slide_fade.dart';
 import '../controllers/student_locations_controller.dart';
@@ -49,147 +51,208 @@ class StudentLocationsScreen extends GetView<StudentLocationsController> {
                 ),
           body: controller.isMapView.value
               ? CampusMapView(controller: controller)
-              : RefreshIndicator(
-          onRefresh: controller.load,
-          color: const Color(0xFF0284C7),
-          backgroundColor: Colors.white,
-          child: CustomScrollView(
-            physics: const AlwaysScrollableScrollPhysics(
-              parent: BouncingScrollPhysics(),
-            ),
-            slivers: [
-              SliverPersistentHeader(
-                pinned: true,
-                delegate: _StudentLocationsHeaderDelegate(
-                  controller: controller,
-                  topPadding: MediaQuery.of(context).padding.top,
-                ),
-              ),
+              : Stack(
+                  children: [
+                    RefreshIndicator(
+                      onRefresh: controller.load,
+                      color: const Color(0xFF0284C7),
+                      backgroundColor: Colors.white,
+                      child: CustomScrollView(
+                        controller: controller.scrollController,
+                        physics: const AlwaysScrollableScrollPhysics(
+                          parent: BouncingScrollPhysics(),
+                        ),
+                        slivers: [
+                          SliverPersistentHeader(
+                            pinned: true,
+                            delegate: _StudentLocationsHeaderDelegate(
+                              controller: controller,
+                              topPadding: MediaQuery.of(context).padding.top,
+                            ),
+                          ),
 
-              // Search bar
-              SliverToBoxAdapter(
-                child: Padding(
-                  padding: const EdgeInsets.fromLTRB(20, 16, 20, 0),
-                  child: _buildSearchBar(),
-                ),
-              ),
+                          // Search bar
+                          SliverToBoxAdapter(
+                            child: Padding(
+                              padding: const EdgeInsets.fromLTRB(20, 16, 20, 0),
+                              child: _buildSearchBar(),
+                            ),
+                          ),
 
-              // Filter chips
-              SliverToBoxAdapter(
-                child: Obx(_buildFilterChips),
-              ),
+                          // Filter chips
+                          SliverToBoxAdapter(
+                            child: Obx(_buildFilterChips),
+                          ),
 
-              // Section header
-              SliverToBoxAdapter(
-                child: Padding(
-                  padding: const EdgeInsets.fromLTRB(20, 6, 20, 12),
-                  child: Row(
-                    children: [
-                      Container(
-                        width: 20,
-                        height: 3.5,
-                        decoration: BoxDecoration(
-                          color: const Color(0xFFD97706),
-                          borderRadius: BorderRadius.circular(2),
+                          // Section header
+                          SliverToBoxAdapter(
+                            child: Padding(
+                              padding: const EdgeInsets.fromLTRB(20, 6, 20, 12),
+                              child: Row(
+                                children: [
+                                  Container(
+                                    width: 20,
+                                    height: 3.5,
+                                    decoration: BoxDecoration(
+                                      color: const Color(0xFFD97706),
+                                      borderRadius: BorderRadius.circular(2),
+                                    ),
+                                  ),
+                                  const SizedBox(width: 8),
+                                  Expanded(
+                                    child: Obx(() {
+                                      final filter = controller.filter.value;
+                                      final String sectionTitle;
+                                      switch (filter) {
+                                        case LocationStatus.outside:
+                                          sectionTitle = 'Outside Campus (${controller.countOf(LocationStatus.outside)})';
+                                          break;
+                                        case LocationStatus.inside:
+                                          sectionTitle = 'Inside Campus (${controller.countOf(LocationStatus.inside)})';
+                                          break;
+                                        case LocationStatus.noData:
+                                          sectionTitle = 'No GPS Fix (${controller.countOf(LocationStatus.noData)})';
+                                          break;
+                                        default:
+                                          sectionTitle = 'All Students (${controller.students.length})';
+                                      }
+
+                                      return Text(
+                                        sectionTitle,
+                                        style: const TextStyle(
+                                          fontSize: 17.5,
+                                          fontWeight: FontWeight.w800,
+                                          color: Color(0xFF0F172A),
+                                          letterSpacing: -0.2,
+                                        ),
+                                      );
+                                    }),
+                                  ),
+                                  Obx(() => InkWell(
+                                    onTap: controller.toggleSortByName,
+                                    borderRadius: BorderRadius.circular(8),
+                                    child: Container(
+                                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+                                      decoration: BoxDecoration(
+                                        color: controller.sortByName.value ? const Color(0xFFE0F2FE) : const Color(0xFFF1F5F9),
+                                        borderRadius: BorderRadius.circular(8),
+                                        border: Border.all(
+                                          color: controller.sortByName.value ? const Color(0xFF0284C7) : const Color(0xFFE2E8F0),
+                                        ),
+                                      ),
+                                      child: Row(
+                                        mainAxisSize: MainAxisSize.min,
+                                        children: [
+                                          Icon(
+                                            Icons.sort_by_alpha_rounded,
+                                            size: 16,
+                                            color: controller.sortByName.value ? const Color(0xFF0284C7) : const Color(0xFF64748B),
+                                          ),
+                                          const SizedBox(width: 4),
+                                          Text(
+                                            controller.sortByName.value ? 'A-Z' : 'Status',
+                                            style: TextStyle(
+                                              fontSize: 12,
+                                              fontWeight: FontWeight.w700,
+                                              color: controller.sortByName.value ? const Color(0xFF0284C7) : const Color(0xFF64748B),
+                                            ),
+                                          ),
+                                        ],
+                                      ),
+                                    ),
+                                  )),
+                                ],
+                              ),
+                            ),
+                          ),
+
+                          // List of students
+                          Obx(() {
+                            if (controller.isLoading.value) {
+                              return const SliverFillRemaining(
+                                hasScrollBody: false,
+                                child: Center(
+                                  child: CircularProgressIndicator(
+                                    color: Color(0xFF0284C7),
+                                  ),
+                                ),
+                              );
+                            }
+
+                            if (controller.loadError.value.isNotEmpty) {
+                              return SliverFillRemaining(
+                                hasScrollBody: false,
+                                child: EmptyState(
+                                  icon: Icons.cloud_off_rounded,
+                                  title: 'Locations Unavailable',
+                                  message: controller.loadError.value,
+                                  actionLabel: 'Retry',
+                                  onAction: controller.load,
+                                ),
+                              );
+                            }
+
+                            final items = controller.visible;
+                            if (items.isEmpty) {
+                              return const SliverFillRemaining(
+                                hasScrollBody: false,
+                                child: EmptyState(
+                                  icon: Icons.location_searching_rounded,
+                                  title: 'No Students Found',
+                                  message: 'Try adjusting your search query or filter selection.',
+                                ),
+                              );
+                            }
+
+                            return SliverPadding(
+                              padding: const EdgeInsets.fromLTRB(20, 0, 20, 36),
+                              sliver: SuperSliverList(
+                                listController: controller.listController,
+                                delegate: SliverChildBuilderDelegate(
+                                  (context, index) {
+                                    final card = _StudentLocationCard(
+                                      student: items[index],
+                                      controller: controller,
+                                    );
+                                    final child = Padding(
+                                      padding: const EdgeInsets.only(bottom: 12),
+                                      child: card,
+                                    );
+                                    if (index < 8) {
+                                      return StaggeredSlideFade(
+                                        index: index,
+                                        duration: const Duration(milliseconds: 280),
+                                        slideOffset: 12.0,
+                                        child: child,
+                                      );
+                                    }
+                                    return child;
+                                  },
+                                  childCount: items.length,
+                                ),
+                              ),
+                            );
+                          }),
+                        ],
+                      ),
+                    ),
+                    if (!controller.isMapView.value &&
+                        controller.query.value.isEmpty &&
+                        controller.railEntries.length > 1)
+                      Positioned(
+                        right: 4,
+                        top: MediaQuery.of(context).padding.top + 68.0,
+                        bottom: MediaQuery.of(context).padding.bottom + 80.0,
+                        child: Align(
+                          alignment: Alignment.centerRight,
+                          child: AlphaScrollRail(
+                            entries: controller.railEntries,
+                            onSelected: controller.scrollToRailEntry,
+                          ),
                         ),
                       ),
-                      const SizedBox(width: 8),
-                      Obx(() {
-                        final filter = controller.filter.value;
-                        final String sectionTitle;
-                        switch (filter) {
-                          case LocationStatus.outside:
-                            sectionTitle = 'Outside Campus (${controller.countOf(LocationStatus.outside)})';
-                            break;
-                          case LocationStatus.inside:
-                            sectionTitle = 'Inside Campus (${controller.countOf(LocationStatus.inside)})';
-                            break;
-                          case LocationStatus.noData:
-                            sectionTitle = 'No GPS Fix (${controller.countOf(LocationStatus.noData)})';
-                            break;
-                          default:
-                            sectionTitle = 'All Students (${controller.students.length})';
-                        }
-
-                        return Text(
-                          sectionTitle,
-                          style: const TextStyle(
-                            fontSize: 17.5,
-                            fontWeight: FontWeight.w800,
-                            color: Color(0xFF0F172A),
-                            letterSpacing: -0.2,
-                          ),
-                        );
-                      }),
-                    ],
-                  ),
+                  ],
                 ),
-              ),
-
-              // List of students
-              Obx(() {
-                if (controller.isLoading.value) {
-                  return const SliverFillRemaining(
-                    hasScrollBody: false,
-                    child: Center(
-                      child: CircularProgressIndicator(
-                        color: Color(0xFF0284C7),
-                      ),
-                    ),
-                  );
-                }
-
-                if (controller.loadError.value.isNotEmpty) {
-                  return SliverFillRemaining(
-                    hasScrollBody: false,
-                    child: EmptyState(
-                      icon: Icons.cloud_off_rounded,
-                      title: 'Locations Unavailable',
-                      message: controller.loadError.value,
-                      actionLabel: 'Retry',
-                      onAction: controller.load,
-                    ),
-                  );
-                }
-
-                final items = controller.visible;
-                if (items.isEmpty) {
-                  return const SliverFillRemaining(
-                    hasScrollBody: false,
-                    child: EmptyState(
-                      icon: Icons.location_searching_rounded,
-                      title: 'No Students Found',
-                      message: 'Try adjusting your search query or filter selection.',
-                    ),
-                  );
-                }
-
-                return SliverPadding(
-                  padding: const EdgeInsets.fromLTRB(20, 0, 20, 36),
-                  sliver: SliverList.separated(
-                    itemCount: items.length,
-                    separatorBuilder: (_, _) => const SizedBox(height: 12),
-                    itemBuilder: (_, i) {
-                      final card = _StudentLocationCard(
-                        student: items[i],
-                        controller: controller,
-                      );
-                      if (i < 8) {
-                        return StaggeredSlideFade(
-                          index: i,
-                          duration: const Duration(milliseconds: 280),
-                          slideOffset: 12.0,
-                          child: card,
-                        );
-                      }
-                      return card;
-                    },
-                  ),
-                );
-              }),
-            ],
-          ),
-        ),
       ),
     )),
   );

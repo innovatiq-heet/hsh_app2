@@ -9,9 +9,11 @@ import '../../../core/network/responses/screentime/students_page.dart';
 import '../../../core/storage/session_store.dart';
 import '../../../core/utils/apple_search_utils.dart';
 import '../../../core/utils/app_snackbar.dart';
+import 'package:super_sliver_list/super_sliver_list.dart';
 import '../../phonebook/models/phonebook_models.dart';
 import '../../phonebook/services/phonebook_database_service.dart';
 import '../../phonebook/services/phonebook_sync_service.dart';
+import '../../phonebook/widgets/alpha_scroll_rail.dart';
 import 'app_requests_host.dart';
 import 'screen_time_utils.dart';
 import 'student_detail_controller.dart';
@@ -558,6 +560,63 @@ class ScreenTimeDirectoryController extends GetxController with WidgetsBindingOb
   /// The screen's scroll position, so the Safety tab can scroll back to the
   /// top when it is tapped again.
   final ScrollController pageScrollController = ScrollController();
+
+  /// Drives the student SuperSliverList, allowing instant alphabetical jumps.
+  final listController = ListController();
+
+  /// Map of letter -> first index of student with that letter in [filteredStudents].
+  final alphaIndex = <String, int>{}.obs;
+
+  static String letterOf(String name) {
+    final clean = name.trim();
+    if (clean.isEmpty) return '#';
+    final first = clean[0].toUpperCase();
+    return RegExp(r'^[A-Z]$').hasMatch(first) ? first : '#';
+  }
+
+  /// Rail entries for AlphaScrollRail. Notice [alumni] is always false so it
+  /// only displays the Students tab.
+  List<RailEntry> get railEntries {
+    final letters = alphaIndex.keys.toList()
+      ..sort((a, b) {
+        if (a == '#') return 1;
+        if (b == '#') return -1;
+        return a.compareTo(b);
+      });
+    return [
+      for (final l in letters) RailEntry(l, alumni: false),
+    ];
+  }
+
+  void _rebuildAlphaIndex(List<dynamic> list) {
+    final map = <String, int>{};
+    for (int i = 0; i < list.length; i++) {
+      final s = list[i];
+      final name = (s is Map ? (s['name'] ?? s['fullName'] ?? '') : '').toString();
+      final letter = letterOf(name);
+      map.putIfAbsent(letter, () => i);
+    }
+    alphaIndex.assignAll(map);
+  }
+
+  /// Jumps straight to the first student of a rail letter.
+  void scrollToRailEntry(RailEntry entry) {
+    if (selectedSort.value != 'Name (A-Z)') {
+      selectSort('Name (A-Z)');
+    }
+    final index = alphaIndex[entry.letter];
+    if (index == null || !pageScrollController.hasClients) return;
+    if (visibleStudentCount.value <= index) {
+      visibleStudentCount.value = (index + uiBatchSize).clamp(0, filteredStudents.length);
+    }
+    if (listController.isAttached) {
+      listController.jumpToItem(
+        index: index,
+        scrollController: pageScrollController,
+        alignment: 0,
+      );
+    }
+  }
 
   void scrollToTop() {
     if (!pageScrollController.hasClients) return;
@@ -1631,6 +1690,7 @@ class ScreenTimeDirectoryController extends GetxController with WidgetsBindingOb
     }
 
     filteredStudents.assignAll(deduplicated);
+    _rebuildAlphaIndex(deduplicated);
   }
 
   /// Fetch pending app installation requests for all students or a specific student

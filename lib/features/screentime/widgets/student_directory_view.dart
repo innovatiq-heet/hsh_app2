@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:intl/intl.dart';
+import 'package:super_sliver_list/super_sliver_list.dart';
 import '../../../core/constants/app_dimens.dart';
 import '../../../core/enums/user_role.dart';
 import '../../../core/models/geofence/geofence_policy_model.dart';
@@ -125,16 +126,23 @@ class StudentDirectoryView extends GetView<ScreenTimeDirectoryController> {
 
     return SliverMainAxisGroup(
       slivers: [
-        SliverList.separated(
-          itemCount: shown,
-          separatorBuilder: (_, _) => const SizedBox(height: AppDimens.gapSm),
-          findItemIndexCallback: (key) {
-            if (key is! ValueKey<String>) return null;
-            final i = list.indexWhere((s) => _rowKey(s) == key.value);
-            return i < 0 || i >= shown ? null : i;
-          },
-          itemBuilder: (_, i) =>
-              _StudentRow(key: ValueKey(_rowKey(list[i])), student: list[i]),
+        SuperSliverList(
+          listController: controller.listController,
+          delegate: SliverChildBuilderDelegate(
+            (_, i) {
+              final student = list[i];
+              return Padding(
+                padding: const EdgeInsets.only(bottom: AppDimens.gapSm),
+                child: _StudentRow(key: ValueKey(_rowKey(student)), student: student),
+              );
+            },
+            childCount: shown,
+            findChildIndexCallback: (key) {
+              if (key is! ValueKey<String>) return null;
+              final i = list.indexWhere((s) => _rowKey(s) == key.value);
+              return i < 0 || i >= shown ? null : i;
+            },
+          ),
         ),
         if (hasMoreToShow)
           SliverToBoxAdapter(

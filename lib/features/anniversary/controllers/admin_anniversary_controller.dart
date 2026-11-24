@@ -79,6 +79,9 @@ class AdminAnniversaryController extends GetxController {
   ];
 
   // Filters & Sorting state
+  static const int uiBatchSize = 25;
+  final RxInt visibleStudentCount = 25.obs;
+
   final RxString selectedGroup = 'All'.obs;
   final RxString selectedFloor = 'All'.obs;
   final RxString selectedStatus = 'All'.obs;
@@ -147,6 +150,7 @@ class AdminAnniversaryController extends GetxController {
     loadDashboard();
     searchController.addListener(() {
       searchQuery.value = searchController.text.trim();
+      visibleStudentCount.value = uiBatchSize;
     });
   }
 
@@ -163,10 +167,18 @@ class AdminAnniversaryController extends GetxController {
     super.onClose();
   }
 
+  void loadMoreStudents() {
+    if (visibleStudentCount.value < filteredStudents.length) {
+      visibleStudentCount.value =
+          (visibleStudentCount.value + uiBatchSize).clamp(0, filteredStudents.length);
+    }
+  }
+
   // --- Filter Selectors ---
 
   void selectGroup(String group) {
     if (isLeader.value) return;
+    visibleStudentCount.value = uiBatchSize;
     if (selectedGroup.value == group) {
       selectedGroup.value = 'All';
     } else {
@@ -175,6 +187,7 @@ class AdminAnniversaryController extends GetxController {
   }
 
   void selectFloor(String floor) {
+    visibleStudentCount.value = uiBatchSize;
     if (selectedFloor.value == floor) {
       selectedFloor.value = 'All';
     } else {
@@ -183,6 +196,7 @@ class AdminAnniversaryController extends GetxController {
   }
 
   void selectStatus(String status) {
+    visibleStudentCount.value = uiBatchSize;
     if (selectedStatus.value == status) {
       selectedStatus.value = 'All';
       if (directoryFilter.value == 'hostel' || directoryFilter.value == 'alumni') {
@@ -199,10 +213,12 @@ class AdminAnniversaryController extends GetxController {
   }
 
   void selectSort(String sort) {
+    visibleStudentCount.value = uiBatchSize;
     selectedSort.value = sort;
   }
 
   void toggleOnlyWithAnniversaryDate(bool val) {
+    visibleStudentCount.value = uiBatchSize;
     onlyWithAnniversaryDate.value = val;
     if (val) {
       onlyWithoutAnniversaryDate.value = false;
@@ -211,6 +227,7 @@ class AdminAnniversaryController extends GetxController {
   }
 
   void toggleOnlyWithoutAnniversaryDate(bool val) {
+    visibleStudentCount.value = uiBatchSize;
     onlyWithoutAnniversaryDate.value = val;
     if (val) {
       onlyWithAnniversaryDate.value = false;
@@ -219,14 +236,17 @@ class AdminAnniversaryController extends GetxController {
   }
 
   void toggleOnlyWithFatherPhone(bool val) {
+    visibleStudentCount.value = uiBatchSize;
     onlyWithFatherPhone.value = val;
   }
 
   void toggleOnlyWithMotherPhone(bool val) {
+    visibleStudentCount.value = uiBatchSize;
     onlyWithMotherPhone.value = val;
   }
 
   void toggleOnlyWithBothPhones(bool val) {
+    visibleStudentCount.value = uiBatchSize;
     onlyWithBothPhones.value = val;
   }
 
@@ -234,6 +254,7 @@ class AdminAnniversaryController extends GetxController {
   String? groupFor(AnniversaryStudentRecord s) => s.groupName;
 
   void resetAllFilters() {
+    visibleStudentCount.value = uiBatchSize;
     selectedGroup.value = isLeader.value ? (leaderGroup.value ?? 'All') : 'All';
     selectedFloor.value = 'All';
     selectedStatus.value = 'All';
@@ -381,6 +402,7 @@ class AdminAnniversaryController extends GetxController {
         group: isLeader.value ? leaderGroup.value : null,
       );
       allStudents.value = list;
+      visibleStudentCount.value = uiBatchSize;
     } catch (e) {
       AppSnackbar.warning('Directory Error', 'Could not load anniversary directory: $e');
     } finally {

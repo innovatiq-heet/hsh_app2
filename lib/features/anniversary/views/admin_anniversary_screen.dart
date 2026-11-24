@@ -530,32 +530,56 @@ class AdminAnniversaryScreen extends GetView<AdminAnniversaryController> {
                         children: [
                           Flexible(
                             child: Text(
-                              record.parentsNames,
+                              record.name,
                               style: const TextStyle(
                                 fontWeight: FontWeight.w800,
-                                fontSize: 15,
+                                fontSize: 15.5,
                                 color: Color(0xFF0F172A),
                                 letterSpacing: -0.2,
                               ),
-                              maxLines: 1,
+                              maxLines: 2,
                               overflow: TextOverflow.ellipsis,
                             ),
                           ),
-                          const SizedBox(width: 6),
+                          const SizedBox(width: 5),
                           const Text('💍', style: TextStyle(fontSize: 13)),
                         ],
                       ),
                       const SizedBox(height: 3),
-                      Text(
-                        "Student: ${record.name} • Room ${record.room}",
-                        style: const TextStyle(
-                          fontSize: 12,
-                          fontWeight: FontWeight.w600,
-                          color: Color(0xFF64748B),
+                      if (record.room.isNotEmpty && record.room != 'N/A' && !isAlumni)
+                        Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2),
+                          decoration: BoxDecoration(
+                            color: const Color(0xFFEFF6FF),
+                            borderRadius: BorderRadius.circular(6),
+                            border: Border.all(color: const Color(0xFFBFDBFE)),
+                          ),
+                          child: Text(
+                            'Room ${record.room}',
+                            style: const TextStyle(
+                              fontSize: 11,
+                              fontWeight: FontWeight.w700,
+                              color: Color(0xFF1D4ED8),
+                            ),
+                          ),
+                        )
+                      else if (isAlumni)
+                        Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2),
+                          decoration: BoxDecoration(
+                            color: const Color(0xFFF3E8FF),
+                            borderRadius: BorderRadius.circular(6),
+                            border: Border.all(color: const Color(0xFFE9D5FF)),
+                          ),
+                          child: const Text(
+                            'Alumni',
+                            style: TextStyle(
+                              fontSize: 11,
+                              fontWeight: FontWeight.w700,
+                              color: Color(0xFF9333EA),
+                            ),
+                          ),
                         ),
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                      ),
                     ],
                   ),
                 ),
@@ -639,39 +663,41 @@ class AdminAnniversaryScreen extends GetView<AdminAnniversaryController> {
             padding: const EdgeInsets.all(12),
             child: Column(
               children: [
-                Row(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    // FATHER SUB-CARD
-                    Expanded(
-                      child: _buildParentSubCard(
-                        context: context,
-                        record: record,
-                        title: 'Father',
-                        name: record.fatherName.isNotEmpty ? record.fatherName : 'Father',
-                        phone: record.fatherPhone,
-                        icon: Icons.person_rounded,
-                        accentColor: const Color(0xFF0284C7),
-                        bgColor: const Color(0xFFF0F9FF),
-                        recipientType: 'father',
+                IntrinsicHeight(
+                  child: Row(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      // FATHER SUB-CARD
+                      Expanded(
+                        child: _buildParentSubCard(
+                          context: context,
+                          record: record,
+                          title: 'Father',
+                          name: record.fatherName.isNotEmpty ? record.fatherName : 'Father',
+                          phone: record.fatherPhone,
+                          icon: Icons.person_rounded,
+                          accentColor: const Color(0xFF0284C7),
+                          bgColor: const Color(0xFFF0F9FF),
+                          recipientType: 'father',
+                        ),
                       ),
-                    ),
-                    const SizedBox(width: 10),
-                    // MOTHER SUB-CARD
-                    Expanded(
-                      child: _buildParentSubCard(
-                        context: context,
-                        record: record,
-                        title: 'Mother',
-                        name: record.motherName.isNotEmpty ? record.motherName : 'Mother',
-                        phone: record.motherPhone,
-                        icon: Icons.face_3_rounded,
-                        accentColor: const Color(0xFFD946EF),
-                        bgColor: const Color(0xFFFDF4FF),
-                        recipientType: 'mother',
+                      const SizedBox(width: 10),
+                      // MOTHER SUB-CARD
+                      Expanded(
+                        child: _buildParentSubCard(
+                          context: context,
+                          record: record,
+                          title: 'Mother',
+                          name: record.motherName.isNotEmpty ? record.motherName : 'Mother',
+                          phone: record.motherPhone,
+                          icon: Icons.face_3_rounded,
+                          accentColor: const Color(0xFFD946EF),
+                          bgColor: const Color(0xFFFDF4FF),
+                          recipientType: 'mother',
+                        ),
                       ),
-                    ),
-                  ],
+                    ],
+                  ),
                 ),
                 const SizedBox(height: 12),
 
@@ -757,7 +783,7 @@ class AdminAnniversaryScreen extends GetView<AdminAnniversaryController> {
     final hasPhone = clean.length >= 6;
 
     return Container(
-      padding: const EdgeInsets.all(11),
+      padding: const EdgeInsets.all(10),
       decoration: BoxDecoration(
         color: bgColor,
         borderRadius: BorderRadius.circular(14),
@@ -778,34 +804,37 @@ class AdminAnniversaryScreen extends GetView<AdminAnniversaryController> {
                 child: Icon(icon, size: 17, color: accentColor),
               ),
               const SizedBox(width: 8),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      title,
-                      style: TextStyle(
-                        fontSize: 11,
-                        fontWeight: FontWeight.w800,
-                        color: accentColor,
-                      ),
-                    ),
-                    Text(
-                      name,
-                      style: const TextStyle(
-                        fontSize: 12.5,
-                        fontWeight: FontWeight.w700,
-                        color: Color(0xFF1E293B),
-                      ),
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                    ),
-                  ],
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2.5),
+                decoration: BoxDecoration(
+                  color: accentColor.withValues(alpha: 0.12),
+                  borderRadius: BorderRadius.circular(6),
+                ),
+                child: Text(
+                  title,
+                  style: TextStyle(
+                    fontSize: 11,
+                    fontWeight: FontWeight.w800,
+                    color: accentColor,
+                  ),
                 ),
               ),
             ],
           ),
-          const SizedBox(height: 2),
+          const SizedBox(height: 6),
+          // Full parent name (Father or Mother): allowed up to 2 lines across the card width
+          Text(
+            name,
+            style: const TextStyle(
+              fontSize: 12.5,
+              fontWeight: FontWeight.w700,
+              color: Color(0xFF1E293B),
+              height: 1.25,
+            ),
+            maxLines: 2,
+            overflow: TextOverflow.ellipsis,
+          ),
+          const SizedBox(height: 3),
           Text(
             hasPhone ? phone : 'No phone listed',
             style: TextStyle(
@@ -816,6 +845,7 @@ class AdminAnniversaryScreen extends GetView<AdminAnniversaryController> {
             maxLines: 1,
             overflow: TextOverflow.ellipsis,
           ),
+          const Spacer(),
           const SizedBox(height: 8),
 
           // Actions: Call and WhatsApp (opens this phone's WhatsApp with the wish)
@@ -1064,10 +1094,42 @@ class AdminAnniversaryScreen extends GetView<AdminAnniversaryController> {
           }
 
           final currentFilter = controller.directoryFilter.value;
+          final visibleCount = controller.visibleStudentCount.value;
           final hostelStudents = list.where((s) => !s.isAlumni).toList();
           final alumniStudents = list.where((s) => s.isAlumni).toList();
 
+          final bool hasMore = visibleCount < list.length;
+
+          Widget buildLoadMoreButton() {
+            if (!hasMore) return const SizedBox.shrink();
+            final remaining = list.length - visibleCount;
+            return Padding(
+              padding: const EdgeInsets.only(top: 14, bottom: 8),
+              child: Center(
+                child: SizedBox(
+                  height: 42,
+                  child: OutlinedButton.icon(
+                    onPressed: controller.loadMoreStudents,
+                    icon: const Icon(Icons.expand_more_rounded, size: 18),
+                    label: Text(
+                      'Load More ($remaining Remaining)',
+                      style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 13),
+                    ),
+                    style: OutlinedButton.styleFrom(
+                      foregroundColor: const Color(0xFF0284C7),
+                      side: const BorderSide(color: Color(0xFFBAE6FD), width: 1.2),
+                      backgroundColor: const Color(0xFFF0F9FF),
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                      padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 8),
+                    ),
+                  ),
+                ),
+              ),
+            );
+          }
+
           if (currentFilter == 'hostel') {
+            final visibleItems = hostelStudents.take(visibleCount).toList();
             return Column(
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
@@ -1076,12 +1138,14 @@ class AdminAnniversaryScreen extends GetView<AdminAnniversaryController> {
                   trailing: _buildHeaderTag('ACTIVE RESIDENTS', const Color(0xFFE0F2FE), const Color(0xFF0284C7)),
                 ),
                 const SizedBox(height: 10),
-                ...hostelStudents.map((s) => _buildDirectoryStudentCard(context, s)),
+                ...visibleItems.map((s) => _buildDirectoryStudentCard(context, s)),
+                buildLoadMoreButton(),
               ],
             );
           }
 
           if (currentFilter == 'alumni') {
+            final visibleItems = alumniStudents.take(visibleCount).toList();
             return Column(
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
@@ -1090,32 +1154,38 @@ class AdminAnniversaryScreen extends GetView<AdminAnniversaryController> {
                   trailing: _buildHeaderTag('ALUMNI', const Color(0xFFF3E8FF), const Color(0xFF9333EA)),
                 ),
                 const SizedBox(height: 10),
-                ...alumniStudents.map((s) => _buildDirectoryStudentCard(context, s)),
+                ...visibleItems.map((s) => _buildDirectoryStudentCard(context, s)),
+                buildLoadMoreButton(),
               ],
             );
           }
 
           // Default: Hostel Residents FIRST, then Alumni Students AFTERWARDS!
+          final visibleHostel = hostelStudents.take(visibleCount).toList();
+          final remainingCount = (visibleCount - visibleHostel.length).clamp(0, alumniStudents.length);
+          final visibleAlumni = alumniStudents.take(remainingCount).toList();
+
           return Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              if (hostelStudents.isNotEmpty) ...[
+              if (visibleHostel.isNotEmpty) ...[
                 _buildSectionHeader(
                   title: 'Hostel Residents (${hostelStudents.length})',
                   trailing: _buildHeaderTag('ACTIVE RESIDENTS FIRST', const Color(0xFFE0F2FE), const Color(0xFF0284C7)),
                 ),
                 const SizedBox(height: 10),
-                ...hostelStudents.map((s) => _buildDirectoryStudentCard(context, s)),
+                ...visibleHostel.map((s) => _buildDirectoryStudentCard(context, s)),
               ],
-              if (alumniStudents.isNotEmpty) ...[
+              if (visibleAlumni.isNotEmpty) ...[
                 const SizedBox(height: 20),
                 _buildSectionHeader(
                   title: 'Alumni Students (${alumniStudents.length})',
                   trailing: _buildHeaderTag('ALUMNI', const Color(0xFFF3E8FF), const Color(0xFF9333EA)),
                 ),
                 const SizedBox(height: 10),
-                ...alumniStudents.map((s) => _buildDirectoryStudentCard(context, s)),
+                ...visibleAlumni.map((s) => _buildDirectoryStudentCard(context, s)),
               ],
+              buildLoadMoreButton(),
             ],
           );
         }),
@@ -1183,10 +1253,10 @@ class AdminAnniversaryScreen extends GetView<AdminAnniversaryController> {
                   children: [
                     Flexible(
                       child: Text(
-                        s.parentsNames,
+                        s.name,
                         style: const TextStyle(
                           fontWeight: FontWeight.w700,
-                          fontSize: 13.5,
+                          fontSize: 14,
                           color: Color(0xFF0F172A),
                         ),
                         maxLines: 1,
@@ -1195,19 +1265,40 @@ class AdminAnniversaryScreen extends GetView<AdminAnniversaryController> {
                     ),
                     const SizedBox(width: 4),
                     const Text('💍', style: TextStyle(fontSize: 11)),
+                    if (s.room.isNotEmpty && s.room != 'N/A' && !isAlumni) ...[
+                      const SizedBox(width: 6),
+                      Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 1.5),
+                        decoration: BoxDecoration(
+                          color: const Color(0xFFEFF6FF),
+                          borderRadius: BorderRadius.circular(6),
+                          border: Border.all(color: const Color(0xFFBFDBFE)),
+                        ),
+                        child: Text(
+                          'Room ${s.room}',
+                          style: const TextStyle(
+                            fontSize: 10.5,
+                            fontWeight: FontWeight.w700,
+                            color: Color(0xFF1D4ED8),
+                          ),
+                        ),
+                      ),
+                    ],
                   ],
                 ),
-                const SizedBox(height: 2),
-                Text(
-                  "Student: ${s.name}",
-                  style: const TextStyle(
-                    fontSize: 11.5,
-                    color: Color(0xFF64748B),
-                    fontWeight: FontWeight.w500,
+                if (s.parentsNames.isNotEmpty) ...[
+                  const SizedBox(height: 2),
+                  Text(
+                    'Parents: ${s.parentsNames}',
+                    style: const TextStyle(
+                      fontSize: 11.5,
+                      color: Color(0xFF64748B),
+                      fontWeight: FontWeight.w500,
+                    ),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
                   ),
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                ),
+                ],
                 const SizedBox(height: 4),
                 Wrap(
                   spacing: 6,
@@ -3052,7 +3143,7 @@ class _AdminAnniversaryHeaderDelegate extends SliverPersistentHeaderDelegate {
                             ? (controller.leaderGroup.value != null
                                 ? '${controller.leaderGroup.value} Anniversaries'
                                 : 'Group Anniversaries')
-                            : "Parents' Anniversary";
+                            : 'Parents Anniversary';
                         return Text(
                           title,
                           style: const TextStyle(
@@ -3201,15 +3292,6 @@ class _AdminAnniversaryHeaderDelegate extends SliverPersistentHeaderDelegate {
                       mainAxisSize: MainAxisSize.min,
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        Container(
-                          width: 28,
-                          height: 3.5,
-                          decoration: BoxDecoration(
-                            color: const Color(0xFFEAAB78),
-                            borderRadius: BorderRadius.circular(2),
-                          ),
-                        ),
-                        const SizedBox(height: 6),
                         Obx(() {
                           final isLeader = controller.isLeader.value;
                           final group = controller.leaderGroup.value;
@@ -3217,8 +3299,8 @@ class _AdminAnniversaryHeaderDelegate extends SliverPersistentHeaderDelegate {
                               ? (group != null ? '$group GROUP LEADER' : 'LEADER PORTAL')
                               : 'AUTOMATED GREETINGS & CELEBRANTS';
                           final title = isLeader
-                              ? (group != null ? '$group Celebrants' : "Parents' Anniversary")
-                              : "Parents' Anniversary";
+                              ? (group != null ? '$group Celebrants' : 'Parents Anniversary')
+                              : 'Parents Anniversary';
                           final subtitle = isLeader
                               ? (group != null
                                   ? 'Wish $group group families on marriage anniversaries'
@@ -3230,10 +3312,10 @@ class _AdminAnniversaryHeaderDelegate extends SliverPersistentHeaderDelegate {
                             children: [
                               Text(
                                 overline.toUpperCase(),
-                                style: TextStyle(
-                                  color: Colors.white.withValues(alpha: 0.72),
-                                  fontSize: 10.5,
-                                  fontWeight: FontWeight.w700,
+                                style: const TextStyle(
+                                  color: Color(0xFFEAAB78),
+                                  fontSize: 11,
+                                  fontWeight: FontWeight.w800,
                                   letterSpacing: 1.2,
                                 ),
                               ),

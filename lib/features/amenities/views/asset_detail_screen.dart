@@ -11,6 +11,23 @@ import '../../shared/widgets/phonebook_style_widgets.dart';
 import '../utils/amenity_format.dart';
 import '../widgets/amenity_sheets.dart';
 
+/// Luminous circular background orb painter matching Phonebook & Screen Time headers.
+class _AssetDetailOrbPainter extends CustomPainter {
+  @override
+  void paint(Canvas canvas, Size size) {
+    final strokePaint = Paint()
+      ..color = Colors.white.withValues(alpha: 0.05)
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 1.2;
+
+    canvas.drawCircle(Offset(size.width * 0.88, size.height * 0.08), size.width * 0.38, strokePaint);
+    canvas.drawCircle(Offset(size.width * 0.88, size.height * 0.08), size.width * 0.62, strokePaint);
+  }
+
+  @override
+  bool shouldRepaint(covariant CustomPainter oldDelegate) => false;
+}
+
 /// One individually tracked asset: Overview, Lifecycle, Assignments and
 /// Activity, with the actions its state allows. Opened from lists, a room,
 /// a student's amenities or a scanned QR code.
@@ -61,7 +78,8 @@ class _AssetDetailScreenState extends State<AssetDetailScreen> {
     }
   }
 
-  Future<List<AmenityLocation>> _locs() async => _locations ??= await _repo.locations().catchError((_) => <AmenityLocation>[]);
+  Future<List<AmenityLocation>> _locs() async =>
+      _locations ??= await _repo.locations().catchError((_) => <AmenityLocation>[]);
 
   Future<void> _assign({bool transfer = false}) async {
     final a = _asset!;
@@ -94,17 +112,46 @@ class _AssetDetailScreenState extends State<AssetDetailScreen> {
     showDialog<void>(
       context: context,
       builder: (c) => AlertDialog(
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
         content: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            SizedBox(width: 220, height: 220, child: QrImageView(data: a.qrPayload ?? a.assetCode, backgroundColor: Colors.white)),
-            const SizedBox(height: 10),
-            SelectableText(a.assetCode, style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w800, letterSpacing: 1)),
-            Text('${a.typeName}${a.label == null ? '' : ' · ${a.label}'}', style: const TextStyle(color: PhonebookTheme.muted)),
+            Container(
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(
+                color: Colors.white,
+                borderRadius: BorderRadius.circular(16),
+                border: Border.all(color: PhonebookTheme.border),
+              ),
+              child: SizedBox(
+                width: 200,
+                height: 200,
+                child: QrImageView(data: a.qrPayload ?? a.assetCode, backgroundColor: Colors.white),
+              ),
+            ),
+            const SizedBox(height: 14),
+            SelectableText(
+              a.assetCode,
+              style: const TextStyle(fontSize: 19, fontWeight: FontWeight.w800, letterSpacing: 0.8, color: PhonebookTheme.ink),
+            ),
+            const SizedBox(height: 2),
+            Text(
+              '${a.typeName}${a.label == null ? '' : ' · ${a.label}'}',
+              style: const TextStyle(color: PhonebookTheme.muted, fontSize: 13),
+            ),
           ],
         ),
-        actions: [TextButton(onPressed: () => Navigator.pop(c), child: const Text('Close'))],
+        actions: [
+          TextButton.icon(
+            onPressed: () {
+              Clipboard.setData(ClipboardData(text: a.qrPayload ?? a.assetCode));
+              AppSnackbar.success('Copied', 'QR data copied to clipboard.');
+            },
+            icon: const Icon(Icons.copy_rounded, size: 16),
+            label: const Text('Copy Data'),
+          ),
+          TextButton(onPressed: () => Navigator.pop(c), child: const Text('Close')),
+        ],
       ),
     );
   }
@@ -112,37 +159,209 @@ class _AssetDetailScreenState extends State<AssetDetailScreen> {
   @override
   Widget build(BuildContext context) {
     final a = _asset;
+
     return DefaultTabController(
       length: 4,
       child: Scaffold(
         backgroundColor: PhonebookTheme.bg,
-        appBar: AppBar(
-          backgroundColor: const Color(0xFF032B4F),
-          foregroundColor: Colors.white,
-          title: Text(a?.assetCode ?? 'Item', style: const TextStyle(fontWeight: FontWeight.w800)),
-          actions: [
-            if (a != null) IconButton(tooltip: 'Show QR', onPressed: _showQr, icon: const Icon(Icons.qr_code_2_rounded)),
+        body: Column(
+          children: [
+            // Signature Deep Navy Header with Segmented Tabs
+            _buildHeader(context, a),
+
+            // Tab Views Content
+            Expanded(
+              child: _loading && a == null
+                  ? const Center(child: CircularProgressIndicator(color: PhonebookTheme.blue, strokeWidth: 2.2))
+                  : (_error != null && a == null)
+                      ? _ErrorBlock(message: _error!, onRetry: _load)
+                      : TabBarView(
+                          children: [
+                            RefreshIndicator(
+                              onRefresh: _load,
+                              color: PhonebookTheme.blue,
+                              backgroundColor: Colors.white,
+                              child: _overview(a!),
+                            ),
+                            AmenityEventsList(
+                              key: ValueKey('ev$_version'),
+                              load: (o) => _repo.assetEvents(a.id, offset: o),
+                            ),
+                            _AssignmentsTab(
+                              key: ValueKey('as$_version'),
+                              repo: _repo,
+                              assetId: a.id,
+                              onChanged: _load,
+                            ),
+                            AmenityEventsList(
+                              key: ValueKey('ac$_version'),
+                              load: (o) => _repo.activity(assetId: a.id, offset: o),
+                              activity: true,
+                            ),
+                          ],
+                        ),
+            ),
           ],
-          bottom: const TabBar(
-            isScrollable: true,
-            labelColor: Colors.white,
-            unselectedLabelColor: Colors.white70,
-            indicatorColor: PhonebookTheme.amberBright,
-            tabs: [Tab(text: 'Overview'), Tab(text: 'Lifecycle'), Tab(text: 'Assignments'), Tab(text: 'Activity')],
-          ),
         ),
-        body: _loading && a == null
-            ? const Center(child: CircularProgressIndicator(strokeWidth: 2))
-            : (_error != null && a == null)
-                ? _ErrorBlock(message: _error!, onRetry: _load)
-                : TabBarView(
-                    children: [
-                      RefreshIndicator(onRefresh: _load, child: _overview(a!)),
-                      AmenityEventsList(key: ValueKey('ev$_version'), load: (o) => _repo.assetEvents(a.id, offset: o)),
-                      _AssignmentsTab(key: ValueKey('as$_version'), repo: _repo, assetId: a.id, onChanged: _load),
-                      AmenityEventsList(key: ValueKey('ac$_version'), load: (o) => _repo.activity(assetId: a.id, offset: o), activity: true),
-                    ],
+      ),
+    );
+  }
+
+  Widget _buildHeader(BuildContext context, AmenityAsset? a) {
+    return Container(
+      decoration: const BoxDecoration(
+        gradient: PhonebookTheme.headerGradient,
+        borderRadius: BorderRadius.vertical(bottom: Radius.circular(24)),
+        boxShadow: [
+          BoxShadow(
+            color: Color(0x3803192E),
+            blurRadius: 16,
+            offset: Offset(0, 4),
+          ),
+        ],
+      ),
+      child: ClipRRect(
+        borderRadius: const BorderRadius.vertical(bottom: Radius.circular(24)),
+        child: Stack(
+          children: [
+            Positioned.fill(child: CustomPaint(painter: _AssetDetailOrbPainter())),
+            SafeArea(
+              bottom: false,
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Padding(
+                    padding: const EdgeInsets.fromLTRB(14, 6, 14, 0),
+                    child: Row(
+                      children: [
+                        PhonebookHeaderCircleButton(
+                          icon: Icons.arrow_back_rounded,
+                          tooltip: 'Back',
+                          onTap: () => Navigator.of(context).maybePop(),
+                        ),
+                        const SizedBox(width: 12),
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                a == null ? 'ASSET DETAILS' : 'ASSET ${a.assetCode}',
+                                style: const TextStyle(
+                                  fontSize: 11,
+                                  fontWeight: FontWeight.w800,
+                                  color: PhonebookTheme.amberBright,
+                                  letterSpacing: 1.2,
+                                ),
+                              ),
+                              const SizedBox(height: 2),
+                              Text(
+                                a?.typeName ?? 'Asset Detail',
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                                style: const TextStyle(
+                                  fontSize: 22,
+                                  fontWeight: FontWeight.w800,
+                                  color: Colors.white,
+                                  letterSpacing: -0.4,
+                                ),
+                              ),
+                              const SizedBox(height: 2),
+                              Text(
+                                a == null ? '' : '${a.categoryName ?? ''}${a.label == null ? '' : ' · ${a.label}'}',
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                                style: TextStyle(
+                                  fontSize: 12,
+                                  fontWeight: FontWeight.w500,
+                                  color: Colors.white.withValues(alpha: 0.78),
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                        if (a != null) ...[
+                          PhonebookHeaderCircleButton(
+                            icon: Icons.qr_code_2_rounded,
+                            tooltip: 'Show QR Code',
+                            onTap: _showQr,
+                          ),
+                        ],
+                      ],
+                    ),
                   ),
+                  if (a != null) ...[
+                    const SizedBox(height: 10),
+                    Padding(
+                      padding: const EdgeInsets.symmetric(horizontal: 16),
+                      child: SingleChildScrollView(
+                        scrollDirection: Axis.horizontal,
+                        child: Row(
+                          children: [
+                            PhonebookHeaderPill(
+                              icon: Icons.shield_outlined,
+                              label: AmenityFormat.status(a.status),
+                            ),
+                            const SizedBox(width: 8),
+                            PhonebookHeaderPill(
+                              icon: Icons.place_outlined,
+                              label: AmenityFormat.placement(a.placement),
+                            ),
+                            if (a.condition != null) ...[
+                              const SizedBox(width: 8),
+                              PhonebookHeaderPill(
+                                icon: Icons.check_circle_outline_rounded,
+                                label: AmenityFormat.condition(a.condition!),
+                              ),
+                            ],
+                          ],
+                        ),
+                      ),
+                    ),
+                  ],
+                  const SizedBox(height: 12),
+                  // Segmented Tabs
+                  Container(
+                    margin: const EdgeInsets.fromLTRB(16, 0, 16, 14),
+                    padding: const EdgeInsets.all(4),
+                    decoration: BoxDecoration(
+                      color: Colors.white.withValues(alpha: 0.12),
+                      borderRadius: BorderRadius.circular(16),
+                      border: Border.all(color: Colors.white.withValues(alpha: 0.18)),
+                    ),
+                    child: TabBar(
+                      isScrollable: true,
+                      tabAlignment: TabAlignment.start,
+                      indicator: BoxDecoration(
+                        color: Colors.white,
+                        borderRadius: BorderRadius.circular(12),
+                        boxShadow: [
+                          BoxShadow(
+                            color: Colors.black.withValues(alpha: 0.12),
+                            blurRadius: 8,
+                            offset: const Offset(0, 2),
+                          ),
+                        ],
+                      ),
+                      indicatorSize: TabBarIndicatorSize.tab,
+                      dividerColor: Colors.transparent,
+                      labelColor: PhonebookTheme.ink,
+                      unselectedLabelColor: Colors.white.withValues(alpha: 0.82),
+                      labelStyle: const TextStyle(fontWeight: FontWeight.w800, fontSize: 13),
+                      unselectedLabelStyle: const TextStyle(fontWeight: FontWeight.w600, fontSize: 13),
+                      tabs: const [
+                        Tab(text: 'Overview', height: 36),
+                        Tab(text: 'Lifecycle', height: 36),
+                        Tab(text: 'Assignments', height: 36),
+                        Tab(text: 'Activity', height: 36),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }
@@ -151,67 +370,157 @@ class _AssetDetailScreenState extends State<AssetDetailScreen> {
     final cur = a.currentAssignment;
     final placement = switch (a.placement) {
       AssetPlacement.installed => 'Installed · ${cur?.location?.path ?? '-'}',
-      AssetPlacement.withStudent => 'With ${cur?.student?.name ?? 'a student'}${cur?.roomNumber == null ? '' : ' · Room ${cur!.roomNumber}'}',
+      AssetPlacement.withStudent =>
+        'With ${cur?.student?.name ?? 'a student'}${cur?.roomNumber == null ? '' : ' · Room ${cur!.roomNumber}'}',
       AssetPlacement.inStore => 'In store${a.homeLocation == null ? '' : ' · ${a.homeLocation!.path}'}',
     };
     final usable = !a.isRetired && a.status != AssetStatus.lost;
+
     return ListView(
+      physics: const AlwaysScrollableScrollPhysics(parent: BouncingScrollPhysics()),
       padding: const EdgeInsets.fromLTRB(16, 16, 16, 40),
       children: [
         PhonebookCard(
+          padding: const EdgeInsets.all(16),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              InkWell(
-                onTap: () {
-                  Clipboard.setData(ClipboardData(text: a.assetCode));
-                  AppSnackbar.success('Copied', a.assetCode);
-                },
-                child: Text(a.assetCode, style: const TextStyle(fontSize: 20, fontWeight: FontWeight.w800, color: PhonebookTheme.ink)),
+              Row(
+                children: [
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        InkWell(
+                          onTap: () {
+                            Clipboard.setData(ClipboardData(text: a.assetCode));
+                            AppSnackbar.success('Copied', a.assetCode);
+                          },
+                          borderRadius: BorderRadius.circular(6),
+                          child: Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Text(
+                                a.assetCode,
+                                style: const TextStyle(
+                                  fontSize: 21,
+                                  fontWeight: FontWeight.w800,
+                                  color: PhonebookTheme.ink,
+                                  letterSpacing: 0.4,
+                                ),
+                              ),
+                              const SizedBox(width: 8),
+                              const Icon(Icons.copy_rounded, size: 16, color: PhonebookTheme.muted),
+                            ],
+                          ),
+                        ),
+                        const SizedBox(height: 2),
+                        Text(
+                          '${a.typeName}${a.categoryName == null ? '' : ' · ${a.categoryName}'}${a.label == null ? '' : ' · ${a.label}'}',
+                          style: const TextStyle(color: PhonebookTheme.slate, fontWeight: FontWeight.w600, fontSize: 13.5),
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
               ),
-              const SizedBox(height: 2),
-              Text('${a.typeName}${a.categoryName == null ? '' : ' · ${a.categoryName}'}${a.label == null ? '' : ' · ${a.label}'}',
-                  style: const TextStyle(color: PhonebookTheme.slate, fontWeight: FontWeight.w600)),
-              const SizedBox(height: 10),
+              const SizedBox(height: 12),
               Wrap(spacing: 6, runSpacing: 6, children: [
                 AmenityChip(AmenityFormat.status(a.status), color: AmenityFormat.statusColor(a.status)),
                 if (a.condition != null) AmenityChip(AmenityFormat.condition(a.condition!), color: PhonebookTheme.slate),
                 if (a.warranty == 'expiring' || a.warranty == 'expired')
-                  AmenityChip(AmenityFormat.warranty(a.warranty), color: a.warranty == 'expired' ? PhonebookTheme.red : PhonebookTheme.amber),
+                  AmenityChip(AmenityFormat.warranty(a.warranty),
+                      color: a.warranty == 'expired' ? PhonebookTheme.red : PhonebookTheme.amber),
                 if (a.maintenanceDue) const AmenityChip('Maintenance due', color: PhonebookTheme.amber),
               ]),
-              const SizedBox(height: 10),
-              Row(children: [
-                const Icon(Icons.place_outlined, size: 17, color: PhonebookTheme.muted),
-                const SizedBox(width: 6),
-                Expanded(child: Text(placement, style: const TextStyle(fontWeight: FontWeight.w700, color: PhonebookTheme.ink))),
-              ]),
-              const SizedBox(height: 12),
-              Wrap(spacing: 8, runSpacing: 8, children: [
-                if (usable && cur == null) _ActionButton('Assign', Icons.person_add_alt_1_rounded, () => _assign()),
-                if (usable && cur != null) _ActionButton('Move', Icons.swap_horiz_rounded, () => _assign(transfer: true)),
-                if (cur != null) _ActionButton('Return', Icons.keyboard_return_rounded, _return),
-                if (!a.isRetired) _ActionButton('Status', Icons.sync_alt_rounded, _status),
-              ]),
+              const SizedBox(height: 14),
+              Container(
+                padding: const EdgeInsets.all(10),
+                decoration: BoxDecoration(
+                  color: PhonebookTheme.bg,
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(color: PhonebookTheme.border),
+                ),
+                child: Row(
+                  children: [
+                    Container(
+                      width: 32,
+                      height: 32,
+                      decoration: BoxDecoration(color: PhonebookTheme.blueSoft, borderRadius: BorderRadius.circular(8)),
+                      child: const Icon(Icons.place_outlined, size: 18, color: PhonebookTheme.blue),
+                    ),
+                    const SizedBox(width: 10),
+                    Expanded(
+                      child: Text(
+                        placement,
+                        style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 13, color: PhonebookTheme.ink),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(height: 16),
+              Wrap(
+                spacing: 8,
+                runSpacing: 8,
+                children: [
+                  if (usable && cur == null)
+                    _ActionButton('Assign to Student/Room', Icons.person_add_alt_1_rounded, () => _assign(), isPrimary: true),
+                  if (usable && cur != null)
+                    _ActionButton('Move Location', Icons.swap_horiz_rounded, () => _assign(transfer: true)),
+                  if (cur != null)
+                    _ActionButton('Return to Store', Icons.keyboard_return_rounded, _return),
+                  if (!a.isRetired)
+                    _ActionButton('Update Status', Icons.sync_alt_rounded, _status),
+                ],
+              ),
             ],
           ),
         ),
-        const SizedBox(height: 12),
+        const SizedBox(height: 16),
+        const PhonebookSectionHeader(title: 'Asset Specifications & History'),
         PhonebookCard(
-          child: Column(children: [
-            _Row('Serial number', a.serialNumber ?? '-'),
-            _Row('Purchased', '${AmenityFormat.date(a.purchaseDate)}${a.purchaseCost == null ? '' : ' · ${AmenityFormat.money(a.purchaseCost)}'}'),
-            _Row('Vendor', a.vendor ?? '-'),
-            _Row('Installed', AmenityFormat.date(a.installationDate)),
-            _Row('Age', AmenityFormat.age(a.ageMonths)),
-            _Row('Warranty', a.warrantyExpiry == null ? 'None' : '${AmenityFormat.warranty(a.warranty)} · until ${AmenityFormat.date(a.warrantyExpiry)}'),
-            _Row('Expected life', a.expectedLifeMonths == null ? '-' : '${a.expectedLifeMonths} months · replace by ${AmenityFormat.date(a.replacementDue)}'),
-            _Row('Next maintenance', AmenityFormat.date(a.nextMaintenanceDue)),
-            if (a.maintenanceCount > 0) _Row('Repairs', '${a.maintenanceCount} · ${AmenityFormat.money(a.maintenanceCostTotal)}'),
-            if (a.notes != null) _Row('Notes', a.notes!),
-            _Row('Added', '${a.createdAt == null ? '-' : DateFormatting.dateOnly(a.createdAt!)}${a.createdByName == null ? '' : ' by ${a.createdByName}'}'),
-            if (a.updatedAt != null) _Row('Last change', '${DateFormatting.dateTime(a.updatedAt!)}${a.updatedByName == null ? '' : ' by ${a.updatedByName}'}'),
-          ]),
+          padding: const EdgeInsets.all(16),
+          child: Column(
+            children: [
+              _Row('Serial number', a.serialNumber ?? '-'),
+              const Divider(height: 16, color: PhonebookTheme.border),
+              _Row(
+                'Purchased',
+                '${AmenityFormat.date(a.purchaseDate)}${a.purchaseCost == null ? '' : ' · ${AmenityFormat.money(a.purchaseCost)}'}',
+              ),
+              const Divider(height: 16, color: PhonebookTheme.border),
+              _Row('Vendor', a.vendor ?? '-'),
+              const Divider(height: 16, color: PhonebookTheme.border),
+              _Row('Installed', AmenityFormat.date(a.installationDate)),
+              const Divider(height: 16, color: PhonebookTheme.border),
+              _Row('Age', AmenityFormat.age(a.ageMonths)),
+              const Divider(height: 16, color: PhonebookTheme.border),
+              _Row('Warranty',
+                  a.warrantyExpiry == null ? 'None' : '${AmenityFormat.warranty(a.warranty)} · until ${AmenityFormat.date(a.warrantyExpiry)}'),
+              const Divider(height: 16, color: PhonebookTheme.border),
+              _Row('Expected life',
+                  a.expectedLifeMonths == null ? '-' : '${a.expectedLifeMonths} months · replace by ${AmenityFormat.date(a.replacementDue)}'),
+              const Divider(height: 16, color: PhonebookTheme.border),
+              _Row('Next maintenance', AmenityFormat.date(a.nextMaintenanceDue)),
+              if (a.maintenanceCount > 0) ...[
+                const Divider(height: 16, color: PhonebookTheme.border),
+                _Row('Repairs', '${a.maintenanceCount} · ${AmenityFormat.money(a.maintenanceCostTotal)}'),
+              ],
+              if (a.notes != null) ...[
+                const Divider(height: 16, color: PhonebookTheme.border),
+                _Row('Notes', a.notes!),
+              ],
+              const Divider(height: 16, color: PhonebookTheme.border),
+              _Row('Added',
+                  '${a.createdAt == null ? '-' : DateFormatting.dateOnly(a.createdAt!)}${a.createdByName == null ? '' : ' by ${a.createdByName}'}'),
+              if (a.updatedAt != null) ...[
+                const Divider(height: 16, color: PhonebookTheme.border),
+                _Row('Last change',
+                    '${DateFormatting.dateTime(a.updatedAt!)}${a.updatedByName == null ? '' : ' by ${a.updatedByName}'}'),
+              ],
+            ],
+          ),
         ),
       ],
     );
@@ -222,21 +531,40 @@ class _ActionButton extends StatelessWidget {
   final String label;
   final IconData icon;
   final VoidCallback onTap;
+  final bool isPrimary;
 
-  const _ActionButton(this.label, this.icon, this.onTap);
+  const _ActionButton(this.label, this.icon, this.onTap, {this.isPrimary = false});
 
   @override
-  Widget build(BuildContext context) => OutlinedButton.icon(
+  Widget build(BuildContext context) {
+    if (isPrimary) {
+      return ElevatedButton.icon(
         onPressed: onTap,
-        icon: Icon(icon, size: 17),
+        icon: Icon(icon, size: 16),
         label: Text(label),
-        style: OutlinedButton.styleFrom(
-          foregroundColor: PhonebookTheme.blue,
-          side: BorderSide(color: PhonebookTheme.blue.withValues(alpha: 0.35)),
+        style: ElevatedButton.styleFrom(
+          backgroundColor: PhonebookTheme.blue,
+          foregroundColor: Colors.white,
+          elevation: 0,
+          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
           shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-          textStyle: const TextStyle(fontWeight: FontWeight.w700),
+          textStyle: const TextStyle(fontWeight: FontWeight.w700, fontSize: 13),
         ),
       );
+    }
+    return OutlinedButton.icon(
+      onPressed: onTap,
+      icon: Icon(icon, size: 16),
+      label: Text(label),
+      style: OutlinedButton.styleFrom(
+        foregroundColor: PhonebookTheme.blue,
+        side: BorderSide(color: PhonebookTheme.blue.withValues(alpha: 0.35)),
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+        textStyle: const TextStyle(fontWeight: FontWeight.w700, fontSize: 13),
+      ),
+    );
+  }
 }
 
 class _Row extends StatelessWidget {
@@ -246,12 +574,17 @@ class _Row extends StatelessWidget {
   const _Row(this.label, this.value);
 
   @override
-  Widget build(BuildContext context) => Padding(
-        padding: const EdgeInsets.symmetric(vertical: 6),
-        child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
-          SizedBox(width: 120, child: Text(label, style: const TextStyle(color: PhonebookTheme.muted, fontWeight: FontWeight.w600, fontSize: 13))),
-          Expanded(child: Text(value, style: const TextStyle(color: PhonebookTheme.ink, fontWeight: FontWeight.w600, fontSize: 13.5))),
-        ]),
+  Widget build(BuildContext context) => Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          SizedBox(
+            width: 130,
+            child: Text(label, style: const TextStyle(color: PhonebookTheme.muted, fontWeight: FontWeight.w600, fontSize: 13)),
+          ),
+          Expanded(
+            child: Text(value, style: const TextStyle(color: PhonebookTheme.ink, fontWeight: FontWeight.w600, fontSize: 13.5)),
+          ),
+        ],
       );
 }
 
@@ -265,13 +598,20 @@ class _ErrorBlock extends StatelessWidget {
   Widget build(BuildContext context) => Center(
         child: Padding(
           padding: const EdgeInsets.all(24),
-          child: Column(mainAxisSize: MainAxisSize.min, children: [
-            const Icon(Icons.cloud_off_rounded, size: 40, color: PhonebookTheme.muted),
-            const SizedBox(height: 8),
-            Text(message, textAlign: TextAlign.center, style: const TextStyle(color: PhonebookTheme.slate)),
-            const SizedBox(height: 12),
-            OutlinedButton(onPressed: onRetry, child: const Text('Retry')),
-          ]),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Container(
+                padding: const EdgeInsets.all(16),
+                decoration: const BoxDecoration(color: Color(0xFFFEF2F2), shape: BoxShape.circle),
+                child: const Icon(Icons.cloud_off_rounded, size: 40, color: Color(0xFFDC2626)),
+              ),
+              const SizedBox(height: 12),
+              Text(message, textAlign: TextAlign.center, style: const TextStyle(color: PhonebookTheme.slate, fontWeight: FontWeight.w500)),
+              const SizedBox(height: 14),
+              OutlinedButton(onPressed: onRetry, child: const Text('Retry')),
+            ],
+          ),
         ),
       );
 }
@@ -319,48 +659,85 @@ class _AmenityEventsListState extends State<AmenityEventsList> {
 
   @override
   Widget build(BuildContext context) {
-    if (_items.isEmpty && _loading) return const Center(child: CircularProgressIndicator(strokeWidth: 2));
+    if (_items.isEmpty && _loading) {
+      return const Center(child: CircularProgressIndicator(color: PhonebookTheme.blue, strokeWidth: 2.2));
+    }
     if (_items.isEmpty && _error != null) return _ErrorBlock(message: _error!, onRetry: _more);
-    if (_items.isEmpty) return const Center(child: Text('Nothing recorded yet.', style: TextStyle(color: PhonebookTheme.muted)));
+    if (_items.isEmpty) {
+      return const Center(
+        child: Padding(
+          padding: EdgeInsets.all(24),
+          child: Text('Nothing recorded yet.', style: TextStyle(color: PhonebookTheme.muted, fontWeight: FontWeight.w500)),
+        ),
+      );
+    }
     return ListView.builder(
+      physics: const AlwaysScrollableScrollPhysics(parent: BouncingScrollPhysics()),
       padding: const EdgeInsets.fromLTRB(16, 16, 16, 40),
       itemCount: _items.length + (_items.length < _total ? 1 : 0),
       itemBuilder: (_, i) {
         if (i == _items.length) {
           return Center(
             child: _loading
-                ? const Padding(padding: EdgeInsets.all(12), child: CircularProgressIndicator(strokeWidth: 2))
+                ? const Padding(padding: EdgeInsets.all(12), child: CircularProgressIndicator(color: PhonebookTheme.blue, strokeWidth: 2))
                 : TextButton(onPressed: _more, child: const Text('Load more')),
           );
         }
         final e = _items[i];
         final when = e.happenedOn != null ? AmenityFormat.date(e.happenedOn) : (e.at == null ? '' : DateFormatting.dateTime(e.at!));
         return IntrinsicHeight(
-          child: Row(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
-            Column(children: [
-              Container(
-                width: 32,
-                height: 32,
-                decoration: BoxDecoration(color: PhonebookTheme.blueSoft, borderRadius: BorderRadius.circular(10)),
-                child: Icon(AmenityFormat.eventIcon(e.event), size: 17, color: PhonebookTheme.blue),
-              ),
-              if (i < _items.length - 1) Expanded(child: Container(width: 2, color: PhonebookTheme.border)),
-            ]),
-            const SizedBox(width: 12),
-            Expanded(
-              child: Padding(
-                padding: const EdgeInsets.only(bottom: 16),
-                child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                  Text(
-                    '${widget.activity && e.assetCode != null ? '${e.assetCode} · ' : ''}${AmenityFormat.event(e)}',
-                    style: const TextStyle(fontWeight: FontWeight.w700, color: PhonebookTheme.ink),
+          child: Row(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Column(
+                children: [
+                  Container(
+                    width: 36,
+                    height: 36,
+                    decoration: BoxDecoration(
+                      color: PhonebookTheme.blueSoft,
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    child: Icon(AmenityFormat.eventIcon(e.event), size: 18, color: PhonebookTheme.blue),
                   ),
-                  if (e.note != null) Text(e.note!, style: const TextStyle(color: PhonebookTheme.slate, fontSize: 12.5)),
-                  Text('$when${e.byName == null ? '' : ' · by ${e.byName}'}', style: const TextStyle(color: PhonebookTheme.muted, fontSize: 12)),
-                ]),
+                  if (i < _items.length - 1) Expanded(child: Container(width: 2, color: PhonebookTheme.border)),
+                ],
               ),
-            ),
-          ]),
+              const SizedBox(width: 14),
+              Expanded(
+                child: Padding(
+                  padding: const EdgeInsets.only(bottom: 18),
+                  child: PhonebookCard(
+                    padding: const EdgeInsets.all(12),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          '${widget.activity && e.assetCode != null ? '${e.assetCode} · ' : ''}${AmenityFormat.event(e)}',
+                          style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 14, color: PhonebookTheme.ink),
+                        ),
+                        if (e.note != null && e.note!.isNotEmpty) ...[
+                          const SizedBox(height: 3),
+                          Text(e.note!, style: const TextStyle(color: PhonebookTheme.slate, fontSize: 12.5)),
+                        ],
+                        const SizedBox(height: 4),
+                        Row(
+                          children: [
+                            const Icon(Icons.access_time_rounded, size: 12, color: PhonebookTheme.muted),
+                            const SizedBox(width: 4),
+                            Text(
+                              '$when${e.byName == null ? '' : ' · by ${e.byName}'}',
+                              style: const TextStyle(color: PhonebookTheme.muted, fontSize: 11.5, fontWeight: FontWeight.w500),
+                            ),
+                          ],
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              ),
+            ],
+          ),
         );
       },
     );
@@ -387,18 +764,31 @@ class _AssignmentsTabState extends State<_AssignmentsTab> {
     return FutureBuilder<List<AmenityAssignment>>(
       future: _future,
       builder: (context, snap) {
-        if (snap.connectionState != ConnectionState.done) return const Center(child: CircularProgressIndicator(strokeWidth: 2));
+        if (snap.connectionState != ConnectionState.done) {
+          return const Center(child: CircularProgressIndicator(color: PhonebookTheme.blue, strokeWidth: 2.2));
+        }
         if (snap.hasError) {
           return _ErrorBlock(
-            message: snap.error is ApiException ? (snap.error as ApiException).message : "Couldn't load the assignments.",
+            message: snap.error is ApiException ? (snap.error as ApiException).message : "Couldn't load assignments.",
             onRetry: () => setState(() => _future = widget.repo.assetAssignments(widget.assetId)),
           );
         }
         final list = snap.data ?? const <AmenityAssignment>[];
-        if (list.isEmpty) return const Center(child: Text('Never assigned yet.', style: TextStyle(color: PhonebookTheme.muted)));
+        if (list.isEmpty) {
+          return const Center(
+            child: Padding(
+              padding: EdgeInsets.all(24),
+              child: Text('Never assigned yet.', style: TextStyle(color: PhonebookTheme.muted, fontWeight: FontWeight.w500)),
+            ),
+          );
+        }
         return ListView(
+          physics: const AlwaysScrollableScrollPhysics(parent: BouncingScrollPhysics()),
           padding: const EdgeInsets.fromLTRB(16, 16, 16, 40),
-          children: [for (final a in list) AssignmentTile(assignment: a)],
+          children: [
+            const PhonebookSectionHeader(title: 'Assignment History'),
+            for (final a in list) AssignmentTile(assignment: a),
+          ],
         );
       },
     );
@@ -426,27 +816,58 @@ class AssignmentTile extends StatelessWidget {
       if (a.conditionAtAssignment != null) 'out ${AmenityFormat.condition(a.conditionAtAssignment!)}',
       if (a.conditionAtReturn != null) 'back ${AmenityFormat.condition(a.conditionAtReturn!)}',
     ].join(' · ');
+
+    final iconBg = a.isOpen ? PhonebookTheme.greenSoft : const Color(0xFFF1F5F9);
+    final iconColor = a.isOpen ? PhonebookTheme.green : PhonebookTheme.muted;
+
     return Padding(
       padding: const EdgeInsets.only(bottom: 10),
       child: PhonebookCard(
         onTap: onTap,
         padding: const EdgeInsets.all(14),
-        child: Row(children: [
-          Icon(a.student != null ? Icons.person_rounded : Icons.place_rounded, color: a.isOpen ? PhonebookTheme.green : PhonebookTheme.muted),
-          const SizedBox(width: 12),
-          Expanded(
-            child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-              if (showItem) Text(a.title, style: const TextStyle(fontWeight: FontWeight.w800, color: PhonebookTheme.ink)),
-              Text(showItem ? who : (a.isBulk ? '$who · ${a.quantity} ${a.unit}' : who),
-                  style: TextStyle(fontWeight: showItem ? FontWeight.w600 : FontWeight.w800, color: showItem ? PhonebookTheme.slate : PhonebookTheme.ink)),
-              Text('$since – $until${a.closeReason == null ? '' : ' · ${a.closeReason}'}',
-                  style: const TextStyle(fontSize: 12.5, color: PhonebookTheme.muted)),
-              if (cond.isNotEmpty) Text(cond, style: const TextStyle(fontSize: 12, color: PhonebookTheme.muted)),
-            ]),
-          ),
-          if (a.isOpen) const AmenityChip('Current', color: PhonebookTheme.green),
-          ?trailing,
-        ]),
+        child: Row(
+          children: [
+            Container(
+              width: 40,
+              height: 40,
+              decoration: BoxDecoration(color: iconBg, borderRadius: BorderRadius.circular(12)),
+              child: Icon(a.student != null ? Icons.person_rounded : Icons.place_rounded, color: iconColor, size: 20),
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  if (showItem)
+                    Text(
+                      a.title,
+                      style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 14.5, color: PhonebookTheme.ink),
+                    ),
+                  Text(
+                    showItem ? who : (a.isBulk ? '$who · ${a.quantity} ${a.unit}' : who),
+                    style: TextStyle(
+                      fontWeight: showItem ? FontWeight.w600 : FontWeight.w800,
+                      fontSize: 14,
+                      color: showItem ? PhonebookTheme.slate : PhonebookTheme.ink,
+                    ),
+                  ),
+                  const SizedBox(height: 2),
+                  Text(
+                    '$since – $until${a.closeReason == null ? '' : ' · ${a.closeReason}'}',
+                    style: const TextStyle(fontSize: 12, color: PhonebookTheme.muted),
+                  ),
+                  if (cond.isNotEmpty)
+                    Text(cond, style: const TextStyle(fontSize: 11.5, color: PhonebookTheme.muted)),
+                ],
+              ),
+            ),
+            if (a.isOpen) ...[
+              const AmenityChip('Current', color: PhonebookTheme.green),
+              const SizedBox(width: 4),
+            ],
+            ?trailing,
+          ],
+        ),
       ),
     );
   }

@@ -1,4 +1,4 @@
-﻿import 'dart:developer' as developer;
+import 'dart:developer' as developer;
 import 'package:dio/dio.dart';
 import 'package:flutter/foundation.dart';
 import '../../core/constants/app_config.dart';
@@ -87,7 +87,11 @@ class _RedactingLogInterceptor extends Interceptor {
       '<-- ${response.statusCode} ${response.requestOptions.uri}',
       name: 'HTTP',
     );
-    developer.log('    body: ${response.data}', name: 'HTTP');
+    final dataStr = response.data?.toString() ?? '';
+    final preview = dataStr.length > 800
+        ? '${dataStr.substring(0, 800)}... [truncated ${dataStr.length - 800} chars]'
+        : dataStr;
+    developer.log('    body: $preview', name: 'HTTP');
     handler.next(response);
   }
 
@@ -98,7 +102,11 @@ class _RedactingLogInterceptor extends Interceptor {
       name: 'HTTP',
     );
     if (err.response?.data != null) {
-      developer.log('    error body: ${err.response?.data}', name: 'HTTP');
+      final errStr = err.response!.data.toString();
+      final preview = errStr.length > 800
+          ? '${errStr.substring(0, 800)}... [truncated ${errStr.length - 800} chars]'
+          : errStr;
+      developer.log('    error body: $preview', name: 'HTTP');
     }
     handler.next(err);
   }

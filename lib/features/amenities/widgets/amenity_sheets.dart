@@ -17,9 +17,10 @@ Future<bool> _openSheet(BuildContext context, Widget sheet) async {
   final saved = await showModalBottomSheet<bool>(
     context: context,
     isScrollControlled: true,
+    showDragHandle: false,
     useSafeArea: true,
     backgroundColor: Colors.white,
-    shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(24))),
+    shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(28))),
     builder: (_) => sheet,
   );
   return saved == true;
@@ -67,27 +68,41 @@ class _SheetFrame extends StatelessWidget {
     return Padding(
       padding: EdgeInsets.only(bottom: MediaQuery.of(context).viewInsets.bottom),
       child: SingleChildScrollView(
-        padding: const EdgeInsets.fromLTRB(20, 12, 20, 20),
+        padding: const EdgeInsets.fromLTRB(20, 14, 20, 24),
         child: Column(
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
             Center(
               child: Container(
-                width: 42,
-                height: 4,
-                decoration: BoxDecoration(color: PhonebookTheme.border, borderRadius: BorderRadius.circular(2)),
+                width: 44,
+                height: 4.5,
+                margin: const EdgeInsets.only(bottom: 14),
+                decoration: BoxDecoration(color: const Color(0xFFCBD5E1), borderRadius: BorderRadius.circular(2.5)),
               ),
             ),
-            const SizedBox(height: 16),
-            Text(title, style: const TextStyle(fontSize: 19, fontWeight: FontWeight.w800, color: PhonebookTheme.ink)),
+            Row(
+              children: [
+                Expanded(
+                  child: Text(
+                    title,
+                    style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w800, color: PhonebookTheme.ink),
+                  ),
+                ),
+                IconButton(
+                  icon: const Icon(Icons.close_rounded, color: PhonebookTheme.muted),
+                  onPressed: () => Navigator.of(context).pop(),
+                  visualDensity: VisualDensity.compact,
+                ),
+              ],
+            ),
             if (subtitle != null) ...[
-              const SizedBox(height: 4),
-              Text(subtitle!, style: const TextStyle(fontSize: 12.5, color: PhonebookTheme.muted)),
+              const SizedBox(height: 2),
+              Text(subtitle!, style: const TextStyle(fontSize: 12.5, color: PhonebookTheme.muted, fontWeight: FontWeight.w500)),
             ],
-            const SizedBox(height: 16),
+            const Divider(height: 20, color: PhonebookTheme.border),
             ...children,
-            const SizedBox(height: 8),
+            const SizedBox(height: 12),
             SizedBox(
               height: 48,
               child: ElevatedButton(
@@ -212,9 +227,10 @@ class _DateField extends StatelessWidget {
 Future<PickableStudent?> pickStudent(BuildContext context) => showModalBottomSheet<PickableStudent>(
       context: context,
       isScrollControlled: true,
+      showDragHandle: false,
       useSafeArea: true,
       backgroundColor: Colors.white,
-      shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(24))),
+      shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(28))),
       builder: (_) => const _StudentPicker(),
     );
 
@@ -246,9 +262,17 @@ class _StudentPickerState extends State<_StudentPicker> {
     return SizedBox(
       height: MediaQuery.of(context).size.height * 0.8,
       child: Padding(
-        padding: EdgeInsets.fromLTRB(16, 16, 16, MediaQuery.of(context).viewInsets.bottom + 8),
+        padding: EdgeInsets.fromLTRB(16, 12, 16, MediaQuery.of(context).viewInsets.bottom + 8),
         child: Column(
           children: [
+            Center(
+              child: Container(
+                width: 44,
+                height: 4.5,
+                margin: const EdgeInsets.only(bottom: 14),
+                decoration: BoxDecoration(color: const Color(0xFFCBD5E1), borderRadius: BorderRadius.circular(2.5)),
+              ),
+            ),
             TextField(
               controller: _search,
               autofocus: true,
@@ -295,9 +319,10 @@ class _StudentPickerState extends State<_StudentPicker> {
 Future<AmenityLocation?> pickLocation(BuildContext context, List<AmenityLocation> tree) => showModalBottomSheet<AmenityLocation>(
       context: context,
       isScrollControlled: true,
+      showDragHandle: false,
       useSafeArea: true,
       backgroundColor: Colors.white,
-      shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(24))),
+      shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(28))),
       builder: (_) => _LocationPicker(tree: tree),
     );
 
@@ -336,9 +361,17 @@ class _LocationPickerState extends State<_LocationPicker> {
     return SizedBox(
       height: MediaQuery.of(context).size.height * 0.8,
       child: Padding(
-        padding: EdgeInsets.fromLTRB(16, 16, 16, MediaQuery.of(context).viewInsets.bottom + 8),
+        padding: EdgeInsets.fromLTRB(16, 12, 16, MediaQuery.of(context).viewInsets.bottom + 8),
         child: Column(
           children: [
+            Center(
+              child: Container(
+                width: 44,
+                height: 4.5,
+                margin: const EdgeInsets.only(bottom: 14),
+                decoration: BoxDecoration(color: const Color(0xFFCBD5E1), borderRadius: BorderRadius.circular(2.5)),
+              ),
+            ),
             TextField(
               controller: _search,
               decoration: phonebookInputDecoration(hint: 'Search location or room', prefixIcon: const Icon(Icons.search_rounded)),

@@ -4,6 +4,7 @@ import '../../../core/models/amenities/amenity_models.dart';
 import '../../../core/network/api_exception.dart';
 import '../../../core/network/repository/amenities/amenities_repository.dart';
 import '../../../core/utils/app_snackbar.dart';
+import '../../shared/widgets/empty_state.dart';
 import '../../shared/widgets/phonebook_style_widgets.dart';
 import '../utils/amenity_format.dart';
 import 'amenity_type_screen.dart';
@@ -38,7 +39,10 @@ class _AmenitySetupScreenState extends State<AmenitySetupScreen> {
       _error = null;
     });
     try {
-      final r = await Future.wait([_repo.categories(includeInactive: true), _repo.types(includeInactive: true)]);
+      final r = await Future.wait([
+        _repo.categories(includeInactive: true),
+        _repo.types(includeInactive: true),
+      ]);
       if (!mounted) return;
       setState(() {
         _categories = (r[0] as List<AmenityCategory>)..sort((a, b) => a.sortOrder.compareTo(b.sortOrder));
@@ -57,61 +61,124 @@ class _AmenitySetupScreenState extends State<AmenitySetupScreen> {
   }
 
   Future<void> _editType({AmenityType? t, int? categoryId}) async {
-    if (await showTypeForm(context, repo: _repo, categories: _categories, existing: t, categoryId: categoryId)) await _load();
+    if (await showTypeForm(context, repo: _repo, categories: _categories, existing: t, categoryId: categoryId)) {
+      await _load();
+    }
   }
 
   @override
   Widget build(BuildContext context) {
+    final topPadding = MediaQuery.of(context).padding.top;
+
     return Scaffold(
       backgroundColor: PhonebookTheme.bg,
-      appBar: AppBar(
-        backgroundColor: const Color(0xFF032B4F),
-        foregroundColor: Colors.white,
-        title: const Text('Categories & types', style: TextStyle(fontWeight: FontWeight.w800)),
-      ),
       floatingActionButton: FloatingActionButton.extended(
         heroTag: 'amenity_setup_add',
         backgroundColor: PhonebookTheme.blue,
         foregroundColor: Colors.white,
+        elevation: 3,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
         onPressed: () => _editCategory(),
         icon: const Icon(Icons.add_rounded),
-        label: const Text('Category'),
+        label: const Text('Add Category', style: TextStyle(fontWeight: FontWeight.w700)),
       ),
-      body: _loading
-          ? const Center(child: CircularProgressIndicator(strokeWidth: 2))
-          : _error != null
-              ? Center(
-                  child: Column(mainAxisSize: MainAxisSize.min, children: [
-                    Text(_error!, style: const TextStyle(color: PhonebookTheme.slate)),
-                    const SizedBox(height: 8),
-                    OutlinedButton(onPressed: _load, child: const Text('Retry')),
-                  ]),
-                )
-              : RefreshIndicator(
-                  onRefresh: _load,
-                  child: ListView(
-                    padding: const EdgeInsets.fromLTRB(16, 16, 16, 110),
+      body: CustomScrollView(
+        physics: const AlwaysScrollableScrollPhysics(parent: BouncingScrollPhysics()),
+        slivers: [
+          SliverPersistentHeader(
+            pinned: true,
+            delegate: PhonebookHeaderDelegate(
+              overline: 'CONFIGURATION',
+              title: 'Categories & Types',
+              subtitle: 'Organize asset categories, models & tracking rules',
+              topPadding: topPadding,
+              onLeadingTap: () => Navigator.of(context).maybePop(),
+              pills: Wrap(
+                spacing: 8,
+                runSpacing: 6,
+                children: [
+                  PhonebookHeaderPill(
+                    icon: Icons.category_rounded,
+                    label: '${_categories.length} categories',
+                  ),
+                  PhonebookHeaderPill(
+                    icon: Icons.inventory_2_rounded,
+                    label: '${_types.length} amenity types',
+                  ),
+                ],
+              ),
+            ),
+          ),
+          if (_loading && _categories.isEmpty)
+            const SliverFillRemaining(
+              child: Center(child: CircularProgressIndicator(color: PhonebookTheme.blue, strokeWidth: 2.2)),
+            )
+          else if (_error != null && _categories.isEmpty)
+            SliverFillRemaining(
+              child: Center(
+                child: Padding(
+                  padding: const EdgeInsets.all(24),
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Container(
+                        padding: const EdgeInsets.all(16),
+                        decoration: const BoxDecoration(color: Color(0xFFFEF2F2), shape: BoxShape.circle),
+                        child: const Icon(Icons.error_outline_rounded, size: 40, color: Color(0xFFDC2626)),
+                      ),
+                      const SizedBox(height: 12),
+                      Text(_error!, style: const TextStyle(color: PhonebookTheme.slate, fontWeight: FontWeight.w500)),
+                      const SizedBox(height: 12),
+                      OutlinedButton(onPressed: _load, child: const Text('Retry')),
+                    ],
+                  ),
+                ),
+              ),
+            )
+          else
+            SliverToBoxAdapter(
+              child: RefreshIndicator(
+                onRefresh: _load,
+                color: PhonebookTheme.blue,
+                backgroundColor: Colors.white,
+                child: Padding(
+                  padding: const EdgeInsets.fromLTRB(16, 16, 16, 110),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
                     children: [
                       if (_categories.isEmpty)
-                        const Text('No categories yet. Add one, e.g. Electrical, Plumbing, Furniture or Security / Keys.',
-                            style: TextStyle(color: PhonebookTheme.muted)),
-                      for (final c in _categories) ...[
-                        _CategoryCard(
-                          category: c,
-                          types: _types.where((t) => t.categoryId == c.id).toList(),
-                          onEdit: () => _editCategory(c),
-                          onAddType: () => _editType(categoryId: c.id),
-                          onEditType: (t) => _editType(t: t),
-                          onOpenType: (t) async {
-                            await AmenityTypeScreen.open(context, t.id);
-                            if (mounted) await _load();
-                          },
-                        ),
-                        const SizedBox(height: 10),
+                        const Padding(
+                          padding: EdgeInsets.symmetric(vertical: 24),
+                          child: EmptyState(
+                            icon: Icons.category_outlined,
+                            title: 'No categories yet',
+                            message: 'Add a category, e.g. Electrical, Plumbing, Furniture or Keys.',
+                          ),
+                        )
+                      else ...[
+                        const PhonebookSectionHeader(title: 'Asset Categories & Models'),
+                        for (final c in _categories) ...[
+                          _CategoryCard(
+                            category: c,
+                            types: _types.where((t) => t.categoryId == c.id).toList(),
+                            onEdit: () => _editCategory(c),
+                            onAddType: () => _editType(categoryId: c.id),
+                            onEditType: (t) => _editType(t: t),
+                            onOpenType: (t) async {
+                              await AmenityTypeScreen.open(context, t.id);
+                              if (mounted) await _load();
+                            },
+                          ),
+                          const SizedBox(height: 12),
+                        ],
                       ],
                     ],
                   ),
                 ),
+              ),
+            ),
+        ],
+      ),
     );
   }
 }
@@ -136,45 +203,135 @@ class _CategoryCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final color = AmenityFormat.color(category.color);
+
     return Opacity(
-      opacity: category.isActive ? 1 : 0.55,
+      opacity: category.isActive ? 1 : 0.6,
       child: PhonebookCard(
-        padding: const EdgeInsets.fromLTRB(14, 10, 6, 8),
-        child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-          Row(children: [
-            Container(
-              width: 36,
-              height: 36,
-              decoration: BoxDecoration(color: color.withValues(alpha: 0.12), borderRadius: BorderRadius.circular(10)),
-              child: Icon(AmenityFormat.icon(category.icon), color: color, size: 20),
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                Container(
+                  width: 42,
+                  height: 42,
+                  decoration: BoxDecoration(
+                    color: color.withValues(alpha: 0.12),
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  child: Icon(AmenityFormat.icon(category.icon), color: color, size: 22),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Row(
+                        children: [
+                          Flexible(
+                            child: Text(
+                              category.name,
+                              style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 16, color: PhonebookTheme.ink),
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                          ),
+                          if (!category.isActive) ...[
+                            const SizedBox(width: 6),
+                            const AmenityChip('Inactive', color: PhonebookTheme.muted),
+                          ],
+                        ],
+                      ),
+                      const SizedBox(height: 2),
+                      Text(
+                        '${types.length} ${types.length == 1 ? 'type' : 'types'} configured',
+                        style: const TextStyle(fontSize: 12.5, color: PhonebookTheme.muted, fontWeight: FontWeight.w500),
+                      ),
+                    ],
+                  ),
+                ),
+                IconButton(
+                  tooltip: 'Edit category',
+                  onPressed: onEdit,
+                  icon: const Icon(Icons.edit_outlined, color: PhonebookTheme.slate, size: 20),
+                ),
+              ],
             ),
-            const SizedBox(width: 10),
-            Expanded(
-              child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                Text(category.name, style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 15, color: PhonebookTheme.ink)),
-                Text('${types.length} types${category.isActive ? '' : ' · inactive'}',
-                    style: const TextStyle(fontSize: 12, color: PhonebookTheme.muted)),
-              ]),
-            ),
-            IconButton(tooltip: 'Edit category', onPressed: onEdit, icon: const Icon(Icons.edit_outlined, size: 20)),
-          ]),
-          for (final t in types)
-            ListTile(
-              dense: true,
-              contentPadding: const EdgeInsets.only(left: 46),
-              title: Text(t.name, style: TextStyle(fontWeight: FontWeight.w700, color: t.isActive ? PhonebookTheme.ink : PhonebookTheme.muted)),
-              subtitle: Text(
-                '${t.isBulk ? 'By quantity · ${t.unit}' : 'HSH-${t.codePrefix}-…'}${t.isActive ? '' : ' · inactive'}',
-                style: const TextStyle(fontSize: 12),
+            if (category.description != null && category.description!.isNotEmpty) ...[
+              const SizedBox(height: 8),
+              Text(
+                category.description!,
+                style: const TextStyle(fontSize: 12.5, color: PhonebookTheme.slate, height: 1.3),
               ),
-              onTap: () => onOpenType(t),
-              trailing: IconButton(tooltip: 'Edit type', onPressed: () => onEditType(t), icon: const Icon(Icons.tune_rounded, size: 20)),
+            ],
+            if (types.isNotEmpty) ...[
+              const Divider(height: 20, color: PhonebookTheme.border),
+              for (final t in types)
+                Padding(
+                  padding: const EdgeInsets.only(bottom: 8),
+                  child: InkWell(
+                    onTap: () => onOpenType(t),
+                    borderRadius: BorderRadius.circular(12),
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                      decoration: BoxDecoration(
+                        color: PhonebookTheme.bg,
+                        borderRadius: BorderRadius.circular(12),
+                        border: Border.all(color: PhonebookTheme.border),
+                      ),
+                      child: Row(
+                        children: [
+                          Icon(
+                            t.isBulk ? Icons.layers_rounded : Icons.inventory_2_outlined,
+                            size: 18,
+                            color: t.isActive ? PhonebookTheme.blue : PhonebookTheme.muted,
+                          ),
+                          const SizedBox(width: 10),
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(
+                                  t.name,
+                                  style: TextStyle(
+                                    fontWeight: FontWeight.w700,
+                                    fontSize: 14,
+                                    color: t.isActive ? PhonebookTheme.ink : PhonebookTheme.muted,
+                                  ),
+                                ),
+                                Text(
+                                  t.isBulk ? 'By quantity · ${t.unit}' : 'Asset ID: HSH-${t.codePrefix}-…',
+                                  style: const TextStyle(fontSize: 11.5, color: PhonebookTheme.muted),
+                                ),
+                              ],
+                            ),
+                          ),
+                          if (!t.isActive) const AmenityChip('Inactive', color: PhonebookTheme.muted),
+                          IconButton(
+                            tooltip: 'Edit type',
+                            onPressed: () => onEditType(t),
+                            icon: const Icon(Icons.tune_rounded, color: PhonebookTheme.slate, size: 18),
+                            visualDensity: VisualDensity.compact,
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                ),
+            ],
+            const SizedBox(height: 4),
+            TextButton.icon(
+              onPressed: onAddType,
+              style: TextButton.styleFrom(
+                foregroundColor: PhonebookTheme.blue,
+                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+              ),
+              icon: const Icon(Icons.add_rounded, size: 18),
+              label: const Text('Add type to this category', style: TextStyle(fontWeight: FontWeight.w700, fontSize: 13)),
             ),
-          Padding(
-            padding: const EdgeInsets.only(left: 36),
-            child: TextButton.icon(onPressed: onAddType, icon: const Icon(Icons.add_rounded, size: 18), label: const Text('Add type')),
-          ),
-        ]),
+          ],
+        ),
       ),
     );
   }
@@ -186,43 +343,69 @@ Future<bool> _sheet(BuildContext context, Widget child) async =>
     await showModalBottomSheet<bool>(
       context: context,
       isScrollControlled: true,
+      showDragHandle: false,
       useSafeArea: true,
       backgroundColor: Colors.white,
-      shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(24))),
+      shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(28))),
       builder: (_) => child,
     ) ==
     true;
 
-Widget _frame(BuildContext context, {required String title, required List<Widget> children, required bool busy, required VoidCallback onSave}) =>
+Widget _frame(BuildContext context,
+        {required String title, required List<Widget> children, required bool busy, required VoidCallback onSave}) =>
     Padding(
       padding: EdgeInsets.only(bottom: MediaQuery.of(context).viewInsets.bottom),
       child: SingleChildScrollView(
-        padding: const EdgeInsets.fromLTRB(20, 16, 20, 20),
-        child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, mainAxisSize: MainAxisSize.min, children: [
-          Text(title, style: const TextStyle(fontSize: 19, fontWeight: FontWeight.w800, color: PhonebookTheme.ink)),
-          const SizedBox(height: 16),
-          ...children,
-          const SizedBox(height: 8),
-          SizedBox(
-            height: 48,
-            child: ElevatedButton(
-              onPressed: busy ? null : onSave,
-              style: ElevatedButton.styleFrom(
-                backgroundColor: PhonebookTheme.blue,
-                foregroundColor: Colors.white,
-                elevation: 0,
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+        padding: const EdgeInsets.fromLTRB(20, 14, 20, 24),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Center(
+              child: Container(
+                width: 44,
+                height: 4.5,
+                margin: const EdgeInsets.only(bottom: 14),
+                decoration: BoxDecoration(color: const Color(0xFFCBD5E1), borderRadius: BorderRadius.circular(2.5)),
               ),
-              child: busy
-                  ? const SizedBox(width: 18, height: 18, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
-                  : const Text('Save', style: TextStyle(fontWeight: FontWeight.w800)),
             ),
-          ),
-        ]),
+            Row(
+              children: [
+                Expanded(
+                  child: Text(title, style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w800, color: PhonebookTheme.ink)),
+                ),
+                IconButton(
+                  icon: const Icon(Icons.close_rounded, color: PhonebookTheme.muted),
+                  onPressed: () => Navigator.of(context).pop(),
+                  visualDensity: VisualDensity.compact,
+                ),
+              ],
+            ),
+            const Divider(height: 20, color: PhonebookTheme.border),
+            ...children,
+            const SizedBox(height: 12),
+            SizedBox(
+              height: 48,
+              child: ElevatedButton(
+                onPressed: busy ? null : onSave,
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: PhonebookTheme.blue,
+                  foregroundColor: Colors.white,
+                  elevation: 0,
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+                ),
+                child: busy
+                    ? const SizedBox(width: 18, height: 18, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
+                    : const Text('Save Details', style: TextStyle(fontWeight: FontWeight.w800, fontSize: 15)),
+              ),
+            ),
+          ],
+        ),
       ),
     );
 
-Widget _text(TextEditingController c, String label, {String? hint, TextInputType? keyboard, int lines = 1, bool enabled = true, int? max}) =>
+Widget _text(TextEditingController c, String label,
+        {String? hint, TextInputType? keyboard, int lines = 1, bool enabled = true, int? max}) =>
     Padding(
       padding: const EdgeInsets.only(bottom: 12),
       child: TextField(
@@ -375,8 +558,8 @@ class _CategoryFormState extends State<_CategoryForm> {
             contentPadding: EdgeInsets.zero,
             value: _active,
             onChanged: (v) => setState(() => _active = v),
-            title: const Text('Active'),
-            subtitle: const Text('Inactive categories are hidden from new items. History is kept.'),
+            title: const Text('Active', style: TextStyle(fontWeight: FontWeight.w700, color: PhonebookTheme.ink)),
+            subtitle: const Text('Inactive categories are hidden from new items. History is kept.', style: TextStyle(fontSize: 12)),
           ),
       ],
     );
@@ -458,8 +641,10 @@ class _TypeFormState extends State<_TypeForm> {
         if (prefix != e.codePrefix && !_prefixLocked) 'code_prefix': prefix,
         if (body['unit'] != e.unit) 'unit': body['unit'],
         if (body['description'] != e.description) 'description': body['description'],
-        if (body['default_expected_life_months'] != e.defaultExpectedLifeMonths) 'default_expected_life_months': body['default_expected_life_months'],
-        if (body['maintenance_interval_days'] != e.maintenanceIntervalDays) 'maintenance_interval_days': body['maintenance_interval_days'],
+        if (body['default_expected_life_months'] != e.defaultExpectedLifeMonths)
+          'default_expected_life_months': body['default_expected_life_months'],
+        if (body['maintenance_interval_days'] != e.maintenanceIntervalDays)
+          'maintenance_interval_days': body['maintenance_interval_days'],
         if (_students != e.assignableToStudents) 'assignable_to_students': _students,
         if (_active != e.isActive) 'is_active': _active,
       };
@@ -538,16 +723,16 @@ class _TypeFormState extends State<_TypeForm> {
           contentPadding: EdgeInsets.zero,
           value: _students,
           onChanged: (v) => setState(() => _students = v),
-          title: const Text('Can be given to students'),
-          subtitle: const Text('e.g. keys, mattresses, chairs'),
+          title: const Text('Can be given to students', style: TextStyle(fontWeight: FontWeight.w700, color: PhonebookTheme.ink)),
+          subtitle: const Text('e.g. keys, mattresses, chairs', style: TextStyle(fontSize: 12)),
         ),
         if (e != null)
           SwitchListTile(
             contentPadding: EdgeInsets.zero,
             value: _active,
             onChanged: (v) => setState(() => _active = v),
-            title: const Text('Active'),
-            subtitle: const Text('Inactive types take no new items. History is kept.'),
+            title: const Text('Active', style: TextStyle(fontWeight: FontWeight.w700, color: PhonebookTheme.ink)),
+            subtitle: const Text('Inactive types take no new items. History is kept.', style: TextStyle(fontSize: 12)),
           ),
       ],
     );
@@ -626,7 +811,9 @@ class _LocationFormState extends State<_LocationForm> {
     final e = widget.existing;
     return _frame(
       context,
-      title: e == null ? (widget.parent == null ? 'New building or area' : 'Add inside ${widget.parent!.name}') : 'Edit ${e.name}',
+      title: e == null
+          ? (widget.parent == null ? 'New building or area' : 'Add inside ${widget.parent!.name}')
+          : 'Edit ${e.name}',
       busy: _busy,
       onSave: _save,
       children: [
@@ -638,22 +825,25 @@ class _LocationFormState extends State<_LocationForm> {
           const SizedBox(height: 12),
         ],
         if (_kind == LocationKind.room) _text(_room, 'Room number', hint: 'e.g. 204', max: 20),
-        _text(_name, _kind == LocationKind.room ? 'Name (optional)' : 'Name',
-            hint: switch (_kind) {
-              LocationKind.building => 'e.g. Pavitra House',
-              LocationKind.wing => 'e.g. East wing',
-              LocationKind.floor => 'e.g. Floor 2',
-              LocationKind.room => 'Defaults to the room number',
-              LocationKind.area => 'e.g. Common area, Kitchen, Office',
-            },
-            max: 120),
+        _text(
+          _name,
+          _kind == LocationKind.room ? 'Name (optional)' : 'Name',
+          hint: switch (_kind) {
+            LocationKind.building => 'e.g. Pavitra House',
+            LocationKind.wing => 'e.g. East wing',
+            LocationKind.floor => 'e.g. Floor 2',
+            LocationKind.room => 'Defaults to the room number',
+            LocationKind.area => 'e.g. Common area, Kitchen, Office',
+          },
+          max: 120,
+        ),
         if (e != null)
           SwitchListTile(
             contentPadding: EdgeInsets.zero,
             value: _active,
             onChanged: (v) => setState(() => _active = v),
-            title: const Text('Active'),
-            subtitle: const Text('Inactive places are hidden from pickers. History is kept.'),
+            title: const Text('Active', style: TextStyle(fontWeight: FontWeight.w700, color: PhonebookTheme.ink)),
+            subtitle: const Text('Inactive places are hidden from pickers. History is kept.', style: TextStyle(fontSize: 12)),
           ),
       ],
     );

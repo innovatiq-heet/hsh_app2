@@ -27,6 +27,7 @@ class _NightCurfewCardState extends State<NightCurfewCard> {
   List<CurfewSession>? _sessions;
   String? _error;
   bool _loading = true;
+  bool _expanded = false;
   final Set<int> _busy = {};
 
   @override
@@ -60,7 +61,10 @@ class _NightCurfewCardState extends State<NightCurfewCard> {
   Future<void> _add() async {
     final config = _config ??= await CurfewAdminEntry.adminConfig();
     if (!mounted) return;
-    if (await createCurfewSession(context, config)) await _load();
+    if (await createCurfewSession(context, config)) {
+      if (mounted) setState(() => _expanded = true);
+      await _load();
+    }
   }
 
   Future<void> _toggle(CurfewSession s, bool on) async {
@@ -104,36 +108,49 @@ class _NightCurfewCardState extends State<NightCurfewCard> {
         children: [
           Row(
             children: [
-              Container(
-                width: 38,
-                height: 38,
-                decoration: BoxDecoration(
-                  color: running > 0 ? const Color(0xFFF0FDF4) : StPalette.accentSoft,
-                  borderRadius: BorderRadius.circular(10),
-                ),
-                child: Icon(
-                  running > 0 ? Icons.nightlight_round : Icons.nightlight_outlined,
-                  color: running > 0 ? const Color(0xFF16A34A) : StPalette.accent,
-                  size: 20,
-                ),
-              ),
-              const SizedBox(width: 12),
               Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    const Text(
-                      'Night Curfew',
-                      style: TextStyle(fontSize: 14, fontWeight: FontWeight.w700, color: Color(0xFF0F172A)),
+                child: InkWell(
+                  onTap: () => setState(() => _expanded = !_expanded),
+                  borderRadius: BorderRadius.circular(10),
+                  child: Padding(
+                    padding: const EdgeInsets.symmetric(vertical: 2),
+                    child: Row(
+                      children: [
+                        Container(
+                          width: 38,
+                          height: 38,
+                          decoration: BoxDecoration(
+                            color: running > 0 ? const Color(0xFFF0FDF4) : StPalette.accentSoft,
+                            borderRadius: BorderRadius.circular(10),
+                          ),
+                          child: Icon(
+                            running > 0 ? Icons.nightlight_round : Icons.nightlight_outlined,
+                            color: running > 0 ? const Color(0xFF16A34A) : StPalette.accent,
+                            size: 20,
+                          ),
+                        ),
+                        const SizedBox(width: 12),
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              const Text(
+                                'Night Curfew',
+                                style: TextStyle(fontSize: 14, fontWeight: FontWeight.w700, color: Color(0xFF0F172A)),
+                              ),
+                              const SizedBox(height: 2),
+                              Text(
+                                _loading && _sessions == null
+                                    ? 'Loading curfews…'
+                                    : '${sessions.length} curfew${sessions.length == 1 ? '' : 's'} · $on on · $running running now',
+                                style: const TextStyle(fontSize: 11.5, fontWeight: FontWeight.w600, color: Color(0xFF64748B)),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ],
                     ),
-                    const SizedBox(height: 2),
-                    Text(
-                      _loading && _sessions == null
-                          ? 'Loading curfews…'
-                          : '${sessions.length} curfew${sessions.length == 1 ? '' : 's'} · $on on · $running running now',
-                      style: const TextStyle(fontSize: 11.5, fontWeight: FontWeight.w600, color: Color(0xFF64748B)),
-                    ),
-                  ],
+                  ),
                 ),
               ),
               TextButton.icon(
@@ -146,39 +163,70 @@ class _NightCurfewCardState extends State<NightCurfewCard> {
                   textStyle: const TextStyle(fontWeight: FontWeight.w800, fontSize: 13),
                 ),
               ),
+              InkWell(
+                onTap: () => setState(() => _expanded = !_expanded),
+                borderRadius: BorderRadius.circular(8),
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 6),
+                  child: AnimatedRotation(
+                    turns: _expanded ? 0.5 : 0,
+                    duration: const Duration(milliseconds: 200),
+                    curve: Curves.easeInOutCubic,
+                    child: const Icon(
+                      Icons.keyboard_arrow_down_rounded,
+                      color: Color(0xFF64748B),
+                      size: 22,
+                    ),
+                  ),
+                ),
+              ),
             ],
           ),
-          const SizedBox(height: 6),
-          if (_loading && _sessions == null)
-            const Padding(
-              padding: EdgeInsets.symmetric(vertical: 10),
-              child: Center(child: SizedBox(width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2))),
-            )
-          else if (_error != null && _sessions == null)
-            Row(
-              children: [
-                Expanded(
-                  child: Text(_error!, style: const TextStyle(fontSize: 12, color: Color(0xFFDC2626))),
-                ),
-                TextButton(onPressed: _load, child: const Text('Retry')),
-              ],
-            )
-          else if (sessions.isEmpty)
-            const Padding(
-              padding: EdgeInsets.symmetric(vertical: 6),
-              child: Text(
-                'No curfews yet. Add one, like "Night Curfew" 22:00–06:00 every day, then choose its students.',
-                style: TextStyle(fontSize: 12, color: Color(0xFF64748B), height: 1.35),
-              ),
-            )
-          else
-            for (final s in sessions)
-              _CurfewRow(
-                session: s,
-                busy: _busy.contains(s.id),
-                onTap: () => _open(s),
-                onToggle: (v) => _toggle(s, v),
-              ),
+          ClipRect(
+            child: AnimatedSize(
+              duration: const Duration(milliseconds: 250),
+              curve: Curves.easeInOutCubic,
+              alignment: Alignment.topCenter,
+              child: _expanded
+                  ? Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        const SizedBox(height: 6),
+                        if (_loading && _sessions == null)
+                          const Padding(
+                            padding: EdgeInsets.symmetric(vertical: 10),
+                            child: Center(child: SizedBox(width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2))),
+                          )
+                        else if (_error != null && _sessions == null)
+                          Row(
+                            children: [
+                              Expanded(
+                                child: Text(_error!, style: const TextStyle(fontSize: 12, color: Color(0xFFDC2626))),
+                              ),
+                              TextButton(onPressed: _load, child: const Text('Retry')),
+                            ],
+                          )
+                        else if (sessions.isEmpty)
+                          const Padding(
+                            padding: EdgeInsets.symmetric(vertical: 6),
+                            child: Text(
+                              'No curfews yet. Add one, like "Night Curfew" 22:00–06:00 every day, then choose its students.',
+                              style: TextStyle(fontSize: 12, color: Color(0xFF64748B), height: 1.35),
+                            ),
+                          )
+                        else
+                          for (final s in sessions)
+                            _CurfewRow(
+                              session: s,
+                              busy: _busy.contains(s.id),
+                              onTap: () => _open(s),
+                              onToggle: (v) => _toggle(s, v),
+                            ),
+                      ],
+                    )
+                  : const SizedBox(width: double.infinity, height: 0),
+            ),
+          ),
           if (widget.footer != null) ...[
             const Divider(height: 14, color: Color(0xFFF1F5F9)),
             widget.footer!,

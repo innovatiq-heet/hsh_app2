@@ -369,13 +369,30 @@ class AmenityAssignment {
 
   factory AmenityAssignment.fromJson(Map<String, dynamic> j) {
     final type = _map(j['type']);
-    final asset = AssetBrief.fromJson(_map(j['asset']));
+    final assetMap = _map(j['asset']);
+    // Some migrated Room Keys rows are returned in the older flattened
+    // assignment shape. Keep them readable while the canonical API shape
+    // remains the nested `asset` object documented for Amenities.
+    final flatAssetId = _intOrNull(j['asset_id']);
+    final asset = AssetBrief.fromJson(assetMap) ??
+        (flatAssetId == null
+            ? null
+            : AssetBrief.fromJson({
+                'id': flatAssetId,
+                'asset_code': j['asset_code'],
+                'type_id': j['type_id'],
+                'type_name': j['type_name'],
+                'category_name': j['category_name'],
+                'label': j['label'],
+                'serial_number': j['serial_number'],
+                'status': j['status'],
+              }));
     return AmenityAssignment(
       id: _int(j['id'] ?? j['assignment_id']),
       asset: asset,
-      typeId: _intOrNull(type?['id']) ?? asset?.typeId,
-      typeName: _str(type?['name']) ?? asset?.typeName ?? '',
-      unit: _str(type?['unit']) ?? 'pcs',
+      typeId: _intOrNull(type?['id']) ?? asset?.typeId ?? _intOrNull(j['type_id']),
+      typeName: _str(type?['name']) ?? asset?.typeName ?? _str(j['type_name']) ?? '',
+      unit: _str(type?['unit']) ?? _str(j['unit']) ?? 'pcs',
       quantity: j['quantity'] == null ? 1 : _int(j['quantity']),
       returnedQuantity: _int(j['returned_quantity']),
       student: StudentBrief.fromJson(_map(j['student'])),

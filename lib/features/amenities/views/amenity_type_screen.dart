@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import '../../../core/models/amenities/amenity_models.dart';
 import '../../../core/network/api_exception.dart';
 import '../../../core/network/repository/amenities/amenities_repository.dart';
+import '../../shared/widgets/empty_state.dart';
 import '../../shared/widgets/phonebook_style_widgets.dart';
 import '../utils/amenity_format.dart';
 import '../widgets/amenity_sheets.dart';
@@ -71,7 +72,8 @@ class _AmenityTypeScreenState extends State<AmenityTypeScreen> {
     }
   }
 
-  Future<List<AmenityLocation>> _locs() async => _locations ??= await _repo.locations().catchError((_) => <AmenityLocation>[]);
+  Future<List<AmenityLocation>> _locs() async =>
+      _locations ??= await _repo.locations().catchError((_) => <AmenityLocation>[]);
 
   Future<void> _add() async {
     final locations = await _locs();
@@ -82,8 +84,13 @@ class _AmenityTypeScreenState extends State<AmenityTypeScreen> {
   Future<void> _assignBulk() async {
     final locations = await _locs();
     if (!mounted) return;
-    if (await showAssignSheet(context,
-        repo: _repo, locations: locations, type: _type, studentsAllowed: _type!.assignableToStudents)) {
+    if (await showAssignSheet(
+      context,
+      repo: _repo,
+      locations: locations,
+      type: _type,
+      studentsAllowed: _type!.assignableToStudents,
+    )) {
       await _load();
     }
   }
@@ -99,93 +106,192 @@ class _AmenityTypeScreenState extends State<AmenityTypeScreen> {
   @override
   Widget build(BuildContext context) {
     final t = _type;
+    final topPadding = MediaQuery.of(context).padding.top;
+
     return Scaffold(
       backgroundColor: PhonebookTheme.bg,
-      appBar: AppBar(
-        backgroundColor: const Color(0xFF032B4F),
-        foregroundColor: Colors.white,
-        title: Text(t?.name ?? 'Amenity', style: const TextStyle(fontWeight: FontWeight.w800)),
-      ),
       floatingActionButton: t == null || !t.isActive
           ? null
           : FloatingActionButton.extended(
               heroTag: 'amenity_type_add',
               backgroundColor: PhonebookTheme.blue,
               foregroundColor: Colors.white,
+              elevation: 3,
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
               onPressed: _add,
               icon: const Icon(Icons.add_rounded),
-              label: Text(t.isBulk ? 'Add stock' : 'Add items'),
+              label: Text(t.isBulk ? 'Add stock' : 'Add items', style: const TextStyle(fontWeight: FontWeight.w700)),
             ),
-      body: _loading && t == null
-          ? const Center(child: CircularProgressIndicator(strokeWidth: 2))
-          : (_error != null && t == null)
-              ? Center(
-                  child: Column(mainAxisSize: MainAxisSize.min, children: [
-                    Text(_error!, style: const TextStyle(color: PhonebookTheme.slate)),
-                    const SizedBox(height: 8),
-                    OutlinedButton(onPressed: _load, child: const Text('Retry')),
-                  ]),
-                )
-              : RefreshIndicator(
-                  onRefresh: _load,
-                  child: ListView(
-                    padding: const EdgeInsets.fromLTRB(16, 16, 16, 110),
+      body: CustomScrollView(
+        physics: const AlwaysScrollableScrollPhysics(parent: BouncingScrollPhysics()),
+        slivers: [
+          SliverPersistentHeader(
+            pinned: true,
+            delegate: PhonebookHeaderDelegate(
+              overline: t?.categoryName?.toUpperCase() ?? 'AMENITY TYPE',
+              title: t?.name ?? 'Amenity Type',
+              subtitle: t == null
+                  ? ''
+                  : (t.isBulk
+                      ? 'Bulk Asset · Tracked by quantity (${t.unit})'
+                      : 'Individual Asset · Tracked by unique ID/QR'),
+              topPadding: topPadding,
+              onLeadingTap: () => Navigator.of(context).maybePop(),
+              pills: t == null
+                  ? null
+                  : Wrap(
+                      spacing: 8,
+                      runSpacing: 6,
+                      children: [
+                        PhonebookHeaderPill(
+                          icon: Icons.check_circle_outline_rounded,
+                          label: '${t.inventory['available']} available',
+                        ),
+                        PhonebookHeaderPill(
+                          icon: Icons.person_outline_rounded,
+                          label: '${t.inventory['assigned']} assigned',
+                        ),
+                        PhonebookHeaderPill(
+                          icon: Icons.currency_rupee_rounded,
+                          label: AmenityFormat.money(t.inventory.value),
+                        ),
+                      ],
+                    ),
+            ),
+          ),
+          if (_loading && t == null)
+            const SliverFillRemaining(
+              child: Center(child: CircularProgressIndicator(color: PhonebookTheme.blue, strokeWidth: 2.2)),
+            )
+          else if (_error != null && t == null)
+            SliverFillRemaining(
+              child: Center(
+                child: Padding(
+                  padding: const EdgeInsets.all(24),
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Container(
+                        padding: const EdgeInsets.all(16),
+                        decoration: const BoxDecoration(color: Color(0xFFFEF2F2), shape: BoxShape.circle),
+                        child: const Icon(Icons.error_outline_rounded, size: 40, color: Color(0xFFDC2626)),
+                      ),
+                      const SizedBox(height: 12),
+                      Text(_error!, style: const TextStyle(color: PhonebookTheme.slate, fontWeight: FontWeight.w500)),
+                      const SizedBox(height: 12),
+                      OutlinedButton(onPressed: _load, child: const Text('Retry')),
+                    ],
+                  ),
+                ),
+              ),
+            )
+          else
+            SliverToBoxAdapter(
+              child: RefreshIndicator(
+                onRefresh: _load,
+                color: PhonebookTheme.blue,
+                backgroundColor: Colors.white,
+                child: Padding(
+                  padding: const EdgeInsets.fromLTRB(16, 16, 16, 110),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
                     children: [
                       _InventoryStrip(type: t!),
-                      const SizedBox(height: 12),
+                      const SizedBox(height: 16),
                       if (t.isBulk) ...[
-                        Row(children: [
-                          Expanded(
-                            child: OutlinedButton.icon(
-                              onPressed: (t.inventory['available'] > 0) ? _assignBulk : null,
-                              icon: const Icon(Icons.person_add_alt_1_rounded, size: 18),
-                              label: const Text('Assign'),
+                        Row(
+                          children: [
+                            Expanded(
+                              child: ElevatedButton.icon(
+                                onPressed: (t.inventory['available'] > 0) ? _assignBulk : null,
+                                style: ElevatedButton.styleFrom(
+                                  backgroundColor: PhonebookTheme.blue,
+                                  foregroundColor: Colors.white,
+                                  padding: const EdgeInsets.symmetric(vertical: 13),
+                                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+                                  elevation: 0,
+                                ),
+                                icon: const Icon(Icons.person_add_alt_1_rounded, size: 18),
+                                label: const Text('Assign Units', style: TextStyle(fontWeight: FontWeight.w700)),
+                              ),
                             ),
-                          ),
-                          const SizedBox(width: 8),
-                          Expanded(
-                            child: OutlinedButton.icon(
-                              onPressed: _move,
-                              icon: const Icon(Icons.sync_alt_rounded, size: 18),
-                              label: const Text('Move units'),
+                            const SizedBox(width: 10),
+                            Expanded(
+                              child: OutlinedButton.icon(
+                                onPressed: _move,
+                                style: OutlinedButton.styleFrom(
+                                  foregroundColor: PhonebookTheme.blue,
+                                  side: const BorderSide(color: PhonebookTheme.blue),
+                                  padding: const EdgeInsets.symmetric(vertical: 13),
+                                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+                                ),
+                                icon: const Icon(Icons.sync_alt_rounded, size: 18),
+                                label: const Text('Move Units', style: TextStyle(fontWeight: FontWeight.w700)),
+                              ),
                             ),
-                          ),
-                        ]),
-                        const SizedBox(height: 12),
-                        const PhonebookSectionHeader(title: 'Assignments'),
+                          ],
+                        ),
+                        const SizedBox(height: 18),
+                        const PhonebookSectionHeader(title: 'Active Assignments'),
                         if (_assignments.isEmpty)
-                          const Text('Nothing assigned yet.', style: TextStyle(color: PhonebookTheme.muted))
+                          const Padding(
+                            padding: EdgeInsets.symmetric(vertical: 12),
+                            child: EmptyState(
+                              icon: Icons.person_outline_rounded,
+                              title: 'No assignments yet',
+                              message: 'Use "Assign Units" above to assign stock to a student or room.',
+                            ),
+                          )
                         else
                           for (final a in _assignments)
                             AssignmentTile(
                               assignment: a,
                               trailing: a.isOpen
                                   ? IconButton(
-                                      tooltip: 'Return',
+                                      tooltip: 'Return units',
                                       onPressed: () => _return(a),
                                       icon: const Icon(Icons.keyboard_return_rounded, color: PhonebookTheme.green),
                                     )
                                   : null,
                             ),
                       ] else ...[
-                        PhonebookSectionHeader(title: 'Items ($_assetTotal)'),
+                        PhonebookSectionHeader(title: 'Registered Items ($_assetTotal)'),
                         if (_assets.isEmpty)
-                          const Text('No items yet. Add them with the button below.', style: TextStyle(color: PhonebookTheme.muted))
+                          const Padding(
+                            padding: EdgeInsets.symmetric(vertical: 12),
+                            child: EmptyState(
+                              icon: Icons.inventory_2_outlined,
+                              title: 'No items created yet',
+                              message: 'Use the "Add items" button below to add assets with QR codes.',
+                            ),
+                          )
                         else
-                          for (final a in _assets) AssetTile(asset: a, onTap: () async {
-                            await AssetDetailScreen.open(context, a.id);
-                            if (mounted) await _load();
-                          }),
+                          for (final a in _assets)
+                            AssetTile(
+                              asset: a,
+                              onTap: () async {
+                                await AssetDetailScreen.open(context, a.id);
+                                if (mounted) await _load();
+                              },
+                            ),
                         if (_assetTotal > _assets.length)
                           Padding(
-                            padding: const EdgeInsets.only(top: 6),
-                            child: Text('Showing ${_assets.length} of $_assetTotal. Use Inventory search to find others.',
-                                style: const TextStyle(color: PhonebookTheme.muted, fontSize: 12.5)),
+                            padding: const EdgeInsets.only(top: 8),
+                            child: Center(
+                              child: Text(
+                                'Showing ${_assets.length} of $_assetTotal items. Search in Inventory to filter.',
+                                style: const TextStyle(color: PhonebookTheme.muted, fontSize: 12.5),
+                              ),
+                            ),
                           ),
                       ],
                     ],
                   ),
                 ),
+              ),
+            ),
+        ],
+      ),
     );
   }
 }
@@ -198,31 +304,86 @@ class _InventoryStrip extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final inv = type.inventory;
-    final cells = <(String, int, Color)>[
-      ('Total', inv['total'], PhonebookTheme.ink),
-      ('Available', inv['available'], PhonebookTheme.green),
-      ('Assigned', inv['assigned'], PhonebookTheme.blue),
-      if (!type.isBulk || inv['installed'] > 0) ('Installed', inv['installed'], PhonebookTheme.blue),
-      ('Under repair', inv['under_repair'], PhonebookTheme.amber),
-      ('Damaged', inv['damaged'], PhonebookTheme.red),
-      ('Lost', inv['lost'], PhonebookTheme.red),
-      ('Retired', inv['retired'], PhonebookTheme.muted),
-    ];
-    return PhonebookCard(
-      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-        Text('${type.categoryName ?? ''} · ${type.isBulk ? 'Counted by quantity (${type.unit})' : 'Asset IDs HSH-${type.codePrefix}-…'}',
-            style: const TextStyle(color: PhonebookTheme.muted, fontWeight: FontWeight.w600, fontSize: 12.5)),
-        const SizedBox(height: 10),
-        Wrap(spacing: 14, runSpacing: 10, children: [
-          for (final (label, n, color) in cells)
-            Column(crossAxisAlignment: CrossAxisAlignment.start, mainAxisSize: MainAxisSize.min, children: [
-              Text('$n', style: TextStyle(fontSize: 18, fontWeight: FontWeight.w800, color: color)),
-              Text(label, style: const TextStyle(fontSize: 11.5, color: PhonebookTheme.muted, fontWeight: FontWeight.w600)),
-            ]),
-        ]),
-        const SizedBox(height: 8),
-        Text('Value ${AmenityFormat.money(inv.value)}', style: const TextStyle(fontWeight: FontWeight.w700, color: PhonebookTheme.slate)),
-      ]),
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        // 3 Metric Cards matching Phonebook style
+        Row(
+          children: [
+            Expanded(
+              child: PhonebookCountCard(
+                value: '${inv['total']}',
+                label: 'Total stock',
+                icon: Icons.inventory_2_outlined,
+                color: PhonebookTheme.ink,
+                bgColor: PhonebookTheme.blueSoft,
+              ),
+            ),
+            const SizedBox(width: 10),
+            Expanded(
+              child: PhonebookCountCard(
+                value: '${inv['available']}',
+                label: 'Available',
+                icon: Icons.check_circle_outline_rounded,
+                color: PhonebookTheme.green,
+                bgColor: PhonebookTheme.greenSoft,
+              ),
+            ),
+            const SizedBox(width: 10),
+            Expanded(
+              child: PhonebookCountCard(
+                value: '${inv['assigned']}',
+                label: 'Assigned',
+                icon: Icons.person_outline_rounded,
+                color: PhonebookTheme.blue,
+                bgColor: PhonebookTheme.blueSoft,
+              ),
+            ),
+          ],
+        ),
+        if (inv['under_repair'] > 0 || inv['damaged'] > 0 || inv['lost'] > 0) ...[
+          const SizedBox(height: 10),
+          Row(
+            children: [
+              if (inv['under_repair'] > 0)
+                Expanded(
+                  child: PhonebookCountCard(
+                    value: '${inv['under_repair']}',
+                    label: 'In repair',
+                    icon: Icons.handyman_outlined,
+                    color: PhonebookTheme.amber,
+                    bgColor: PhonebookTheme.amberSoft,
+                  ),
+                ),
+              if (inv['damaged'] > 0) ...[
+                const SizedBox(width: 10),
+                Expanded(
+                  child: PhonebookCountCard(
+                    value: '${inv['damaged']}',
+                    label: 'Damaged',
+                    icon: Icons.broken_image_outlined,
+                    color: PhonebookTheme.red,
+                    bgColor: PhonebookTheme.redSoft,
+                  ),
+                ),
+              ],
+              if (inv['lost'] > 0) ...[
+                const SizedBox(width: 10),
+                Expanded(
+                  child: PhonebookCountCard(
+                    value: '${inv['lost']}',
+                    label: 'Lost',
+                    icon: Icons.help_outline_rounded,
+                    color: PhonebookTheme.red,
+                    bgColor: PhonebookTheme.redSoft,
+                  ),
+                ),
+              ],
+            ],
+          ),
+        ],
+      ],
     );
   }
 }
@@ -240,27 +401,80 @@ class AssetTile extends StatelessWidget {
     final cur = a.currentAssignment;
     final where = switch (a.placement) {
       AssetPlacement.installed => cur?.location?.path ?? 'Installed',
-      AssetPlacement.withStudent => '${cur?.student?.name ?? 'Student'}${cur?.roomNumber == null ? '' : ' · Room ${cur!.roomNumber}'}',
+      AssetPlacement.withStudent =>
+        '${cur?.student?.name ?? 'Student'}${cur?.roomNumber == null ? '' : ' · Room ${cur!.roomNumber}'}',
       AssetPlacement.inStore => 'In store${a.homeLocation == null ? '' : ' · ${a.homeLocation!.path}'}',
     };
+
     return Padding(
-      padding: const EdgeInsets.only(bottom: 8),
+      padding: const EdgeInsets.only(bottom: 10),
       child: PhonebookCard(
         onTap: onTap,
-        padding: const EdgeInsets.all(12),
-        child: Row(children: [
-          Expanded(
-            child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-              Text('${a.assetCode}${a.label == null ? '' : ' · ${a.label}'}',
-                  maxLines: 1, overflow: TextOverflow.ellipsis, style: const TextStyle(fontWeight: FontWeight.w800, color: PhonebookTheme.ink)),
-              const SizedBox(height: 2),
-              Text('${a.typeName} · $where', maxLines: 1, overflow: TextOverflow.ellipsis,
-                  style: const TextStyle(fontSize: 12.5, color: PhonebookTheme.slate)),
-            ]),
-          ),
-          const SizedBox(width: 8),
-          AmenityChip(AmenityFormat.status(a.status), color: AmenityFormat.statusColor(a.status)),
-        ]),
+        padding: const EdgeInsets.all(14),
+        child: Row(
+          children: [
+            Container(
+              width: 40,
+              height: 40,
+              decoration: BoxDecoration(
+                color: AmenityFormat.statusColor(a.status).withValues(alpha: 0.12),
+                borderRadius: BorderRadius.circular(12),
+              ),
+              child: Icon(
+                a.typeName.toLowerCase().contains('key') ? Icons.vpn_key_rounded : Icons.inventory_2_outlined,
+                color: AmenityFormat.statusColor(a.status),
+                size: 20,
+              ),
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    children: [
+                      Text(
+                        a.assetCode,
+                        style: const TextStyle(
+                          fontWeight: FontWeight.w800,
+                          fontSize: 15,
+                          color: PhonebookTheme.ink,
+                          letterSpacing: 0.3,
+                        ),
+                      ),
+                      if (a.label != null && a.label!.isNotEmpty) ...[
+                        const SizedBox(width: 6),
+                        Text(
+                          '· ${a.label}',
+                          style: const TextStyle(fontSize: 13, color: PhonebookTheme.slate, fontWeight: FontWeight.w600),
+                        ),
+                      ],
+                    ],
+                  ),
+                  const SizedBox(height: 3),
+                  Row(
+                    children: [
+                      const Icon(Icons.place_outlined, size: 14, color: PhonebookTheme.muted),
+                      const SizedBox(width: 4),
+                      Expanded(
+                        child: Text(
+                          '${a.typeName} · $where',
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: const TextStyle(fontSize: 12.5, color: PhonebookTheme.slate, fontWeight: FontWeight.w500),
+                        ),
+                      ),
+                    ],
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(width: 10),
+            AmenityChip(AmenityFormat.status(a.status), color: AmenityFormat.statusColor(a.status)),
+            const SizedBox(width: 4),
+            const Icon(Icons.chevron_right_rounded, color: PhonebookTheme.muted, size: 20),
+          ],
+        ),
       ),
     );
   }

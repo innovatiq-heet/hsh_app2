@@ -5,6 +5,7 @@ import '../../../core/models/students/pickable_student.dart';
 import '../../../core/network/api_exception.dart';
 import '../../../core/network/repository/amenities/amenities_repository.dart';
 import '../../../core/utils/app_snackbar.dart';
+import '../../shared/widgets/empty_state.dart';
 import '../../shared/widgets/phonebook_style_widgets.dart';
 import '../widgets/amenity_sheets.dart';
 import 'amenity_type_screen.dart';
@@ -91,21 +92,61 @@ class _LocationScreenState extends State<LocationScreen> {
     }
     final asset = await showModalBottomSheet<AmenityAsset>(
       context: context,
+      showDragHandle: false,
       backgroundColor: Colors.white,
-      shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(24))),
+      shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(28))),
       builder: (c) => SafeArea(
         child: ListView(
           shrinkWrap: true,
           padding: const EdgeInsets.all(16),
           children: [
-            Text('Give to ${student.name}', style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w800)),
-            const SizedBox(height: 8),
+            Center(
+              child: Container(
+                width: 44,
+                height: 4.5,
+                margin: const EdgeInsets.only(bottom: 14),
+                decoration: BoxDecoration(color: const Color(0xFFCBD5E1), borderRadius: BorderRadius.circular(2.5)),
+              ),
+            ),
+            Text(
+              'Give to ${student.name}',
+              style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w800, color: PhonebookTheme.ink),
+            ),
+            const SizedBox(height: 10),
             for (final a in spare)
-              ListTile(
-                leading: const Icon(Icons.vpn_key_outlined),
-                title: Text('${a.typeName}${a.label == null ? '' : ' · ${a.label}'}'),
-                subtitle: Text('${a.assetCode}${a.serialNumber == null ? '' : ' · No. ${a.serialNumber}'}'),
-                onTap: () => Navigator.of(c).pop(a),
+              Padding(
+                padding: const EdgeInsets.only(bottom: 8),
+                child: PhonebookCard(
+                  padding: const EdgeInsets.all(12),
+                  onTap: () => Navigator.of(c).pop(a),
+                  child: Row(
+                    children: [
+                      Container(
+                        width: 38,
+                        height: 38,
+                        decoration: BoxDecoration(color: PhonebookTheme.blueSoft, borderRadius: BorderRadius.circular(10)),
+                        child: const Icon(Icons.vpn_key_rounded, color: PhonebookTheme.blue, size: 20),
+                      ),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              '${a.typeName}${a.label == null ? '' : ' · ${a.label}'}',
+                              style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 14.5, color: PhonebookTheme.ink),
+                            ),
+                            Text(
+                              '${a.assetCode}${a.serialNumber == null ? '' : ' · No. ${a.serialNumber}'}',
+                              style: const TextStyle(fontSize: 12, color: PhonebookTheme.muted),
+                            ),
+                          ],
+                        ),
+                      ),
+                      const Icon(Icons.chevron_right_rounded, color: PhonebookTheme.muted),
+                    ],
+                  ),
+                ),
               ),
           ],
         ),
@@ -146,8 +187,9 @@ class _LocationScreenState extends State<LocationScreen> {
     final type = await showModalBottomSheet<AmenityType>(
       context: context,
       isScrollControlled: true,
+      showDragHandle: false,
       backgroundColor: Colors.white,
-      shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(24))),
+      shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(28))),
       builder: (c) => SafeArea(
         child: ConstrainedBox(
           constraints: BoxConstraints(maxHeight: MediaQuery.of(c).size.height * 0.7),
@@ -155,12 +197,45 @@ class _LocationScreenState extends State<LocationScreen> {
             shrinkWrap: true,
             padding: const EdgeInsets.all(16),
             children: [
-              const Text('Add here', style: TextStyle(fontSize: 18, fontWeight: FontWeight.w800)),
+              Center(
+                child: Container(
+                  width: 44,
+                  height: 4.5,
+                  margin: const EdgeInsets.only(bottom: 14),
+                  decoration: BoxDecoration(color: const Color(0xFFCBD5E1), borderRadius: BorderRadius.circular(2.5)),
+                ),
+              ),
+              const Text('Add to this location',
+                  style: TextStyle(fontSize: 18, fontWeight: FontWeight.w800, color: PhonebookTheme.ink)),
+              const SizedBox(height: 10),
               for (final t in individual)
-                ListTile(
-                  title: Text(t.name),
-                  subtitle: Text(t.categoryName ?? ''),
-                  onTap: () => Navigator.of(c).pop(t),
+                Padding(
+                  padding: const EdgeInsets.only(bottom: 8),
+                  child: PhonebookCard(
+                    padding: const EdgeInsets.all(12),
+                    onTap: () => Navigator.of(c).pop(t),
+                    child: Row(
+                      children: [
+                        Container(
+                          width: 38,
+                          height: 38,
+                          decoration: BoxDecoration(color: PhonebookTheme.blueSoft, borderRadius: BorderRadius.circular(10)),
+                          child: const Icon(Icons.inventory_2_outlined, color: PhonebookTheme.blue, size: 20),
+                        ),
+                        const SizedBox(width: 12),
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(t.name, style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 14.5, color: PhonebookTheme.ink)),
+                              Text(t.categoryName ?? '', style: const TextStyle(fontSize: 12, color: PhonebookTheme.muted)),
+                            ],
+                          ),
+                        ),
+                        const Icon(Icons.chevron_right_rounded, color: PhonebookTheme.muted),
+                      ],
+                    ),
+                  ),
                 ),
             ],
           ),
@@ -176,63 +251,118 @@ class _LocationScreenState extends State<LocationScreen> {
   Widget build(BuildContext context) {
     final d = _data;
     final loc = d?.location;
+    final topPadding = MediaQuery.of(context).padding.top;
+
+    final locationTitle = loc == null
+        ? (widget.roomNumber == null ? 'Location' : 'Room ${widget.roomNumber}')
+        : (loc.kind == LocationKind.room ? 'Room ${loc.roomNumber ?? loc.name}' : loc.name);
+
     return Scaffold(
       backgroundColor: PhonebookTheme.bg,
-      appBar: AppBar(
-        backgroundColor: const Color(0xFF032B4F),
-        foregroundColor: Colors.white,
-        title: Text(
-          loc == null ? (widget.roomNumber == null ? 'Location' : 'Room ${widget.roomNumber}') : (loc.kind == LocationKind.room ? 'Room ${loc.roomNumber ?? loc.name}' : loc.name),
-          style: const TextStyle(fontWeight: FontWeight.w800),
-        ),
-      ),
       floatingActionButton: d == null
           ? null
           : FloatingActionButton.extended(
               heroTag: 'location_add',
               backgroundColor: PhonebookTheme.blue,
               foregroundColor: Colors.white,
+              elevation: 3,
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
               onPressed: _addHere,
               icon: const Icon(Icons.add_rounded),
-              label: const Text('Add here'),
+              label: const Text('Add here', style: TextStyle(fontWeight: FontWeight.w700)),
             ),
-      body: _loading && d == null
-          ? const Center(child: CircularProgressIndicator(strokeWidth: 2))
-          : (_error != null && d == null)
-              ? Center(
-                  child: Padding(
-                    padding: const EdgeInsets.all(24),
-                    child: Column(mainAxisSize: MainAxisSize.min, children: [
-                      Text(_error!, textAlign: TextAlign.center, style: const TextStyle(color: PhonebookTheme.slate)),
-                      const SizedBox(height: 8),
-                      OutlinedButton(onPressed: _load, child: const Text('Retry')),
-                    ]),
-                  ),
-                )
-              : RefreshIndicator(
-                  onRefresh: _load,
-                  child: ListView(
-                    padding: const EdgeInsets.fromLTRB(16, 16, 16, 110),
-                    children: [
-                      if (loc != null)
-                        Text(loc.path, style: const TextStyle(color: PhonebookTheme.muted, fontWeight: FontWeight.w600)),
-                      const SizedBox(height: 12),
-                      if (d!.residents.isNotEmpty) ...[
-                        const PhonebookSectionHeader(title: 'Residents'),
-                        for (final r in d.residents) _ResidentCard(
-                          student: r.student,
-                          items: r.items,
-                          onGive: () => _give(r.student),
-                          onReturn: _return,
-                          onOpen: _openItem,
+      body: CustomScrollView(
+        physics: const AlwaysScrollableScrollPhysics(parent: BouncingScrollPhysics()),
+        slivers: [
+          SliverPersistentHeader(
+            pinned: true,
+            delegate: PhonebookHeaderDelegate(
+              overline: loc?.kind == LocationKind.room ? 'HOSTEL ROOM' : 'CAMPUS LOCATION',
+              title: locationTitle,
+              subtitle: loc?.path ?? 'Hostel Location & Residents',
+              topPadding: topPadding,
+              onLeadingTap: () => Navigator.of(context).maybePop(),
+              pills: d == null
+                  ? null
+                  : Wrap(
+                      spacing: 8,
+                      runSpacing: 6,
+                      children: [
+                        if (loc?.kind == LocationKind.room)
+                          PhonebookHeaderPill(
+                            icon: Icons.groups_rounded,
+                            label: '${d.residents.length} residents',
+                          ),
+                        PhonebookHeaderPill(
+                          icon: Icons.build_circle_outlined,
+                          label: '${d.installed.length} installed',
                         ),
-                        const SizedBox(height: 8),
+                        PhonebookHeaderPill(
+                          icon: Icons.inventory_2_outlined,
+                          label: '${d.homeAssets.length} in store',
+                        ),
                       ],
-                      const PhonebookSectionHeader(title: 'Installed here'),
+                    ),
+            ),
+          ),
+          if (_loading && d == null)
+            const SliverFillRemaining(
+              child: Center(child: CircularProgressIndicator(color: PhonebookTheme.blue, strokeWidth: 2.2)),
+            )
+          else if (_error != null && d == null)
+            SliverFillRemaining(
+              child: Center(
+                child: Padding(
+                  padding: const EdgeInsets.all(24),
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Container(
+                        padding: const EdgeInsets.all(16),
+                        decoration: const BoxDecoration(color: Color(0xFFFEF2F2), shape: BoxShape.circle),
+                        child: const Icon(Icons.error_outline_rounded, size: 40, color: Color(0xFFDC2626)),
+                      ),
+                      const SizedBox(height: 12),
+                      Text(_error!, textAlign: TextAlign.center, style: const TextStyle(color: PhonebookTheme.slate, fontWeight: FontWeight.w500)),
+                      const SizedBox(height: 12),
+                      OutlinedButton(onPressed: _load, child: const Text('Retry')),
+                    ],
+                  ),
+                ),
+              ),
+            )
+          else
+            SliverToBoxAdapter(
+              child: RefreshIndicator(
+                onRefresh: _load,
+                color: PhonebookTheme.blue,
+                backgroundColor: Colors.white,
+                child: Padding(
+                  padding: const EdgeInsets.fromLTRB(16, 16, 16, 110),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      if (d!.residents.isNotEmpty) ...[
+                        const PhonebookSectionHeader(title: 'Room Residents & Their Items'),
+                        for (final r in d.residents)
+                          _ResidentCard(
+                            student: r.student,
+                            items: r.items,
+                            onGive: () => _give(r.student),
+                            onReturn: _return,
+                            onOpen: _openItem,
+                          ),
+                        const SizedBox(height: 14),
+                      ],
+                      const PhonebookSectionHeader(title: 'Installed in This Location'),
                       if (d.installed.isEmpty)
                         const Padding(
-                          padding: EdgeInsets.only(bottom: 12),
-                          child: Text('Nothing installed here yet.', style: TextStyle(color: PhonebookTheme.muted)),
+                          padding: EdgeInsets.symmetric(vertical: 8),
+                          child: EmptyState(
+                            icon: Icons.build_circle_outlined,
+                            title: 'Nothing installed here',
+                            message: 'Assets like fans, lights or AC units installed in this location will appear here.',
+                          ),
                         )
                       else
                         for (final a in d.installed)
@@ -246,18 +376,33 @@ class _LocationScreenState extends State<LocationScreen> {
                               icon: const Icon(Icons.keyboard_return_rounded, color: PhonebookTheme.green),
                             ),
                           ),
-                      const PhonebookSectionHeader(title: 'Kept here (in store)'),
+                      const SizedBox(height: 14),
+                      const PhonebookSectionHeader(title: 'Kept Here (In Store / Spares)'),
                       if (d.homeAssets.isEmpty)
-                        const Text('Nothing kept here.', style: TextStyle(color: PhonebookTheme.muted))
+                        const Padding(
+                          padding: EdgeInsets.symmetric(vertical: 8),
+                          child: EmptyState(
+                            icon: Icons.inventory_2_outlined,
+                            title: 'No spare items kept here',
+                            message: 'Items assigned as their home location (such as spare room keys) appear here.',
+                          ),
+                        )
                       else
                         for (final a in d.homeAssets)
-                          AssetTile(asset: a, onTap: () async {
-                            await AssetDetailScreen.open(context, a.id);
-                            if (mounted) await _load();
-                          }),
+                          AssetTile(
+                            asset: a,
+                            onTap: () async {
+                              await AssetDetailScreen.open(context, a.id);
+                              if (mounted) await _load();
+                            },
+                          ),
                     ],
                   ),
                 ),
+              ),
+            ),
+        ],
+      ),
     );
   }
 }
@@ -280,40 +425,96 @@ class _ResidentCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Padding(
-      padding: const EdgeInsets.only(bottom: 10),
+      padding: const EdgeInsets.only(bottom: 12),
       child: PhonebookCard(
-        padding: const EdgeInsets.fromLTRB(14, 12, 6, 8),
-        child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-          Row(children: [
-            const Icon(Icons.person_rounded, color: PhonebookTheme.blue),
-            const SizedBox(width: 8),
-            Expanded(child: Text(student.name, style: const TextStyle(fontWeight: FontWeight.w800, color: PhonebookTheme.ink))),
-            TextButton.icon(onPressed: onGive, icon: const Icon(Icons.add_rounded, size: 18), label: const Text('Give')),
-          ]),
-          if (items.isEmpty)
-            const Padding(
-              padding: EdgeInsets.only(left: 32, bottom: 6),
-              child: Text('No items.', style: TextStyle(color: PhonebookTheme.muted, fontSize: 12.5)),
-            )
-          else
-            for (final a in items)
-              InkWell(
-                onTap: () => onOpen(a),
-                child: Padding(
-                  padding: const EdgeInsets.only(left: 32),
-                  child: Row(children: [
-                    Expanded(
-                      child: Text(a.title, style: const TextStyle(fontWeight: FontWeight.w600, color: PhonebookTheme.slate)),
-                    ),
-                    IconButton(
-                      tooltip: 'Take back',
-                      onPressed: () => onReturn(a),
-                      icon: const Icon(Icons.keyboard_return_rounded, size: 20, color: PhonebookTheme.green),
-                    ),
-                  ]),
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                Container(
+                  width: 38,
+                  height: 38,
+                  decoration: BoxDecoration(
+                    color: PhonebookTheme.blueSoft,
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  child: const Icon(Icons.person_rounded, color: PhonebookTheme.blue, size: 20),
                 ),
-              ),
-        ]),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        student.name,
+                        style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 15.5, color: PhonebookTheme.ink),
+                      ),
+                      Text(
+                        '${items.length} ${items.length == 1 ? 'item' : 'items'} in possession',
+                        style: const TextStyle(fontSize: 12, color: PhonebookTheme.muted, fontWeight: FontWeight.w500),
+                      ),
+                    ],
+                  ),
+                ),
+                ElevatedButton.icon(
+                  onPressed: onGive,
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: PhonebookTheme.blueSoft,
+                    foregroundColor: PhonebookTheme.blue,
+                    elevation: 0,
+                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                  ),
+                  icon: const Icon(Icons.add_rounded, size: 16),
+                  label: const Text('Give item', style: TextStyle(fontWeight: FontWeight.w700, fontSize: 12.5)),
+                ),
+              ],
+            ),
+            if (items.isNotEmpty) ...[
+              const Divider(height: 20, color: PhonebookTheme.border),
+              for (final a in items)
+                Padding(
+                  padding: const EdgeInsets.only(bottom: 6),
+                  child: InkWell(
+                    onTap: () => onOpen(a),
+                    borderRadius: BorderRadius.circular(10),
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+                      decoration: BoxDecoration(
+                        color: PhonebookTheme.bg,
+                        borderRadius: BorderRadius.circular(10),
+                        border: Border.all(color: PhonebookTheme.border),
+                      ),
+                      child: Row(
+                        children: [
+                          Icon(
+                            a.title.toLowerCase().contains('key') ? Icons.vpn_key_rounded : Icons.inventory_2_outlined,
+                            size: 16,
+                            color: PhonebookTheme.blue,
+                          ),
+                          const SizedBox(width: 8),
+                          Expanded(
+                            child: Text(
+                              a.title,
+                              style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 13, color: PhonebookTheme.ink),
+                            ),
+                          ),
+                          IconButton(
+                            tooltip: 'Return item',
+                            onPressed: () => onReturn(a),
+                            icon: const Icon(Icons.keyboard_return_rounded, size: 18, color: PhonebookTheme.green),
+                            visualDensity: VisualDensity.compact,
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                ),
+            ],
+          ],
+        ),
       ),
     );
   }

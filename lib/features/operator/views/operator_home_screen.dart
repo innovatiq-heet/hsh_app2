@@ -768,7 +768,7 @@ class _OperatorHomeDashboard extends StatelessWidget {
         route: Routes.operatorBirthdayWishes,
       ),
       _OperatorAction(
-        title: "Parents' Anniversary",
+        title: 'Parents Anniversary',
         subtitle: 'Greetings for Father &\nMother celebrations',
         icon: Icons.volunteer_activism_rounded,
         iconColor: Color(0xFFE11D48),

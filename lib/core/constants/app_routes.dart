@@ -69,10 +69,8 @@ class Routes {
   static const operatorForms = '/operator/forms';
   static const operatorFormEditor = '/operator/forms/edit';
   static const operatorFormAnalytics = '/operator/forms/analytics';
-  static const operatorAmenities = '/operator/amenities';
-
-  /// Old Room Keys links: they open the Amenities dashboard and the room's
-  /// location screen (argument: room number).
+  static const operatorSpaceAmenities = '/operator/space-amenities';
+  static const studentMySpace = '/student/my-space';
   static const operatorRoomKeys = '/operator/room-keys';
   static const operatorRoomKeysRoom = '/operator/room-keys/room';
 

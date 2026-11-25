@@ -82,6 +82,12 @@ class ServicesScreen extends StatelessWidget {
           AppColors.warningOrange,
           () => _goToTab(HomeController.complaintsTab),
         ),
+        _ServiceItem(
+          'My Room',
+          Icons.bed_outlined,
+          const Color(0xFF0284C7),
+          () => Get.toNamed(Routes.studentMySpace),
+        ),
       ],
       'Requests & money': [
         _ServiceItem(

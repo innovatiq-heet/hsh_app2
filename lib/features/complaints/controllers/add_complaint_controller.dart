@@ -36,6 +36,13 @@ class AddComplaintController extends GetxController {
   final itemsError = ''.obs;
   final isSaving = false.obs;
 
+  int? preselectedSpaceId;
+  int? preselectedAssetId;
+  String? preselectedAssetCode;
+  String? preselectedAssetName;
+  int? _preselectedCategoryId;
+  int? _preselectedItemId;
+
   /// Alumni have room "N/A" and may not file complaints.
   bool get hasRoom =>
       room.value.isNotEmpty && !UserSession.isAlumniRoomOrId(room: room.value);
@@ -43,6 +50,15 @@ class AddComplaintController extends GetxController {
   @override
   void onInit() {
     super.onInit();
+    final args = Get.arguments;
+    if (args is Map) {
+      preselectedSpaceId = (args['spaceId'] as num?)?.toInt();
+      preselectedAssetId = (args['assetId'] as num?)?.toInt();
+      preselectedAssetCode = args['assetCode']?.toString();
+      preselectedAssetName = args['assetName']?.toString();
+      _preselectedCategoryId = (args['categoryId'] as num?)?.toInt();
+      _preselectedItemId = (args['itemId'] as num?)?.toInt();
+    }
     load();
   }
 
@@ -68,6 +84,16 @@ class AddComplaintController extends GetxController {
 
   Future<void> _loadCategories() async {
     categories.assignAll(await _repository.categories());
+    if (_preselectedCategoryId != null) {
+      final cat = categories.firstWhereOrNull((c) => c.id == _preselectedCategoryId);
+      if (cat != null) {
+        await selectCategory(cat);
+        if (_preselectedItemId != null) {
+          final item = items.firstWhereOrNull((i) => i.id == _preselectedItemId);
+          if (item != null) selectItem(item);
+        }
+      }
+    }
   }
 
   /// The API only accepts the room on the student's record, so it is read
@@ -179,6 +205,8 @@ class AddComplaintController extends GetxController {
           itemId: item.id,
           comment: commentController.text,
           image: image.value,
+          spaceId: preselectedSpaceId,
+          assetId: preselectedAssetId,
         ),
       );
       AppSnackbar.success(

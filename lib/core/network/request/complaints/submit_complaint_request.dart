@@ -9,6 +9,9 @@ class SubmitComplaintRequest {
   final int itemId;
   final String? comment;
   final File? image;
+  final int? spaceId;
+  final int? assetId;
+  final String? priority;
 
   const SubmitComplaintRequest({
     required this.roomId,
@@ -16,6 +19,9 @@ class SubmitComplaintRequest {
     required this.itemId,
     this.comment,
     this.image,
+    this.spaceId,
+    this.assetId,
+    this.priority,
   });
 
   Map<String, dynamic> toJson() => {
@@ -24,5 +30,8 @@ class SubmitComplaintRequest {
         'item_id': itemId,
         if (comment != null && comment!.trim().isNotEmpty)
           'comment': comment!.trim(),
+        if (spaceId != null) 'space_id': spaceId,
+        if (assetId != null) 'asset_id': assetId,
+        if (priority != null && priority!.isNotEmpty) 'priority': priority,
       };
 }

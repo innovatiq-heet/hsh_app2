@@ -7,7 +7,7 @@ Rules and context for anyone (human or AI agent) changing this repo. Read this b
 - Flutter app (GetX) for Hari Saurabh Hostel: students, leaders, wardens / operator console, staff.
 - Backend is the separate **`hsh_api`** repo (Node + Express + MySQL). It has its own `AGENTS.md`.
 - Background behaviour on student phones (screen time, app blocking, geofence, location) is **native Android Kotlin**, so it runs with the Flutter UI closed. Caller ID is native on Android and iOS.
-- Feature docs: [docs/GEOFENCING_DOCS.md](docs/GEOFENCING_DOCS.md), [docs/PARENT_CONTROL_DOCS.md](docs/PARENT_CONTROL_DOCS.md), [docs/PHONEBOOK_DOCS.md](docs/PHONEBOOK_DOCS.md), [docs/COMPLAINTS_DOCS.md](docs/COMPLAINTS_DOCS.md), [docs/BIRTHDAY_DOCS.md](docs/BIRTHDAY_DOCS.md), [docs/BROADCAST_DOCS.md](docs/BROADCAST_DOCS.md), [docs/FORMS_DOCS.md](docs/FORMS_DOCS.md), [docs/AMENITIES_SPEC.md](docs/AMENITIES_SPEC.md) (Amenities; replaced Room Keys, see [docs/ROOM_KEYS_DOCS.md](docs/ROOM_KEYS_DOCS.md)).
+- Feature docs: [docs/GEOFENCING_DOCS.md](docs/GEOFENCING_DOCS.md), [docs/PARENT_CONTROL_DOCS.md](docs/PARENT_CONTROL_DOCS.md), [docs/PHONEBOOK_DOCS.md](docs/PHONEBOOK_DOCS.md), [docs/COMPLAINTS_DOCS.md](docs/COMPLAINTS_DOCS.md), [docs/BIRTHDAY_DOCS.md](docs/BIRTHDAY_DOCS.md), [docs/BROADCAST_DOCS.md](docs/BROADCAST_DOCS.md), [docs/FORMS_DOCS.md](docs/FORMS_DOCS.md), [docs/ROOM_KEYS_DOCS.md](docs/ROOM_KEYS_DOCS.md).
 
 ## 2. Commands
 
@@ -53,7 +53,7 @@ test/                  unit tests (offline); tag tests that hit real APIs with @
 - Exception, bookmark only: phonebook **Favourites** (`/phonebook/calls`, `/phonebook/favourites`) store the phonebook's `student_key` (`HSH-…`) as an opaque string per user. Neither side may resolve it to a `students.id` or use it for any action on a student.
 - A broadcast picture is uploaded first (`POST /broadcasts/image`) and referenced only by the returned `image_id`; the app never sends a URL or file path in `POST /broadcasts`. A failed or refused upload leaves a text-only send, and Send waits while an upload runs.
 - Broadcast recipients and Forms & Polls `target_student_ids` send numeric `students.id` only: the shared `StudentPickerSource` / `studentIdOf` reads a row's `id` (positive integer, no leading zero), never `student_id` / `student_code`, and never the phonebook cache.
-- Amenities (which replaced Room Keys) gives an item to a student by numeric `students.id` only, picked from `StudentPickerSource` or taken from a location's residents list; never the phonebook cache or a bank code. A student's profile loads their items through `StudentIdResolver`. Every `PUT /amenities/...` is a partial update.
+- Room Keys gives a key to a student by numeric `students.id` only, from `StudentPickerSource`; never the phonebook cache or a bank code. `PUT /room-keys/:id` is a partial update.
 - Exception, display only: birthday cards borrow a student's group/status from the synced phonebook by bank code (`PhonebookDatabaseService.groupInfoByBankCode`). Never use that lookup to pick a student for an action.
 - A phonebook screen that must save something for a student (tags, an alumnus's current address & work) gets the numeric `students.id` through `StudentIdResolver`: the id the opener already has (e.g. Daily Alumni Connect), else the **exact 12-digit Aadhar** when exactly one student in `/students?all=true` has it, else the admin confirms the student from a list. Never by bank code, never by name alone.
 
@@ -86,14 +86,6 @@ test/                  unit tests (offline); tag tests that hit real APIs with @
 - Android reads the phonebook SQLite file **read-only**; Dart and Kotlin number normalization must stay identical.
 - iOS directory entries must be sorted ascending with no duplicate numbers, or CallKit rejects the whole batch.
 
-**Amenities**
-
-- Admins and wardens only (`canOperate`); `AmenitiesHomeController.ensureOperator` refuses anyone else before any request.
-- Nothing is hard-coded per kind of asset: categories, types (code prefix, individual or bulk tracking, unit) and locations come from the server and are managed in the app.
-- History is append-only: the app never deletes an asset, assignment or event. It retires an asset (status `retired`) and deactivates a category, type or location.
-- Scanning reads any QR text containing `HSH-XXX-00000` (`AmenityFormat.assetCodeIn`) and looks it up with `GET /amenities/assets/by-code/:code`.
-- Bulk quantities that exceed stock come back as `409` with a message; show it as is.
-
 **Complaints and staff users**
 
 - A complaint's room is the student's own room from `/auth/me`, shown read-only. `POST /complaints` never carries `status` or `image_url`; a photo goes in the multipart `image` field with its real MIME type (the API checks it against the bytes).
@@ -105,7 +97,6 @@ test/                  unit tests (offline); tag tests that hit real APIs with @
 
 - `test/screen_time_student_id_test.dart`: drives `StudentScreenTimeController` with fake HTTP (a Dio interceptor) and asserts no request ever carries a bank code. Copy this pattern for controller tests.
 - `test/geofence_location_models_test.dart`, `test/parental_geofence_contract_test.dart`: payload contracts with `hsh_api`.
-- `test/amenities_test.dart`: Amenities paths, partial bodies, numeric student ids, QR code extraction and the home controller.
 - `test/complaints_flow_test.dart`, `test/manage_users_test.dart`, `test/staff_login_test.dart` use `test/support/fake_api.dart`, a fake Dio adapter, so the real interceptors and 4xx/5xx handling run. Prefer it for new repository/controller tests.
 - Tests that call real services are tagged `live` and skipped in CI. Prefer offline tests.
 - Backend behaviour (auth, breaches, gate passes, locations, long-poll sync, id-only resolution) is covered by `hsh_api/tests/e2e/screentime-geofence.e2e.test.ts` (`npm run test:e2e` there).

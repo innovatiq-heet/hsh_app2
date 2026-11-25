@@ -40,6 +40,16 @@ class ComplaintResponse {
   final DateTime createdAt;
   final DateTime updatedAt;
   final ComplaintStudent? student;
+  final String priority;
+  final int? spaceId;
+  final String? spaceName;
+  final int? floorId;
+  final String? floorName;
+  final int? assetId;
+  final String? assetCode;
+  final String? assetName;
+  final String? assetStatus;
+  final String? assetCondition;
 
   const ComplaintResponse({
     required this.id,
@@ -55,6 +65,16 @@ class ComplaintResponse {
     required this.createdAt,
     required this.updatedAt,
     this.student,
+    this.priority = 'medium',
+    this.spaceId,
+    this.spaceName,
+    this.floorId,
+    this.floorName,
+    this.assetId,
+    this.assetCode,
+    this.assetName,
+    this.assetStatus,
+    this.assetCondition,
   });
 
   bool get hasImage => imageUrl != null && imageUrl!.isNotEmpty;
@@ -86,6 +106,16 @@ class ComplaintResponse {
       student: json['student'] is Map
           ? ComplaintStudent.fromJson(Map<String, dynamic>.from(json['student'] as Map))
           : null,
+      priority: (json['priority'] ?? 'medium').toString(),
+      spaceId: json['space_id'] is num ? (json['space_id'] as num).toInt() : int.tryParse('${json['space_id'] ?? ''}'),
+      spaceName: json['space_name']?.toString(),
+      floorId: json['floor_id'] is num ? (json['floor_id'] as num).toInt() : int.tryParse('${json['floor_id'] ?? ''}'),
+      floorName: json['floor_name']?.toString(),
+      assetId: json['asset_id'] is num ? (json['asset_id'] as num).toInt() : int.tryParse('${json['asset_id'] ?? ''}'),
+      assetCode: json['asset_code']?.toString(),
+      assetName: json['asset_name']?.toString(),
+      assetStatus: json['asset_status']?.toString(),
+      assetCondition: json['asset_condition']?.toString(),
     );
   }
 }

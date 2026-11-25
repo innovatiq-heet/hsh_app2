@@ -2,7 +2,6 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:font_awesome_flutter/font_awesome_flutter.dart';
 import 'package:get/get.dart';
-import '../../amenities/widgets/student_amenities_card.dart';
 import '../../../core/constants/app_colors.dart';
 import '../../../core/constants/app_dimens.dart';
 import '../../../core/constants/app_routes.dart';
@@ -299,11 +298,6 @@ class _StudentDetailScreenState extends State<StudentDetailScreen> {
                   if (student.isAlumni) ...[
                     const SizedBox(height: AppDimens.gapMd),
                     CurrentDetailsCard(student: student, knownStudentId: widget.studentId),
-                  ],
-                  // Keys and items given to them (admins and wardens).
-                  if (StudentAmenitiesCard.visible) ...[
-                    const SizedBox(height: AppDimens.gapMd),
-                    StudentAmenitiesCard(student: student, knownStudentId: widget.studentId),
                   ],
                   const SizedBox(height: AppDimens.gapMd),
                   _documentsCard(),

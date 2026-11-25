@@ -833,14 +833,14 @@ class _OperatorHomeDashboard extends StatelessWidget {
         route: Routes.operatorForms,
       ),
       _OperatorAction(
-        title: 'Amenities',
-        subtitle: 'Keys, furniture, fans\n& every hostel asset',
-        icon: Icons.inventory_2_rounded,
+        title: 'Space & Amenities',
+        subtitle: 'Floors, rooms, assets\n& maintenance',
+        icon: Icons.apartment_rounded,
         iconColor: Color(0xFFB45309),
         bgTint: Color(0xFFFEF3C7),
         arrowBgTint: Color(0xFFFFFBEB),
         waveColor: Color(0xFFFDE68A),
-        route: Routes.operatorAmenities,
+        route: Routes.operatorSpaceAmenities,
       ),
       _OperatorAction(
         title: 'Daily Alumni Connect',

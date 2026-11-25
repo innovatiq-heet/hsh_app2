@@ -580,6 +580,24 @@ class _CampusHubSection extends StatelessWidget {
             ),
           ],
         ),
+        const SizedBox(height: 12),
+        _HubActionCard(
+          icon: Icons.bed_outlined,
+          iconColor: const Color(0xFF0284C7),
+          iconBg: const Color(0xFFF0F9FF),
+          iconBorder: const Color(0xFFBAE6FD),
+          waveColor: const Color(0xFFE0F2FE),
+          title: 'My Room & Amenities',
+          subtitle: 'Room inventory, common spaces & quick issue report',
+          badgeBuilder: () => const CelebrantLightChip(
+            icon: Icons.inventory_2_outlined,
+            text: 'View space',
+            bgColor: Color(0xFFF8FAFC),
+            borderColor: Color(0xFFE2E8F0),
+            textColor: Color(0xFF475569),
+          ),
+          onTap: () => Get.toNamed(Routes.studentMySpace),
+        ),
         Obx(() {
           if (!controller.isLeader.value) return const SizedBox.shrink();
           return Column(

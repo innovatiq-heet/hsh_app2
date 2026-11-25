@@ -80,6 +80,24 @@ class _ComplaintForm extends GetView<AddComplaintController> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
+        if (controller.preselectedAssetCode != null || controller.preselectedAssetName != null) ...[
+          PhonebookCard(
+            padding: const EdgeInsets.all(12),
+            child: Row(
+              children: [
+                const Icon(Icons.inventory_2_outlined, color: PhonebookTheme.blue, size: 20),
+                const SizedBox(width: 10),
+                Expanded(
+                  child: Text(
+                    'Linked Amenity: ${controller.preselectedAssetName ?? ''} (${controller.preselectedAssetCode ?? ''})',
+                    style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w700, color: PhonebookTheme.ink),
+                  ),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(height: 16),
+        ],
         const PhonebookSectionHeader(title: 'Select category'),
         const _CategoryGrid(),
         const SizedBox(height: 20),

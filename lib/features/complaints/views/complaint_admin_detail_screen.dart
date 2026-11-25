@@ -13,6 +13,11 @@ import '../../shared/widgets/async_state_view.dart';
 import '../../shared/widgets/info_row.dart';
 import '../../shared/widgets/section_header.dart';
 import '../../shared/widgets/skeleton_loader.dart';
+import '../../../core/enums/user_role.dart';
+import '../../../core/storage/session_store.dart';
+import '../../space_amenities/utils/space_amenity_ui.dart';
+import '../../space_amenities/views/asset_details_screen.dart';
+import '../../space_amenities/widgets/maintenance_update_sheet.dart';
 import '../controllers/complaint_admin_detail_controller.dart';
 import '../widgets/complaint_detail_cards.dart';
 
@@ -67,6 +72,14 @@ class ComplainAdminDetailScreen extends GetView<ComplainAdminDetailController> {
                           children: [
                             const SectionHeader(title: 'Update status'),
                             _StatusControlCard(complaint: c),
+                            if (c.assetId != null) ...[
+                              const SizedBox(height: AppDimens.gapXl),
+                              const SectionHeader(title: 'Linked asset & maintenance'),
+                              _LinkedAssetCard(
+                                complaint: c,
+                                onUpdated: () => controller.load(showLoading: false),
+                              ),
+                            ],
                             const SizedBox(height: AppDimens.gapXl),
                             const SectionHeader(title: 'Resolution progress'),
                             ComplaintTimelineCard(complaint: c),
@@ -488,6 +501,93 @@ class _StudentCard extends StatelessWidget {
             icon: Icons.update_rounded,
             label: 'Last Updated',
             value: DateFormatting.dateTime(complaint.updatedAt),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _LinkedAssetCard extends StatelessWidget {
+  final ComplaintResponse complaint;
+  final VoidCallback onUpdated;
+  const _LinkedAssetCard({required this.complaint, required this.onUpdated});
+
+  @override
+  Widget build(BuildContext context) {
+    final role = Get.find<SessionStore>().currentSession?.role ?? UserRole.unknown;
+    final assetId = complaint.assetId!;
+    final assetName = complaint.assetName ?? complaint.item;
+    final assetCode = complaint.assetCode ?? '';
+    final statusStr = complaint.assetStatus ?? 'faulty';
+    final sColor = SpaceAmenityUi.statusColor(statusStr);
+
+    return AppCard(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Row(
+            children: [
+              Container(
+                width: 40,
+                height: 40,
+                decoration: BoxDecoration(
+                  color: sColor.withValues(alpha: 0.12),
+                  borderRadius: BorderRadius.circular(10),
+                ),
+                child: Icon(Icons.inventory_2_outlined, color: sColor, size: 20),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(assetName, style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 14.5)),
+                    Text(
+                      [
+                        if (assetCode.isNotEmpty) assetCode,
+                        if (complaint.spaceName != null) complaint.spaceName!,
+                        SpaceAmenityUi.statusLabel(statusStr),
+                      ].join(' · '),
+                      style: const TextStyle(fontSize: 12, color: Color(0xFF64748B)),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 12),
+          Row(
+            children: [
+              Expanded(
+                child: OutlinedButton.icon(
+                  onPressed: () => Get.to(() => AssetDetailsScreen(assetId: assetId))?.then((_) => onUpdated()),
+                  icon: const Icon(Icons.open_in_new_rounded, size: 16),
+                  label: const Text('View Asset'),
+                ),
+              ),
+              const SizedBox(width: 10),
+              Expanded(
+                child: ElevatedButton.icon(
+                  onPressed: () async {
+                    final ok = await showModalBottomSheet<bool>(
+                      context: context,
+                      isScrollControlled: true,
+                      builder: (_) => MaintenanceUpdateSheet(
+                        assetId: assetId,
+                        complaintId: int.tryParse(complaint.id),
+                        assetName: assetCode.isNotEmpty ? '$assetName ($assetCode)' : assetName,
+                        currentCondition: complaint.assetCondition ?? 'fair',
+                        canReplaceAsset: role.canOperate,
+                      ),
+                    );
+                    if (ok == true) onUpdated();
+                  },
+                  icon: const Icon(Icons.build_outlined, size: 16),
+                  label: const Text('Update Maintenance'),
+                ),
+              ),
+            ],
           ),
         ],
       ),

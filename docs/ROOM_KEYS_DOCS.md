@@ -1,6 +1,4 @@
-# Room Keys (retired)
-
-> **Retired 2026-11-24:** replaced by Amenities Management ([AMENITIES_SPEC.md](AMENITIES_SPEC.md)). The app no longer has Room Keys screens: the operator tile opens Amenities, `Routes.operatorRoomKeys` opens the Amenities dashboard and `Routes.operatorRoomKeysRoom` opens that room's location screen. Keys are an amenity type (individual, kept at the room's location). This page stays as a record of the old module and its data, which the backend migrates into Amenities.
+# Room Keys
 
 > **Last updated:** 2026-11-24 · **Repos:** `hsh_app2` (Flutter) and `HAMS_WEB` / `hsh_api` (Node/Express/MySQL)
 >

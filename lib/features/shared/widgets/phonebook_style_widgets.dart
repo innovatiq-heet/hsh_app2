@@ -751,7 +751,6 @@ class PhonebookTintChip extends StatelessWidget {
   final Color color;
   final IconData? icon;
   final VoidCallback onTap;
-  final bool neutralUnselected;
 
   const PhonebookTintChip({
     super.key,
@@ -760,21 +759,10 @@ class PhonebookTintChip extends StatelessWidget {
     required this.onTap,
     this.color = PhonebookTheme.blue,
     this.icon,
-    this.neutralUnselected = false,
   });
 
   @override
   Widget build(BuildContext context) {
-    final effectiveBg = selected
-        ? color
-        : (neutralUnselected ? const Color(0xFFF1F5F9) : color.withValues(alpha: 0.08));
-    final effectiveBorder = selected
-        ? color
-        : (neutralUnselected ? const Color(0xFFE2E8F0) : color.withValues(alpha: 0.28));
-    final effectiveFg = selected
-        ? Colors.white
-        : (neutralUnselected ? const Color(0xFF475569) : color);
-
     return Material(
       color: Colors.transparent,
       child: InkWell(
@@ -784,22 +772,22 @@ class PhonebookTintChip extends StatelessWidget {
           duration: const Duration(milliseconds: 160),
           padding: const EdgeInsets.symmetric(horizontal: 13, vertical: 8),
           decoration: BoxDecoration(
-            color: effectiveBg,
+            color: selected ? color : color.withValues(alpha: 0.08),
             borderRadius: BorderRadius.circular(12),
-            border: Border.all(color: effectiveBorder),
+            border: Border.all(color: selected ? color : color.withValues(alpha: 0.28)),
           ),
           child: Row(
             mainAxisSize: MainAxisSize.min,
             children: [
               if (selected || icon != null) ...[
-                Icon(selected ? Icons.check_rounded : icon, size: 15, color: effectiveFg),
+                Icon(selected ? Icons.check_rounded : icon, size: 15, color: selected ? Colors.white : color),
                 const SizedBox(width: 5),
               ],
               Flexible(
                 child: Text(
                   label,
                   style: TextStyle(
-                    color: effectiveFg,
+                    color: selected ? Colors.white : color,
                     fontWeight: selected ? FontWeight.w700 : FontWeight.w600,
                     fontSize: 12.5,
                   ),

@@ -2,7 +2,7 @@ name: hsh_app2
 description: "HSH Connect - Hari Saurabh Hostel App"
 publish_to: "none"
 
-version: 1.2.1+33
+version: 1.2.1+34
 environment:
   sdk: ^3.11.4
 dependencies:

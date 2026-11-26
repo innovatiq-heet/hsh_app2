@@ -1,6 +1,6 @@
 # Campus Geofence, Curfew Monitoring & Student Locations
 
-> **Last updated:** 2026-10-06 · **Repos:** `hsh_app2` (Flutter + native Android) and `hsh_api` (Node/Express/MySQL)
+> **Last updated:** 2026-11-27 · **Repos:** `hsh_app2` (Flutter + native Android) and `hsh_api` (Node/Express/MySQL)
 >
 > Paths starting with `lib/` or `android/` are in this repo; paths starting with `hsh_api/` are in the backend repo.
 
@@ -92,7 +92,7 @@ graph TD
 | [geofence_device_service.dart](../lib/core/services/geofence_device_service.dart) | Student-side bridge to the `hsh/geofence` MethodChannel: permission level, status snapshot, sample-now; two-step "Allow all the time" request. |
 | [admin_geofence_controller.dart](../lib/features/geofence/controllers/admin_geofence_controller.dart) / [admin_geofence_screen.dart](../lib/features/geofence/views/admin_geofence_screen.dart) | Campus Geofence screen: curfew schedule, location interval, breach cards and actions. Route `Routes.operatorGeofence`. |
 | [student_locations_controller.dart](../lib/features/geofence/controllers/student_locations_controller.dart) / [student_locations_screen.dart](../lib/features/geofence/views/student_locations_screen.dart) | Student Locations list. Route `Routes.operatorStudentLocations`. |
-| [device_setup_screen.dart](../lib/features/screentime/views/device_setup_screen.dart) | Student onboarding; step 3 requests location "Allow all the time" and discloses that location is collected every few minutes, all day, even with the app closed, and shown to hostel staff (the in-app disclosure Google Play requires before the permission prompt). |
+| [device_setup_screen.dart](../lib/features/screentime/views/device_setup_screen.dart) | Student onboarding; the list shows only step names. Tapping step 3 opens a dialog that discloses that location is collected every few minutes, all day, even with the app closed, and shown to hostel staff (the in-app disclosure Google Play requires before the permission prompt); location "Allow all the time" is requested only after the student taps **Allow location** there. |
 | [home_controller.dart](../lib/features/home/controllers/home_controller.dart) | Sends a student back to setup if location "always" (or another required permission) is revoked. |
 
 ### Native Android (`android/app/src/main/kotlin/com/example/hsh_app2/screentime/`)

@@ -291,6 +291,55 @@ class _Step extends StatelessWidget {
     required this.onAction,
   });
 
+  /// Says what the step does (the disclosure Google Play requires before the
+  /// permission prompt); the settings only open if the student agrees.
+  Future<void> _explain(BuildContext context) async {
+    final agreed = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        scrollable: true,
+        backgroundColor: AppColors.surface,
+        surfaceTintColor: Colors.transparent,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(AppDimens.radiusXl)),
+        title: Text(title, style: AppTextStyles.headline),
+        content: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Text(description, style: AppTextStyles.bodyMd.copyWith(color: AppColors.textSecondary)),
+            const SizedBox(height: AppDimens.gapMd),
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+              decoration: BoxDecoration(
+                color: AppColors.primarySoft,
+                borderRadius: BorderRadius.circular(AppDimens.radiusSm),
+              ),
+              child: Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Icon(Icons.info_outline_rounded, size: 16, color: AppColors.primary),
+                  const SizedBox(width: 8),
+                  Expanded(child: Text(hint, style: AppTextStyles.bodySm)),
+                ],
+              ),
+            ),
+            const SizedBox(height: AppDimens.gapLg),
+            AppButton(
+              label: actionLabel,
+              icon: Icons.open_in_new_rounded,
+              onPressed: () => Navigator.of(ctx).pop(true),
+            ),
+            const SizedBox(height: 6),
+            TextButton(
+              onPressed: () => Navigator.of(ctx).pop(false),
+              child: const Text('Not now', style: TextStyle(color: AppColors.textSecondary)),
+            ),
+          ],
+        ),
+      ),
+    );
+    if (agreed == true) onAction();
+  }
+
   @override
   Widget build(BuildContext context) {
     final active = enabled && !done;
@@ -305,7 +354,7 @@ class _Step extends StatelessWidget {
     return Material(
       color: Colors.transparent,
       child: InkWell(
-        onTap: done ? null : onAction,
+        onTap: active ? () => _explain(context) : null,
         borderRadius: BorderRadius.circular(AppDimens.radiusLg),
         child: AnimatedContainer(
           duration: const Duration(milliseconds: 220),
@@ -315,56 +364,28 @@ class _Step extends StatelessWidget {
             borderRadius: BorderRadius.circular(AppDimens.radiusLg),
             border: Border.all(color: active ? AppColors.primary.withValues(alpha: 0.5) : AppColors.borderLight, width: active ? 1.5 : 1),
           ),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
+          child: Row(
             children: [
-              Row(
-                children: [
-                  Container(
-                    width: 40,
-                    height: 40,
-                    decoration: BoxDecoration(color: color.withValues(alpha: 0.12), shape: BoxShape.circle),
-                    child: Icon(done ? Icons.check_rounded : icon, color: color, size: 22),
-                  ),
-                  const SizedBox(width: 12),
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          'Step $index · $title',
-                          style: AppTextStyles.title.copyWith(color: enabled || done ? AppColors.textPrimary : AppColors.textMuted),
-                        ),
-                        Text(description, style: AppTextStyles.bodySm.copyWith(color: AppColors.textSecondary)),
-                      ],
-                    ),
-                  ),
-                  if (done)
-                    Text('Done', style: AppTextStyles.label.copyWith(color: AppColors.successGreen, fontWeight: FontWeight.w700))
-                  else if (skipped)
-                    Text('Skipped', style: AppTextStyles.label.copyWith(color: AppColors.textMuted)),
-                ],
+              Container(
+                width: 40,
+                height: 40,
+                decoration: BoxDecoration(color: color.withValues(alpha: 0.12), shape: BoxShape.circle),
+                child: Icon(done ? Icons.check_rounded : icon, color: color, size: 22),
               ),
-              if (active) ...[
-                const SizedBox(height: AppDimens.gapMd),
-                Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-                  decoration: BoxDecoration(
-                    color: AppColors.primarySoft,
-                    borderRadius: BorderRadius.circular(AppDimens.radiusSm),
-                  ),
-                  child: Row(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      const Icon(Icons.info_outline_rounded, size: 16, color: AppColors.primary),
-                      const SizedBox(width: 8),
-                      Expanded(child: Text(hint, style: AppTextStyles.bodySm)),
-                    ],
-                  ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Text(
+                  'Step $index · $title',
+                  style: AppTextStyles.title.copyWith(color: enabled || done ? AppColors.textPrimary : AppColors.textMuted),
                 ),
-                const SizedBox(height: AppDimens.gapMd),
-                AppButton(label: actionLabel, icon: Icons.open_in_new_rounded, onPressed: onAction),
-              ],
+              ),
+              const SizedBox(width: 8),
+              if (done)
+                Text('Done', style: AppTextStyles.label.copyWith(color: AppColors.successGreen, fontWeight: FontWeight.w700))
+              else if (skipped)
+                Text('Skipped', style: AppTextStyles.label.copyWith(color: AppColors.textMuted))
+              else
+                Icon(Icons.chevron_right_rounded, color: color),
             ],
           ),
         ),

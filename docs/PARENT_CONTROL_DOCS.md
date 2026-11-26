@@ -1,6 +1,6 @@
 # Parental Control & Screen Time
 
-> **Last updated:** 2026-11-24 · **Repos:** `hsh_app2` (Flutter + native Android) and `hsh_api` (Node/Express/MySQL)
+> **Last updated:** 2026-11-27 · **Repos:** `hsh_app2` (Flutter + native Android) and `hsh_api` (Node/Express/MySQL)
 >
 > Paths starting with `lib/` or `android/` are in this repo; paths starting with `hsh_api/` are in the backend repo. Location tracking and curfew breaches are documented separately in [GEOFENCING_DOCS.md](GEOFENCING_DOCS.md).
 
@@ -102,7 +102,7 @@ graph TD
 | [student_screen_time_screen.dart](../lib/features/screentime/views/student_screen_time_screen.dart) | Warden dashboard UI. Route `Routes.studentScreenTime`. |
 | [parental_controls_card.dart](../lib/features/screentime/widgets/parental_controls_card.dart) | Lock/unlock plus one tile into each settings screen (bedtime & daily limit; blocked apps); shows "Off" when neither is set. |
 | [restrict_apps_screen.dart](../lib/features/screentime/views/restrict_apps_screen.dart), [curfew_limit_screen.dart](../lib/features/screentime/views/curfew_limit_screen.dart) | Block an app; set bedtime and daily limit (each its own screen). |
-| [device_setup_screen.dart](../lib/features/screentime/views/device_setup_screen.dart) | Student onboarding: Usage access, App blocker ("Display over other apps"), Location "all the time", Battery exemption, Protect from removal (device admin). |
+| [device_setup_screen.dart](../lib/features/screentime/views/device_setup_screen.dart) | Student onboarding: Usage access, App blocker ("Display over other apps"), Location "all the time", Battery exemption, Protect from removal (device admin). The list shows only step names; tapping one explains it in a dialog, and the system screen opens only after the student agrees there. |
 | [home_controller.dart](../lib/features/home/controllers/home_controller.dart) | On student login/resume: sends the student to setup if a required permission is missing, then calls `syncNow()` and `refreshPolicy()`. |
 | [session_store.dart](../lib/core/storage/session_store.dart) | Starts monitoring for student/leader sessions; stops it on logout. |
 

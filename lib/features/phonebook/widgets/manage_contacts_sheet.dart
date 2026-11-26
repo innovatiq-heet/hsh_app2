@@ -147,12 +147,14 @@ class _ManageContactsSheetState extends State<ManageContactsSheet> {
   }) async {
     final controller = TextEditingController(text: currentValue ?? '');
     final formKey = GlobalKey<FormState>();
+    final hasExistingValue = currentValue != null && currentValue.trim().isNotEmpty;
 
     await showDialog<String>(
       context: context,
       builder: (ctx) {
         bool isSaving = false;
-        final hasExistingValue = currentValue != null && currentValue.trim().isNotEmpty;
+        // When changing primary mobile, preserve the previous primary number in Additional Numbers by default.
+        bool keepOldPrimary = fieldKey == 'primary' && hasExistingValue;
 
         return StatefulBuilder(
           builder: (dialogContext, setDialogState) {
@@ -208,6 +210,73 @@ class _ManageContactsSheetState extends State<ManageContactsSheet> {
                         return null;
                       },
                     ),
+                    if (fieldKey == 'whatsapp') ...[
+                      const SizedBox(height: 12),
+                      Container(
+                        padding: const EdgeInsets.all(10),
+                        decoration: BoxDecoration(
+                          color: const Color(0xFFF0F9FF),
+                          borderRadius: BorderRadius.circular(10),
+                          border: Border.all(color: const Color(0xFFBAE6FD)),
+                        ),
+                        child: Row(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            const Icon(Icons.verified_user_outlined,
+                                size: 16, color: Color(0xFF0284C7)),
+                            const SizedBox(width: 8),
+                            Expanded(
+                              child: Text(
+                                _primaryPhone != null && _primaryPhone!.trim().isNotEmpty
+                                    ? 'Only the WhatsApp number changes. Previous Primary Mobile ($_primaryPhone) stays safe and unchanged.'
+                                    : 'Only the WhatsApp number changes. Primary Mobile stays unchanged.',
+                                style: const TextStyle(
+                                  fontSize: 11.5,
+                                  color: Color(0xFF0369A1),
+                                  height: 1.35,
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ],
+                    if (fieldKey == 'primary' && hasExistingValue) ...[
+                      const SizedBox(height: 10),
+                      Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                        decoration: BoxDecoration(
+                          color: const Color(0xFFF0FDF4),
+                          borderRadius: BorderRadius.circular(10),
+                          border: Border.all(color: const Color(0xFFBBF7D0)),
+                        ),
+                        child: CheckboxListTile(
+                          value: keepOldPrimary,
+                          dense: true,
+                          contentPadding: EdgeInsets.zero,
+                          controlAffinity: ListTileControlAffinity.leading,
+                          activeColor: AppColors.successGreen,
+                          title: const Text(
+                            'Keep previous primary number in Additional Numbers',
+                            style: TextStyle(
+                              fontSize: 12,
+                              fontWeight: FontWeight.w600,
+                              color: Color(0xFF166534),
+                            ),
+                          ),
+                          subtitle: Text(
+                            'Saves $currentValue so it is not deleted.',
+                            style: const TextStyle(
+                              fontSize: 11,
+                              color: Color(0xFF15803D),
+                            ),
+                          ),
+                          onChanged: isSaving
+                              ? null
+                              : (v) => setDialogState(() => keepOldPrimary = v ?? true),
+                        ),
+                      ),
+                    ],
                   ],
                 ),
               ),
@@ -246,56 +315,76 @@ class _ManageContactsSheetState extends State<ManageContactsSheet> {
 
                           try {
                             String id = _resolvedIdentifier ?? widget.student.id;
-                            if (fieldKey == 'primary_and_whatsapp') {
-                              await _repo.updateBaseContactDetails(
-                                studentIdentifier: id,
-                                primaryPhone: newPhone,
-                                whatsappNumber: newPhone,
-                              );
 
-                              // Update local SQLite
-                              await PhonebookDatabaseService.instance.updateBaseContacts(
-                                studentId: widget.student.studentId,
-                                primaryPhone: newPhone,
-                                whatsappNumber: newPhone,
+                            if (fieldKey == 'primary' &&
+                                keepOldPrimary &&
+                                hasExistingValue &&
+                                !PhoneNumberNormalizer.isSame(currentValue, newPhone)) {
+                              final alreadySaved = _additionalPhones.any(
+                                (p) => PhoneNumberNormalizer.isSame(p.phone, currentValue),
                               );
-
-                              if (mounted) {
-                                setState(() {
-                                  _primaryPhone = newPhone;
-                                  _whatsappNumber = newPhone;
-                                });
+                              if (!alreadySaved) {
+                                final savedExtra = await _repo.addAdditionalPhone(
+                                  studentIdentifier: id,
+                                  phone: currentValue.trim(),
+                                  label: 'Previous Primary',
+                                  isWhatsApp: false,
+                                  isPrimary: false,
+                                  isPrimaryWhatsApp: false,
+                                );
+                                _additionalPhones.add(savedExtra);
+                                await PhonebookDatabaseService.instance.insertAdditionalPhone(
+                                  studentId: widget.student.studentId,
+                                  studentCode: widget.student.bankCode,
+                                  phone: savedExtra.phone,
+                                  label: savedExtra.label,
+                                );
                               }
-                            } else {
-                              await _repo.updateBaseContactDetails(
-                                studentIdentifier: id,
-                                primaryPhone: fieldKey == 'primary' ? newPhone : null,
-                                whatsappNumber: fieldKey == 'whatsapp' ? newPhone : null,
-                                fatherPhone: fieldKey == 'father' ? newPhone : null,
-                                motherPhone: fieldKey == 'mother' ? newPhone : null,
-                              );
+                            }
 
-                              // Update local SQLite
-                              await PhonebookDatabaseService.instance.updateBaseContacts(
-                                studentId: widget.student.studentId,
-                                primaryPhone: fieldKey == 'primary' ? newPhone : null,
-                                whatsappNumber: fieldKey == 'whatsapp' ? newPhone : null,
-                                fatherPhone: fieldKey == 'father' ? newPhone : null,
-                                motherPhone: fieldKey == 'mother' ? newPhone : null,
-                              );
+                            await _repo.updateBaseContactDetails(
+                              studentIdentifier: id,
+                              primaryPhone: fieldKey == 'primary' ? newPhone : null,
+                              whatsappNumber: fieldKey == 'whatsapp' ? newPhone : null,
+                              fatherPhone: fieldKey == 'father' ? newPhone : null,
+                              motherPhone: fieldKey == 'mother' ? newPhone : null,
+                            );
 
-                              if (mounted) {
-                                setState(() {
-                                  if (fieldKey == 'primary') _primaryPhone = newPhone;
-                                  if (fieldKey == 'whatsapp') _whatsappNumber = newPhone;
-                                  if (fieldKey == 'father') _fatherPhone = newPhone;
-                                  if (fieldKey == 'mother') _motherPhone = newPhone;
-                                });
-                              }
+                            // Update local SQLite
+                            await PhonebookDatabaseService.instance.updateBaseContacts(
+                              studentId: widget.student.studentId,
+                              primaryPhone: fieldKey == 'primary' ? newPhone : null,
+                              whatsappNumber: fieldKey == 'whatsapp' ? newPhone : null,
+                              fatherPhone: fieldKey == 'father' ? newPhone : null,
+                              motherPhone: fieldKey == 'mother' ? newPhone : null,
+                            );
+
+                            if (mounted) {
+                              setState(() {
+                                if (fieldKey == 'primary') _primaryPhone = newPhone;
+                                if (fieldKey == 'whatsapp') _whatsappNumber = newPhone;
+                                if (fieldKey == 'father') _fatherPhone = newPhone;
+                                if (fieldKey == 'mother') _motherPhone = newPhone;
+                              });
                             }
                             _notifyUpdated();
                             if (ctx.mounted) Navigator.pop(ctx, newPhone);
-                            AppSnackbar.success('Updated', '$title updated successfully.');
+                            if (fieldKey == 'whatsapp') {
+                              AppSnackbar.success(
+                                'WhatsApp Number Updated',
+                                'WhatsApp updated to $newPhone. Primary mobile number stays unchanged.',
+                              );
+                            } else if (fieldKey == 'primary' &&
+                                keepOldPrimary &&
+                                hasExistingValue &&
+                                !PhoneNumberNormalizer.isSame(currentValue, newPhone)) {
+                              AppSnackbar.success(
+                                'Primary Number Updated',
+                                'Updated to $newPhone. Previous number ($currentValue) was saved in Additional Numbers.',
+                              );
+                            } else {
+                              AppSnackbar.success('Updated', '$title updated successfully.');
+                            }
                           } catch (e) {
                             setDialogState(() => isSaving = false);
                             AppSnackbar.error(
@@ -678,7 +767,7 @@ class _ManageContactsSheetState extends State<ManageContactsSheet> {
                 SizedBox(width: 8),
                 Expanded(
                   child: Text(
-                    'Add international phone numbers (e.g. USA, Canada), set primary WhatsApp, or clear old numbers.',
+                    'Edit WhatsApp or add extra/international numbers without affecting the primary mobile number.',
                     style: TextStyle(
                         fontSize: 11.5, color: Color(0xFF475569)),
                   ),
@@ -718,163 +807,114 @@ class _ManageContactsSheetState extends State<ManageContactsSheet> {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    // Section 1: Base Contacts
+                    // Section 1: Base Contacts (always kept separate so changing WhatsApp never alters Primary Mobile)
                     _buildSectionHeader('PRIMARY & FAMILY NUMBERS'),
-                    if (_primaryPhone != null &&
-                        _primaryPhone!.trim().isNotEmpty &&
-                        _whatsappNumber != null &&
-                        _whatsappNumber!.trim().isNotEmpty &&
-                        PhoneNumberNormalizer.isSame(_primaryPhone, _whatsappNumber))
-                      _buildBaseContactTile(
-                        label: 'Mobile & WhatsApp',
-                        value: _primaryPhone,
-                        icon: Icons.smartphone_rounded,
-                        color: AppColors.primary,
-                        fieldKey: 'primary_and_whatsapp',
-                        badge: Container(
-                          padding: const EdgeInsets.symmetric(
-                              horizontal: 6, vertical: 2),
-                          decoration: BoxDecoration(
-                            color: const Color(0xFFDCFCE7),
-                            borderRadius: BorderRadius.circular(4),
-                            border: Border.all(color: const Color(0xFF86EFAC)),
-                          ),
-                          child: const Row(
-                            mainAxisSize: MainAxisSize.min,
-                            children: [
-                              FaIcon(FontAwesomeIcons.whatsapp,
-                                  size: 9.5, color: Color(0xFF16A34A)),
-                              SizedBox(width: 3),
-                              Text(
-                                'Primary WA',
-                                style: TextStyle(
-                                  fontSize: 9.5,
-                                  fontWeight: FontWeight.w700,
-                                  color: Color(0xFF16A34A),
+                    _buildBaseContactTile(
+                      label: 'Primary Mobile',
+                      value: _primaryPhone,
+                      icon: Icons.smartphone_rounded,
+                      color: AppColors.primary,
+                      fieldKey: 'primary',
+                      badge: (_primaryPhone != null &&
+                              _primaryPhone!.isNotEmpty &&
+                              (_whatsappNumber == null ||
+                                  _whatsappNumber!.isEmpty ||
+                                  !PhoneNumberNormalizer.isSame(
+                                      _whatsappNumber, _primaryPhone)))
+                          ? InkWell(
+                              onTap: _setPrimaryMobileAsWhatsApp,
+                              child: Container(
+                                padding: const EdgeInsets.symmetric(
+                                    horizontal: 6, vertical: 2),
+                                decoration: BoxDecoration(
+                                  color: const Color(0xFFF0FDF4),
+                                  borderRadius: BorderRadius.circular(4),
+                                  border: Border.all(
+                                      color: const Color(0xFFBBF7D0)),
+                                ),
+                                child: const Row(
+                                  mainAxisSize: MainAxisSize.min,
+                                  children: [
+                                    FaIcon(FontAwesomeIcons.whatsapp,
+                                        size: 9.5, color: Color(0xFF16A34A)),
+                                    SizedBox(width: 3),
+                                    Text(
+                                      'Use as WA',
+                                      style: TextStyle(
+                                        fontSize: 9.5,
+                                        fontWeight: FontWeight.w700,
+                                        color: Color(0xFF16A34A),
+                                      ),
+                                    ),
+                                  ],
                                 ),
                               ),
-                            ],
-                          ),
-                        ),
-                        onEdit: () => _editBaseContact(
-                          title: 'Edit Mobile & WhatsApp Number',
-                          fieldKey: 'primary_and_whatsapp',
-                          currentValue: _primaryPhone,
-                        ),
-                        onDelete: () => _deleteBaseContact(
-                          title: 'Mobile & WhatsApp Number',
-                          fieldKey: 'primary_and_whatsapp',
-                          phone: _primaryPhone!,
-                        ),
-                      )
-                    else ...[
-                      _buildBaseContactTile(
-                        label: 'Student Mobile',
-                        value: _primaryPhone,
-                        icon: Icons.smartphone_rounded,
-                        color: AppColors.primary,
+                            )
+                          : null,
+                      onEdit: () => _editBaseContact(
+                        title: 'Edit Primary Mobile',
                         fieldKey: 'primary',
-                        badge: (_primaryPhone != null &&
-                                _primaryPhone!.isNotEmpty &&
-                                (_whatsappNumber == null ||
-                                    _whatsappNumber!.isEmpty ||
-                                    !PhoneNumberNormalizer.isSame(
-                                        _whatsappNumber, _primaryPhone)))
-                            ? InkWell(
-                                onTap: _setPrimaryMobileAsWhatsApp,
-                                child: Container(
-                                  padding: const EdgeInsets.symmetric(
-                                      horizontal: 6, vertical: 2),
-                                  decoration: BoxDecoration(
-                                    color: const Color(0xFFF0FDF4),
-                                    borderRadius: BorderRadius.circular(4),
-                                    border: Border.all(
-                                        color: const Color(0xFFBBF7D0)),
-                                  ),
-                                  child: const Row(
-                                    mainAxisSize: MainAxisSize.min,
-                                    children: [
-                                      FaIcon(FontAwesomeIcons.whatsapp,
-                                          size: 9.5, color: Color(0xFF16A34A)),
-                                      SizedBox(width: 3),
-                                      Text(
-                                        'Use as WA',
-                                        style: TextStyle(
-                                          fontSize: 9.5,
-                                          fontWeight: FontWeight.w700,
-                                          color: Color(0xFF16A34A),
-                                        ),
+                        currentValue: _primaryPhone,
+                      ),
+                      onDelete: _primaryPhone != null && _primaryPhone!.isNotEmpty
+                          ? () => _deleteBaseContact(
+                                title: 'Primary Mobile',
+                                fieldKey: 'primary',
+                                phone: _primaryPhone!,
+                              )
+                          : null,
+                    ),
+                    if (!_additionalPhones.any((p) =>
+                        PhoneNumberNormalizer.isSame(p.phone, _whatsappNumber)))
+                      _buildBaseContactTile(
+                        label: 'WhatsApp Number',
+                        value: _whatsappNumber,
+                        icon: Icons.chat_rounded,
+                        color: AppColors.successGreen,
+                        fieldKey: 'whatsapp',
+                        badge: (_whatsappNumber != null &&
+                                _whatsappNumber!.isNotEmpty)
+                            ? Container(
+                                padding: const EdgeInsets.symmetric(
+                                    horizontal: 6, vertical: 2),
+                                decoration: BoxDecoration(
+                                  color: const Color(0xFFDCFCE7),
+                                  borderRadius: BorderRadius.circular(4),
+                                  border: Border.all(
+                                      color: const Color(0xFF86EFAC)),
+                                ),
+                                child: const Row(
+                                  mainAxisSize: MainAxisSize.min,
+                                  children: [
+                                    FaIcon(FontAwesomeIcons.whatsapp,
+                                        size: 9.5, color: Color(0xFF16A34A)),
+                                    SizedBox(width: 3),
+                                    Text(
+                                      'Primary WA',
+                                      style: TextStyle(
+                                        fontSize: 9.5,
+                                        fontWeight: FontWeight.w700,
+                                        color: Color(0xFF16A34A),
                                       ),
-                                    ],
-                                  ),
+                                    ),
+                                  ],
                                 ),
                               )
                             : null,
                         onEdit: () => _editBaseContact(
-                          title: 'Edit Student Mobile',
-                          fieldKey: 'primary',
-                          currentValue: _primaryPhone,
+                          title: 'Edit WhatsApp Number',
+                          fieldKey: 'whatsapp',
+                          currentValue: _whatsappNumber,
                         ),
-                        onDelete: _primaryPhone != null && _primaryPhone!.isNotEmpty
+                        onDelete: _whatsappNumber != null &&
+                                _whatsappNumber!.isNotEmpty
                             ? () => _deleteBaseContact(
-                                  title: 'Student Mobile',
-                                  fieldKey: 'primary',
-                                  phone: _primaryPhone!,
+                                  title: 'WhatsApp Number',
+                                  fieldKey: 'whatsapp',
+                                  phone: _whatsappNumber!,
                                 )
                             : null,
                       ),
-                      if (!_additionalPhones.any((p) =>
-                          PhoneNumberNormalizer.isSame(p.phone, _whatsappNumber)))
-                        _buildBaseContactTile(
-                          label: 'WhatsApp Number',
-                          value: _whatsappNumber,
-                          icon: Icons.chat_rounded,
-                          color: AppColors.successGreen,
-                          fieldKey: 'whatsapp',
-                          badge: (_whatsappNumber != null &&
-                                  _whatsappNumber!.isNotEmpty)
-                              ? Container(
-                                  padding: const EdgeInsets.symmetric(
-                                      horizontal: 6, vertical: 2),
-                                  decoration: BoxDecoration(
-                                    color: const Color(0xFFDCFCE7),
-                                    borderRadius: BorderRadius.circular(4),
-                                    border: Border.all(
-                                        color: const Color(0xFF86EFAC)),
-                                  ),
-                                  child: const Row(
-                                    mainAxisSize: MainAxisSize.min,
-                                    children: [
-                                      FaIcon(FontAwesomeIcons.whatsapp,
-                                          size: 9.5, color: Color(0xFF16A34A)),
-                                      SizedBox(width: 3),
-                                      Text(
-                                        'Primary WA',
-                                        style: TextStyle(
-                                          fontSize: 9.5,
-                                          fontWeight: FontWeight.w700,
-                                          color: Color(0xFF16A34A),
-                                        ),
-                                      ),
-                                    ],
-                                  ),
-                                )
-                              : null,
-                          onEdit: () => _editBaseContact(
-                            title: 'Edit WhatsApp Number',
-                            fieldKey: 'whatsapp',
-                            currentValue: _whatsappNumber,
-                          ),
-                          onDelete: _whatsappNumber != null &&
-                                  _whatsappNumber!.isNotEmpty
-                              ? () => _deleteBaseContact(
-                                    title: 'WhatsApp Number',
-                                    fieldKey: 'whatsapp',
-                                    phone: _whatsappNumber!,
-                                  )
-                              : null,
-                        ),
-                    ],
                     _buildBaseContactTile(
                       label: "Father's Phone",
                       value: _fatherPhone,

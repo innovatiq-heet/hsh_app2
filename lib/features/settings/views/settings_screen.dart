@@ -15,6 +15,7 @@ import '../../shared/widgets/section_header.dart';
 import '../../shared/widgets/section_list_tile.dart';
 import '../../shared/widgets/privacy_and_disclosures_sheet.dart';
 import '../../../core/constants/app_config.dart';
+import '../../../core/enums/user_role.dart';
 import '../../../core/services/shorebird_service.dart';
 import '../../../core/utils/app_snackbar.dart';
 import '../../student_profile/controllers/student_profile_controller.dart';
@@ -211,6 +212,14 @@ class SettingScreen extends StatelessWidget {
     if (Get.isRegistered<StudentProfileController>()) {
       profileController = Get.find<StudentProfileController>();
     }
+    final session = Get.isRegistered<SessionStore>()
+        ? Get.find<SessionStore>().currentSession
+        : null;
+    final showDeviceSetup =
+        session != null &&
+        session.role == UserRole.student &&
+        !session.isAlumni;
+    final showPrivacyDisclosures = session?.role == UserRole.admin;
 
     return Scaffold(
       backgroundColor: AppColors.mainBackground,
@@ -397,20 +406,22 @@ class SettingScreen extends StatelessWidget {
                         }
                       },
                     ),
-                    SectionListTile(
-                      icon: Icons.shield_outlined,
-                      title: 'Privacy & Permissions Disclosures',
-                      subtitle: 'App Blocker, Curfew Location & Policy',
-                      iconColor: AppColors.secondary,
-                      onTap: () => PrivacyAndDisclosuresSheet.show(context),
-                    ),
-                    SectionListTile(
-                      icon: Icons.phonelink_setup_rounded,
-                      title: 'Device Permissions & Setup',
-                      subtitle: 'Re-check screen-time and curfew permissions',
-                      iconColor: AppColors.primary,
-                      onTap: () => Get.toNamed(Routes.deviceSetup),
-                    ),
+                    if (showPrivacyDisclosures)
+                      SectionListTile(
+                        icon: Icons.shield_outlined,
+                        title: 'Privacy & Permissions Disclosures',
+                        subtitle: 'App Blocker, Curfew Location & Policy',
+                        iconColor: AppColors.secondary,
+                        onTap: () => PrivacyAndDisclosuresSheet.show(context),
+                      ),
+                    if (showDeviceSetup)
+                      SectionListTile(
+                        icon: Icons.phonelink_setup_rounded,
+                        title: 'Device Permissions & Setup',
+                        subtitle: 'Re-check screen-time and curfew permissions',
+                        iconColor: AppColors.primary,
+                        onTap: () => Get.toNamed(Routes.deviceSetup),
+                      ),
                     SectionListTile(
                       icon: Icons.info_outline_rounded,
                       title: 'About',

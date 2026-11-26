@@ -38,17 +38,36 @@ class BroadcastsRepository extends BaseRepository {
     return int.tryParse(raw?.toString() ?? '') ?? fallback;
   }
 
-  // --- admin ---
+  // --- admin & group leader ---
 
-  /// How many active students [tagIds] ∪ [studentIds] reach.
+  static String _prefix(bool isLeader) => isLeader ? '/leader/broadcasts' : '/broadcasts';
+
+  /// Leader-only: summary counts & linked WhatsApp status for their own group.
+  Future<Map<String, dynamic>> leaderAudienceSummary() => _guard(() async {
+        final res = await _dio.get('/leader/broadcasts/audience');
+        return _data(res.data);
+      });
+
+  /// Leader-only: active residents & alumni strictly within their own group.
+  Future<List<Map<String, dynamic>>> leaderGroupMembers({String? search}) => _guard(() async {
+        final res = await _dio.get('/leader/broadcasts/students', queryParameters: {
+          if (search != null && search.trim().isNotEmpty) 'search': search.trim(),
+        });
+        return _list(res.data);
+      });
+
+  /// How many active students [tagIds] ∪ [studentIds] (or [audiencePreset]) reach.
   Future<BroadcastPreview> preview({
     required List<int> tagIds,
     required List<int> studentIds,
+    String? audiencePreset,
+    bool isLeader = false,
   }) =>
       _guard(() async {
-        final res = await _dio.post('/broadcasts/preview', data: {
+        final res = await _dio.post('${_prefix(isLeader)}/preview', data: {
           'tag_ids': tagIds,
           'student_ids': studentIds,
+          if (audiencePreset != null && audiencePreset.isNotEmpty) 'audience_preset': audiencePreset,
         });
         return BroadcastPreview.fromJson(_data(res.data));
       });
@@ -63,6 +82,8 @@ class BroadcastsRepository extends BaseRepository {
     required List<int> studentIds,
     String channels = 'both',
     String? imageId,
+    String? audiencePreset,
+    bool isLeader = false,
   }) =>
       _guard(() async {
         final payload = <String, dynamic>{
@@ -73,15 +94,14 @@ class BroadcastsRepository extends BaseRepository {
           'channels': channels,
           'tag_ids': tagIds,
           'student_ids': studentIds,
+          if (audiencePreset != null && audiencePreset.isNotEmpty) 'audience_preset': audiencePreset,
         };
-        final res = await _dio.post('/broadcasts', data: payload);
+        final res = await _dio.post(_prefix(isLeader), data: payload);
         return Broadcast.fromJson(_data(res.data));
       });
 
-  /// Uploads the picture for a broadcast (`POST /broadcasts/image`, admin
-  /// only). The API checks the declared type against the file's bytes, so the
-  /// part carries the real type. Send the returned id as `imageId` to [send].
-  Future<BroadcastImageUpload> uploadImage(File file) => _guard(() async {
+  /// Uploads the picture for a broadcast. Send the returned id as `imageId` to [send].
+  Future<BroadcastImageUpload> uploadImage(File file, {bool isLeader = false}) => _guard(() async {
         final mimeType = ImageType.sniffMimeType(await _header(file));
         if (mimeType == null) {
           throw const ApiException('Picture must be a JPEG, PNG or WebP image');
@@ -93,7 +113,7 @@ class BroadcastsRepository extends BaseRepository {
             contentType: DioMediaType.parse(mimeType),
           ),
         });
-        final res = await _dio.post('/broadcasts/image', data: form);
+        final res = await _dio.post('${_prefix(isLeader)}/image', data: form);
         return BroadcastImageUpload.fromJson(_data(res.data));
       });
 
@@ -106,9 +126,9 @@ class BroadcastsRepository extends BaseRepository {
     }
   }
 
-  /// This admin's sent broadcasts, newest first.
-  Future<BroadcastPage> history({int limit = 20, int offset = 0}) => _guard(() async {
-        final res = await _dio.get('/broadcasts', queryParameters: {
+  /// This admin/leader's sent broadcasts, newest first.
+  Future<BroadcastPage> history({int limit = 20, int offset = 0, bool isLeader = false}) => _guard(() async {
+        final res = await _dio.get(_prefix(isLeader), queryParameters: {
           'limit': limit,
           'offset': offset,
         });
@@ -117,8 +137,8 @@ class BroadcastsRepository extends BaseRepository {
       });
 
   /// One broadcast with its recipients.
-  Future<Broadcast> detail(int id) => _guard(() async {
-        final res = await _dio.get('/broadcasts/$id');
+  Future<Broadcast> detail(int id, {bool isLeader = false}) => _guard(() async {
+        final res = await _dio.get('${_prefix(isLeader)}/$id');
         return Broadcast.fromJson(_data(res.data));
       });
 

@@ -4,6 +4,7 @@ import 'package:get/get.dart';
 import '../../../core/constants/app_colors.dart';
 import '../../../core/constants/app_dimens.dart';
 import '../../../core/constants/app_text_styles.dart';
+import '../../../core/enums/user_role.dart';
 import '../../../core/services/geofence_device_service.dart';
 import '../../../core/services/screen_time_service.dart';
 import '../../../core/storage/session_store.dart';
@@ -38,7 +39,7 @@ class _DeviceSetupScreenState extends State<DeviceSetupScreen> with WidgetsBindi
   void initState() {
     super.initState();
     final session = Get.isRegistered<SessionStore>() ? Get.find<SessionStore>().session : null;
-    if (session?.isAlumni == true) {
+    if (session?.isAlumni == true || session?.role == UserRole.leader) {
       ScreenTimeService.stopMonitoring();
       WidgetsBinding.instance.addPostFrameCallback((_) {
         if (mounted) Get.back();

@@ -11,6 +11,7 @@ import '../../../core/utils/apple_search_utils.dart';
 import '../../../core/utils/app_snackbar.dart';
 import 'package:super_sliver_list/super_sliver_list.dart';
 import '../../phonebook/models/phonebook_models.dart';
+import '../../phonebook/services/phone_number_normalizer.dart';
 import '../../phonebook/services/phonebook_database_service.dart';
 import '../../phonebook/services/phonebook_sync_service.dart';
 import '../../phonebook/widgets/alpha_scroll_rail.dart';
@@ -94,7 +95,9 @@ class ScreenTimeDirectoryController extends GetxController with WidgetsBindingOb
   }
 
   /// Opens one student: creates that student's own controller.
+  /// Leaders can never open their own screen-time details.
   void selectStudent(dynamic student) {
+    if (isLeaderView && _isSelfLeaderRow(student)) return;
     _closeDetail();
     selectedStudent.value = student;
     final controller = StudentDetailController(student, host: this);
@@ -394,10 +397,60 @@ class ScreenTimeDirectoryController extends GetxController with WidgetsBindingOb
     _countsVersion.value++;
   }
 
+  /// True if [student] represents the currently logged-in leader themself.
+  bool _isSelfLeaderRow(dynamic student) {
+    if (!isLeaderView || !Get.isRegistered<SessionStore>()) return false;
+    final session = Get.find<SessionStore>().currentSession;
+    if (session == null) return false;
+    if (student is! Map) return false;
+
+    final sId = (student['id'] ?? student['student_id'] ?? '').toString().trim();
+    final selfId = session.id.trim();
+    if (selfId.isNotEmpty && sId.isNotEmpty && sId == selfId) return true;
+
+    final selfCodes = <String>{
+      for (final raw in [session.studentCode, session.studentProfile?.bankCode])
+        if (raw != null && raw.trim().isNotEmpty) PhonebookDatabaseService.normalizeBankCode(raw),
+    }..removeWhere((e) => e.isEmpty);
+    if (selfCodes.isNotEmpty) {
+      for (final key in ['student_code', 'studentCode', 'bankCode', 'bank_code', 'aadhar']) {
+        final val = student[key]?.toString().trim() ?? '';
+        if (val.isNotEmpty && selfCodes.contains(PhonebookDatabaseService.normalizeBankCode(val))) {
+          return true;
+        }
+      }
+    }
+
+    final selfPhone = PhoneNumberNormalizer.normalize(session.phone);
+    if (selfPhone != null && selfPhone.isNotEmpty) {
+      for (final key in ['phone', 'phoneNumber', 'phone_number']) {
+        final p = PhoneNumberNormalizer.normalize(student[key]?.toString());
+        if (p != null && p == selfPhone) return true;
+      }
+    }
+
+    final selfAadhar = (session.studentProfile?.aadhar ?? '').replaceAll(RegExp(r'\D'), '');
+    if (selfAadhar.length >= 8) {
+      final rowAadhar = (student['aadhar'] ?? '').toString().replaceAll(RegExp(r'\D'), '');
+      if (rowAadhar == selfAadhar) return true;
+    }
+
+    final selfName = _normalizeStudentName(session.name);
+    final selfRoom = _normalizeRoomNumber(session.room);
+    if (selfName.isNotEmpty && selfRoom.isNotEmpty) {
+      final rowName = _normalizeStudentName(student['name'] ?? student['fullName']);
+      final rowRoom = _normalizeRoomNumber(student['room'] ?? student['room_number'] ?? student['roomNumber']);
+      if (rowName == selfName && rowRoom == selfRoom) return true;
+    }
+
+    return false;
+  }
+
   Map<String, int> _computeDirectoryCounts() {
     var valid = 0, online = 0, locked = 0, restricted = 0, night = 0, attention = 0;
     for (final s in allStudents) {
       if (!hasValidRoom(s)) continue;
+      if (isLeaderView && _isSelfLeaderRow(s)) continue;
       valid++;
       if (isStudentOnline(s)) online++;
       if (isStudentLocked(s)) locked++;
@@ -488,8 +541,9 @@ class ScreenTimeDirectoryController extends GetxController with WidgetsBindingOb
     final counts = _directoryCounts ??= _computeDirectoryCounts();
     final hasActiveFilter = _hasActiveDirectoryFilter;
 
-    // If an active filter is applied, return the count matching that filter
-    if (hasActiveFilter) {
+    // If an active filter is applied or leader's full group is loaded locally
+    // (with self excluded), return the computed count.
+    if (hasActiveFilter || (isLeaderView && !hasMoreStudents.value)) {
       return counts[filter] ?? 0;
     }
 
@@ -978,6 +1032,7 @@ class ScreenTimeDirectoryController extends GetxController with WidgetsBindingOb
 
         if (idStr.isNotEmpty) seenIds.add(idStr);
         if (key.isNotEmpty) seenKeys.add(key);
+        if (isLeaderView && _isSelfLeaderRow(s)) continue;
         allStudents.add(Map<String, dynamic>.from(s));
       }
       return;
@@ -988,6 +1043,7 @@ class ScreenTimeDirectoryController extends GetxController with WidgetsBindingOb
     final working = List<dynamic>.from(allStudents);
     for (final s in loaded) {
       if (s is! Map) continue;
+      if (isLeaderView && _isSelfLeaderRow(s)) continue;
       final idStr = s['id']?.toString().trim() ?? '';
       final name = _normalizeStudentName(s['name'] ?? s['fullName']);
       final room = _normalizeRoomNumber(s['room'] ?? s['room_number'] ?? s['roomNumber']);
@@ -1258,6 +1314,18 @@ class ScreenTimeDirectoryController extends GetxController with WidgetsBindingOb
 
     for (final ps in pbStudents) {
       if (!hasValidRoom({'room': ps.room})) continue;
+      if (isLeaderView &&
+          _isSelfLeaderRow({
+            'id': ps.id,
+            'student_code': ps.bankCode ?? ps.studentId,
+            'bankCode': ps.bankCode ?? '',
+            'aadhar': ps.aadhar ?? '',
+            'phone': ps.phones.isNotEmpty ? ps.phones.first.phone : '',
+            'name': ps.name,
+            'room': ps.room ?? '',
+          })) {
+        continue;
+      }
 
       final pRoom = _normalizeRoomNumber(ps.room);
       final pName = _normalizeStudentName(ps.name);
@@ -1498,8 +1566,11 @@ class ScreenTimeDirectoryController extends GetxController with WidgetsBindingOb
       if (!_matchesDirectoryFilter(student, filter, allowWithoutRoom: isAlumniFilterActive)) return false;
 
       // A leader's list is their group only (the server already limits it;
-      // this also covers rows merged from the phonebook).
-      if (isLeaderView && !isInGroup(student, leaderGroupName.value ?? '')) return false;
+      // this also covers rows merged from the phonebook) and never includes themself.
+      if (isLeaderView) {
+        if (!isInGroup(student, leaderGroupName.value ?? '')) return false;
+        if (_isSelfLeaderRow(student)) return false;
+      }
 
       // Group / Wing filter
       if (selectedGroup.value != 'All' && !isInGroup(student, selectedGroup.value)) {

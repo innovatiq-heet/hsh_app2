@@ -180,8 +180,8 @@ class SessionStore extends GetxService {
       }
     }
 
-    // Screen time monitoring - active students and leaders only, NEVER for alumni
-    if (role.isStudentOrLeader && token.isNotEmpty && !session.isAlumni) {
+    // Screen time monitoring - regular active students only, NEVER for alumni or leader students
+    if (role == UserRole.student && token.isNotEmpty && !session.isAlumni) {
       await ScreenTimeService.startMonitoring(token);
     } else {
       await ScreenTimeService.stopMonitoring();

@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:get/get.dart';
 import 'package:intl/intl.dart';
+import '../../../core/constants/app_routes.dart';
 import '../../../core/models/alumni/alumni_models.dart';
 import '../../../core/utils/date_formatting.dart';
 import '../../phonebook/controllers/phonebook_controller.dart';
@@ -108,7 +109,10 @@ class AlumniDailyOutreachScreen extends GetView<AlumniDailyOutreachController> {
     }
 
     return [
-      if (controller.selectedTab.value == OutreachTab.today) ...[_ProgressCard(data: data), const SizedBox(height: 14)],
+      if (controller.selectedTab.value == OutreachTab.today) ...[
+        _ProgressCard(data: data, isAdmin: !controller.isLeader.value),
+        const SizedBox(height: 14),
+      ],
       if (!controller.isLeader.value) ...[_GroupPicker(controller: controller), const SizedBox(height: 14)],
       _TabPills(controller: controller),
       const SizedBox(height: 14),
@@ -135,7 +139,14 @@ class AlumniDailyOutreachScreen extends GetView<AlumniDailyOutreachController> {
     }
     return [
       if (data.isAllCompleted) ...[_DoneBanner(target: data.targetDailyCount), const SizedBox(height: 12)],
-      if (!controller.isLeader.value) ...[_SendAllRow(controller: controller, data: data), const SizedBox(height: 12)],
+      if (controller.isLeader.value) ...[
+        _LeaderAutoConnectCard(controller: controller),
+        const SizedBox(height: 12),
+      ],
+      if (!controller.isLeader.value || controller.personalWhatsAppConnected.value) ...[
+        _SendAllRow(controller: controller, data: data),
+        const SizedBox(height: 12),
+      ],
       for (final s in controller.orderedStudents) ...[
         _AlumnusCard(controller: controller, student: s),
         const SizedBox(height: 8),
@@ -176,21 +187,93 @@ class AlumniDailyOutreachScreen extends GetView<AlumniDailyOutreachController> {
         ),
       ];
     }
+    final hasActiveFilters = controller.reachabilityFilter.value != 'all' ||
+        (!controller.isLeader.value && controller.historyScopeFilter.value != 'all') ||
+        controller.historySearchQuery.value.trim().isNotEmpty;
+
     return [
-      const Padding(
-        padding: EdgeInsets.only(bottom: 4),
-        child: Text(
-          'Contact history',
-          style: TextStyle(fontSize: 17, fontWeight: FontWeight.w800, color: _C.ink),
-        ),
+      Row(
+        children: [
+          const Expanded(
+            child: Text(
+              'Contact history',
+              style: TextStyle(fontSize: 17, fontWeight: FontWeight.w800, color: _C.ink),
+            ),
+          ),
+          if (hasActiveFilters)
+            TextButton(
+              onPressed: () {
+                controller.reachabilityFilter.value = 'all';
+                controller.historyScopeFilter.value = 'all';
+                controller.historySearchController.clear();
+                controller.historySearchQuery.value = '';
+              },
+              child: const Text('Reset', style: TextStyle(fontSize: 12.5, fontWeight: FontWeight.w600)),
+            ),
+        ],
       ),
       const Padding(
-        padding: EdgeInsets.only(bottom: 12),
+        padding: EdgeInsets.only(bottom: 10),
         child: Text(
-          'Find a number, update it, or mark its WhatsApp status.',
+          'Tap any entry to read the message or update its WhatsApp contact.',
           style: TextStyle(fontSize: 12, color: _C.muted),
         ),
       ),
+      TextField(
+        controller: controller.historySearchController,
+        onChanged: (v) => controller.historySearchQuery.value = v,
+        decoration: InputDecoration(
+          hintText: 'Search name, room, phone, or sender...',
+          hintStyle: const TextStyle(fontSize: 13, color: _C.muted),
+          prefixIcon: const Icon(Icons.search_rounded, size: 19, color: _C.muted),
+          suffixIcon: controller.historySearchQuery.value.isNotEmpty
+              ? IconButton(
+                  icon: const Icon(Icons.close_rounded, size: 18, color: _C.muted),
+                  onPressed: () {
+                    controller.historySearchController.clear();
+                    controller.historySearchQuery.value = '';
+                  },
+                )
+              : null,
+          isDense: true,
+          filled: true,
+          fillColor: Colors.white,
+          contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+          border: OutlineInputBorder(
+            borderRadius: BorderRadius.circular(12),
+            borderSide: const BorderSide(color: _C.border),
+          ),
+          enabledBorder: OutlineInputBorder(
+            borderRadius: BorderRadius.circular(12),
+            borderSide: const BorderSide(color: _C.border),
+          ),
+        ),
+      ),
+      const SizedBox(height: 10),
+      if (!controller.isLeader.value) ...[
+        SingleChildScrollView(
+          scrollDirection: Axis.horizontal,
+          child: Row(
+            children: [
+              for (final entry in const [
+                ('all', 'All senders'),
+                ('leader', 'By Leaders'),
+                ('admin', 'By Admin'),
+              ])
+                Padding(
+                  padding: const EdgeInsets.only(right: 6),
+                  child: ChoiceChip(
+                    label: Text(entry.$2, style: const TextStyle(fontSize: 12)),
+                    selected: controller.historyScopeFilter.value == entry.$1,
+                    onSelected: (_) => controller.historyScopeFilter.value = entry.$1,
+                    visualDensity: VisualDensity.compact,
+                  ),
+                ),
+            ],
+          ),
+        ),
+        const SizedBox(height: 6),
+      ],
       Padding(
         padding: const EdgeInsets.only(bottom: 12),
         child: SingleChildScrollView(
@@ -201,9 +284,13 @@ class AlumniDailyOutreachScreen extends GetView<AlumniDailyOutreachController> {
                 Padding(
                   padding: const EdgeInsets.only(right: 6),
                   child: ChoiceChip(
-                    label: Text(filter == 'all' ? 'All' : _reachabilityLabel(filter)),
+                    label: Text(
+                      filter == 'all' ? 'All statuses' : _reachabilityLabel(filter),
+                      style: const TextStyle(fontSize: 12),
+                    ),
                     selected: controller.reachabilityFilter.value == filter,
                     onSelected: (_) => controller.reachabilityFilter.value = filter,
+                    visualDensity: VisualDensity.compact,
                   ),
                 ),
             ],
@@ -212,8 +299,13 @@ class AlumniDailyOutreachScreen extends GetView<AlumniDailyOutreachController> {
       ),
       if (controller.historyByDay.isEmpty)
         const Padding(
-          padding: EdgeInsets.all(20),
-          child: Center(child: Text('No contacts with this status.')),
+          padding: EdgeInsets.all(24),
+          child: Center(
+            child: Text(
+              'No matching connects found.',
+              style: TextStyle(fontSize: 13, color: _C.muted),
+            ),
+          ),
         ),
       for (final day in controller.historyByDay) ...[
         _DayHeading(date: day.key, count: day.value.length),
@@ -241,7 +333,8 @@ class AlumniDailyOutreachScreen extends GetView<AlumniDailyOutreachController> {
 
 class _ProgressCard extends StatelessWidget {
   final AlumniDailyOutreachDataModel data;
-  const _ProgressCard({required this.data});
+  final bool isAdmin;
+  const _ProgressCard({required this.data, this.isAdmin = false});
 
   @override
   Widget build(BuildContext context) {
@@ -249,6 +342,15 @@ class _ProgressCard extends StatelessWidget {
     final left = (data.targetDailyCount - data.contactedTodayCount).clamp(0, data.targetDailyCount);
     final stillToReach = (data.totalAlumniInGroup - data.totalMessagedAlumni).clamp(0, data.totalAlumniInGroup);
     final color = done ? _C.done : _C.accent;
+
+    final titleText = isAdmin
+        ? (done ? 'Admin outreach done' : 'Admin connects today')
+        : (done ? 'All done for today' : 'Today\'s connects');
+    final subtitleText = isAdmin
+        ? (done
+            ? 'Separate from group leaders\' daily batch.'
+            : '$left left in your admin quota (leader count stays separate)')
+        : (done ? 'New alumni will be ready tomorrow.' : '$left left · tap Send to greet them on WhatsApp');
 
     return Container(
       decoration: _cardDecoration(border: done ? _C.doneBorder : _C.border),
@@ -285,12 +387,12 @@ class _ProgressCard extends StatelessWidget {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(
-                      done ? 'All done for today' : 'Today\'s connects',
+                      titleText,
                       style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w800, color: _C.ink),
                     ),
                     const SizedBox(height: 3),
                     Text(
-                      done ? 'New alumni will be ready tomorrow.' : '$left left · tap Send to greet them on WhatsApp',
+                      subtitleText,
                       style: const TextStyle(fontSize: 12.5, color: _C.muted, height: 1.3),
                     ),
                   ],
@@ -573,6 +675,171 @@ class _SendAllRow extends StatelessWidget {
   }
 }
 
+class _LeaderAutoConnectCard extends StatelessWidget {
+  final AlumniDailyOutreachController controller;
+  const _LeaderAutoConnectCard({required this.controller});
+
+  Future<void> _pickTime(BuildContext context) async {
+    final parts = controller.autoSendTimeIst.value.split(':');
+    final h = int.tryParse(parts.isNotEmpty ? parts[0] : '9') ?? 9;
+    final m = int.tryParse(parts.length > 1 ? parts[1] : '0') ?? 0;
+    final picked = await showTimePicker(
+      context: context,
+      initialTime: TimeOfDay(hour: h.clamp(0, 23), minute: m.clamp(0, 59)),
+    );
+    if (picked == null) return;
+    final formatted =
+        '${picked.hour.toString().padLeft(2, '0')}:${picked.minute.toString().padLeft(2, '0')}';
+    await controller.saveAutoSettings(timeIst: formatted);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Obx(() {
+      final connected = controller.personalWhatsAppConnected.value;
+      final phone = controller.personalWhatsAppPhone.value;
+      final autoOn = controller.autoSendEnabled.value;
+      final time = controller.autoSendTimeIst.value;
+      final note = controller.lastAutoRunNote.value;
+      final saving = controller.isSavingAutoSettings.value;
+
+      if (!connected) {
+        return Container(
+          decoration: _cardDecoration(border: const Color(0xFFBAE6FD)),
+          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+          child: Row(
+            children: [
+              Container(
+                width: 36,
+                height: 36,
+                decoration: BoxDecoration(color: _C.accentSoft, borderRadius: BorderRadius.circular(10)),
+                child: const Icon(Icons.chat_rounded, color: _C.accent, size: 19),
+              ),
+              const SizedBox(width: 12),
+              const Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'Link WhatsApp for Auto Connect',
+                      style: TextStyle(fontSize: 13.5, fontWeight: FontWeight.w700, color: _C.ink),
+                    ),
+                    SizedBox(height: 2),
+                    Text(
+                      'Add your number to send automatically or schedule daily connect.',
+                      style: TextStyle(fontSize: 11.5, color: _C.muted),
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(width: 8),
+              OutlinedButton(
+                onPressed: () async {
+                  await Get.toNamed(Routes.whatsappNumbers);
+                  await controller.loadAutoSettings();
+                },
+                style: OutlinedButton.styleFrom(
+                  foregroundColor: _C.accent,
+                  side: const BorderSide(color: _C.accent),
+                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+                  minimumSize: Size.zero,
+                ),
+                child: const Text('My WhatsApp', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w700)),
+              ),
+            ],
+          ),
+        );
+      }
+
+      return Container(
+        decoration: _cardDecoration(border: autoOn ? _C.doneBorder : _C.border),
+        padding: const EdgeInsets.all(14),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                Container(
+                  width: 34,
+                  height: 34,
+                  decoration: BoxDecoration(
+                    color: autoOn ? _C.doneSoft : _C.accentSoft,
+                    borderRadius: BorderRadius.circular(10),
+                  ),
+                  child: Icon(
+                    Icons.schedule_send_rounded,
+                    color: autoOn ? _C.done : _C.accent,
+                    size: 18,
+                  ),
+                ),
+                const SizedBox(width: 10),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      const Text(
+                        'Auto Alumni Connect',
+                        style: TextStyle(fontSize: 14, fontWeight: FontWeight.w800, color: _C.ink),
+                      ),
+                      Text(
+                        phone != null && phone.isNotEmpty
+                            ? 'Sending from +$phone'
+                            : 'Personal WhatsApp connected',
+                        style: const TextStyle(fontSize: 11.5, color: _C.done, fontWeight: FontWeight.w600),
+                      ),
+                    ],
+                  ),
+                ),
+                Switch.adaptive(
+                  value: autoOn,
+                  activeTrackColor: _C.done,
+                  onChanged: saving ? null : (v) => controller.saveAutoSettings(enabled: v),
+                ),
+              ],
+            ),
+            const SizedBox(height: 8),
+            Row(
+              children: [
+                Expanded(
+                  child: Text(
+                    autoOn
+                        ? 'Auto-sends daily batch at $time IST'
+                        : 'Turn on to auto-send today\'s batch daily',
+                    style: const TextStyle(fontSize: 12, color: _C.body),
+                  ),
+                ),
+                InkWell(
+                  onTap: saving ? null : () => _pickTime(context),
+                  borderRadius: BorderRadius.circular(8),
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+                    decoration: BoxDecoration(
+                      color: _C.soft,
+                      borderRadius: BorderRadius.circular(8),
+                      border: Border.all(color: _C.border),
+                    ),
+                    child: Text(
+                      '$time IST',
+                      style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w700, color: _C.accent),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+            if (note != null && note.isNotEmpty) ...[
+              const SizedBox(height: 6),
+              Text(
+                note,
+                style: const TextStyle(fontSize: 11.5, color: _C.muted),
+              ),
+            ],
+          ],
+        ),
+      );
+    });
+  }
+}
+
 /// One alumnus of today's list, kept small: who they are, whether they are
 /// messaged, and the quick actions. Tapping it opens their details.
 class _AlumnusCard extends StatelessWidget {
@@ -701,7 +968,11 @@ class _AlumnusCard extends StatelessWidget {
                 background: done ? _C.doneSoft : _C.whatsapp,
                 foreground: done ? _C.done : Colors.white,
                 busy: busy,
-                onTap: busy ? null : () => controller.openWhatsApp(s),
+                onTap: busy
+                    ? null
+                    : () => (controller.isLeader.value && controller.personalWhatsAppConnected.value && !done)
+                        ? controller.sendViaGateway(s)
+                        : controller.openWhatsApp(s),
               ),
               PopupMenuButton<_MoreAction>(
                 tooltip: 'More',
@@ -892,11 +1163,11 @@ class _RoundIconButton extends StatelessWidget {
 // History
 // ======================================================================
 
-/// "10:32 AM" from an API or local timestamp; null when there is none.
+/// "10:32 AM" IST from an API (UTC) or local timestamp; null when there is none.
 String? _timeOf(String? raw) {
   final t = DateTime.tryParse(raw ?? '');
   if (t == null) return null;
-  return t.isUtc ? DateFormatting.time(t) : DateFormat('hh:mm a').format(t);
+  return DateFormatting.time(t);
 }
 
 class _DayHeading extends StatelessWidget {
@@ -982,7 +1253,30 @@ class _HistoryRow extends StatelessWidget {
                   ),
                   const SizedBox(height: 4),
                   Text(item.name, style: const TextStyle(fontSize: 14, color: _C.muted)),
-                  const SizedBox(height: 24),
+                  if (item.phone.isNotEmpty) ...[
+                    const SizedBox(height: 14),
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                      decoration: BoxDecoration(
+                        color: _C.bg,
+                        borderRadius: BorderRadius.circular(12),
+                        border: Border.all(color: _C.border),
+                      ),
+                      child: Row(
+                        children: [
+                          const Icon(Icons.lock_outline_rounded, size: 16, color: _C.muted),
+                          const SizedBox(width: 8),
+                          Expanded(
+                            child: Text(
+                              'Primary Mobile (unchanged): ${item.phone}',
+                              style: const TextStyle(fontSize: 12.5, fontWeight: FontWeight.w600, color: _C.body),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
+                  const SizedBox(height: 18),
                   TextFormField(
                     initialValue: item.whatsappNumber,
                     autofocus: true,
@@ -1012,7 +1306,7 @@ class _HistoryRow extends StatelessWidget {
                         SizedBox(width: 10),
                         Expanded(
                           child: Text(
-                            'The new number will be Not Verified until you confirm it on WhatsApp.',
+                            'Only the WhatsApp number will change. The alumnus\'s previous primary mobile stays safe and unchanged, and the new number starts as Not Verified.',
                             style: TextStyle(fontSize: 12, color: _C.body),
                           ),
                         ),
@@ -1117,106 +1411,339 @@ class _HistoryRow extends StatelessWidget {
     }
   }
 
-  @override
-  Widget build(BuildContext context) {
+  String _senderSummary() {
+    final rolePrefix = item.isSentByAdmin ? 'Admin' : 'Leader';
+    if (item.leaderName.isEmpty) return rolePrefix;
+    return '$rolePrefix: ${item.leaderName}';
+  }
+
+  Future<void> _showDetails(BuildContext context) async {
     final time = _timeOf(item.contactedAt);
-    return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 12),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          const CircleAvatar(
-            radius: 16,
-            backgroundColor: _C.doneSoft,
-            child: Icon(Icons.check_rounded, size: 17, color: _C.done),
-          ),
-          const SizedBox(width: 12),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
+    final statusColor = _reachabilityColor(item.whatsappReachability);
+    await showModalBottomSheet<void>(
+      context: context,
+      isScrollControlled: true,
+      showDragHandle: true,
+      backgroundColor: Colors.white,
+      shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(24))),
+      builder: (ctx) => DraggableScrollableSheet(
+        expand: false,
+        initialChildSize: 0.62,
+        minChildSize: 0.4,
+        maxChildSize: 0.9,
+        builder: (_, scrollController) => ListView(
+          controller: scrollController,
+          padding: EdgeInsets.fromLTRB(20, 4, 20, 24 + MediaQuery.paddingOf(ctx).bottom),
+          children: [
+            Row(
               children: [
-                Row(
-                  children: [
-                    Expanded(
-                      child: Text(
-                        item.name,
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w700, color: _C.ink),
-                      ),
-                    ),
-                    if (time != null) Text(time, style: const TextStyle(fontSize: 11.5, color: _C.muted)),
-                  ],
-                ),
-                const SizedBox(height: 2),
-                Text(
-                  item.leaderName.isEmpty
-                      ? 'Room ${item.pastRoom}'
-                      : 'Room ${item.pastRoom} · by ${item.leaderName}',
-                  style: const TextStyle(fontSize: 12, color: _C.muted),
-                ),
-                const SizedBox(height: 8),
-                Text(
-                  item.whatsappNumber.isEmpty ? 'No WhatsApp number' : item.whatsappNumber,
-                  style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w600, color: _C.ink),
-                ),
-                const SizedBox(height: 4),
-                InkWell(
-                  onTap: controller.isAdmin.value ? () => _changeStatus(context) : null,
-                  borderRadius: BorderRadius.circular(12),
-                  child: Padding(
-                    padding: const EdgeInsets.symmetric(vertical: 4, horizontal: 2),
-                    child: Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        Icon(Icons.circle, size: 10, color: _reachabilityColor(item.whatsappReachability)),
-                        const SizedBox(width: 6),
-                        Text(
-                          _reachabilityLabel(item.whatsappReachability),
-                          style: TextStyle(
-                            fontSize: 12,
-                            fontWeight: FontWeight.w600,
-                            color: _reachabilityColor(item.whatsappReachability),
-                          ),
-                        ),
-                        if (controller.isAdmin.value) const Icon(Icons.expand_more, size: 18, color: _C.muted),
-                      ],
-                    ),
+                CircleAvatar(
+                  radius: 20,
+                  backgroundColor: item.isSentByAdmin ? _C.accentSoft : _C.doneSoft,
+                  child: Icon(
+                    item.isSentByAdmin ? Icons.admin_panel_settings_outlined : Icons.check_rounded,
+                    size: 20,
+                    color: item.isSentByAdmin ? _C.accent : _C.done,
                   ),
                 ),
-                if (item.message.isNotEmpty)
-                  ExpansionTile(
-                    tilePadding: EdgeInsets.zero,
-                    childrenPadding: EdgeInsets.zero,
-                    dense: true,
-                    title: const Text('View sent message', style: TextStyle(fontSize: 12, color: _C.muted)),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Align(
-                        alignment: Alignment.centerLeft,
-                        child: Text(item.message, style: const TextStyle(fontSize: 12, color: _C.body)),
+                      Text(
+                        item.name,
+                        style: const TextStyle(fontSize: 17, fontWeight: FontWeight.w800, color: _C.ink),
+                      ),
+                      const SizedBox(height: 2),
+                      Text(
+                        'Room ${item.pastRoom}${item.groupName.isNotEmpty ? ' · ${item.groupName}' : ''}',
+                        style: const TextStyle(fontSize: 12.5, color: _C.muted),
                       ),
                     ],
                   ),
+                ),
               ],
             ),
-          ),
-          if (controller.isAdmin.value)
-            Column(
-              mainAxisSize: MainAxisSize.min,
+            const SizedBox(height: 12),
+            Wrap(
+              spacing: 8,
+              runSpacing: 6,
               children: [
-                IconButton(
-                  tooltip: 'Edit WhatsApp number',
-                  icon: const Icon(Icons.edit_outlined, color: _C.accent),
-                  onPressed: controller.contactBusyIds.contains(item.studentId) ? null : () => _edit(context),
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+                  decoration: BoxDecoration(
+                    color: item.isSentByAdmin ? _C.accentSoft : _C.doneSoft,
+                    borderRadius: BorderRadius.circular(20),
+                  ),
+                  child: Text(
+                    _senderSummary(),
+                    style: TextStyle(
+                      fontSize: 11.5,
+                      fontWeight: FontWeight.w700,
+                      color: item.isSentByAdmin ? _C.accent : _C.done,
+                    ),
+                  ),
                 ),
-                IconButton(
-                  tooltip: 'Number changes',
-                  icon: const Icon(Icons.history, size: 20, color: _C.muted),
-                  onPressed: () => _showChanges(context),
-                ),
+                if (time != null)
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+                    decoration: BoxDecoration(color: _C.soft, borderRadius: BorderRadius.circular(20)),
+                    child: Text(
+                      '${_DayHeading.label(item.outreachDate)} · $time',
+                      style: const TextStyle(fontSize: 11.5, fontWeight: FontWeight.w600, color: _C.body),
+                    ),
+                  ),
               ],
             ),
-        ],
+            const SizedBox(height: 16),
+            Container(
+              padding: const EdgeInsets.all(14),
+              decoration: BoxDecoration(
+                color: _C.bg,
+                borderRadius: BorderRadius.circular(14),
+                border: Border.all(color: _C.border),
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    children: [
+                      const Text(
+                        'WhatsApp number',
+                        style: TextStyle(fontSize: 11.5, fontWeight: FontWeight.w600, color: _C.muted),
+                      ),
+                      const Spacer(),
+                      Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                        decoration: BoxDecoration(
+                          color: statusColor.withValues(alpha: 0.12),
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                        child: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Icon(Icons.circle, size: 8, color: statusColor),
+                            const SizedBox(width: 5),
+                            Text(
+                              _reachabilityLabel(item.whatsappReachability),
+                              style: TextStyle(fontSize: 11, fontWeight: FontWeight.w700, color: statusColor),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 4),
+                  Row(
+                    children: [
+                      Expanded(
+                        child: Text(
+                          item.whatsappNumber.isEmpty ? 'No WhatsApp number' : item.whatsappNumber,
+                          style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w700, color: _C.ink),
+                        ),
+                      ),
+                      if (item.whatsappNumber.isNotEmpty)
+                        IconButton(
+                          tooltip: 'Copy WhatsApp number',
+                          visualDensity: VisualDensity.compact,
+                          icon: const Icon(Icons.copy_rounded, size: 18, color: _C.muted),
+                          onPressed: () {
+                            Clipboard.setData(ClipboardData(text: item.whatsappNumber));
+                            ScaffoldMessenger.of(ctx).showSnackBar(
+                              const SnackBar(content: Text('WhatsApp number copied')),
+                            );
+                          },
+                        ),
+                    ],
+                  ),
+                  if (item.phone.isNotEmpty && item.phone != item.whatsappNumber) ...[
+                    const Divider(height: 16, color: _C.border),
+                    const Text(
+                      'Primary mobile (preserved separately)',
+                      style: TextStyle(fontSize: 11.5, fontWeight: FontWeight.w600, color: _C.muted),
+                    ),
+                    const SizedBox(height: 2),
+                    Text(
+                      item.phone,
+                      style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w600, color: _C.body),
+                    ),
+                  ],
+                ],
+              ),
+            ),
+            if (controller.isAdmin.value) ...[
+              const SizedBox(height: 12),
+              Row(
+                children: [
+                  Expanded(
+                    child: OutlinedButton.icon(
+                      onPressed: () {
+                        Navigator.of(ctx).pop();
+                        _edit(context);
+                      },
+                      icon: const Icon(Icons.edit_outlined, size: 17),
+                      label: const Text('Edit WhatsApp'),
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: OutlinedButton.icon(
+                      onPressed: () {
+                        Navigator.of(ctx).pop();
+                        _changeStatus(context);
+                      },
+                      icon: const Icon(Icons.verified_outlined, size: 17),
+                      label: const Text('Set status'),
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 6),
+              Align(
+                alignment: Alignment.centerLeft,
+                child: TextButton.icon(
+                  onPressed: () {
+                    Navigator.of(ctx).pop();
+                    _showChanges(context);
+                  },
+                  icon: const Icon(Icons.history_rounded, size: 17),
+                  label: const Text('View WhatsApp number change log'),
+                ),
+              ),
+            ],
+            if (item.message.isNotEmpty) ...[
+              const SizedBox(height: 14),
+              Row(
+                children: [
+                  const Text(
+                    'Sent message',
+                    style: TextStyle(fontSize: 13, fontWeight: FontWeight.w700, color: _C.ink),
+                  ),
+                  const Spacer(),
+                  TextButton.icon(
+                    onPressed: () {
+                      Clipboard.setData(ClipboardData(text: item.message));
+                      ScaffoldMessenger.of(ctx).showSnackBar(
+                        const SnackBar(content: Text('Message copied')),
+                      );
+                    },
+                    icon: const Icon(Icons.copy_rounded, size: 15),
+                    label: const Text('Copy', style: TextStyle(fontSize: 12)),
+                  ),
+                ],
+              ),
+              Container(
+                width: double.infinity,
+                padding: const EdgeInsets.all(14),
+                decoration: BoxDecoration(
+                  color: _C.soft,
+                  borderRadius: BorderRadius.circular(14),
+                ),
+                child: Text(
+                  item.message,
+                  style: const TextStyle(fontSize: 13, color: _C.body, height: 1.45),
+                ),
+              ),
+            ],
+          ],
+        ),
+      ),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final time = _timeOf(item.contactedAt);
+    final statusColor = _reachabilityColor(item.whatsappReachability);
+    final avatarBg = item.isSentByAdmin ? _C.accentSoft : _C.doneSoft;
+    final avatarFg = item.isSentByAdmin ? _C.accent : _C.done;
+
+    return InkWell(
+      onTap: () => _showDetails(context),
+      borderRadius: BorderRadius.circular(10),
+      child: Padding(
+        padding: const EdgeInsets.symmetric(vertical: 12),
+        child: Row(
+          children: [
+            CircleAvatar(
+              radius: 17,
+              backgroundColor: avatarBg,
+              child: Icon(
+                item.isSentByAdmin ? Icons.admin_panel_settings_outlined : Icons.check_rounded,
+                size: 17,
+                color: avatarFg,
+              ),
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    children: [
+                      Expanded(
+                        child: Text(
+                          item.name,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w700, color: _C.ink),
+                        ),
+                      ),
+                      if (time != null)
+                        Text(time, style: const TextStyle(fontSize: 11.5, color: _C.muted)),
+                    ],
+                  ),
+                  const SizedBox(height: 4),
+                  Row(
+                    children: [
+                      Expanded(
+                        child: Text(
+                          '${item.whatsappNumber.isEmpty ? 'No WhatsApp' : item.whatsappNumber} · Room ${item.pastRoom}',
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: const TextStyle(fontSize: 12, color: _C.body),
+                        ),
+                      ),
+                      const SizedBox(width: 8),
+                      Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2),
+                        decoration: BoxDecoration(
+                          color: statusColor.withValues(alpha: 0.12),
+                          borderRadius: BorderRadius.circular(10),
+                        ),
+                        child: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Icon(Icons.circle, size: 7, color: statusColor),
+                            const SizedBox(width: 4),
+                            Text(
+                              _reachabilityLabel(item.whatsappReachability),
+                              style: TextStyle(fontSize: 10.5, fontWeight: FontWeight.w700, color: statusColor),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 4),
+                  Text(
+                    _senderSummary(),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: TextStyle(
+                      fontSize: 11.5,
+                      fontWeight: FontWeight.w600,
+                      color: item.isSentByAdmin ? _C.accent : _C.muted,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(width: 4),
+            const Icon(Icons.chevron_right_rounded, size: 20, color: _C.muted),
+          ],
+        ),
       ),
     );
   }

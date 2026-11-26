@@ -185,38 +185,40 @@ class PhonebookScreen extends GetView<PhonebookController> {
                   return Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      // 1. WING / GROUP
-                      _filterSectionHeader('HOSTEL WING / GROUP', Icons.apartment_rounded),
-                      const SizedBox(height: 10),
-                      Wrap(
-                        spacing: 8,
-                        runSpacing: 8,
-                        children: PhonebookController.hshGroups.map((g) {
-                          final sel = controller.selectedGroup.value == g;
-                          final isAlumni = g.toLowerCase() == 'alumni';
-                          final color = isAlumni ? const Color(0xFF9333EA) : const Color(0xFF0284C7);
-                          return FilterChip(
-                            label: Text(g),
-                            selected: sel,
-                            selectedColor: color,
-                            checkmarkColor: Colors.white,
-                            labelStyle: TextStyle(
-                              color: sel ? Colors.white : const Color(0xFF334155),
-                              fontWeight: sel ? FontWeight.w700 : FontWeight.w600,
-                              fontSize: 13,
-                            ),
-                            backgroundColor: const Color(0xFFF1F5F9),
-                            shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(12),
-                              side: BorderSide(
-                                color: sel ? color : const Color(0xFFE2E8F0),
+                      // 1. WING / GROUP (locked to the leader's house when opened by a leader)
+                      if (!controller.isLeaderView) ...[
+                        _filterSectionHeader('HOSTEL WING / GROUP', Icons.apartment_rounded),
+                        const SizedBox(height: 10),
+                        Wrap(
+                          spacing: 8,
+                          runSpacing: 8,
+                          children: PhonebookController.hshGroups.map((g) {
+                            final sel = controller.selectedGroup.value == g;
+                            final isAlumni = g.toLowerCase() == 'alumni';
+                            final color = isAlumni ? const Color(0xFF9333EA) : const Color(0xFF0284C7);
+                            return FilterChip(
+                              label: Text(g),
+                              selected: sel,
+                              selectedColor: color,
+                              checkmarkColor: Colors.white,
+                              labelStyle: TextStyle(
+                                color: sel ? Colors.white : const Color(0xFF334155),
+                                fontWeight: sel ? FontWeight.w700 : FontWeight.w600,
+                                fontSize: 13,
                               ),
-                            ),
-                            onSelected: (v) => controller.selectGroup(g),
-                          );
-                        }).toList(),
-                      ),
-                      const SizedBox(height: 20),
+                              backgroundColor: const Color(0xFFF1F5F9),
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(12),
+                                side: BorderSide(
+                                  color: sel ? color : const Color(0xFFE2E8F0),
+                                ),
+                              ),
+                              onSelected: (v) => controller.selectGroup(g),
+                            );
+                          }).toList(),
+                        ),
+                        const SizedBox(height: 20),
+                      ],
 
                       // 2. FLOOR SELECTOR
                       _filterSectionHeader('HOSTEL FLOOR', Icons.layers_rounded),
@@ -249,36 +251,38 @@ class PhonebookScreen extends GetView<PhonebookController> {
                       ),
                       const SizedBox(height: 20),
 
-                      // 3. RESIDENCE STATUS
-                      _filterSectionHeader('RESIDENCE STATUS', Icons.badge_rounded),
-                      const SizedBox(height: 10),
-                      Wrap(
-                        spacing: 8,
-                        runSpacing: 8,
-                        children: PhonebookController.statusOptions.map((s) {
-                          final sel = controller.selectedStatus.value == s;
-                          return FilterChip(
-                            label: Text(s),
-                            selected: sel,
-                            selectedColor: const Color(0xFF059669),
-                            checkmarkColor: Colors.white,
-                            labelStyle: TextStyle(
-                              color: sel ? Colors.white : const Color(0xFF334155),
-                              fontWeight: sel ? FontWeight.w700 : FontWeight.w600,
-                              fontSize: 12.5,
-                            ),
-                            backgroundColor: const Color(0xFFF1F5F9),
-                            shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(12),
-                              side: BorderSide(
-                                color: sel ? const Color(0xFF059669) : const Color(0xFFE2E8F0),
+                      // 3. RESIDENCE STATUS (residents only for leaders)
+                      if (!controller.isLeaderView) ...[
+                        _filterSectionHeader('RESIDENCE STATUS', Icons.badge_rounded),
+                        const SizedBox(height: 10),
+                        Wrap(
+                          spacing: 8,
+                          runSpacing: 8,
+                          children: PhonebookController.statusOptions.map((s) {
+                            final sel = controller.selectedStatus.value == s;
+                            return FilterChip(
+                              label: Text(s),
+                              selected: sel,
+                              selectedColor: const Color(0xFF059669),
+                              checkmarkColor: Colors.white,
+                              labelStyle: TextStyle(
+                                color: sel ? Colors.white : const Color(0xFF334155),
+                                fontWeight: sel ? FontWeight.w700 : FontWeight.w600,
+                                fontSize: 12.5,
                               ),
-                            ),
-                            onSelected: (v) => controller.selectStatus(s),
-                          );
-                        }).toList(),
-                      ),
-                      const SizedBox(height: 20),
+                              backgroundColor: const Color(0xFFF1F5F9),
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(12),
+                                side: BorderSide(
+                                  color: sel ? const Color(0xFF059669) : const Color(0xFFE2E8F0),
+                                ),
+                              ),
+                              onSelected: (v) => controller.selectStatus(s),
+                            );
+                          }).toList(),
+                        ),
+                        const SizedBox(height: 20),
+                      ],
 
                       // 3b. TAGS & ROLES
                       Obx(() {
@@ -697,7 +701,7 @@ class PhonebookScreen extends GetView<PhonebookController> {
   @override
   Widget build(BuildContext context) {
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (context.mounted) {
+      if (context.mounted && !controller.isLeaderView) {
         controller.checkFirstTimeCallerId(() {
           if (context.mounted) {
             CallerIdBottomSheet.show(context);
@@ -981,12 +985,38 @@ class PhonebookScreen extends GetView<PhonebookController> {
                       ),
                       const SizedBox(height: 12),
 
-                      // Group / Wing Filter Chips
-                      SingleChildScrollView(
-                        scrollDirection: Axis.horizontal,
-                        physics: const BouncingScrollPhysics(),
-                        child: Obx(() {
-                          return Row(
+                      // Group / Wing Filter Chips (hidden for leaders, who only see their own house)
+                      Obx(() {
+                        if (controller.isLeaderView) {
+                          final grp = controller.leaderGroupName.value ?? 'Your House';
+                          return Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                            decoration: BoxDecoration(
+                              color: const Color(0xFFE0F2FE),
+                              borderRadius: BorderRadius.circular(14),
+                              border: Border.all(color: const Color(0xFFBAE6FD)),
+                            ),
+                            child: Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                const Icon(Icons.groups_rounded, size: 16, color: Color(0xFF0284C7)),
+                                const SizedBox(width: 6),
+                                Text(
+                                  '$grp House Residents',
+                                  style: const TextStyle(
+                                    fontSize: 12.5,
+                                    fontWeight: FontWeight.w700,
+                                    color: Color(0xFF0369A1),
+                                  ),
+                                ),
+                              ],
+                            ),
+                          );
+                        }
+                        return SingleChildScrollView(
+                          scrollDirection: Axis.horizontal,
+                          physics: const BouncingScrollPhysics(),
+                          child: Row(
                             children: PhonebookController.hshGroups.map((g) {
                               final isSelected = controller.selectedGroup.value == g;
                               final isAlumniChip = g.toLowerCase() == 'alumni';
@@ -1067,13 +1097,14 @@ class PhonebookScreen extends GetView<PhonebookController> {
                                 ),
                               );
                             }).toList(),
-                          );
-                        }),
-                      ),
+                          ),
+                        );
+                      }),
                       Obx(() => _buildActiveLocationChips(context)),
                       const SizedBox(height: 16),
                       // Favourites: the students this admin dials most
                       Obx(() {
+                        if (controller.isLeaderView) return const SizedBox.shrink();
                         final favs = controller.favourites.toList();
                         if (favs.isEmpty ||
                             controller.searchText.value.isNotEmpty ||
@@ -1098,7 +1129,9 @@ class PhonebookScreen extends GetView<PhonebookController> {
                             ),
                             const SizedBox(width: 8),
                             Text(
-                              'STUDENT CONTACTS ($count)',
+                              controller.isLeaderView
+                                  ? 'HOUSE STUDENTS ($count)'
+                                  : 'STUDENT CONTACTS ($count)',
                               style: const TextStyle(
                                 fontSize: 11.5,
                                 fontWeight: FontWeight.w800,
@@ -1107,7 +1140,7 @@ class PhonebookScreen extends GetView<PhonebookController> {
                               ),
                             ),
                             const Spacer(),
-                            if (count > 0)
+                            if (count > 0 && !controller.isLeaderView)
                               Material(
                                 color: Colors.transparent,
                                 child: InkWell(
@@ -1215,7 +1248,9 @@ class PhonebookScreen extends GetView<PhonebookController> {
                           isSelected: isSelected,
                           isSelectionMode: isSelectionMode,
                           isFavourite: isFav,
-                          onToggleFavourite: () => controller.toggleFavourite(student),
+                          onToggleFavourite: controller.isLeaderView
+                              ? null
+                              : () => controller.toggleFavourite(student),
                           onTap: () {
                             if (controller.isSelectionMode.value) {
                               controller.toggleSelectStudent(student.id);
@@ -1223,13 +1258,15 @@ class PhonebookScreen extends GetView<PhonebookController> {
                               _showStudentContactDetails(context, student);
                             }
                           },
-                          onLongPress: () {
-                            if (!controller.isSelectionMode.value) {
-                              controller.startSelectionMode(student.id);
-                            } else {
-                              controller.toggleSelectStudent(student.id);
-                            }
-                          },
+                          onLongPress: controller.isLeaderView
+                              ? null
+                              : () {
+                                  if (!controller.isSelectionMode.value) {
+                                    controller.startSelectionMode(student.id);
+                                  } else {
+                                    controller.toggleSelectStudent(student.id);
+                                  }
+                                },
                           onCall: (phone) => controller.makeCall(phone, student: student),
                           onWhatsApp: (phone) => controller.openWhatsApp(phone),
                           onShare: () => controller.shareStudent(student),
@@ -1671,9 +1708,11 @@ class _PhonebookHeaderDelegate extends SliverPersistentHeaderDelegate {
                   Expanded(
                     child: Opacity(
                       opacity: collapsedTitleOpacity,
-                      child: const Text(
-                        'Student Phonebook',
-                        style: TextStyle(
+                      child: Obx(() => Text(
+                        controller.isLeaderView
+                            ? '${controller.leaderGroupName.value ?? 'House'} Students'
+                            : 'Student Phonebook',
+                        style: const TextStyle(
                           color: Colors.white,
                           fontSize: 18,
                           fontWeight: FontWeight.w800,
@@ -1681,12 +1720,13 @@ class _PhonebookHeaderDelegate extends SliverPersistentHeaderDelegate {
                         ),
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
-                      ),
+                      )),
                     ),
                   ),
 
-                  // Incoming Caller ID button (connect / status)
+                  // Incoming Caller ID button (admins/wardens only)
                   Obx(() {
+                    if (controller.isLeaderView) return const SizedBox.shrink();
                     final status = controller.callerId.value;
                     final isWorking = status.isWorking;
                     final isSupported = status.supported;
@@ -1810,25 +1850,27 @@ class _PhonebookHeaderDelegate extends SliverPersistentHeaderDelegate {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   mainAxisSize: MainAxisSize.min,
                   children: [
-                    const Text(
-                      'STUDENT DIRECTORY',
-                      style: TextStyle(
+                    Obx(() => Text(
+                      controller.isLeaderView ? 'HOUSE DIRECTORY' : 'STUDENT DIRECTORY',
+                      style: const TextStyle(
                         fontSize: 11,
                         fontWeight: FontWeight.w800,
                         color: Color(0xFFF59E0B),
                         letterSpacing: 1.2,
                       ),
-                    ),
+                    )),
                     const SizedBox(height: 3),
-                    const Text(
-                      'Hostel Phonebook',
-                      style: TextStyle(
+                    Obx(() => Text(
+                      controller.isLeaderView
+                          ? '${controller.leaderGroupName.value ?? 'House'} Students'
+                          : 'Hostel Phonebook',
+                      style: const TextStyle(
                         fontSize: 24,
                         fontWeight: FontWeight.w800,
                         color: Colors.white,
                         letterSpacing: -0.5,
                       ),
-                    ),
+                    )),
                     const SizedBox(height: 10),
                     Obx(() {
                       final sync = controller.lastSync.value;

@@ -43,8 +43,10 @@ class WhatsAppNumbersScreen extends GetView<WhatsAppNumbersController> {
                       pinned: true,
                       delegate: PhonebookHeaderDelegate(
                         overline: 'WhatsApp',
-                        title: 'WhatsApp Numbers',
-                        subtitle: 'Link several numbers and pick which one sends',
+                        title: controller.isLeader ? 'My WhatsApp' : 'WhatsApp Numbers',
+                        subtitle: controller.isLeader
+                            ? 'Link your WhatsApp for group alumni, broadcasts & wishes'
+                            : 'Link several numbers and pick which one sends',
                         topPadding: topPadding,
                         onLeadingTap: () => Navigator.of(context).pop(),
                         pills: Wrap(
@@ -64,9 +66,9 @@ class WhatsAppNumbersScreen extends GetView<WhatsAppNumbersController> {
                       padding: const EdgeInsets.fromLTRB(16, 16, 16, 110),
                       sliver: SliverList(
                         delegate: SliverChildListDelegate([
-                          const PhonebookSectionHeader(title: 'Numbers'),
+                          PhonebookSectionHeader(title: controller.isLeader ? 'My Linked Number' : 'Numbers'),
                           if (accounts.isEmpty)
-                            const _EmptyNumbers()
+                            _EmptyNumbers(isLeader: controller.isLeader)
                           else
                             for (final a in accounts)
                               Padding(
@@ -86,14 +88,17 @@ class WhatsAppNumbersScreen extends GetView<WhatsAppNumbersController> {
               );
             }),
           ),
-          floatingActionButton: controller.isAdmin && !controller.isLoading.value && !controller.hasError.value
+          floatingActionButton: controller.canAddAccount && !controller.isLoading.value && !controller.hasError.value
               ? FloatingActionButton.extended(
                   heroTag: 'add_wa_number_fab',
                   backgroundColor: PhonebookTheme.blue,
                   foregroundColor: Colors.white,
                   onPressed: () => _addNumber(context, controller),
                   icon: const Icon(Icons.add_rounded),
-                  label: const Text('Add number', style: TextStyle(fontWeight: FontWeight.w700)),
+                  label: Text(
+                    controller.isLeader ? 'Add my WhatsApp' : 'Add number',
+                    style: const TextStyle(fontWeight: FontWeight.w700),
+                  ),
                 )
               : null,
         ),
@@ -103,7 +108,13 @@ class WhatsAppNumbersScreen extends GetView<WhatsAppNumbersController> {
 }
 
 Future<void> _addNumber(BuildContext context, WhatsAppNumbersController controller) async {
-  final label = await _askLabel(context, title: 'Add number', hint: 'e.g. Anniversary', action: 'Add');
+  final label = await _askLabel(
+    context,
+    title: controller.isLeader ? 'Add my WhatsApp' : 'Add number',
+    hint: controller.isLeader ? 'e.g. Personal / Param Leader' : 'e.g. Anniversary',
+    action: 'Add',
+    initial: controller.isLeader ? 'My WhatsApp' : '',
+  );
   if (label == null) return;
   final id = await controller.add(label);
   if (id != null && context.mounted) await showLinkNumberSheet(context, controller, id);
@@ -180,14 +191,17 @@ class _LabelDialogState extends State<_LabelDialog> {
 }
 
 class _EmptyNumbers extends StatelessWidget {
-  const _EmptyNumbers();
+  final bool isLeader;
+  const _EmptyNumbers({this.isLeader = false});
 
   @override
   Widget build(BuildContext context) {
-    return const PhonebookCard(
+    return PhonebookCard(
       child: Text(
-        'No WhatsApp numbers yet. Add one to start linking.',
-        style: TextStyle(color: PhonebookTheme.muted, fontWeight: FontWeight.w600),
+        isLeader
+            ? 'No WhatsApp linked yet. Tap Add my WhatsApp below to connect your own number for Auto Alumni Connect, Group Broadcasts, and Wishes.'
+            : 'No WhatsApp numbers yet. Add one to start linking.',
+        style: const TextStyle(color: PhonebookTheme.muted, fontWeight: FontWeight.w600),
       ),
     );
   }
@@ -285,7 +299,7 @@ class _NumberCard extends StatelessWidget {
                   ],
                 ),
               ),
-              if (controller.isAdmin)
+              if (controller.canManageAccounts)
                 PopupMenuButton<String>(
                   tooltip: 'More',
                   icon: const Icon(Icons.more_vert_rounded, color: PhonebookTheme.muted),

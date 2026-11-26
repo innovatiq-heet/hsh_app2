@@ -696,7 +696,72 @@ class _CampusHubSection extends StatelessWidget {
                     ),
                   ),
                   const SizedBox(width: 12),
-                  const Expanded(child: SizedBox()),
+                  // House Students Directory Card
+                  Expanded(
+                    child: _HubActionCard(
+                      icon: Icons.groups_rounded,
+                      iconColor: const Color(0xFF0284C7),
+                      iconBg: const Color(0xFFE0F2FE),
+                      iconBorder: const Color(0xFFBAE6FD),
+                      waveColor: const Color(0xFFF0F9FF),
+                      title: 'House Students',
+                      subtitle: 'Full details & contacts of your house',
+                      badgeBuilder: () => const CelebrantLightChip(
+                        icon: Icons.badge_rounded,
+                        text: 'Leader Access',
+                        bgColor: Color(0xFFE0F2FE),
+                        borderColor: Color(0xFFBAE6FD),
+                        textColor: Color(0xFF0369A1),
+                      ),
+                      onTap: () => Get.toNamed(Routes.operatorDirectory),
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 12),
+              Row(
+                children: [
+                  // Group Broadcasts Card
+                  Expanded(
+                    child: _HubActionCard(
+                      icon: Icons.campaign_rounded,
+                      iconColor: const Color(0xFF0284C7),
+                      iconBg: const Color(0xFFE0F2FE),
+                      iconBorder: const Color(0xFFBAE6FD),
+                      waveColor: const Color(0xFFF0F9FF),
+                      title: 'Group Broadcasts',
+                      subtitle: 'Send WhatsApp & push notices to your group',
+                      badgeBuilder: () => const CelebrantLightChip(
+                        icon: Icons.campaign_rounded,
+                        text: 'Group Only',
+                        bgColor: Color(0xFFE0F2FE),
+                        borderColor: Color(0xFFBAE6FD),
+                        textColor: Color(0xFF0369A1),
+                      ),
+                      onTap: () => Get.toNamed(Routes.operatorBroadcasts),
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  // My WhatsApp Card
+                  Expanded(
+                    child: _HubActionCard(
+                      icon: Icons.chat_rounded,
+                      iconColor: const Color(0xFF16A34A),
+                      iconBg: const Color(0xFFDCFCE7),
+                      iconBorder: const Color(0xFFBBF7D0),
+                      waveColor: const Color(0xFFF0FDF4),
+                      title: 'My WhatsApp',
+                      subtitle: 'Link your personal WhatsApp for auto-sends',
+                      badgeBuilder: () => const CelebrantLightChip(
+                        icon: Icons.qr_code_2_rounded,
+                        text: 'Personal',
+                        bgColor: Color(0xFFDCFCE7),
+                        borderColor: Color(0xFFBBF7D0),
+                        textColor: Color(0xFF15803D),
+                      ),
+                      onTap: () => Get.toNamed(Routes.whatsappNumbers),
+                    ),
+                  ),
                 ],
               ),
             ],

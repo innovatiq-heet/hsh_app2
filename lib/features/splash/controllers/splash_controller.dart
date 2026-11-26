@@ -53,9 +53,10 @@ class SplashController extends GetxController {
       }
     }
 
-    // Re-arm background screen-time sync on every launch for active hostel students
+    // Re-arm background screen-time sync on every launch for regular active hostel students only
+    // (never for alumni or leader students).
     final isAlumni = session?.isAlumni ?? false;
-    if (role.isStudentOrLeader && !isAlumni) {
+    if (role == UserRole.student && !isAlumni) {
       await ScreenTimeService.startMonitoring(token);
     } else {
       await ScreenTimeService.stopMonitoring();

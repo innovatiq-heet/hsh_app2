@@ -616,7 +616,7 @@ class AlumniOutreachStudentModel {
         groupName: groupName,
         status: 'messaged',
         message: message,
-        contactedAt: (at ?? DateTime.now()).toIso8601String(),
+        contactedAt: (at ?? DateTime.now()).toUtc().toIso8601String(),
       );
 
   factory AlumniOutreachStudentModel.fromJson(Map<String, dynamic> json) {
@@ -644,6 +644,7 @@ class AlumniOutreachStudentModel {
 class AlumniDailyOutreachDataModel {
   final String groupName;
   final String date;
+  final String scope;
   final int targetDailyCount;
   final int contactedTodayCount;
   final int totalAlumniInGroup;
@@ -654,6 +655,7 @@ class AlumniDailyOutreachDataModel {
   const AlumniDailyOutreachDataModel({
     required this.groupName,
     required this.date,
+    this.scope = 'leader',
     this.targetDailyCount = 5,
     this.contactedTodayCount = 0,
     this.totalAlumniInGroup = 0,
@@ -676,6 +678,7 @@ class AlumniDailyOutreachDataModel {
     return AlumniDailyOutreachDataModel(
       groupName: json['groupName']?.toString() ?? '',
       date: json['date']?.toString() ?? '',
+      scope: json['scope']?.toString() ?? 'leader',
       targetDailyCount: int.tryParse(json['targetDailyCount']?.toString() ?? '5') ?? 5,
       contactedTodayCount: int.tryParse(json['contactedTodayCount']?.toString() ?? '0') ?? 0,
       totalAlumniInGroup: int.tryParse(json['totalAlumniInGroup']?.toString() ?? '0') ?? 0,
@@ -721,6 +724,8 @@ class AlumniOutreachHistoryModel {
   final String? contactedAt;
   final String message;
   final String leaderName;
+  final String outreachScope;
+  final String? sentByRole;
 
   const AlumniOutreachHistoryModel({
     required this.id,
@@ -740,9 +745,18 @@ class AlumniOutreachHistoryModel {
     this.contactedAt,
     this.message = '',
     this.leaderName = '',
+    this.outreachScope = 'leader',
+    this.sentByRole,
   });
 
+  bool get isSentByAdmin => outreachScope == 'admin' || sentByRole == 'admin';
+
   factory AlumniOutreachHistoryModel.fromJson(Map<String, dynamic> json) {
+    final rawScope = _firstNonEmpty(json, const ['outreachScope', 'outreach_scope']);
+    final rawRole = json['sentByRole']?.toString().trim();
+    final resolvedScope = rawScope.isNotEmpty
+        ? rawScope
+        : (rawRole == 'admin' ? 'admin' : 'leader');
     return AlumniOutreachHistoryModel(
       id: int.tryParse(json['id']?.toString() ?? '0') ?? 0,
       studentId: int.tryParse(json['studentId']?.toString() ?? '0') ?? 0,
@@ -771,6 +785,8 @@ class AlumniOutreachHistoryModel {
         'contacted_by_name',
         'adminName',
       ]),
+      outreachScope: resolvedScope,
+      sentByRole: rawRole?.isEmpty == true ? null : rawRole,
     );
   }
 

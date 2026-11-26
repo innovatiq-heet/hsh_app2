@@ -240,4 +240,46 @@ void main() {
       expect(c.accounts.any((a) => a.isMain), isTrue);
     });
   });
+
+  group('leader individual whatsapp', () {
+    test('leader gets 1 personal slot and canManageAccounts is true without admin defaults', () async {
+      Get.reset();
+      Get.testMode = true;
+      SharedPreferences.setMockInitialValues({
+        'auth_token': 'leader-token',
+        'user_session': jsonEncode({'role': 'leader', 'token': 'leader-token', 'name': 'Param Leader'}),
+      });
+      final session = Get.put(SessionStore());
+      await session.userSession;
+      api = FakeApi()..install();
+      api.on('GET /whatsapp/accounts', {
+        'success': true,
+        'data': {'accounts': [], 'defaults': {'birthday': null, 'anniversary': null}},
+      });
+
+      final c = Get.put(WhatsAppNumbersController());
+      await until(() => !c.isLoading.value, reason: 'leader empty loaded');
+
+      expect(c.isAdmin, isFalse);
+      expect(c.isLeader, isTrue);
+      expect(c.canManageAccounts, isTrue);
+      expect(c.canAddAccount, isTrue);
+
+      api.on('POST /whatsapp/accounts', {
+        'success': true,
+        'data': {'id': 'ldr_55', 'label': 'My WhatsApp'},
+      }, status: 201);
+      api.on('GET /whatsapp/accounts', {
+        'success': true,
+        'data': {
+          'accounts': [account('ldr_55', 'My WhatsApp', 'disconnected')],
+          'defaults': {'birthday': null, 'anniversary': null},
+        },
+      });
+      final newId = await c.add('My WhatsApp');
+      expect(newId, 'ldr_55');
+      expect(c.accounts.length, 1);
+      expect(c.canAddAccount, isFalse, reason: 'leaders are limited to 1 individual slot');
+    });
+  });
 }

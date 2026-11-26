@@ -60,7 +60,22 @@ class BroadcastComposeController extends GetxController
       StudentPickerSource(tags: _tagsRepo, screenTime: _screenTimeRepo);
 
   @override
-  void onStudentsChanged() => _schedulePreview();
+  void onStudentsChanged() {
+    if (selectedStudents.isNotEmpty) groupAudiencePreset.value = null;
+    _schedulePreview();
+  }
+
+  /// Leader group context (only populated when [isLeaderView] is true).
+  final leaderGroupName = ''.obs;
+  final leaderResidentsCount = 0.obs;
+  final leaderAlumniCount = 0.obs;
+  final leaderTotalCount = 0.obs;
+  final leaderWhatsappConnected = false.obs;
+  final leaderHasLinkedWhatsApp = false.obs;
+  final leaderLinkedPhone = RxnString();
+
+  /// Quick house audience preset for leaders: 'residents', 'alumni', 'all', or null.
+  final RxnString groupAudiencePreset = RxnString();
 
   final titleController = TextEditingController();
   final messageController = TextEditingController();
@@ -123,9 +138,59 @@ class BroadcastComposeController extends GetxController
   }
 
   Future<void> _start() async {
-    if (await ensureAdmin()) {
-      loadStudents(); // in the background: the picker is ready when opened
-      await loadTags();
+    if (await ensureAdminOrLeader()) {
+      if (isLeaderView.value) {
+        await Future.wait([loadLeaderSummary(), loadStudents(), loadTags()]);
+      } else {
+        loadStudents(); // in the background: the picker is ready when opened
+        await loadTags();
+      }
+    }
+  }
+
+  Future<void> loadLeaderSummary() async {
+    if (!isLeaderView.value) return;
+    try {
+      final summary = await _repo.leaderAudienceSummary();
+      leaderGroupName.value = (summary['groupName'] ?? '').toString().trim();
+      leaderResidentsCount.value = int.tryParse('${summary['residentsCount'] ?? 0}') ?? 0;
+      leaderAlumniCount.value = int.tryParse('${summary['alumniCount'] ?? 0}') ?? 0;
+      leaderTotalCount.value = int.tryParse('${summary['totalCount'] ?? 0}') ?? 0;
+      leaderWhatsappConnected.value = summary['whatsappConnected'] == true;
+      leaderHasLinkedWhatsApp.value = summary['hasLinkedAccount'] == true;
+      final ph = summary['linkedPhone']?.toString().trim();
+      leaderLinkedPhone.value = (ph != null && ph.isNotEmpty) ? ph : null;
+    } catch (_) {
+      // Fall back gracefully if summary endpoint is temporarily unavailable.
+    }
+  }
+
+  @override
+  Future<void> loadStudents({bool force = false}) async {
+    if (!isLeaderView.value) {
+      return super.loadStudents(force: force);
+    }
+    if (students.isNotEmpty && !force) return;
+    isStudentsLoading.value = true;
+    studentsError.value = null;
+    try {
+      final rows = await _repo.leaderGroupMembers();
+      students.assignAll([
+        for (final r in rows)
+          if (studentIdOf(r) != null)
+            PickableStudent(
+              id: studentIdOf(r)!,
+              name: (r['name'] ?? '').toString(),
+              room: (r['room'] ?? '').toString(),
+              isAlumni: r['is_alumni'] == true,
+            ),
+      ]);
+    } on ApiException catch (e) {
+      studentsError.value = e.message;
+    } catch (_) {
+      studentsError.value = 'Could not load group members.';
+    } finally {
+      isStudentsLoading.value = false;
     }
   }
 
@@ -145,13 +210,14 @@ class BroadcastComposeController extends GetxController
   /// Title is optional: valid if empty or within limit.
   bool get titleValid => trimmedTitle.length <= maxTitle;
   bool get messageValid => trimmedMessage.isNotEmpty && trimmedMessage.length <= maxMessage;
-  bool get hasAudience => selectedTagIds.isNotEmpty || selectedStudents.isNotEmpty;
+  bool get hasPresetAudience => isLeaderView.value && groupAudiencePreset.value != null;
+  bool get hasAudience => hasPresetAudience || selectedTagIds.isNotEmpty || selectedStudents.isNotEmpty;
 
   bool get canSend =>
       titleValid &&
       messageValid &&
       hasAudience &&
-      (selectedTagIds.isEmpty || tagScope.value != null) &&
+      (hasPresetAudience || selectedTagIds.isEmpty || tagScope.value != null) &&
       !isPreviewLoading.value &&
       previewError.value == null &&
       preview.value.recipientCount > 0 &&
@@ -171,8 +237,27 @@ class BroadcastComposeController extends GetxController
     }
   }
 
+  void setGroupAudiencePreset(String? preset) {
+    if (!isLeaderView.value) return;
+    if (groupAudiencePreset.value == preset) {
+      groupAudiencePreset.value = null;
+    } else {
+      groupAudiencePreset.value = preset;
+      if (preset != null) {
+        selectedTagIds.clear();
+        tagScope.value = null;
+        tagMembers.value = TagMembers.empty;
+        selectedStudents.clear();
+      }
+    }
+    _schedulePreview();
+  }
+
   void toggleTag(int tagId) {
-    if (!selectedTagIds.remove(tagId)) selectedTagIds.add(tagId);
+    if (!selectedTagIds.remove(tagId)) {
+      selectedTagIds.add(tagId);
+      groupAudiencePreset.value = null;
+    }
     if (selectedTagIds.isEmpty) tagScope.value = null;
     _refreshMembers();
     _schedulePreview();
@@ -210,6 +295,9 @@ class BroadcastComposeController extends GetxController
   /// group only, that group's students (numeric students.id) plus individual
   /// picks. Null with a reason when it can't be worked out yet.
   ({List<int> tagIds, List<int> studentIds})? _audience() {
+    if (hasPresetAudience) {
+      return (tagIds: const <int>[], studentIds: const <int>[]);
+    }
     final scope = tagScope.value;
     if (selectedTagIds.isEmpty || scope == null || scope == TagMemberScope.all) {
       return (tagIds: _tagIds, studentIds: _studentIds);
@@ -252,7 +340,7 @@ class BroadcastComposeController extends GetxController
     uploadedImage.value = null;
     isImageUploading.value = true;
     try {
-      final uploaded = await _repo.uploadImage(file);
+      final uploaded = await _repo.uploadImage(file, isLeader: isLeaderView.value);
       if (seq != _imageSeq) return;
       uploadedImage.value = uploaded;
     } on ApiException catch (e) {
@@ -327,7 +415,8 @@ class BroadcastComposeController extends GetxController
       isPreviewLoading.value = false;
       return;
     }
-    if (audience.tagIds.isEmpty && audience.studentIds.isEmpty) {
+    final preset = hasPresetAudience ? groupAudiencePreset.value : null;
+    if (preset == null && audience.tagIds.isEmpty && audience.studentIds.isEmpty) {
       preview.value = BroadcastPreview.empty;
       isPreviewLoading.value = false;
       return;
@@ -336,6 +425,8 @@ class BroadcastComposeController extends GetxController
       final result = await _repo.preview(
         tagIds: audience.tagIds,
         studentIds: audience.studentIds,
+        audiencePreset: preset,
+        isLeader: isLeaderView.value,
       );
       if (seq != _previewSeq) return;
       preview.value = result;
@@ -372,6 +463,8 @@ class BroadcastComposeController extends GetxController
         channels: selectedChannel.value.name,
         tagIds: audience.tagIds,
         studentIds: audience.studentIds,
+        audiencePreset: hasPresetAudience ? groupAudiencePreset.value : null,
+        isLeader: isLeaderView.value,
       );
     } on ApiException catch (e) {
       AppSnackbar.error('Broadcast Not Sent', e.message);

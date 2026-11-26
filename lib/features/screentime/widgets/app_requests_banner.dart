@@ -78,12 +78,16 @@ class AppRequestsBanner extends StatelessWidget {
                   children: [
                     Row(
                       children: [
-                        const Text(
-                          'App Requests',
-                          style: TextStyle(
-                            fontSize: 14.5,
-                            fontWeight: FontWeight.w700,
-                            color: Color(0xFF0F172A),
+                        const Flexible(
+                          child: Text(
+                            'App Requests',
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: TextStyle(
+                              fontSize: 14.5,
+                              fontWeight: FontWeight.w700,
+                              color: Color(0xFF0F172A),
+                            ),
                           ),
                         ),
                         const SizedBox(width: 8),

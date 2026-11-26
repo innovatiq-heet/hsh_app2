@@ -82,7 +82,7 @@ class BroadcastHistoryController extends GetxController
   }
 
   Future<void> _start() async {
-    if (await ensureAdmin()) {
+    if (await ensureAdminOrLeader()) {
       await load();
     } else {
       isLoading.value = false;
@@ -97,7 +97,7 @@ class BroadcastHistoryController extends GetxController
   }
 
   Future<void> load({bool showLoading = true}) => guard(() async {
-        final page = await _repo.history(limit: pageSize, offset: 0);
+        final page = await _repo.history(limit: pageSize, offset: 0, isLeader: isLeaderView.value);
         broadcasts.assignAll(page.items);
         total.value = page.total;
         _updatePolling();
@@ -107,7 +107,7 @@ class BroadcastHistoryController extends GetxController
     if (isLoadingMore.value || !hasMore) return;
     isLoadingMore.value = true;
     try {
-      final page = await _repo.history(limit: pageSize, offset: broadcasts.length);
+      final page = await _repo.history(limit: pageSize, offset: broadcasts.length, isLeader: isLeaderView.value);
       final known = broadcasts.map((b) => b.id).toSet();
       broadcasts.addAll(page.items.where((b) => !known.contains(b.id)));
       total.value = page.total;
@@ -131,7 +131,7 @@ class BroadcastHistoryController extends GetxController
   /// Refreshes the first page in place (sending broadcasts are the newest).
   Future<void> _poll() async {
     try {
-      final page = await _repo.history(limit: pageSize, offset: 0);
+      final page = await _repo.history(limit: pageSize, offset: 0, isLeader: isLeaderView.value);
       final fresh = {for (final b in page.items) b.id: b};
       final known = broadcasts.map((b) => b.id).toSet();
       final updated = [

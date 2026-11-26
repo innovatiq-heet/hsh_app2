@@ -1585,12 +1585,16 @@ class _GlobalCurfewBanner extends GetView<ScreenTimeDirectoryController> {
                         color: Color(0xFF64748B),
                       ),
                       const SizedBox(width: 4),
-                      Text(
-                        policy.formatTimeRange(),
-                        style: const TextStyle(
-                          fontSize: 11,
-                          color: Color(0xFF64748B),
-                          fontWeight: FontWeight.w600,
+                      Flexible(
+                        child: Text(
+                          policy.formatTimeRange(),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: const TextStyle(
+                            fontSize: 11,
+                            color: Color(0xFF64748B),
+                            fontWeight: FontWeight.w600,
+                          ),
                         ),
                       ),
                       const SizedBox(width: 8),

@@ -12,6 +12,12 @@ import 'package:hsh_app2/features/shared/widgets/student_contact_card.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 class _TestPhonebookController extends PhonebookController {
+  final bool leaderView;
+  _TestPhonebookController({this.leaderView = false});
+
+  @override
+  bool get isLeaderView => leaderView;
+
   @override
   Future<void> syncNow({bool silent = false}) async {}
 
@@ -140,6 +146,116 @@ void main() {
         expect(find.text('Collapse all'), findsNothing);
       } finally {
         controller.onClose();
+        Get.reset();
+      }
+    },
+  );
+
+  testWidgets(
+    'StudentDetailScreen shows Portal & Attendance, Documents, and Status for admins',
+    (tester) async {
+      const student = PhonebookStudent(
+        id: '1095',
+        studentId: '1095',
+        name: 'Aaditya Hemangbhai Patel',
+        enrollmentNumber: '1095',
+        department: 'Pavitra • Room 305',
+        batch: 'ACTIVE',
+        room: '305',
+        groupName: 'Pavitra',
+        status: 'active',
+        phones: [
+          PhonebookContact(
+            phone: '9876543210',
+            phoneNormalized: '9876543210',
+            label: 'Mobile',
+          ),
+        ],
+      );
+
+      tester.view.physicalSize = const Size(1080, 3600);
+      tester.view.devicePixelRatio = 1.0;
+      addTearDown(tester.view.reset);
+
+      SharedPreferences.setMockInitialValues({
+        'auth_token': 'token',
+        'user_session': jsonEncode({'role': 'admin', 'token': 'token', 'name': 'Admin'}),
+      });
+      Get.testMode = true;
+      Get.put(SessionStore());
+      final adminController = Get.put<PhonebookController>(_TestPhonebookController(leaderView: false));
+      try {
+        await tester.pumpWidget(
+          const GetMaterialApp(home: StudentDetailScreen(student: student)),
+        );
+        await tester.pump();
+
+        expect(find.text('HOSTEL PORTAL & ATTENDANCE'), findsOneWidget);
+        expect(find.text('DOCUMENTS'), findsOneWidget);
+
+        await tester.tap(find.text('Expand all'));
+        await tester.pump();
+
+        expect(find.text('Status'), findsOneWidget);
+        expect(find.text('ACTIVE'), findsOneWidget);
+      } finally {
+        adminController.onClose();
+        Get.reset();
+      }
+    },
+  );
+
+  testWidgets(
+    'StudentDetailScreen hides Portal & Attendance, Documents, and Status for leaders',
+    (tester) async {
+      const student = PhonebookStudent(
+        id: '1095',
+        studentId: '1095',
+        name: 'Aaditya Hemangbhai Patel',
+        enrollmentNumber: '1095',
+        department: 'Pavitra • Room 305',
+        batch: 'ACTIVE',
+        room: '305',
+        groupName: 'Pavitra',
+        status: 'active',
+        phones: [
+          PhonebookContact(
+            phone: '9876543210',
+            phoneNormalized: '9876543210',
+            label: 'Mobile',
+          ),
+        ],
+      );
+
+      tester.view.physicalSize = const Size(1080, 3600);
+      tester.view.devicePixelRatio = 1.0;
+      addTearDown(tester.view.reset);
+
+      SharedPreferences.setMockInitialValues({
+        'auth_token': 'token',
+        'user_session': jsonEncode({'role': 'leader', 'token': 'token', 'name': 'Leader'}),
+      });
+      Get.testMode = true;
+      Get.put(SessionStore());
+      final leaderController = Get.put<PhonebookController>(_TestPhonebookController(leaderView: true));
+      try {
+        await tester.pumpWidget(
+          const GetMaterialApp(home: StudentDetailScreen(student: student)),
+        );
+        await tester.pump();
+
+        expect(find.text('HOSTEL PORTAL & ATTENDANCE'), findsNothing);
+        expect(find.text('DOCUMENTS'), findsNothing);
+
+        await tester.tap(find.text('Expand all'));
+        await tester.pump();
+
+        expect(find.text('Status'), findsNothing);
+        expect(find.text('ACTIVE'), findsNothing);
+        expect(find.text('HOSTEL PORTAL & ATTENDANCE'), findsNothing);
+        expect(find.text('DOCUMENTS'), findsNothing);
+      } finally {
+        leaderController.onClose();
         Get.reset();
       }
     },

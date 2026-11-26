@@ -230,6 +230,37 @@ void main() {
     });
   });
 
+  group('leader self exclusion', () {
+    test('excludes the leader student row when signed in as leader', () async {
+      SharedPreferences.setMockInitialValues({
+        'auth_token': 'token',
+        'user_session': jsonEncode({
+          'id': '1044',
+          'student_id': 1044,
+          'role': 'leader',
+          'token': 'token',
+          'name': 'Bhavin Shah',
+        }),
+      });
+      Get.testMode = true;
+      requests = [];
+      final session = Get.put(SessionStore());
+      final api = ApiClient.create();
+      api.dio.interceptors.add(InterceptorsWrapper(onRequest: (options, handler) {
+        requests.add(options);
+        final data = reply(options);
+        handler.resolve(Response(requestOptions: options, statusCode: data == null ? 404 : 200, data: data));
+      }));
+      Get.put(api);
+      await until(() => session.currentSession != null, reason: 'the session');
+
+      final c = await open();
+      expect(c.allStudents.map((s) => s['name']), ['Asha Patel']);
+      expect(c.filteredStudents.map((s) => s['name']), ['Asha Patel']);
+      expect(c.directoryCount('All'), 1);
+    });
+  });
+
   group('header', () {
     setUpAll(() async {
       await loadDeviceLikeFonts();

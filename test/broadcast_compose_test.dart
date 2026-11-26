@@ -359,4 +359,68 @@ void main() {
       expect(preview['student_ids'], isEmpty);
     });
   });
+
+  group('leader group broadcasts', () {
+    test('leader is admitted, loads group audience, and posts to /leader/broadcasts', () async {
+      Get.reset();
+      Get.testMode = true;
+      SharedPreferences.setMockInitialValues({
+        'auth_token': 'leader-token',
+        'user_session': jsonEncode({'role': 'leader', 'token': 'leader-token', 'name': 'Param Leader'}),
+      });
+      Get.put(SessionStore());
+      api = FakeApi()..install();
+      Get.put(TagsRepository());
+      Get.put(BroadcastsRepository());
+      api.on('GET /tags', {
+        'success': true,
+        'data': [{'id': 3, 'name': 'Floor 2', 'color': '#0284C7', 'student_count': 40}],
+      });
+      api.on('GET /leader/broadcasts/audience', {
+        'success': true,
+        'data': {
+          'groupName': 'Param',
+          'residentsCount': 25,
+          'alumniCount': 40,
+          'totalCount': 65,
+          'whatsappConnected': true,
+          'hasLinkedAccount': true,
+          'linkedPhone': '919876543210',
+        },
+      });
+      api.on('GET /leader/broadcasts/students', {
+        'success': true,
+        'data': [{'id': 501, 'name': 'Param Student', 'room': '201', 'is_alumni': false}],
+      });
+      api.on('POST /leader/broadcasts/preview', {
+        'success': true,
+        'data': {
+          'recipient_count': 65,
+          'no_device_count': 2,
+          'no_whatsapp_count': 0,
+          'whatsapp_connected': true,
+          'sample': [{'id': 501, 'name': 'Param Student', 'room': '201'}],
+        },
+      });
+      api.on('POST /leader/broadcasts', {'success': true, 'data': broadcastJson(recipients: 65)}, status: 201);
+
+      final lc = Get.put(BroadcastComposeController(previewDebounce: debounce));
+      await until(() => lc.leaderGroupName.value == 'Param' && lc.students.isNotEmpty, reason: 'leader ready');
+
+      expect(lc.accessDenied.value, isFalse);
+      expect(lc.isLeaderView.value, isTrue);
+      expect(lc.leaderWhatsappConnected.value, isTrue);
+
+      lc.messageController.text = 'Param house meeting at 7pm';
+      lc.setGroupAudiencePreset('all');
+      await settle();
+
+      expect(api.last('POST /leader/broadcasts/preview').data['audience_preset'], 'all');
+      expect(lc.canSend, isTrue);
+
+      final sent = await lc.send();
+      expect(sent, isNotNull);
+      expect(api.last('POST /leader/broadcasts').data['audience_preset'], 'all');
+    });
+  });
 }

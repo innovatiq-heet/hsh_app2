@@ -50,7 +50,7 @@ class BroadcastDetailController extends GetxController
   }
 
   Future<void> _start() async {
-    if (await ensureAdmin()) {
+    if (await ensureAdminOrLeader()) {
       await load();
     } else {
       isLoading.value = false;
@@ -60,6 +60,6 @@ class BroadcastDetailController extends GetxController
   Future<void> load({bool showLoading = true}) => guard(() async {
         final id = _id;
         if (id == null) throw StateError('No broadcast id');
-        broadcast.value = await _repo.detail(id);
+        broadcast.value = await _repo.detail(id, isLeader: isLeaderView.value);
       }, showLoading: showLoading && broadcast.value == null);
 }

@@ -6,6 +6,9 @@ import '../../../core/constants/app_colors.dart';
 import '../../../core/constants/app_dimens.dart';
 import '../../../core/constants/app_routes.dart';
 import '../../../core/constants/app_text_styles.dart';
+import '../../../core/enums/user_role.dart';
+import '../../../core/network/api_client.dart';
+import '../../../core/storage/session_store.dart';
 import '../../../core/utils/date_formatting.dart';
 import '../../../core/models/tags/student_tag_model.dart';
 import '../../shared/widgets/icon_badge.dart';
@@ -109,6 +112,17 @@ class _StudentDetailScreenState extends State<StudentDetailScreen> {
 
   PhonebookController get _c => Get.find<PhonebookController>();
 
+  bool get _isLeaderView {
+    if (Get.isRegistered<PhonebookController>() &&
+        Get.find<PhonebookController>().isLeaderView) {
+      return true;
+    }
+    if (Get.isRegistered<SessionStore>()) {
+      return Get.find<SessionStore>().currentSession?.role == UserRole.leader;
+    }
+    return false;
+  }
+
   bool get _hasPhone => student.primaryPhone != 'No Phone';
 
   static String _digitsOf(String? raw) =>
@@ -123,14 +137,15 @@ class _StudentDetailScreenState extends State<StudentDetailScreen> {
   /// Tracks which parent cards ('father', 'mother') have their full details expanded.
   final Set<String> _expandedParents = {};
 
-  List<String> get _availableSections => const [
+  List<String> get _availableSections => [
     'contacts',
     'tags',
     'hostel',
     'personal',
     'education',
     'family_contacts',
-    'documents',
+    if (!_isLeaderView) 'portal',
+    if (!_isLeaderView) 'documents',
   ];
 
   bool get _allExpanded => _availableSections.every(_expandedSections.contains);
@@ -285,6 +300,7 @@ class _StudentDetailScreenState extends State<StudentDetailScreen> {
                     student: student,
                     isExpanded: _expandedSections.contains('tags'),
                     onToggle: () => _toggleSection('tags'),
+                    readOnly: _isLeaderView,
                   ),
                   const SizedBox(height: AppDimens.gapMd),
                   _hostelCard(),
@@ -294,13 +310,19 @@ class _StudentDetailScreenState extends State<StudentDetailScreen> {
                   _educationCard(),
                   const SizedBox(height: AppDimens.gapMd),
                   _familyContactsSection(),
+                  if (!_isLeaderView) ...[
+                    const SizedBox(height: AppDimens.gapMd),
+                    _portalDetailsCard(),
+                  ],
                   // Alumni: where they live and work now, noted by admins.
                   if (student.isAlumni) ...[
                     const SizedBox(height: AppDimens.gapMd),
                     CurrentDetailsCard(student: student, knownStudentId: widget.studentId),
                   ],
-                  const SizedBox(height: AppDimens.gapMd),
-                  _documentsCard(),
+                  if (!_isLeaderView) ...[
+                    const SizedBox(height: AppDimens.gapMd),
+                    _documentsCard(),
+                  ],
                   const SizedBox(height: AppDimens.gapLg),
                   // Side by side. Alumni have no hostel phone to monitor (Screen
                   // Time lists residents only), so they only get Share.
@@ -427,23 +449,24 @@ class _StudentDetailScreenState extends State<StudentDetailScreen> {
                 ],
               ),
             ),
-            ElevatedButton.icon(
-              onPressed: _openManageContacts,
-              icon: const Icon(Icons.add, size: 14),
-              label: const Text('Add'),
-              style: ElevatedButton.styleFrom(
-                backgroundColor: AppColors.primary,
-                foregroundColor: Colors.white,
-                padding:
-                    const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-                textStyle:
-                    const TextStyle(fontSize: 12, fontWeight: FontWeight.bold),
-                minimumSize: Size.zero,
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(8),
+            if (!_isLeaderView)
+              ElevatedButton.icon(
+                onPressed: _openManageContacts,
+                icon: const Icon(Icons.add, size: 14),
+                label: const Text('Add'),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: AppColors.primary,
+                  foregroundColor: Colors.white,
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                  textStyle:
+                      const TextStyle(fontSize: 12, fontWeight: FontWeight.bold),
+                  minimumSize: Size.zero,
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(8),
+                  ),
                 ),
               ),
-            ),
           ],
         ),
       );
@@ -458,8 +481,8 @@ class _StudentDetailScreenState extends State<StudentDetailScreen> {
       isExpanded: _expandedSections.contains('contacts'),
       onToggle: () => _toggleSection('contacts'),
       summary: contactSummary,
-      onManage: _openManageContacts,
-      onAdd: _openAddContactNumber,
+      onManage: _isLeaderView ? null : _openManageContacts,
+      onAdd: _isLeaderView ? null : _openAddContactNumber,
       lines: [
         for (final n in _studentNumbers)
           _CopyLine(
@@ -551,15 +574,16 @@ class _StudentDetailScreenState extends State<StudentDetailScreen> {
             value: floor == 0 ? 'Ground floor' : 'Floor $floor',
             iconColor: const Color(0xFF6366F1),
           ),
-        _DetailRow(
-          icon: Icons.verified_user_rounded,
-          label: 'Status',
-          iconColor: isAlumni ? const Color(0xFF9333EA) : const Color(0xFF059669),
-          valueWidget: StatusBadge(
-            label: status,
-            color: isAlumni ? const Color(0xFF9333EA) : AppColors.successGreen,
+        if (!_isLeaderView)
+          _DetailRow(
+            icon: Icons.verified_user_rounded,
+            label: 'Status',
+            iconColor: isAlumni ? const Color(0xFF9333EA) : const Color(0xFF059669),
+            valueWidget: StatusBadge(
+              label: status,
+              color: isAlumni ? const Color(0xFF9333EA) : AppColors.successGreen,
+            ),
           ),
-        ),
         if (student.studentId.isNotEmpty)
           _DetailRow(
             icon: Icons.badge_rounded,
@@ -632,6 +656,28 @@ class _StudentDetailScreenState extends State<StudentDetailScreen> {
       summary: 'Aadhar · PAN · Signature',
       children: [
         DocumentsGallery(studentAadhar: student.aadhar, studentName: student.name),
+      ],
+    );
+  }
+
+  Widget _portalDetailsCard() {
+    final identifier = (widget.studentId != null && widget.studentId! > 0)
+        ? widget.studentId.toString()
+        : ((student.bankCode ?? '').trim().isNotEmpty
+            ? student.bankCode!.trim()
+            : student.studentId.trim());
+    return _DetailCard(
+      title: 'Hostel Portal & Attendance',
+      icon: Icons.fact_check_rounded,
+      accentColor: const Color(0xFF0284C7),
+      isExpanded: _expandedSections.contains('portal'),
+      onToggle: () => _toggleSection('portal'),
+      summary: 'Attendance · Lifestyle & Details',
+      children: [
+        _PortalDetailsBody(
+          identifier: identifier,
+          student: student,
+        ),
       ],
     );
   }
@@ -745,36 +791,37 @@ class _StudentDetailScreenState extends State<StudentDetailScreen> {
                 ),
               ),
               const SizedBox(width: 6),
-              InkWell(
-                onTap: _openManageContacts,
-                borderRadius: BorderRadius.circular(8),
-                child: Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3.5),
-                  decoration: BoxDecoration(
-                    color: const Color(0xFF64748B).withValues(alpha: 0.1),
-                    borderRadius: BorderRadius.circular(8),
-                    border: Border.all(
-                      color: const Color(0xFF64748B).withValues(alpha: 0.25),
-                      width: 0.8,
+              if (!_isLeaderView)
+                InkWell(
+                  onTap: _openManageContacts,
+                  borderRadius: BorderRadius.circular(8),
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3.5),
+                    decoration: BoxDecoration(
+                      color: const Color(0xFF64748B).withValues(alpha: 0.1),
+                      borderRadius: BorderRadius.circular(8),
+                      border: Border.all(
+                        color: const Color(0xFF64748B).withValues(alpha: 0.25),
+                        width: 0.8,
+                      ),
+                    ),
+                    child: const Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Icon(Icons.edit_outlined, size: 12.5, color: Color(0xFF64748B)),
+                        SizedBox(width: 3.5),
+                        Text(
+                          'Manage',
+                          style: TextStyle(
+                            color: Color(0xFF64748B),
+                            fontWeight: FontWeight.w700,
+                            fontSize: 11.5,
+                          ),
+                        ),
+                      ],
                     ),
                   ),
-                  child: const Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      Icon(Icons.edit_outlined, size: 12.5, color: Color(0xFF64748B)),
-                      SizedBox(width: 3.5),
-                      Text(
-                        'Manage',
-                        style: TextStyle(
-                          color: Color(0xFF64748B),
-                          fontWeight: FontWeight.w700,
-                          fontSize: 11.5,
-                        ),
-                      ),
-                    ],
-                  ),
                 ),
-              ),
               const SizedBox(width: 4),
               InkResponse(
                 onTap: () => _toggleSection('family_contacts'),
@@ -817,72 +864,74 @@ class _StudentDetailScreenState extends State<StudentDetailScreen> {
                           if (i > 0) const SizedBox(height: AppDimens.gapSm),
                           contacts[i],
                         ],
-                      const SizedBox(height: AppDimens.gapSm),
-                      Row(
-                        children: [
-                          Expanded(
-                            child: OutlinedButton.icon(
-                              onPressed: () => _openAddContactNumber(
-                                initialOwner: ContactOwner.father,
-                              ),
-                              icon: const Icon(
-                                Icons.man_rounded,
-                                size: 16,
-                                color: AppColors.secondaryDark,
-                              ),
-                              label: const Text(
-                                '+ Father No.',
-                                style: TextStyle(
-                                  fontSize: 12,
-                                  fontWeight: FontWeight.w700,
+                      if (!_isLeaderView) ...[
+                        const SizedBox(height: AppDimens.gapSm),
+                        Row(
+                          children: [
+                            Expanded(
+                              child: OutlinedButton.icon(
+                                onPressed: () => _openAddContactNumber(
+                                  initialOwner: ContactOwner.father,
+                                ),
+                                icon: const Icon(
+                                  Icons.man_rounded,
+                                  size: 16,
                                   color: AppColors.secondaryDark,
                                 ),
-                              ),
-                              style: OutlinedButton.styleFrom(
-                                padding: const EdgeInsets.symmetric(vertical: 9),
-                                side: BorderSide(
-                                  color: AppColors.secondaryDark.withValues(alpha: 0.35),
+                                label: const Text(
+                                  '+ Father No.',
+                                  style: TextStyle(
+                                    fontSize: 12,
+                                    fontWeight: FontWeight.w700,
+                                    color: AppColors.secondaryDark,
+                                  ),
                                 ),
-                                backgroundColor: AppColors.secondaryDark.withValues(alpha: 0.05),
-                                shape: RoundedRectangleBorder(
-                                  borderRadius: BorderRadius.circular(10),
+                                style: OutlinedButton.styleFrom(
+                                  padding: const EdgeInsets.symmetric(vertical: 9),
+                                  side: BorderSide(
+                                    color: AppColors.secondaryDark.withValues(alpha: 0.35),
+                                  ),
+                                  backgroundColor: AppColors.secondaryDark.withValues(alpha: 0.05),
+                                  shape: RoundedRectangleBorder(
+                                    borderRadius: BorderRadius.circular(10),
+                                  ),
                                 ),
                               ),
                             ),
-                          ),
-                          const SizedBox(width: 8),
-                          Expanded(
-                            child: OutlinedButton.icon(
-                              onPressed: () => _openAddContactNumber(
-                                initialOwner: ContactOwner.mother,
-                              ),
-                              icon: const Icon(
-                                Icons.woman_rounded,
-                                size: 16,
-                                color: Color(0xFFDB2777),
-                              ),
-                              label: const Text(
-                                '+ Mother No.',
-                                style: TextStyle(
-                                  fontSize: 12,
-                                  fontWeight: FontWeight.w700,
+                            const SizedBox(width: 8),
+                            Expanded(
+                              child: OutlinedButton.icon(
+                                onPressed: () => _openAddContactNumber(
+                                  initialOwner: ContactOwner.mother,
+                                ),
+                                icon: const Icon(
+                                  Icons.woman_rounded,
+                                  size: 16,
                                   color: Color(0xFFDB2777),
                                 ),
-                              ),
-                              style: OutlinedButton.styleFrom(
-                                padding: const EdgeInsets.symmetric(vertical: 9),
-                                side: BorderSide(
-                                  color: const Color(0xFFDB2777).withValues(alpha: 0.35),
+                                label: const Text(
+                                  '+ Mother No.',
+                                  style: TextStyle(
+                                    fontSize: 12,
+                                    fontWeight: FontWeight.w700,
+                                    color: Color(0xFFDB2777),
+                                  ),
                                 ),
-                                backgroundColor: const Color(0xFFDB2777).withValues(alpha: 0.05),
-                                shape: RoundedRectangleBorder(
-                                  borderRadius: BorderRadius.circular(10),
+                                style: OutlinedButton.styleFrom(
+                                  padding: const EdgeInsets.symmetric(vertical: 9),
+                                  side: BorderSide(
+                                    color: const Color(0xFFDB2777).withValues(alpha: 0.35),
+                                  ),
+                                  backgroundColor: const Color(0xFFDB2777).withValues(alpha: 0.05),
+                                  shape: RoundedRectangleBorder(
+                                    borderRadius: BorderRadius.circular(10),
+                                  ),
                                 ),
                               ),
                             ),
-                          ),
-                        ],
-                      ),
+                          ],
+                        ),
+                      ],
                     ],
                   )
                 : const SizedBox(width: double.infinity),
@@ -1105,7 +1154,7 @@ class _StudentDetailScreenState extends State<StudentDetailScreen> {
         entry.phone,
         cleanName != null ? '${entry.label} · $cleanName' : entry.label,
       ),
-      onAddNumber: primaryPhone == null
+      onAddNumber: (!_isLeaderView && primaryPhone == null)
           ? () => _openAddContactNumber(initialOwner: owner)
           : null,
       addNumberLabel: 'Add $role number',
@@ -1119,11 +1168,13 @@ class _StudentDetailTagsCard extends StatefulWidget {
   final PhonebookStudent student;
   final bool isExpanded;
   final VoidCallback onToggle;
+  final bool readOnly;
 
   const _StudentDetailTagsCard({
     required this.student,
     required this.isExpanded,
     required this.onToggle,
+    this.readOnly = false,
   });
 
   @override
@@ -1230,37 +1281,39 @@ class _StudentDetailTagsCardState extends State<_StudentDetailTagsCard> {
                 ),
               ),
               const SizedBox(width: 6),
-              InkWell(
-                onTap: _editTags,
-                borderRadius: BorderRadius.circular(8),
-                child: Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3.5),
-                  decoration: BoxDecoration(
-                    color: const Color(0xFF8B5CF6).withValues(alpha: 0.1),
-                    borderRadius: BorderRadius.circular(8),
-                    border: Border.all(
-                      color: const Color(0xFF8B5CF6).withValues(alpha: 0.25),
-                      width: 0.8,
+              if (!widget.readOnly) ...[
+                InkWell(
+                  onTap: _editTags,
+                  borderRadius: BorderRadius.circular(8),
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3.5),
+                    decoration: BoxDecoration(
+                      color: const Color(0xFF8B5CF6).withValues(alpha: 0.1),
+                      borderRadius: BorderRadius.circular(8),
+                      border: Border.all(
+                        color: const Color(0xFF8B5CF6).withValues(alpha: 0.25),
+                        width: 0.8,
+                      ),
+                    ),
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        const Icon(Icons.edit_outlined, size: 12.5, color: Color(0xFF8B5CF6)),
+                        const SizedBox(width: 3.5),
+                        Text(
+                          _tags.isEmpty ? 'Add' : 'Edit',
+                          style: const TextStyle(
+                            color: Color(0xFF8B5CF6),
+                            fontWeight: FontWeight.w700,
+                            fontSize: 11.5,
+                          ),
+                        ),
+                      ],
                     ),
                   ),
-                  child: Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      const Icon(Icons.edit_outlined, size: 12.5, color: Color(0xFF8B5CF6)),
-                      const SizedBox(width: 3.5),
-                      Text(
-                        _tags.isEmpty ? 'Add' : 'Edit',
-                        style: const TextStyle(
-                          color: Color(0xFF8B5CF6),
-                          fontWeight: FontWeight.w700,
-                          fontSize: 11.5,
-                        ),
-                      ),
-                    ],
-                  ),
                 ),
-              ),
-              const SizedBox(width: 4),
+                const SizedBox(width: 4),
+              ],
               InkResponse(
                 onTap: widget.onToggle,
                 radius: 22,
@@ -1290,7 +1343,7 @@ class _StudentDetailTagsCardState extends State<_StudentDetailTagsCard> {
                       const SizedBox(height: AppDimens.gapXs),
                       if (_tags.isEmpty)
                         InkWell(
-                          onTap: _editTags,
+                          onTap: widget.readOnly ? null : _editTags,
                           borderRadius: BorderRadius.circular(AppDimens.radiusSm),
                           child: Padding(
                             padding: const EdgeInsets.symmetric(vertical: 4),
@@ -1301,7 +1354,9 @@ class _StudentDetailTagsCardState extends State<_StudentDetailTagsCard> {
                                 const SizedBox(width: 6),
                                 Expanded(
                                   child: Text(
-                                    'No tags assigned yet. Tap to assign roles (e.g. Karyakarta) or tags.',
+                                    widget.readOnly
+                                        ? 'No tags assigned yet.'
+                                        : 'No tags assigned yet. Tap to assign roles (e.g. Karyakarta) or tags.',
                                     style: AppTextStyles.bodySm.copyWith(
                                       color: AppColors.textMuted,
                                       fontStyle: FontStyle.italic,
@@ -2106,6 +2161,7 @@ class _StudentDetailHeaderDelegate extends SliverPersistentHeaderDelegate {
                     builder: (context) {
                       if (!Get.isRegistered<PhonebookController>()) return const SizedBox.shrink();
                       final c = Get.find<PhonebookController>();
+                      if (c.isLeaderView) return const SizedBox.shrink();
                       return Obx(() {
                         final isFav = c.isFavourite(student.id);
                         return _roundButton(
@@ -2646,6 +2702,206 @@ class _SectionTitle extends StatelessWidget {
           ),
         ),
       ],
+    );
+  }
+}
+
+/// Lazily loads `/students/details/:code` when the Hostel Portal & Attendance card
+/// is expanded, surfacing overall/per-session attendance and portal details.
+class _PortalDetailsBody extends StatefulWidget {
+  final String identifier;
+  final PhonebookStudent student;
+
+  const _PortalDetailsBody({
+    required this.identifier,
+    required this.student,
+  });
+
+  @override
+  State<_PortalDetailsBody> createState() => _PortalDetailsBodyState();
+}
+
+class _PortalDetailsBodyState extends State<_PortalDetailsBody> {
+  Future<Map<String, dynamic>?>? _future;
+
+  @override
+  void initState() {
+    super.initState();
+    _future = _load();
+  }
+
+  Future<Map<String, dynamic>?> _load() async {
+    final code = widget.identifier.trim();
+    if (code.isEmpty || !Get.isRegistered<ApiClient>()) return null;
+    try {
+      final res = await Get.find<ApiClient>().dio.get('/students/details/$code');
+      final body = res.data;
+      if (body is Map && body['data'] is Map) {
+        return Map<String, dynamic>.from(body['data'] as Map);
+      }
+    } catch (_) {}
+    return null;
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return FutureBuilder<Map<String, dynamic>?>(
+      future: _future,
+      builder: (context, snap) {
+        if (snap.connectionState != ConnectionState.done) {
+          return const Padding(
+            padding: EdgeInsets.symmetric(vertical: 14),
+            child: Center(
+              child: SizedBox(
+                width: 22,
+                height: 22,
+                child: CircularProgressIndicator(strokeWidth: 2),
+              ),
+            ),
+          );
+        }
+        final data = snap.data;
+        if (data == null) {
+          return Padding(
+            padding: const EdgeInsets.symmetric(vertical: 10),
+            child: Row(
+              children: [
+                Expanded(
+                  child: Text(
+                    'Portal attendance details could not be loaded right now.',
+                    style: AppTextStyles.bodySm.copyWith(color: AppColors.textMuted),
+                  ),
+                ),
+                TextButton(
+                  onPressed: () => setState(() => _future = _load()),
+                  child: const Text('Retry'),
+                ),
+              ],
+            ),
+          );
+        }
+
+        final overall = data['overall_stats'] is Map
+            ? Map<String, dynamic>.from(data['overall_stats'] as Map)
+            : <String, dynamic>{};
+        final totalHeld = int.tryParse('${overall['total_held'] ?? 0}') ?? 0;
+        final totalAttended = int.tryParse('${overall['total_attended'] ?? 0}') ?? 0;
+        final pct = int.tryParse('${overall['percentage'] ?? 0}') ?? 0;
+        final sessions = (data['session_stats'] is List)
+            ? (data['session_stats'] as List)
+                .whereType<Map>()
+                .map((e) => Map<String, dynamic>.from(e))
+                .toList()
+            : const <Map<String, dynamic>>[];
+        final defaultPresent = data['is_default_present'] == true;
+        final groupText = (data['group'] ?? widget.student.groupName ?? '').toString().trim();
+        final floorName = (data['floor_name'] ?? '').toString().trim();
+        final absentRecords = (data['absent_records'] is List)
+            ? (data['absent_records'] as List)
+                .whereType<Map>()
+                .map((e) => Map<String, dynamic>.from(e))
+                .toList()
+            : const <Map<String, dynamic>>[];
+
+        return Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            _DetailRow(
+              icon: Icons.bar_chart_rounded,
+              label: 'Overall Attendance',
+              value: totalHeld > 0
+                  ? '$pct% ($totalAttended / $totalHeld)'
+                  : 'No sessions recorded yet',
+              muted: totalHeld == 0,
+              iconColor: pct >= 75 ? AppColors.successGreen : AppColors.warningOrange,
+            ),
+            if (groupText.isNotEmpty) ...[
+              const Divider(height: 1, color: AppColors.borderLight),
+              _DetailRow(
+                icon: Icons.groups_rounded,
+                label: 'House / Group',
+                value: groupText,
+                iconColor: const Color(0xFF0284C7),
+              ),
+            ],
+            if (floorName.isNotEmpty) ...[
+              const Divider(height: 1, color: AppColors.borderLight),
+              _DetailRow(
+                icon: Icons.stairs_rounded,
+                label: 'Floor',
+                value: floorName,
+                iconColor: const Color(0xFF6366F1),
+              ),
+            ],
+            const Divider(height: 1, color: AppColors.borderLight),
+            _DetailRow(
+              icon: Icons.event_available_rounded,
+              label: 'Default Present',
+              value: defaultPresent ? 'Enabled' : 'No',
+              iconColor: defaultPresent ? AppColors.successGreen : AppColors.textMuted,
+            ),
+            if (sessions.isNotEmpty) ...[
+              const Divider(height: 1, color: AppColors.borderLight),
+              const SizedBox(height: 10),
+              Text(
+                'SESSION BREAKDOWN',
+                style: AppTextStyles.overline.copyWith(
+                  color: AppColors.textSecondary,
+                  fontSize: 10.5,
+                  letterSpacing: 0.7,
+                ),
+              ),
+              const SizedBox(height: 8),
+              for (final s in sessions) ...[
+                Padding(
+                  padding: const EdgeInsets.only(bottom: 8),
+                  child: Row(
+                    children: [
+                      Expanded(
+                        child: Text(
+                          (s['session_name'] ?? s['session_key'] ?? 'Session').toString(),
+                          style: AppTextStyles.bodySm.copyWith(
+                            color: AppColors.textPrimary,
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                      ),
+                      Text(
+                        '${s['attended'] ?? 0}/${s['held'] ?? 0} (${s['percentage'] ?? 0}%)',
+                        style: AppTextStyles.caption.copyWith(
+                          color: const Color(0xFF0284C7),
+                          fontWeight: FontWeight.w700,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ],
+            if (absentRecords.isNotEmpty) ...[
+              const Divider(height: 1, color: AppColors.borderLight),
+              const SizedBox(height: 10),
+              Text(
+                'RECENT ABSENCE REASONS',
+                style: AppTextStyles.overline.copyWith(
+                  color: AppColors.textSecondary,
+                  fontSize: 10.5,
+                  letterSpacing: 0.7,
+                ),
+              ),
+              const SizedBox(height: 6),
+              for (final ar in absentRecords.take(3))
+                Padding(
+                  padding: const EdgeInsets.only(bottom: 6),
+                  child: Text(
+                    '${(ar['session_date'] ?? '').toString().split('T').first}: ${ar['reason'] ?? '-'}',
+                    style: AppTextStyles.bodySm.copyWith(color: AppColors.textSecondary),
+                  ),
+                ),
+            ],
+          ],
+        );
+      },
     );
   }
 }

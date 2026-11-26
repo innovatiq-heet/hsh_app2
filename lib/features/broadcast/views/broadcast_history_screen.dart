@@ -259,13 +259,14 @@ class BroadcastHistoryScreen extends GetView<BroadcastHistoryController> {
             child: CustomScrollView(
               physics: const AlwaysScrollableScrollPhysics(parent: BouncingScrollPhysics()),
               slivers: [
-                SliverPersistentHeader(
-                  pinned: true,
-                  delegate: PhonebookHeaderDelegate(
-                    overline: 'Admin',
-                    title: 'Broadcasts',
-                    topPadding: MediaQuery.of(context).padding.top,
-                    onLeadingTap: () => Navigator.of(context).maybePop(),
+                Obx(
+                  () => SliverPersistentHeader(
+                    pinned: true,
+                    delegate: PhonebookHeaderDelegate(
+                      overline: controller.isLeaderView.value ? 'Group Leader' : 'Admin',
+                      title: controller.isLeaderView.value ? 'Group Broadcasts' : 'Broadcasts',
+                      topPadding: MediaQuery.of(context).padding.top,
+                      onLeadingTap: () => Navigator.of(context).maybePop(),
                     trailing: Obx(() {
                       final loading = controller.isLoading.value;
                       return PhonebookHeaderCircleButton(
@@ -297,6 +298,7 @@ class BroadcastHistoryScreen extends GetView<BroadcastHistoryController> {
                       ),
                     ),
                   ),
+                ),
                 ),
                 SliverToBoxAdapter(
                   child: Padding(

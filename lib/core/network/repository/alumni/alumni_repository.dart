@@ -473,10 +473,15 @@ class AlumniRepository extends BaseRepository {
   }
 
   /// Sends message to alumnus via WhatsApp gateway (if connected) and records contact.
-  Future<Map<String, dynamic>> sendOutreachViaGateway(int studentId, {required String message}) async {
+  Future<Map<String, dynamic>> sendOutreachViaGateway(
+    int studentId, {
+    required String message,
+    String? accountId,
+  }) async {
     try {
       final response = await _dio.post('/alumni/daily-outreach/$studentId/send', data: {
         'message': message,
+        if (accountId != null && accountId.isNotEmpty) 'accountId': accountId,
       });
       return {
         'gatewaySent': response.data?['gatewaySent'] ?? false,
@@ -503,11 +508,18 @@ class AlumniRepository extends BaseRepository {
   }
 
   /// Retrieves outreach history for the group.
-  Future<List<AlumniOutreachHistoryModel>> getOutreachHistory({String? group, int limit = 100}) async {
+  Future<List<AlumniOutreachHistoryModel>> getOutreachHistory({
+    String? group,
+    String? scope,
+    int limit = 100,
+  }) async {
     try {
       final queryParams = <String, dynamic>{'limit': limit};
       if (group != null && group.trim().isNotEmpty) {
         queryParams['group'] = group.trim();
+      }
+      if (scope != null && scope.trim().isNotEmpty) {
+        queryParams['scope'] = scope.trim();
       }
       final response = await _dio.get('/alumni/daily-outreach/history', queryParameters: queryParams);
       if (response.data != null && response.data['data'] is List) {
@@ -567,6 +579,40 @@ class AlumniRepository extends BaseRepository {
       });
     } on DioException catch (e) {
       developer.log('AlumniRepository.saveOutreachConfig error: ${errorMessage(e)}', name: 'AlumniRepo');
+      throw errorMessage(e);
+    }
+  }
+
+  /// Leader-only: loads automatic daily alumni connect schedule and linked personal WhatsApp status.
+  Future<Map<String, dynamic>> getAutoOutreachSettings() async {
+    try {
+      final response = await _dio.get('/alumni/daily-outreach/auto-settings');
+      if (response.data is Map && response.data['data'] is Map) {
+        return Map<String, dynamic>.from(response.data['data'] as Map);
+      }
+      return const {};
+    } on DioException catch (e) {
+      developer.log('AlumniRepository.getAutoOutreachSettings error: ${errorMessage(e)}', name: 'AlumniRepo');
+      throw errorMessage(e);
+    }
+  }
+
+  /// Leader-only: saves automatic daily alumni connect toggle & IST send time (`HH:mm`).
+  Future<Map<String, dynamic>> saveAutoOutreachSettings({
+    bool? autoSendEnabled,
+    String? sendTimeIst,
+  }) async {
+    try {
+      final response = await _dio.put('/alumni/daily-outreach/auto-settings', data: {
+        'autoSendEnabled': ?autoSendEnabled,
+        'sendTimeIst': ?sendTimeIst,
+      });
+      if (response.data is Map && response.data['data'] is Map) {
+        return Map<String, dynamic>.from(response.data['data'] as Map);
+      }
+      return const {};
+    } on DioException catch (e) {
+      developer.log('AlumniRepository.saveAutoOutreachSettings error: ${errorMessage(e)}', name: 'AlumniRepo');
       throw errorMessage(e);
     }
   }

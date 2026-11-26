@@ -36,6 +36,9 @@ class AlumniDailyOutreachController extends GetxController {
   final RxBool isLeader = false.obs;
   final RxBool isAdmin = false.obs;
   final RxString reachabilityFilter = 'all'.obs;
+  final RxString historyScopeFilter = 'all'.obs;
+  final RxString historySearchQuery = ''.obs;
+  final TextEditingController historySearchController = TextEditingController();
   final RxSet<int> contactBusyIds = <int>{}.obs;
 
   final RxString currentGroup = 'Param'.obs;
@@ -58,6 +61,16 @@ class AlumniDailyOutreachController extends GetxController {
   /// True while Send All is going through today's pending alumni.
   final RxBool isSendingAll = false.obs;
 
+  /// Leader's own individual WhatsApp + scheduled Auto Alumni Connect settings.
+  final RxBool autoSendEnabled = false.obs;
+  final RxString autoSendTimeIst = '09:00'.obs;
+  final RxBool hasLinkedPersonalWhatsApp = false.obs;
+  final RxBool personalWhatsAppConnected = false.obs;
+  final RxnString personalWhatsAppPhone = RxnString();
+  final RxnString personalAccountId = RxnString();
+  final RxnString lastAutoRunNote = RxnString();
+  final RxBool isSavingAutoSettings = false.obs;
+
   /// Pause between two sends of Send All, so WhatsApp isn't flooded.
   static const sendAllGap = Duration(milliseconds: 700);
 
@@ -70,11 +83,13 @@ class AlumniDailyOutreachController extends GetxController {
       isAdmin.value = session?.role == UserRole.admin;
     }
     loadDailyOutreach();
+    if (isLeader.value) loadAutoSettings();
   }
 
   @override
   void onClose() {
     templateController.dispose();
+    historySearchController.dispose();
     super.onClose();
   }
 
@@ -151,7 +166,11 @@ class AlumniDailyOutreachController extends GetxController {
     historyError.value = '';
     try {
       final targetGroup = isLeader.value ? null : adminSelectedGroup.value;
-      historyList.assignAll(await _repository.getOutreachHistory(group: targetGroup, limit: 100));
+      historyList.assignAll(await _repository.getOutreachHistory(
+        group: targetGroup,
+        scope: isLeader.value ? null : 'all',
+        limit: 100,
+      ));
       historyLoaded.value = true;
     } catch (e) {
       developer.log('loadHistory error: $e', name: 'AlumniOutreach');
@@ -164,9 +183,20 @@ class AlumniDailyOutreachController extends GetxController {
   /// History grouped by day (`yyyy-MM-dd`), newest day first, keeping the
   /// server's order within a day.
   List<MapEntry<String, List<AlumniOutreachHistoryModel>>> get historyByDay {
+    final q = historySearchQuery.value.trim().toLowerCase();
+    final scopeFilter = isLeader.value ? 'all' : historyScopeFilter.value;
     final days = <String, List<AlumniOutreachHistoryModel>>{};
     for (final h in historyList) {
+      if (scopeFilter != 'all' && h.outreachScope != scopeFilter) continue;
       if (reachabilityFilter.value != 'all' && h.whatsappReachability != reachabilityFilter.value) continue;
+      if (q.isNotEmpty) {
+        final matches = h.name.toLowerCase().contains(q) ||
+            h.pastRoom.toLowerCase().contains(q) ||
+            h.whatsappNumber.toLowerCase().contains(q) ||
+            h.phone.toLowerCase().contains(q) ||
+            h.leaderName.toLowerCase().contains(q);
+        if (!matches) continue;
+      }
       final day = h.outreachDate.length >= 10 ? h.outreachDate.substring(0, 10) : h.outreachDate;
       days.putIfAbsent(day, () => []).add(h);
     }
@@ -179,7 +209,12 @@ class AlumniDailyOutreachController extends GetxController {
     try {
       await _repository.updateOutreachContact(item.studentId, whatsappNumber: number, reachability: reachability);
       await Future.wait([loadHistory(), loadDailyOutreach()]);
-      AppSnackbar.success('Contact Updated', number != null ? '${item.name}\'s WhatsApp number was updated.' : '${item.name}\'s WhatsApp status was updated.');
+      AppSnackbar.success(
+        'Contact Updated',
+        number != null
+            ? '${item.name}\'s WhatsApp number was updated. Previous primary mobile stays unchanged.'
+            : '${item.name}\'s WhatsApp status was updated.',
+      );
       return true;
     } catch (e) {
       AppSnackbar.error('Contact Not Updated', _message(e));
@@ -284,6 +319,7 @@ class AlumniDailyOutreachController extends GetxController {
       outreachData.value = AlumniDailyOutreachDataModel(
         groupName: current.groupName,
         date: current.date,
+        scope: current.scope,
         targetDailyCount: current.targetDailyCount,
         contactedTodayCount: done,
         totalAlumniInGroup: current.totalAlumniInGroup,
@@ -325,11 +361,93 @@ class AlumniDailyOutreachController extends GetxController {
     }
   }
 
-  /// Sends today's message to every pending alumnus through the office's
-  /// linked WhatsApp session (admin only, like Birthday Wishes). Stops at the
-  /// first alumnus the gateway did not send to, e.g. when WhatsApp went offline.
+  /// Loads the leader's individual WhatsApp & daily auto-send schedule.
+  Future<void> loadAutoSettings() async {
+    if (!isLeader.value) return;
+    try {
+      final data = await _repository.getAutoOutreachSettings();
+      if (data.isEmpty) return;
+      _applyAutoSettings(data);
+    } catch (e) {
+      developer.log('loadAutoSettings error: $e', name: 'AlumniOutreach');
+    }
+  }
+
+  void _applyAutoSettings(Map<String, dynamic> data) {
+    autoSendEnabled.value = data['autoSendEnabled'] == true;
+    final t = data['sendTimeIst']?.toString().trim() ?? '';
+    if (t.isNotEmpty) autoSendTimeIst.value = t;
+    hasLinkedPersonalWhatsApp.value = data['hasLinkedAccount'] == true;
+    personalWhatsAppConnected.value = data['whatsappConnected'] == true;
+    final ph = data['linkedPhone']?.toString().trim();
+    personalWhatsAppPhone.value = (ph != null && ph.isNotEmpty) ? ph : null;
+    final acc = data['accountId']?.toString().trim();
+    personalAccountId.value = (acc != null && acc.isNotEmpty) ? acc : null;
+    final note = data['lastAutoRunNote']?.toString().trim();
+    lastAutoRunNote.value = (note != null && note.isNotEmpty) ? note : null;
+  }
+
+  Future<bool> saveAutoSettings({bool? enabled, String? timeIst}) async {
+    if (!isLeader.value || isSavingAutoSettings.value) return false;
+    isSavingAutoSettings.value = true;
+    try {
+      final updated = await _repository.saveAutoOutreachSettings(
+        autoSendEnabled: enabled,
+        sendTimeIst: timeIst,
+      );
+      if (updated.isNotEmpty) _applyAutoSettings(updated);
+      AppSnackbar.success(
+        'Auto Connect Updated',
+        autoSendEnabled.value
+            ? 'Daily alumni outreach will send automatically around ${autoSendTimeIst.value} IST.'
+            : 'Automatic daily alumni outreach paused.',
+      );
+      return true;
+    } catch (e) {
+      AppSnackbar.error('Could Not Save Schedule', _message(e));
+      return false;
+    } finally {
+      isSavingAutoSettings.value = false;
+    }
+  }
+
+  /// Sends a single alumnus's greeting through the connected WhatsApp gateway
+  /// (leader's own individual WhatsApp or admin's gateway).
+  Future<bool> sendViaGateway(AlumniOutreachStudentModel student) async {
+    final phone = student.targetWhatsAppPhone;
+    if (phone.isEmpty) {
+      AppSnackbar.warning('No Contact Number', 'No phone or WhatsApp number is registered for ${student.name}.');
+      return false;
+    }
+    if (!busyIds.add(student.studentId)) return false;
+    try {
+      final msg = getFormattedMessage(student);
+      final result = await _repository.sendOutreachViaGateway(
+        student.studentId,
+        message: msg,
+        accountId: isLeader.value ? personalAccountId.value : null,
+      );
+      if (result['gatewaySent'] == true) {
+        await loadDailyOutreach();
+        historyLoaded.value = false;
+        AppSnackbar.success('Sent via WhatsApp', 'Delivered to ${student.name}.');
+        return true;
+      }
+      AppSnackbar.warning('Not Sent', result['message']?.toString() ?? 'WhatsApp could not deliver the message.');
+      return false;
+    } catch (e) {
+      AppSnackbar.error('Send Failed', _message(e));
+      return false;
+    } finally {
+      busyIds.remove(student.studentId);
+    }
+  }
+
+  /// Sends today's message to every pending alumnus through the linked
+  /// WhatsApp session (leader's personal WhatsApp, or office Main for admins).
+  /// Stops at the first alumnus the gateway did not send to.
   Future<void> sendAllToday() async {
-    if (isLeader.value || isSendingAll.value) return;
+    if (isSendingAll.value) return;
     final pending = (outreachData.value?.students ?? const <AlumniOutreachStudentModel>[])
         .where((s) => s.isPending)
         .toList();
@@ -342,7 +460,9 @@ class AlumniDailyOutreachController extends GetxController {
       if (!await _isWhatsAppLinked()) {
         AppSnackbar.warning(
           'WhatsApp Not Connected',
-          'Link the WhatsApp device in Birthday Wishes first, then try Send All again.',
+          isLeader.value
+              ? 'Link your personal WhatsApp in My WhatsApp first, then try Send All again.'
+              : 'Link the WhatsApp device in Birthday Wishes first, then try Send All again.',
         );
         return;
       }
@@ -357,7 +477,11 @@ class AlumniDailyOutreachController extends GetxController {
         }
         busyIds.add(s.studentId);
         try {
-          final result = await _repository.sendOutreachViaGateway(s.studentId, message: getFormattedMessage(s));
+          final result = await _repository.sendOutreachViaGateway(
+            s.studentId,
+            message: getFormattedMessage(s),
+            accountId: isLeader.value ? personalAccountId.value : null,
+          );
           if (result['gatewaySent'] != true) {
             stoppedAt = s.name;
             break;
@@ -391,10 +515,13 @@ class AlumniDailyOutreachController extends GetxController {
     }
   }
 
-  /// Whether the office's WhatsApp session is online, as Birthday Wishes
-  /// decides it: the status call reports the linked phone.
+  /// Whether the active WhatsApp session is online (leader's own slot or admin's Main).
   Future<bool> _isWhatsAppLinked() async {
     try {
+      if (isLeader.value) {
+        await loadAutoSettings();
+        return personalWhatsAppConnected.value;
+      }
       final repo = Get.isRegistered<BirthdayRepository>() ? Get.find<BirthdayRepository>() : BirthdayRepository();
       final res = await repo.getWhatsAppStatus();
       final user = res['user'];

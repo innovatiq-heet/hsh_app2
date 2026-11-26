@@ -94,17 +94,26 @@ class FakeAlumniRepository extends AlumniRepository {
   }
 
   @override
-  Future<List<AlumniOutreachHistoryModel>> getOutreachHistory({String? group, int limit = 100}) async {
+  Future<List<AlumniOutreachHistoryModel>> getOutreachHistory({
+    String? group,
+    String? scope,
+    int limit = 100,
+  }) async {
     historyCalls++;
     return [
       AlumniOutreachHistoryModel(
         id: 1,
         studentId: 101,
         name: 'Alum One',
+        phone: '9876543210',
+        whatsappNumber: '9876543210',
         pastRoom: '101',
         outreachDate: _day(0),
+        contactedAt: '${_day(0)}T10:30:00Z',
         message: 'Hi',
         leaderName: 'Ravi',
+        outreachScope: 'leader',
+        sentByRole: 'leader',
       ),
       AlumniOutreachHistoryModel(
         id: 2,
@@ -268,20 +277,32 @@ void main() {
       expect(find.text('PREVIEW FOR ALUM ONE'), findsOneWidget);
     });
 
-    testWidgets('history puts contact actions and status filter in reach', (tester) async {
+    testWidgets('history puts contact actions, sender scope, and status filter in reach', (tester) async {
       await tester.runAsync(() => signIn('admin'));
       await pumpScreen(tester);
       await tester.tap(find.text('History'));
       await tester.pumpAndSettle();
 
       expect(find.text('Contact history'), findsOneWidget);
+      expect(find.text('All senders'), findsOneWidget);
+      expect(find.text('By Leaders'), findsOneWidget);
+      expect(find.text('By Admin'), findsOneWidget);
       expect(find.text('Not Reachable'), findsWidgets);
-      expect(find.byTooltip('Edit WhatsApp number'), findsWidgets);
-      expect(find.text('View sent message'), findsOneWidget);
-      expect(find.text('Hi'), findsNothing);
+      expect(find.text('04:00 PM'), findsOneWidget); // 10:30Z displayed in IST
+
+      await tester.tap(find.text('Alum One'));
+      await tester.pumpAndSettle();
+      expect(find.text('Sent message'), findsOneWidget);
+      expect(find.text('Hi'), findsOneWidget);
+      expect(find.text('Edit WhatsApp'), findsOneWidget);
+      expect(find.text('Set status'), findsOneWidget);
+
+      await tester.tapAt(const Offset(10, 10));
+      await tester.pumpAndSettle();
+
       await tester.tap(find.text('Not Reachable').first);
       await tester.pumpAndSettle();
-      expect(find.text('No contacts with this status.'), findsOneWidget);
+      expect(find.text('No matching connects found.'), findsOneWidget);
     });
 
     testWidgets('canceling a WhatsApp number edit closes the sheet cleanly', (tester) async {
@@ -289,10 +310,13 @@ void main() {
       await pumpScreen(tester);
       await tester.tap(find.text('History'));
       await tester.pumpAndSettle();
-      await tester.tap(find.byTooltip('Edit WhatsApp number').first);
+      await tester.tap(find.text('Alum One'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Edit WhatsApp'));
       await tester.pumpAndSettle();
 
       expect(find.text('Update WhatsApp contact'), findsOneWidget);
+      expect(find.text('Primary Mobile (unchanged): 9876543210'), findsOneWidget);
       await tester.tap(find.text('Cancel'));
       await tester.pumpAndSettle();
 

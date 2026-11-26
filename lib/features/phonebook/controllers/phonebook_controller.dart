@@ -80,7 +80,12 @@ class PhonebookController extends GetxController {
     return RegExp(r'^[A-Z]$').hasMatch(first) ? first : '#';
   }
 
-  // Primary filter
+  // Primary filter & leader house scope
+  final currentRole = UserRole.unknown.obs;
+  final leaderGroupName = RxnString();
+  final leaderGroupMissing = false.obs;
+  bool get isLeaderView => currentRole.value == UserRole.leader;
+
   final selectedGroup = 'All'.obs;
 
   // Secondary filters
@@ -181,9 +186,9 @@ class PhonebookController extends GetxController {
 
   int get activeFilterCount {
     int count = 0;
-    if (selectedGroup.value != 'All') count++;
+    if (!isLeaderView && selectedGroup.value != 'All') count++;
     if (selectedFloor.value != 'All') count++;
-    if (selectedStatus.value != 'All') count++;
+    if (!isLeaderView && selectedStatus.value != 'All') count++;
     if (selectedTag.value != 'All') count++;
     if (selectedState.value != 'All') count++;
     if (selectedDistrict.value != 'All') count++;
@@ -278,17 +283,31 @@ class PhonebookController extends GetxController {
   }
 
   Future<void> _checkAdminAccess() async {
-    final role = await Get.find<SessionStore>().role;
-    if (!role.canOperate) {
+    final sessionStore = Get.find<SessionStore>();
+    final role = await sessionStore.role;
+    currentRole.value = role;
+
+    if (!role.canOperate && role != UserRole.leader) {
       Get.back();
       AppSnackbar.error(
         'Access Denied',
-        'The Phonebook is restricted to Hostel Administrators and Wardens only.',
+        'The Directory is restricted to Administrators, Wardens, and Group Leaders.',
       );
       return;
     }
 
     _applyLaunchArguments();
+
+    if (role == UserRole.leader) {
+      await _resolveLeaderGroup();
+      if (leaderGroupMissing.value) {
+        students.clear();
+        isLoading.value = false;
+        return;
+      }
+      selectedGroup.value = leaderGroupName.value!;
+      selectedStatus.value = 'Active Residents';
+    }
 
     // 1. Fire live API sync immediately in the background so it fetches right away
     syncNow(silent: true);
@@ -296,14 +315,106 @@ class PhonebookController extends GetxController {
     // 2. Concurrently load local SQLite cached data for immediate zero-latency display
     await _loadMetadata();
     await search();
-    await loadFavourites();
-    await refreshCallerIdStatus();
+    if (!isLeaderView) {
+      await loadFavourites();
+      await refreshCallerIdStatus();
 
-    // iOS: if Caller ID is already enabled, push a fresh directory every time
-    // the phonebook opens so labels are never stale.
-    if (GetPlatform.isIOS && callerId.value.enabled) {
-      CallerIdService.syncDirectory();
+      // iOS: if Caller ID is already enabled, push a fresh directory every time
+      // the phonebook opens so labels are never stale.
+      if (GetPlatform.isIOS && callerId.value.enabled) {
+        CallerIdService.syncDirectory();
+      }
     }
+  }
+
+  Future<void> _resolveLeaderGroup() async {
+    String? grp;
+    if (Get.isRegistered<SessionStore>()) {
+      final session = Get.find<SessionStore>().currentSession;
+      final profileGrp = session?.studentProfile?.groupName.trim() ?? '';
+      if (profileGrp.isNotEmpty && profileGrp.toLowerCase() != 'not available') {
+        grp = profileGrp;
+      }
+    }
+    if (grp == null || grp.isEmpty) {
+      try {
+        final dio = Get.find<ApiClient>().dio;
+        final res = await dio.get('/screen-time/students', queryParameters: {'limit': 1, 'offset': 0});
+        final body = res.data;
+        if (body is Map) {
+          final raw = body['leaderGroupName'] ?? (body['data'] is Map ? body['data']['leaderGroupName'] : null);
+          if (raw != null && raw.toString().trim().isNotEmpty) {
+            grp = raw.toString().trim();
+          }
+        }
+      } catch (e) {
+        debugPrint('[PhonebookController] leader group lookup error: $e');
+      }
+    }
+    if (grp != null && grp.isNotEmpty) {
+      leaderGroupName.value = grp;
+      leaderGroupMissing.value = false;
+    } else {
+      leaderGroupMissing.value = true;
+    }
+  }
+
+  static String _normIdentity(String? v) =>
+      (v ?? '').trim().toLowerCase().replaceAll(RegExp(r'\s+'), ' ');
+
+  static String _normRoom(String? r) => _normIdentity(r)
+      .replaceFirst(RegExp(r'^(room|rm|r)\s*[-:]*\s*', caseSensitive: false), '')
+      .trim();
+
+  /// Excludes the logged-in leader's own profile when viewing their house list.
+  bool _isSelfLeaderStudent(PhonebookStudent student) {
+    if (!isLeaderView || !Get.isRegistered<SessionStore>()) return false;
+    final session = Get.find<SessionStore>().currentSession;
+    if (session == null) return false;
+
+    final selfId = session.id.trim();
+    if (selfId.isNotEmpty &&
+        (student.id.trim() == selfId || student.studentId.trim() == selfId)) {
+      return true;
+    }
+
+    final selfCodes = <String>{
+      for (final raw in [session.studentCode, session.studentProfile?.bankCode])
+        if (raw != null && raw.trim().isNotEmpty) PhonebookDatabaseService.normalizeBankCode(raw),
+    }..removeWhere((e) => e.isEmpty);
+    if (selfCodes.isNotEmpty) {
+      final sBank = PhonebookDatabaseService.normalizeBankCode(student.bankCode ?? '');
+      final sCode = PhonebookDatabaseService.normalizeBankCode(student.studentId);
+      if ((sBank.isNotEmpty && selfCodes.contains(sBank)) ||
+          (sCode.isNotEmpty && selfCodes.contains(sCode))) {
+        return true;
+      }
+    }
+
+    final selfPhone = PhoneNumberNormalizer.normalize(session.phone);
+    if (selfPhone != null && selfPhone.isNotEmpty) {
+      for (final p in [
+        student.primaryPhone,
+        student.whatsappNumber,
+        ...student.phones.map((e) => e.phone),
+      ]) {
+        if (PhoneNumberNormalizer.normalize(p) == selfPhone) return true;
+      }
+    }
+
+    final selfAadhar = (session.studentProfile?.aadhar ?? '').replaceAll(RegExp(r'\D'), '');
+    final sAadhar = (student.aadhar ?? '').replaceAll(RegExp(r'\D'), '');
+    if (selfAadhar.length >= 8 && sAadhar == selfAadhar) return true;
+
+    final selfName = _normIdentity(session.name);
+    final selfRoom = _normRoom(session.room);
+    if (selfName.isNotEmpty && selfRoom.isNotEmpty) {
+      if (_normIdentity(student.name) == selfName && _normRoom(student.room) == selfRoom) {
+        return true;
+      }
+    }
+
+    return false;
   }
 
   /// Opened from a caller-ID popup/notification → jump straight to that student.
@@ -426,6 +537,7 @@ class PhonebookController extends GetxController {
   }
 
   void selectGroup(String group) {
+    if (isLeaderView) return;
     if (selectedGroup.value == group) {
       selectedGroup.value = 'All';
     } else {
@@ -444,6 +556,7 @@ class PhonebookController extends GetxController {
   }
 
   void selectStatus(String status) {
+    if (isLeaderView) return;
     if (selectedStatus.value == status) {
       selectedStatus.value = 'All';
     } else {
@@ -496,9 +609,9 @@ class PhonebookController extends GetxController {
   }
 
   void resetAllFilters() {
-    selectedGroup.value = 'All';
+    selectedGroup.value = isLeaderView ? (leaderGroupName.value ?? 'All') : 'All';
     selectedFloor.value = 'All';
-    selectedStatus.value = 'All';
+    selectedStatus.value = isLeaderView ? 'Active Residents' : 'All';
     selectedTag.value = 'All';
     selectedState.value = 'All';
     selectedDistrict.value = 'All';
@@ -578,8 +691,15 @@ class PhonebookController extends GetxController {
     try {
       final floorNumber = floorNumberOf(selectedFloor.value);
 
+      if (isLeaderView && (leaderGroupName.value == null || leaderGroupName.value!.trim().isEmpty)) {
+        students.clear();
+        isLoading.value = false;
+        isSearching.value = false;
+        return;
+      }
+
       String? statusFilter;
-      if (selectedStatus.value == 'Active Residents') {
+      if (isLeaderView || selectedStatus.value == 'Active Residents') {
         statusFilter = 'active';
       } else if (selectedStatus.value == 'Alumni' ||
           selectedStatus.value == 'Alumni / Left') {
@@ -612,10 +732,13 @@ class PhonebookController extends GetxController {
           break;
       }
 
-      final isFavGroup = selectedGroup.value == 'Favourites';
+      final isFavGroup = !isLeaderView && selectedGroup.value == 'Favourites';
+      final effectiveGroup = isLeaderView
+          ? leaderGroupName.value!.trim()
+          : ((selectedGroup.value == 'All' || isFavGroup) ? null : selectedGroup.value);
       final results = await PhonebookDatabaseService.instance.searchStudents(
         query: searchController.text.trim(),
-        group: (selectedGroup.value == 'All' || isFavGroup) ? null : selectedGroup.value,
+        group: effectiveGroup,
         floor: floorNumber,
         status: statusFilter,
         tag: selectedTag.value == 'All' ? null : selectedTag.value,
@@ -629,6 +752,9 @@ class PhonebookController extends GetxController {
         hasAadhar: onlyWithAadhar.value ? true : null,
         sortBy: sortBy,
       );
+      if (isLeaderView) {
+        results.removeWhere(_isSelfLeaderStudent);
+      }
       if (isFavGroup) {
         results.retainWhere((s) => isFavourite(s.id));
       }
@@ -732,8 +858,10 @@ class PhonebookController extends GetxController {
       if (res.success) {
         await _loadMetadata();
         await search();
-        await loadFavourites();
-        CallerIdService.syncDirectory();
+        if (!isLeaderView) {
+          await loadFavourites();
+          CallerIdService.syncDirectory();
+        }
         debugPrint(
           '[PhonebookController] ✅ syncNow completed: ${res.totalStudents} students, ${res.totalPhones} phones',
         );

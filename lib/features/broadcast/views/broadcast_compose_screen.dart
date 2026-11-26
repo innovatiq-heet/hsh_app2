@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:get/get.dart';
 import '../../../core/constants/app_dimens.dart';
+import '../../../core/constants/app_routes.dart';
 import '../../../core/constants/app_text_styles.dart';
 import '../../../core/models/broadcasts/broadcast_models.dart';
 import '../../../core/utils/app_snackbar.dart';
@@ -152,16 +153,20 @@ class BroadcastComposeScreen extends GetView<BroadcastComposeController> {
         body: CustomScrollView(
           physics: const BouncingScrollPhysics(),
           slivers: [
-            SliverPersistentHeader(
-              pinned: true,
-              delegate: PhonebookHeaderDelegate(
-                overline: 'Broadcast',
-                title: 'New message',
-                subtitle: 'Push, WhatsApp & inbox for the students you pick',
-                topPadding: MediaQuery.of(context).padding.top,
-                leadingIcon: Icons.close_rounded,
-                leadingTooltip: 'Close',
-                onLeadingTap: () => Navigator.of(context).maybePop(),
+            Obx(
+              () => SliverPersistentHeader(
+                pinned: true,
+                delegate: PhonebookHeaderDelegate(
+                  overline: controller.isLeaderView.value ? 'Group Leader' : 'Broadcast',
+                  title: controller.isLeaderView.value ? 'Group broadcast' : 'New message',
+                  subtitle: controller.isLeaderView.value
+                      ? 'Send to ${controller.leaderGroupName.value.isNotEmpty ? '${controller.leaderGroupName.value} group' : 'your group'} members only'
+                      : 'Push, WhatsApp & inbox for the students you pick',
+                  topPadding: MediaQuery.of(context).padding.top,
+                  leadingIcon: Icons.close_rounded,
+                  leadingTooltip: 'Close',
+                  onLeadingTap: () => Navigator.of(context).maybePop(),
+                ),
               ),
             ),
             SliverPadding(
@@ -170,6 +175,42 @@ class BroadcastComposeScreen extends GetView<BroadcastComposeController> {
                 children: [
                   const PhonebookSectionHeader(title: 'Delivery Channel'),
                   _ChannelSelector(controller: controller),
+                  Obx(() {
+                    if (!controller.isLeaderView.value ||
+                        controller.selectedChannel.value == BroadcastChannel.app) {
+                      return const SizedBox.shrink();
+                    }
+                    if (controller.leaderWhatsappConnected.value) {
+                      final phone = controller.leaderLinkedPhone.value;
+                      return Padding(
+                        padding: const EdgeInsets.only(top: 10),
+                        child: NoticeBanner(
+                          icon: Icons.check_circle_outline_rounded,
+                          color: PhonebookTheme.green,
+                          message: phone != null && phone.isNotEmpty
+                              ? 'WhatsApp sends from your personal number (+$phone).'
+                              : 'WhatsApp sends from your linked personal number.',
+                        ),
+                      );
+                    }
+                    return Padding(
+                      padding: const EdgeInsets.only(top: 10),
+                      child: NoticeBanner(
+                        icon: Icons.chat_outlined,
+                        color: PhonebookTheme.amber,
+                        message: 'Link your personal WhatsApp to deliver WhatsApp messages to your group.',
+                        action: TextButton(
+                          onPressed: () async {
+                            await Get.toNamed(Routes.whatsappNumbers);
+                            await controller.loadLeaderSummary();
+                            await controller.refreshPreview();
+                          },
+                          style: TextButton.styleFrom(visualDensity: VisualDensity.compact),
+                          child: const Text('My WhatsApp'),
+                        ),
+                      ),
+                    );
+                  }),
                   const SizedBox(height: 18),
                   const PhonebookSectionHeader(title: 'Message'),
                   PhonebookCard(
@@ -442,7 +483,7 @@ class _ChannelSelector extends StatelessWidget {
   }
 }
 
-/// Tags and individually picked students, in one card.
+/// Tags, house presets (for leaders), and individually picked students, in one card.
 class _AudienceCard extends StatelessWidget {
   final BroadcastComposeController controller;
 
@@ -454,6 +495,48 @@ class _AudienceCard extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
+          Obx(() {
+            if (!controller.isLeaderView.value) return const SizedBox.shrink();
+            final groupLabel = controller.leaderGroupName.value.isNotEmpty
+                ? controller.leaderGroupName.value
+                : 'Group';
+            final preset = controller.groupAudiencePreset.value;
+            return Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                _SubHeading(icon: Icons.groups_rounded, title: '$groupLabel quick audience'),
+                const SizedBox(height: AppDimens.gapMd),
+                Wrap(
+                  spacing: AppDimens.gapSm,
+                  runSpacing: AppDimens.gapSm,
+                  children: [
+                    PhonebookTintChip(
+                      label: 'All Residents · ${controller.leaderResidentsCount.value}',
+                      selected: preset == 'residents',
+                      color: PhonebookTheme.blue,
+                      onTap: () => controller.setGroupAudiencePreset('residents'),
+                    ),
+                    PhonebookTintChip(
+                      label: 'All Alumni · ${controller.leaderAlumniCount.value}',
+                      selected: preset == 'alumni',
+                      color: PhonebookTheme.blue,
+                      onTap: () => controller.setGroupAudiencePreset('alumni'),
+                    ),
+                    PhonebookTintChip(
+                      label: 'Entire $groupLabel · ${controller.leaderTotalCount.value}',
+                      selected: preset == 'all',
+                      color: PhonebookTheme.green,
+                      onTap: () => controller.setGroupAudiencePreset('all'),
+                    ),
+                  ],
+                ),
+                const Padding(
+                  padding: EdgeInsets.symmetric(vertical: AppDimens.gapLg),
+                  child: Divider(height: 1, color: PhonebookTheme.border),
+                ),
+              ],
+            );
+          }),
           const _SubHeading(icon: Icons.sell_rounded, title: 'By tag'),
           const SizedBox(height: AppDimens.gapMd),
           _TagChips(controller: controller),

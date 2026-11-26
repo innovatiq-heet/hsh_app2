@@ -14,16 +14,23 @@ import '../../../core/utils/app_snackbar.dart';
 /// disconnect for each, and (admin only) add, rename, delete and which number
 /// the scheduled birthday / anniversary runs send from.
 class WhatsAppNumbersController extends GetxController with LoadStateMixin {
-  WhatsAppNumbersController({WhatsAppAccountsRepository? repo, bool? isAdmin})
+  WhatsAppNumbersController({WhatsAppAccountsRepository? repo, bool? isAdmin, bool? isLeader})
       : _repo = repo ?? WhatsAppAccountsRepository(),
         isAdmin = isAdmin ??
             (Get.isRegistered<SessionStore>() &&
-                Get.find<SessionStore>().currentSession?.role == UserRole.admin);
+                Get.find<SessionStore>().currentSession?.role == UserRole.admin),
+        isLeader = isLeader ??
+            (Get.isRegistered<SessionStore>() &&
+                Get.find<SessionStore>().currentSession?.role == UserRole.leader);
 
   final WhatsAppAccountsRepository _repo;
 
-  /// Only admins add, rename or delete numbers and change the defaults.
+  /// Admins manage shared slots & defaults; leaders manage their own 1 personal slot.
   final bool isAdmin;
+  final bool isLeader;
+
+  bool get canManageAccounts => isAdmin || isLeader;
+  bool get canAddAccount => isAdmin || (isLeader && accounts.isEmpty);
 
   final data = const WhatsAppAccountsData().obs;
   List<WhatsAppAccount> get accounts => data.value.accounts;

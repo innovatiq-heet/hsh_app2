@@ -62,6 +62,24 @@ class ServicesScreen extends StatelessWidget {
             const Color(0xFF6366F1),
             () => Get.toNamed(Routes.studentScreenTime),
           ),
+          _ServiceItem(
+            'House Students',
+            Icons.groups_rounded,
+            const Color(0xFF0284C7),
+            () => Get.toNamed(Routes.operatorDirectory),
+          ),
+          _ServiceItem(
+            'Group Broadcasts',
+            Icons.campaign_rounded,
+            const Color(0xFF0284C7),
+            () => Get.toNamed(Routes.operatorBroadcasts),
+          ),
+          _ServiceItem(
+            'My WhatsApp',
+            Icons.chat_rounded,
+            const Color(0xFF16A34A),
+            () => Get.toNamed(Routes.whatsappNumbers),
+          ),
         ],
       'Daily': [
         _ServiceItem(

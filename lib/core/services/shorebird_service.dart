@@ -1,14 +1,25 @@
 import 'package:flutter/foundation.dart';
+import 'package:package_info_plus/package_info_plus.dart';
 import 'package:shorebird_code_push/shorebird_code_push.dart';
-import '../constants/app_config.dart';
 
 class ShorebirdService {
   ShorebirdService._();
   static final ShorebirdService instance = ShorebirdService._();
 
   final ShorebirdUpdater _updater = ShorebirdUpdater();
+  PackageInfo? _packageInfo;
 
   bool get isAvailable => _updater.isAvailable;
+
+  /// The real installed app version and build number (from the platform,
+  /// not a hand-maintained constant), cached after the first read.
+  Future<PackageInfo> _info() async => _packageInfo ??= await PackageInfo.fromPlatform();
+
+  /// e.g. "v1.2.1 (Build 36)", read live from the installed app.
+  Future<String> versionDisplay() async {
+    final info = await _info();
+    return 'v${info.version} (Build ${info.buildNumber})';
+  }
 
   /// Check current patch number (null if running the base release without patches)
   Future<int?> getCurrentPatchNumber() async {
@@ -34,10 +45,10 @@ class ShorebirdService {
     return 'Patch #$patch';
   }
 
-  /// Returns combined version string: e.g. "v1.0.1 (Build 2) • Patch #3" or "v1.0.1 (Build 2) • Base Release"
+  /// Returns combined version string: e.g. "v1.2.1 (Build 36) • Patch #3" or "v1.2.1 (Build 36) • Base Release"
   Future<String> getFullVersionInfo() async {
-    final patch = await getPatchLabel();
-    return '${AppConfig.appVersionDisplay} • $patch';
+    final results = await Future.wait([versionDisplay(), getPatchLabel()]);
+    return '${results[0]} • ${results[1]}';
   }
 
   /// Check for any pending OTA patches and download in background

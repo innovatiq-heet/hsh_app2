@@ -14,7 +14,6 @@ import '../../shared/widgets/icon_badge.dart';
 import '../../shared/widgets/section_header.dart';
 import '../../shared/widgets/section_list_tile.dart';
 import '../../shared/widgets/privacy_and_disclosures_sheet.dart';
-import '../../../core/constants/app_config.dart';
 import '../../../core/enums/user_role.dart';
 import '../../../core/services/shorebird_service.dart';
 import '../../../core/utils/app_snackbar.dart';
@@ -51,7 +50,9 @@ class SettingScreen extends StatelessWidget {
             const SizedBox(height: AppDimens.gapSm),
             Text(
               'Are you sure you want to log out of ${AppStrings.appName}? You will need to sign in again to access your account.',
-              style: AppTextStyles.bodyMd.copyWith(color: AppColors.textSecondary),
+              style: AppTextStyles.bodyMd.copyWith(
+                color: AppColors.textSecondary,
+              ),
               textAlign: TextAlign.center,
             ),
             const SizedBox(height: AppDimens.gapXl),
@@ -151,7 +152,9 @@ class SettingScreen extends StatelessWidget {
       context: context,
       backgroundColor: AppColors.surface,
       shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(AppDimens.radiusXl)),
+        borderRadius: BorderRadius.vertical(
+          top: Radius.circular(AppDimens.radiusXl),
+        ),
       ),
       builder: (ctx) => SafeArea(
         child: Padding(
@@ -179,7 +182,7 @@ class SettingScreen extends StatelessWidget {
                 future: ShorebirdService.instance.getFullVersionInfo(),
                 builder: (context, snapshot) {
                   return Text(
-                    snapshot.data ?? AppConfig.appVersionDisplay,
+                    snapshot.data ?? '',
                     style: AppTextStyles.bodySm.copyWith(
                       color: AppColors.primary,
                       fontWeight: FontWeight.w600,
@@ -190,7 +193,9 @@ class SettingScreen extends StatelessWidget {
               const SizedBox(height: AppDimens.gapLg),
               Text(
                 'Hari Saurabh Hostel resident companion app provides seamless access to attendance tracking, laundry tickets, room complaints, and leave applications.',
-                style: AppTextStyles.bodyMd.copyWith(color: AppColors.textSecondary),
+                style: AppTextStyles.bodyMd.copyWith(
+                  color: AppColors.textSecondary,
+                ),
                 textAlign: TextAlign.center,
               ),
               const SizedBox(height: AppDimens.gapXxl),
@@ -247,250 +252,266 @@ class SettingScreen extends StatelessWidget {
               padding: const EdgeInsets.fromLTRB(
                 AppDimens.screenPadding,
                 AppDimens.gapLg,
-              AppDimens.screenPadding,
-              AppDimens.gapXxl,
-            ),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                // Resident Profile Summary Card (if available)
-                if (profileController != null)
-                  Obx(() {
-                    final profile = profileController!.profile.value;
-                    if (profile == null) return const SizedBox.shrink();
-                    final initial = profile.firstName.isNotEmpty
-                        ? profile.firstName[0].toUpperCase()
-                        : 'S';
+                AppDimens.screenPadding,
+                AppDimens.gapXxl,
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  // Resident Profile Summary Card (if available)
+                  if (profileController != null)
+                    Obx(() {
+                      final profile = profileController!.profile.value;
+                      if (profile == null) return const SizedBox.shrink();
+                      final initial = profile.firstName.isNotEmpty
+                          ? profile.firstName[0].toUpperCase()
+                          : 'S';
 
-                    return Padding(
-                      padding: const EdgeInsets.only(bottom: AppDimens.gapXl),
-                      child: AppCard(
-                        onTap: () => Get.toNamed(
-                          Routes.studentProfileEdit,
-                          arguments: profile,
-                        ),
-                        child: Row(
-                          children: [
-                            Container(
-                              width: 52,
-                              height: 52,
-                              decoration: BoxDecoration(
-                                gradient: AppColors.primaryGradient,
-                                shape: BoxShape.circle,
-                                boxShadow: [
-                                  BoxShadow(
-                                    color: AppColors.primary.withValues(alpha: 0.25),
-                                    blurRadius: 10,
-                                    offset: const Offset(0, 4),
+                      return Padding(
+                        padding: const EdgeInsets.only(bottom: AppDimens.gapXl),
+                        child: AppCard(
+                          onTap: () => Get.toNamed(
+                            Routes.studentProfileEdit,
+                            arguments: profile,
+                          ),
+                          child: Row(
+                            children: [
+                              Container(
+                                width: 52,
+                                height: 52,
+                                decoration: BoxDecoration(
+                                  gradient: AppColors.primaryGradient,
+                                  shape: BoxShape.circle,
+                                  boxShadow: [
+                                    BoxShadow(
+                                      color: AppColors.primary.withValues(
+                                        alpha: 0.25,
+                                      ),
+                                      blurRadius: 10,
+                                      offset: const Offset(0, 4),
+                                    ),
+                                  ],
+                                ),
+                                alignment: Alignment.center,
+                                child: Text(
+                                  initial,
+                                  style: AppTextStyles.title.copyWith(
+                                    color: Colors.white,
+                                    fontWeight: FontWeight.bold,
                                   ),
-                                ],
-                              ),
-                              alignment: Alignment.center,
-                              child: Text(
-                                initial,
-                                style: AppTextStyles.title.copyWith(
-                                  color: Colors.white,
-                                  fontWeight: FontWeight.bold,
                                 ),
                               ),
-                            ),
-                            const SizedBox(width: AppDimens.gapMd),
-                            Expanded(
-                              child: Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  Text(
-                                    profile.fullName.isNotEmpty
-                                        ? profile.fullName
-                                        : 'Resident Account',
-                                    style: AppTextStyles.title,
-                                    maxLines: 1,
-                                    overflow: TextOverflow.ellipsis,
-                                  ),
-                                  const SizedBox(height: 4),
-                                  Row(
-                                    children: [
-                                      Container(
-                                        padding: const EdgeInsets.symmetric(
-                                          horizontal: 8,
-                                          vertical: 2,
-                                        ),
-                                        decoration: BoxDecoration(
-                                          color: AppColors.primarySoft,
-                                          borderRadius: BorderRadius.circular(
-                                            AppDimens.radiusPill,
+                              const SizedBox(width: AppDimens.gapMd),
+                              Expanded(
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Text(
+                                      profile.fullName.isNotEmpty
+                                          ? profile.fullName
+                                          : 'Resident Account',
+                                      style: AppTextStyles.title,
+                                      maxLines: 1,
+                                      overflow: TextOverflow.ellipsis,
+                                    ),
+                                    const SizedBox(height: 4),
+                                    Row(
+                                      children: [
+                                        Container(
+                                          padding: const EdgeInsets.symmetric(
+                                            horizontal: 8,
+                                            vertical: 2,
+                                          ),
+                                          decoration: BoxDecoration(
+                                            color: AppColors.primarySoft,
+                                            borderRadius: BorderRadius.circular(
+                                              AppDimens.radiusPill,
+                                            ),
+                                          ),
+                                          child: Text(
+                                            'Room ${profile.room}',
+                                            style: AppTextStyles.caption
+                                                .copyWith(
+                                                  color: AppColors.primary,
+                                                  fontWeight: FontWeight.bold,
+                                                ),
                                           ),
                                         ),
-                                        child: Text(
-                                          'Room ${profile.room}',
-                                          style: AppTextStyles.caption.copyWith(
-                                            color: AppColors.primary,
-                                            fontWeight: FontWeight.bold,
+                                        const SizedBox(width: AppDimens.gapSm),
+                                        Expanded(
+                                          child: Text(
+                                            profile.phone.isNotEmpty
+                                                ? profile.phone
+                                                : profile.email,
+                                            style: AppTextStyles.bodySm,
+                                            maxLines: 1,
+                                            overflow: TextOverflow.ellipsis,
                                           ),
                                         ),
-                                      ),
-                                      const SizedBox(width: AppDimens.gapSm),
-                                      Expanded(
-                                        child: Text(
-                                          profile.phone.isNotEmpty
-                                              ? profile.phone
-                                              : profile.email,
-                                          style: AppTextStyles.bodySm,
-                                          maxLines: 1,
-                                          overflow: TextOverflow.ellipsis,
-                                        ),
-                                      ),
-                                    ],
-                                  ),
-                                ],
+                                      ],
+                                    ),
+                                  ],
+                                ),
                               ),
-                            ),
-                            const Icon(
-                              Icons.arrow_forward_ios_rounded,
-                              size: 14,
-                              color: AppColors.textMuted,
-                            ),
-                          ],
+                              const Icon(
+                                Icons.arrow_forward_ios_rounded,
+                                size: 14,
+                                color: AppColors.textMuted,
+                              ),
+                            ],
+                          ),
                         ),
-                      ),
-                    );
-                  }),
+                      );
+                    }),
 
-                // const SectionHeader(title: 'Account'),
-                // _Group(
-                //   children: [
-                //     SectionListTile(
-                //       icon: Icons.person_outline_rounded,
-                //       title: 'Edit profile',
-                //       subtitle: 'Contact, address, family, vehicle',
-                //       iconColor: AppColors.primary,
-                //       onTap: () => Get.toNamed(
-                //         Routes.studentProfileEdit,
-                //         arguments: profileController?.profile.value,
-                //       ),
-                //     ),
-                //     SectionListTile(
-                //       icon: Icons.grid_view_rounded,
-                //       title: 'All services',
-                //       subtitle: 'Laundry, complaints, attendance & leave',
-                //       iconColor: AppColors.secondary,
-                //       onTap: () => Get.toNamed(Routes.services),
-                //     ),
-                //   ],
-                // ),
-                // const SizedBox(height: AppDimens.gapXl),
-
-                const SectionHeader(title: 'Preferences'),
-                _Group(
-                  children: [
-                    // SectionListTile(
-                    //   icon: Icons.translate_rounded,
-                    //   title: 'Language',
-                    //   subtitle: 'English',
-                    //   iconColor: AppColors.secondaryLight,
-                    //   onTap: () => _showLanguageSheet(context),
-                    // ),
-                    SectionListTile(
-                      icon: Icons.system_update_rounded,
-                      title: 'App Version & Updates',
-                      subtitle: 'Check for Shorebird OTA patches',
-                      iconColor: AppColors.primary,
-                      onTap: () async {
-                        AppSnackbar.info('Checking for Updates', 'Checking Shorebird servers for OTA patches...');
-                        final updated = await ShorebirdService.instance.checkForUpdatesAndDownload();
-                        if (updated) {
-                          AppSnackbar.success('Update Downloaded', 'New patch downloaded! Please restart the app to apply it.');
-                        } else {
-                          final patch = await ShorebirdService.instance.getPatchLabel();
-                          AppSnackbar.info('App Up to Date', 'Current version: ${AppConfig.appVersionDisplay} ($patch).');
-                        }
-                      },
-                    ),
-                    if (showPrivacyDisclosures)
-                      SectionListTile(
-                        icon: Icons.shield_outlined,
-                        title: 'Privacy & Permissions Disclosures',
-                        subtitle: 'App Blocker, Curfew Location & Policy',
-                        iconColor: AppColors.secondary,
-                        onTap: () => PrivacyAndDisclosuresSheet.show(context),
-                      ),
-                    if (showDeviceSetup)
-                      SectionListTile(
-                        icon: Icons.phonelink_setup_rounded,
-                        title: 'Device Permissions & Setup',
-                        subtitle: 'Re-check screen-time and curfew permissions',
-                        iconColor: AppColors.primary,
-                        onTap: () => Get.toNamed(Routes.deviceSetup),
-                      ),
-                    SectionListTile(
-                      icon: Icons.info_outline_rounded,
-                      title: 'About',
-                      subtitle: AppStrings.appName,
-                      iconColor: AppColors.primaryLight,
-                      onTap: () => _showAboutSheet(context),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: AppDimens.gapXl),
-
-                const SectionHeader(title: 'Session'),
-                _Group(
-                  children: [
-                    SectionListTile(
-                      icon: Icons.logout_rounded,
-                      title: AppStrings.logout,
-                      subtitle: 'Sign out from this device',
-                      iconColor: AppColors.cancelledRed,
-                      trailing: const Icon(
-                        Icons.arrow_forward_ios_rounded,
-                        size: 14,
-                        color: AppColors.cancelledRed,
-                      ),
-                      onTap: () => _showLogoutDialog(context),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: AppDimens.gapXxl),
-
-                // Branded Footer
-                Center(
-                  child: Column(
+                  // const SectionHeader(title: 'Account'),
+                  // _Group(
+                  //   children: [
+                  //     SectionListTile(
+                  //       icon: Icons.person_outline_rounded,
+                  //       title: 'Edit profile',
+                  //       subtitle: 'Contact, address, family, vehicle',
+                  //       iconColor: AppColors.primary,
+                  //       onTap: () => Get.toNamed(
+                  //         Routes.studentProfileEdit,
+                  //         arguments: profileController?.profile.value,
+                  //       ),
+                  //     ),
+                  //     SectionListTile(
+                  //       icon: Icons.grid_view_rounded,
+                  //       title: 'All services',
+                  //       subtitle: 'Laundry, complaints, attendance & leave',
+                  //       iconColor: AppColors.secondary,
+                  //       onTap: () => Get.toNamed(Routes.services),
+                  //     ),
+                  //   ],
+                  // ),
+                  // const SizedBox(height: AppDimens.gapXl),
+                  const SectionHeader(title: 'Preferences'),
+                  _Group(
                     children: [
-                      Icon(
-                        Icons.apartment_rounded,
-                        size: 28,
-                        color: AppColors.textMuted.withValues(alpha: 0.45),
-                      ),
-                      const SizedBox(height: AppDimens.gapXs),
-                      Text(
-                        AppStrings.appName,
-                        style: AppTextStyles.caption.copyWith(
-                          color: AppColors.textSecondary,
-                          fontWeight: FontWeight.w600,
-                        ),
-                      ),
-                      const SizedBox(height: 2),
-                      FutureBuilder<String>(
-                        future: ShorebirdService.instance.getFullVersionInfo(),
-                        builder: (context, snapshot) {
-                          final info = snapshot.data ?? AppConfig.appVersionDisplay;
-                          return Text(
-                            '$info • Designed for Residents',
-                            style: AppTextStyles.caption.copyWith(
-                              color: AppColors.textMuted,
-                            ),
+                      // SectionListTile(
+                      //   icon: Icons.translate_rounded,
+                      //   title: 'Language',
+                      //   subtitle: 'English',
+                      //   iconColor: AppColors.secondaryLight,
+                      //   onTap: () => _showLanguageSheet(context),
+                      // ),
+                      SectionListTile(
+                        icon: Icons.system_update_rounded,
+                        title: 'App Version & Updates',
+                        subtitle: 'Check for Shorebird OTA patches',
+                        iconColor: AppColors.primary,
+                        onTap: () async {
+                          AppSnackbar.info(
+                            'Checking for Updates',
+                            'Checking Shorebird servers for OTA patches...',
                           );
+                          final updated = await ShorebirdService.instance
+                              .checkForUpdatesAndDownload();
+                          if (updated) {
+                            AppSnackbar.success(
+                              'Update Downloaded',
+                              'New patch downloaded! Please restart the app to apply it.',
+                            );
+                          } else {
+                            final version = await ShorebirdService.instance
+                                .versionDisplay();
+                            final patch = await ShorebirdService.instance
+                                .getPatchLabel();
+                            AppSnackbar.info(
+                              'App Up to Date',
+                              'Current version: $version ($patch).',
+                            );
+                          }
                         },
+                      ),
+                      if (showPrivacyDisclosures)
+                        SectionListTile(
+                          icon: Icons.shield_outlined,
+                          title: 'Privacy & Permissions Disclosures',
+                          subtitle: 'App Blocker, Curfew Location & Policy',
+                          iconColor: AppColors.secondary,
+                          onTap: () => PrivacyAndDisclosuresSheet.show(context),
+                        ),
+                      if (showDeviceSetup)
+                        SectionListTile(
+                          icon: Icons.phonelink_setup_rounded,
+                          title: 'Device Permissions & Setup',
+                          subtitle:
+                              'Re-check screen-time and curfew permissions',
+                          iconColor: AppColors.primary,
+                          onTap: () => Get.toNamed(Routes.deviceSetup),
+                        ),
+                      SectionListTile(
+                        icon: Icons.info_outline_rounded,
+                        title: 'About',
+                        subtitle: AppStrings.appName,
+                        iconColor: AppColors.primaryLight,
+                        onTap: () => _showAboutSheet(context),
                       ),
                     ],
                   ),
-                ),
-              ],
+                  const SizedBox(height: AppDimens.gapXl),
+                  // const SectionHeader(title: 'Session'),
+                  // _Group(
+                  //   children: [
+                  //     SectionListTile(
+                  //       icon: Icons.logout_rounded,
+                  //       title: AppStrings.logout,
+                  //       subtitle: 'Sign out from this device',
+                  //       iconColor: AppColors.cancelledRed,
+                  //       trailing: const Icon(
+                  //         Icons.arrow_forward_ios_rounded,
+                  //         size: 14,
+                  //         color: AppColors.cancelledRed,
+                  //       ),
+                  //       onTap: () => _showLogoutDialog(context),
+                  //     ),
+                  //   ],
+                  // ),
+                  // const SizedBox(height: AppDimens.gapXxl),
+
+                  // Branded Footer
+                  Center(
+                    child: Column(
+                      children: [
+                        Icon(
+                          Icons.apartment_rounded,
+                          size: 28,
+                          color: AppColors.textMuted.withValues(alpha: 0.45),
+                        ),
+                        const SizedBox(height: AppDimens.gapXs),
+                        Text(
+                          AppStrings.appName,
+                          style: AppTextStyles.caption.copyWith(
+                            color: AppColors.textSecondary,
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                        const SizedBox(height: 2),
+                        FutureBuilder<String>(
+                          future: ShorebirdService.instance
+                              .getFullVersionInfo(),
+                          builder: (context, snapshot) {
+                            final info = snapshot.data ?? '';
+                            return Text(
+                              '$info • Designed for Residents',
+                              style: AppTextStyles.caption.copyWith(
+                                color: AppColors.textMuted,
+                              ),
+                            );
+                          },
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
             ),
           ),
-        ),
-      ],
-    ),
+        ],
+      ),
     );
   }
 }
@@ -500,14 +521,14 @@ class SettingScreen extends StatelessWidget {
 //   final String subtitle;
 //   final bool isSelected;
 //   final VoidCallback onTap;
-// 
+//
 //   const _LanguageTile({
 //     required this.title,
 //     required this.subtitle,
 //     required this.isSelected,
 //     required this.onTap,
 //   });
-// 
+//
 //   @override
 //   Widget build(BuildContext context) {
 //     return InkWell(
@@ -572,4 +593,3 @@ class _Group extends StatelessWidget {
     );
   }
 }
-

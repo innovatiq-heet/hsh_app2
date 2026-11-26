@@ -2,7 +2,6 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:get/get.dart';
 import 'package:intl/intl.dart';
-import '../../../core/constants/app_config.dart';
 import '../../../core/constants/app_dimens.dart';
 import '../../../core/constants/app_routes.dart';
 import '../../../core/constants/app_text_styles.dart';
@@ -927,7 +926,7 @@ class _OperatorHomeDashboard extends StatelessWidget {
                   child: FutureBuilder<String>(
                     future: ShorebirdService.instance.getFullVersionInfo(),
                     builder: (context, snapshot) {
-                      final info = snapshot.data ?? AppConfig.appVersionDisplay;
+                      final info = snapshot.data ?? '';
                       return Text(
                         'Hostel Admin Console • $info',
                         style: AppTextStyles.caption.copyWith(

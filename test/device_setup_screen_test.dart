@@ -5,13 +5,13 @@ import 'package:hsh_app2/features/screentime/views/device_setup_screen.dart';
 
 import 'support/test_fonts.dart';
 
-/// Phone setup lists only the step names; what a step does is shown before its
-/// permission is asked for.
+/// Phone setup lists only step numbers, with no step name or description.
+/// Tapping an unfinished step goes straight to its system permission screen,
+/// with no explanation shown first.
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
 
-  const step = 'Step 3 · Location — allow all the time';
-  final disclosure = find.textContaining('Your location is collected every few minutes');
+  const step = 'Step 3 · ';
 
   setUpAll(loadDeviceLikeFonts);
   tearDown(Get.reset);
@@ -27,26 +27,23 @@ void main() {
   /// Disposes the screen so its permission poll timer stops.
   Future<void> close(WidgetTester tester) => tester.pumpWidget(const SizedBox());
 
-  testWidgets('the list shows step names without their details', (tester) async {
+  testWidgets('the list shows step numbers without names or details', (tester) async {
     await openSetup(tester);
 
     expect(find.text(step), findsOneWidget);
-    expect(disclosure, findsNothing);
-    expect(find.text('Allow location'), findsNothing);
+    expect(find.textContaining('Shares your location every few minutes'), findsNothing);
     await close(tester);
   });
 
-  testWidgets('tapping a step shows its disclosure before asking', (tester) async {
+  testWidgets('tapping a step opens no dialog', (tester) async {
     await openSetup(tester);
 
     await tester.tap(find.text(step));
     await tester.pumpAndSettle();
-    expect(disclosure, findsOneWidget);
-    expect(find.text('Allow location'), findsOneWidget);
 
-    await tester.tap(find.text('Not now'));
-    await tester.pumpAndSettle();
-    expect(disclosure, findsNothing);
+    // No dialog appears; the list is still showing (the system settings
+    // screen this would open is out of process, so nothing else changes).
+    expect(find.byType(AlertDialog), findsNothing);
     expect(find.text(step), findsOneWidget);
     await close(tester);
   });

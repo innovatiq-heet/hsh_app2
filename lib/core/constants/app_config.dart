@@ -9,10 +9,6 @@ class AppConfig {
   static const String baseUrl = '$host/api';
   static const String healthUrl = '$host/';
 
-  /// App release and build version info
-  static const String appVersion = '1.0.1+2';
-  static const String appVersionDisplay = 'v1.0.1 (Build 2)';
-
   /// Live hosted attendance schedule endpoint.
   static const String attendanceScheduleUrl =
       'https://lightcoral-eel-306042.hostingersite.com/api/schedule-data';

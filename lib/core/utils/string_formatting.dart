@@ -49,3 +49,13 @@ String formatPersonName(String? raw) {
       })
       .join(' ');
 }
+
+/// Up to two initials (first and last word), e.g. "Aadi Niraj Pandya" -> "AP".
+/// "#" when there is no name.
+String nameInitials(String name) {
+  final words = name.split(RegExp(r'\s+')).where((w) => w.isNotEmpty).toList();
+  if (words.isEmpty) return '#';
+  final first = String.fromCharCode(words.first.runes.first);
+  final last = words.length > 1 ? String.fromCharCode(words.last.runes.first) : '';
+  return '$first$last'.toUpperCase();
+}

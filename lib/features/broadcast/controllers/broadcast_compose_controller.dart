@@ -237,6 +237,16 @@ class BroadcastComposeController extends GetxController
     }
   }
 
+  /// Reloads the tags and unselects any that no longer exist (it would
+  /// otherwise stay in the audience with nothing on screen to remove it).
+  Future<void> refreshTags() async {
+    await loadTags();
+    final known = {for (final t in tags) t.id};
+    for (final id in selectedTagIds.where((id) => !known.contains(id)).toList()) {
+      toggleTag(id);
+    }
+  }
+
   void setGroupAudiencePreset(String? preset) {
     if (!isLeaderView.value) return;
     if (groupAudiencePreset.value == preset) {

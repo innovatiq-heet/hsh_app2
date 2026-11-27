@@ -9,8 +9,9 @@ import '../../../core/utils/app_snackbar.dart';
 import '../../../core/utils/string_formatting.dart';
 import '../../shared/widgets/notice_banner.dart';
 import '../../shared/widgets/phonebook_style_widgets.dart';
-import '../../shared/widgets/student_picker_sheet.dart';
-import '../../shared/widgets/tag_choice_chip.dart';
+import '../../shared/widgets/selected_students_list.dart';
+import '../../shared/screens/student_picker_screen.dart';
+import '../../shared/screens/tag_picker_screen.dart';
 import '../controllers/broadcast_compose_controller.dart';
 import '../utils/tag_members.dart';
 
@@ -537,9 +538,23 @@ class _AudienceCard extends StatelessWidget {
               ],
             );
           }),
-          const _SubHeading(icon: Icons.sell_rounded, title: 'By tag'),
-          const SizedBox(height: AppDimens.gapMd),
-          _TagChips(controller: controller),
+          _SubHeading(
+            icon: Icons.sell_rounded,
+            title: 'By tag',
+            action: _AddButton(
+              icon: Icons.new_label_rounded,
+              onPressed: () => TagPickerScreen.open(
+                context,
+                tags: controller.tags,
+                selectedIds: controller.selectedTagIds,
+                isLoading: controller.isTagsLoading,
+                onToggle: controller.toggleTag,
+                onRefresh: controller.refreshTags,
+              ),
+            ),
+          ),
+          const SizedBox(height: AppDimens.gapSm),
+          _SelectedTags(controller: controller),
           _TagScope(controller: controller),
           const Padding(
             padding: EdgeInsets.symmetric(vertical: AppDimens.gapLg),
@@ -548,15 +563,9 @@ class _AudienceCard extends StatelessWidget {
           _SubHeading(
             icon: Icons.person_rounded,
             title: 'Individual students',
-            action: TextButton.icon(
-              onPressed: () => StudentPickerSheet.show(context, controller),
-              style: TextButton.styleFrom(
-                visualDensity: VisualDensity.compact,
-                foregroundColor: PhonebookTheme.blue,
-                textStyle: const TextStyle(fontSize: 13, fontWeight: FontWeight.w700),
-              ),
-              icon: const Icon(Icons.person_add_alt_1_rounded, size: 18),
-              label: const Text('Add'),
+            action: _AddButton(
+              icon: Icons.person_add_alt_1_rounded,
+              onPressed: () => StudentPickerScreen.open(context, controller),
             ),
           ),
           const SizedBox(height: AppDimens.gapSm),
@@ -604,6 +613,28 @@ class _SubHeading extends StatelessWidget {
           ?action,
         ],
       ),
+    );
+  }
+}
+
+/// "Add" beside a sub-heading; opens a picker screen.
+class _AddButton extends StatelessWidget {
+  final IconData icon;
+  final VoidCallback onPressed;
+
+  const _AddButton({required this.icon, required this.onPressed});
+
+  @override
+  Widget build(BuildContext context) {
+    return TextButton.icon(
+      onPressed: onPressed,
+      style: TextButton.styleFrom(
+        visualDensity: VisualDensity.compact,
+        foregroundColor: PhonebookTheme.blue,
+        textStyle: const TextStyle(fontSize: 13, fontWeight: FontWeight.w700),
+      ),
+      icon: Icon(icon, size: 18),
+      label: const Text('Add'),
     );
   }
 }
@@ -681,15 +712,15 @@ class _TagScope extends StatelessWidget {
   }
 }
 
-class _TagChips extends StatelessWidget {
+class _SelectedTags extends StatelessWidget {
   final BroadcastComposeController controller;
 
-  const _TagChips({required this.controller});
+  const _SelectedTags({required this.controller});
 
   @override
   Widget build(BuildContext context) {
     return Obx(() {
-      if (controller.isTagsLoading.value) {
+      if (controller.isTagsLoading.value && controller.tags.isEmpty) {
         return const Padding(
           padding: EdgeInsets.all(AppDimens.gapSm),
           child: Center(child: SizedBox(width: 22, height: 22, child: CircularProgressIndicator(strokeWidth: 2.4))),
@@ -701,15 +732,32 @@ class _TagChips extends StatelessWidget {
           style: AppTextStyles.bodySm.copyWith(color: PhonebookTheme.muted),
         );
       }
-      return Wrap(
-        spacing: AppDimens.gapSm,
-        runSpacing: AppDimens.gapSm,
-        children: [
-          for (final t in controller.tags)
-            TagChoiceChip(
-              tag: t,
-              selected: controller.selectedTagIds.contains(t.id),
-              onTap: () => controller.toggleTag(t.id),
+      final picked = [
+        for (final t in controller.tags)
+          if (controller.selectedTagIds.contains(t.id)) t,
+      ];
+      if (picked.isEmpty) {
+        return Text(
+          'None picked. Tap Add to choose tags.',
+          style: AppTextStyles.bodySm.copyWith(color: PhonebookTheme.muted),
+        );
+      }
+      return SelectedList(
+        noun: 'tag',
+        onClear: () {
+          for (final id in controller.selectedTagIds.toList()) {
+            controller.toggleTag(id);
+          }
+        },
+        entries: [
+          for (final t in picked)
+            SelectedEntry(
+              id: t.id,
+              title: t.name,
+              subtitle: '${t.studentCount} ${t.studentCount == 1 ? 'student' : 'students'}',
+              leading: Icon(Icons.sell_rounded, size: 18, color: t.color),
+              leadingColor: t.backgroundColor,
+              onRemove: () => controller.toggleTag(t.id),
             ),
         ],
       );
@@ -732,25 +780,14 @@ class _SelectedStudents extends StatelessWidget {
           style: AppTextStyles.bodySm.copyWith(color: PhonebookTheme.muted),
         );
       }
-      return Wrap(
-        spacing: AppDimens.gapSm,
-        runSpacing: AppDimens.gapSm,
-        children: [
-          for (final s in picked)
-            InputChip(
-              label: Text(s.room.isEmpty ? formatPersonName(s.name) : '${formatPersonName(s.name)} · ${s.room}'),
-              labelStyle: const TextStyle(
-                color: PhonebookTheme.ink,
-                fontSize: 12.5,
-                fontWeight: FontWeight.w600,
-              ),
-              backgroundColor: PhonebookTheme.blueSoft,
-              side: BorderSide.none,
-              onDeleted: () => controller.removeStudent(s),
-              deleteIcon: const Icon(Icons.close_rounded, size: 16),
-              deleteIconColor: PhonebookTheme.muted,
-            ),
-        ],
+      return SelectedStudentsList(
+        students: picked.toList(),
+        onRemove: controller.removeStudent,
+        onClear: () {
+          for (final s in picked.toList()) {
+            controller.removeStudent(s);
+          }
+        },
       );
     });
   }

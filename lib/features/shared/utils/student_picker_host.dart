@@ -4,7 +4,7 @@ import '../../../core/network/api_exception.dart';
 import '../../../core/network/repository/students/student_picker_source.dart';
 
 /// Picker state for a controller that lets an admin choose students one by
-/// one (used with `StudentPickerSheet`).
+/// one (used with `StudentPickerScreen`).
 mixin StudentPickerHost on GetxController {
   /// Where the pickable students come from.
   StudentPickerSource get studentSource;

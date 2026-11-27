@@ -9,7 +9,7 @@ import '../../../core/utils/string_formatting.dart';
 import '../../shared/widgets/empty_state.dart';
 import '../../shared/widgets/notice_banner.dart';
 import '../../shared/widgets/phonebook_style_widgets.dart';
-import '../../shared/widgets/student_picker_sheet.dart';
+import '../../shared/screens/student_picker_screen.dart';
 import '../../shared/widgets/tag_choice_chip.dart';
 import '../controllers/form_editor_controller.dart';
 
@@ -777,7 +777,7 @@ class _AudiencePicker extends StatelessWidget {
                   _GroupLabel(
                     'Students',
                     action: TextButton.icon(
-                      onPressed: () => StudentPickerSheet.show(context, controller),
+                      onPressed: () => StudentPickerScreen.open(context, controller),
                       style: TextButton.styleFrom(
                         foregroundColor: PhonebookTheme.blue,
                         textStyle: const TextStyle(fontSize: 13, fontWeight: FontWeight.w700),

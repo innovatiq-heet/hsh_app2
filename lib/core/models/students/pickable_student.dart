@@ -1,3 +1,7 @@
+import '../../../features/phonebook/models/phonebook_models.dart' show PhonebookStudent;
+import '../../utils/string_formatting.dart';
+import '../tags/student_tag_model.dart';
+
 /// A student an admin can pick by hand (Broadcast recipients, Forms & Polls
 /// targets). The [id] is always the numeric `students.id`.
 class PickableStudent {
@@ -7,12 +11,24 @@ class PickableStudent {
   final String room;
   final bool isAlumni;
 
+  /// For the picker's filters only; empty when the row didn't say.
+  final int? floorId;
+  final String group;
+  final List<StudentTag> tags;
+
   const PickableStudent({
     required this.id,
     required this.name,
     required this.room,
     this.isAlumni = false,
+    this.floorId,
+    this.group = '',
+    this.tags = const [],
   });
+
+  /// From the room number, else the row's `floor_id`; 0 is the ground floor.
+  /// Alumni are on no floor.
+  int? get floor => isAlumni ? null : (PhonebookStudent.floorOfRoom(room) ?? floorId);
 
   @override
   bool operator ==(Object other) => other is PickableStudent && other.id == id;
@@ -39,6 +55,24 @@ bool isAlumniRoom(String room) {
   return r.isEmpty || r == 'alumni' || r == 'n/a' || r == 'none' || r == 'null';
 }
 
+const _noGroup = {'', 'not available', 'n/a', 'na', 'none', 'null', '-'};
+
+/// The data spells one group several ways ("param", "Param "), so the name is
+/// put in one form; the server compares groups ignoring case too.
+String _groupOf(Map row) {
+  final group = (row['group_name'] ?? row['groupName'] ?? '').toString().trim();
+  return _noGroup.contains(group.toLowerCase()) ? '' : formatPersonName(group);
+}
+
+List<StudentTag> _tagsOf(Map row) {
+  final raw = row['tags'];
+  if (raw is! List) return const [];
+  return dedupeTags([
+    for (final t in raw)
+      if (t is Map) StudentTag.fromJson(Map<String, dynamic>.from(t)),
+  ].where((t) => t.id > 0 && t.name.isNotEmpty));
+}
+
 /// Turns directory rows into [PickableStudent]s: numeric ids only, no
 /// duplicates, sorted by name. Alumni are kept only when [includeAlumni].
 List<PickableStudent> pickableStudentsFromRows(
@@ -61,6 +95,9 @@ List<PickableStudent> pickableStudentsFromRows(
       name: name.isEmpty ? 'Student' : name,
       room: alumni ? 'Alumni' : room,
       isAlumni: alumni,
+      floorId: int.tryParse('${m['floor_id'] ?? m['floorId'] ?? ''}'),
+      group: _groupOf(m),
+      tags: _tagsOf(m),
     ));
   }
   list.sort((a, b) => a.name.toLowerCase().compareTo(b.name.toLowerCase()));

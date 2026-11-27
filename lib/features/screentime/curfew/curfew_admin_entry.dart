@@ -5,7 +5,7 @@ import '../../../core/models/students/pickable_student.dart';
 import '../../../core/network/repository/students/student_picker_source.dart';
 import '../../../core/network/repository/tags/tags_repository.dart';
 import '../../shared/utils/student_picker_host.dart';
-import '../../shared/widgets/student_picker_sheet.dart';
+import '../../shared/screens/student_picker_screen.dart';
 import '../controllers/screen_time_directory_controller.dart';
 import 'models.dart';
 import 'screen_time_api.dart';
@@ -40,10 +40,10 @@ class CurfewAdminEntry {
     );
   }
 
-  /// The shared picker sheet; returns the chosen students by numeric id.
+  /// The shared picker screen; returns the chosen students by numeric id.
   static Future<List<StudentRef>?> _pickStudents(BuildContext context) async {
     final host = _SessionStudentPicker();
-    await StudentPickerSheet.show(context, host);
+    await StudentPickerScreen.open(context, host);
     final picked = host.selectedStudents.toList();
     host.onDelete();
     if (picked.isEmpty) return null;

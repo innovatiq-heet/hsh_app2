@@ -1,6 +1,6 @@
 # Broadcast Messages
 
-> **Last updated:** 2026-11-24 · **Repos:** `hsh_app2` (Flutter) and `hsh_api` (Node/Express/MySQL). **Status:** the app side is built and tested offline against the contract below. The backend is being built from [BROADCAST_BACKEND_PROMPT.md](BROADCAST_BACKEND_PROMPT.md), and until it ships, the screens show their load errors.
+> **Last updated:** 2026-11-27 · **Repos:** `hsh_app2` (Flutter) and `hsh_api` (Node/Express/MySQL). **Status:** the app side is built and tested offline against the contract below. The backend is being built from [BROADCAST_BACKEND_PROMPT.md](BROADCAST_BACKEND_PROMPT.md), and until it ships, the screens show their load errors.
 
 ---
 
@@ -65,7 +65,11 @@ All responses use `{ success, data }`, or `{ success: false, message }` on error
 | `lib/features/broadcast/controllers/` | `BroadcastAdminGate`, compose, history, detail and inbox controllers |
 | `lib/features/broadcast/views/` | History, compose, detail and inbox screens |
 | `lib/features/broadcast/widgets/` | Status badge, audience chips, counts, history card |
-| Shared with Forms & Polls | `PickableStudent` / `studentIdOf`, `StudentPickerSource`, `StudentPickerHost`, `StudentPickerSheet` |
+| Shared with Forms & Polls | `PickableStudent` / `studentIdOf`, `StudentPickerSource`, `StudentPickerHost`, `StudentPickerScreen` |
+| Student picker UI | A full screen (`features/shared/screens/student_picker_screen.dart`): the shared collapsing header (`PhonebookHeaderDelegate`) with the selected count, the search bar below it, pull-to-refresh, Residents / Alumni / All tabs with counts (opens on Residents; swipe the page left or right to move between them, with a line sliding under the active tab), removable chips for the picked students with **Clear**, and a pinned **Done** button. While the keyboard is up, the chips and Done are hidden so results stay visible. |
+| Student filters | The tune button beside the search opens **Floor / Group / Tag** choices (`student_filter_sheet.dart`), built from the loaded rows (`floor_id`, `group_name`, `tags`; never the phonebook cache; group spellings that differ only in case or spaces are one group). Several choices in one section widen the list; sections narrow each other. Filters only narrow what is shown: picked students stay picked. |
+| Tag picker | **By tag → Add** opens `features/shared/screens/tag_picker_screen.dart`: search, multi-select, student count per tag, pull-to-refresh (a deleted tag is unselected). Both pickers share `PickerScaffold`. |
+| Picks in Compose (tags and students) | `SelectedList`: an expandable box, closed at first, showing the count, the names on one line and **Clear all**; open, one row each with a remove button (over 5 rows also get **Collapse** at the bottom). The **Send to** choice (rule 10) stays under the tags. |
 | Routes | `Routes.operatorBroadcasts`, `operatorBroadcastCompose`, `operatorBroadcastDetail`, `broadcastInbox` |
 
 ## 5. Tests (offline, `test/support/fake_api.dart`)

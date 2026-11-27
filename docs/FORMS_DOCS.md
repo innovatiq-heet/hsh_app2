@@ -79,7 +79,7 @@ Analytics person lists (`responses`, etc.) have no fixed shape in the handoff. T
 | `lib/features/forms/controllers/` | `FormsManagerGate`, list, editor, results and student controllers |
 | `lib/features/forms/views/` | List, editor, results, student list and fill screens |
 | `lib/features/forms/widgets/forms_widgets.dart` | Status badge, kind chip, result bar, `AnswerInput` (all 9 types), `describeAnswer` |
-| Shared with Broadcast | `PickableStudent`, `studentIdOf`, `StudentPickerSource`, `StudentPickerHost`, `StudentPickerSheet` |
+| Shared with Broadcast | `PickableStudent`, `studentIdOf`, `StudentPickerSource`, `StudentPickerHost`, `StudentPickerScreen` |
 | Routes | `operatorForms`, `operatorFormEditor`, `operatorFormAnalytics`, `studentForms`, `studentFormFill` |
 
 ## 5. Tests (offline, `test/support/fake_api.dart`)

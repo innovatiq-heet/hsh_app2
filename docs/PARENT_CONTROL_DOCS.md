@@ -102,7 +102,7 @@ graph TD
 | [student_screen_time_screen.dart](../lib/features/screentime/views/student_screen_time_screen.dart) | Warden dashboard UI. Route `Routes.studentScreenTime`. |
 | [parental_controls_card.dart](../lib/features/screentime/widgets/parental_controls_card.dart) | Lock/unlock plus one tile into each settings screen (bedtime & daily limit; blocked apps); shows "Off" when neither is set. |
 | [restrict_apps_screen.dart](../lib/features/screentime/views/restrict_apps_screen.dart), [curfew_limit_screen.dart](../lib/features/screentime/views/curfew_limit_screen.dart) | Block an app; set bedtime and daily limit (each its own screen). |
-| [device_setup_screen.dart](../lib/features/screentime/views/device_setup_screen.dart) | Student onboarding: Usage access, App blocker ("Display over other apps"), Location "all the time", Battery exemption, Protect from removal (device admin). The list shows only step names; tapping one explains it in a dialog, and the system screen opens only after the student agrees there. |
+| [device_setup_screen.dart](../lib/features/screentime/views/device_setup_screen.dart) | Student onboarding: Usage access, App blocker ("Display over other apps"), Location "all the time", Battery exemption, Protect from removal (device admin). The list shows only numbered steps, with no step name or description; tapping an unfinished one opens its system settings page directly. There is no skip: back (and the system back gesture) is a no-op until the four required steps (battery is optional, 5.5) are all done — a bypass here previously let a student keep using the app with device admin never active, so Force stop/Uninstall were never actually disabled (2026-11-27). |
 | [home_controller.dart](../lib/features/home/controllers/home_controller.dart) | On student login/resume: sends the student to setup if a required permission is missing, then calls `syncNow()` and `refreshPolicy()`. |
 | [session_store.dart](../lib/core/storage/session_store.dart) | Starts monitoring for student/leader sessions; stops it on logout. |
 
@@ -231,7 +231,7 @@ Google Play rejected the app (2026-11) for using the AccessibilityService API (l
 While HSH is an active **device admin**, Android's App info page disables **Force stop** and **Uninstall** for it. To remove the app, a student must first turn it off under Settings → Security → Device admin apps (wording varies by phone).
 
 - `res/xml/hsh_device_admin.xml` asks for **no admin policies**: the app cannot lock, wipe, or change passwords through it.
-- Setup step 5 (Protect from removal) opens the system "Activate device admin app?" screen with an explanation (`requestDeviceAdmin`). It is required: `HomeController` sends the student back to setup while it is off.
+- Setup step 5 (Protect from removal) opens the system "Activate device admin app?" screen with an explanation (`requestDeviceAdmin`). It is required: `HomeController` sends the student back to setup while it is off, and (since 2026-11-27) the setup screen itself can no longer be skipped or backed out of before it's done — closing a gap where a student could leave setup early, never activate the admin, and uninstall the app with no confirmation at all.
 - Turning it off shows Android's confirmation with our warning (`onDisableRequested`) and triggers an immediate ping, so `compliance.deviceAdminActive: false` is sent. The student's **Monitoring** section shows "Removal protection: Off", and the install pill shows Uninstalled / Protection off (section 7).
 - Logout and alumni (`ScreenTimeSync.stop`) remove the admin, so the phone can uninstall the app normally.
 - **Turning it off is blocked while signed in**, in two ways:
@@ -247,6 +247,38 @@ While HSH is an active **device admin**, Android's App info page disables **Forc
 2. On an `admin_protected` event, or when `compliance.deviceAdminActive` changes to `false`, send a push notification to the student's wardens/leaders ("<name> tried to turn off HSH removal protection") and show it in the Screen Time alerts.
 3. Uninstall can only be inferred: alert when a student with an active session sends no ping for a set time (for example 30 minutes with no ping after the last one had `deviceAdminActive: false`).
 4. Keep returning the latest `compliance` on `GET /screen-time/students` and `/live` (already done today): the student's Monitoring section and the install pill read it.
+
+### 5.7a Removal codes (break-glass uninstall, 2026-11-27)
+
+A warden-issued one-time 6-digit code lets a student turn off removal protection themselves — for a genuine uninstall or phone handover — without a warden needing to be physically at the phone and without weakening the block in 5.7 otherwise. Warden side: `ParentalControlsCard.generateRemovalCode` (hidden for leaders, the server answers 403). Student side: the code field on `BlockedAppActivity`'s `ADMIN_PROTECTED` screen and `RemovalCodeVerifier`.
+
+1. `POST /screen-time/removal-codes` (**warden / admin only**), body `{"student_id": "<numeric students.id>"}` → `{"success": true, "data": {"code": "483920", "expiresAt": "…Z"}}`. Valid 10 minutes and 5 tries; a new code cancels the previous one.
+2. `POST /screen-time/removal-codes/verify` (the student's own bearer token), body `{"code": "483920", "purpose": "removal" | "setup"}` (`purpose` optional; the app does not send it yet, so the audit log records `device`) → `{"valid": true}` or `{"valid": false}`. Any other shape or a non-2xx status is `false` (`RemovalCodeVerifier` never treats an error as a pass).
+3. The server logs who issued each code and when and for what it was redeemed, and raises a `code_redeemed` Screen Time alert ("Warden code used").
+
+**The same code also gates the other three required steps** (usage access, app rules, location — not the optional battery step), from the Flutter side rather than native Kotlin, since those don't have a device-admin-style OS confirmation screen to cover. `SessionStore.requiredSetupEverCompleted` remembers (per install, cleared on logout) once all four required steps have ever been granted at once; after that, `device_setup_screen.dart` treats any one of them turning back off as a regression — not a first-time setup — and locks the step list behind the same 6-digit code (verified via `ScreenTimeRepository.verifyRemovalCode`, the same `POST /screen-time/removal-codes/verify` above) before the student can redo it. A brand-new student who has never finished setup is unaffected; this only engages after a regression.
+
+### 5.7b Login gate from the second login onward (2026-11-27)
+
+By policy, a student's/leader's **first ever login is free; every login after that needs a warden-issued code** — this is deliberately broader than "only after a detected reinstall": it also covers a student simply logging out and back in, an expired/cleared local session, or a new phone, not just evasion attempts. Resuming an already-stored session (the common case — the app reopening with a valid cached token, handled in `SplashController`, never touching `/auth/login`) is **not** a login and is never gated; this only applies when credentials are submitted fresh, i.e. `POST /auth/login` (and `/auth/auto-login`) for `student`/`leader` roles. Admin, warden and staff accounts must never be gated by this — practically all of them need to already be able to log in to issue a code in the first place.
+
+`LoginRequest` carries an optional `code`; `LoginController.login()` sends it once the server has asked for one.
+
+1. A student's / leader's later login without a right code gets HTTP `428` `{"requires_code": true, "message": "…"}` and no token.
+2. The code is the one from §5.7a. A correct code completes the login and is used up.
+3. Alumni, staff and viewer logins are not gated. Admin and operator logins use their own code (§5.7c). The server switch `LOGIN_CODE_GATE=off` turns this gate off.
+
+### 5.7c Admin login code on WhatsApp (2026-11-27)
+
+Admin access is granted **only** by a 6-digit code the server sends on WhatsApp to both **7984907753** and **9712977261**. Typing any number in `AppConfig.allowedAdminPhoneNumbers` and tapping Sign In sends `username: "admin"`; the server answers `428` and the form shows **Admin code** with **Send a new code**. The code is valid 5 minutes and 5 tries; at most one a minute and five an hour.
+
+- The app must never create an admin session by itself. A SIM with an administrator number only fills in the field (no auto-login), and a failed request leaves the user signed out.
+- A student whose phone number is an administrator's is just a student.
+- Admin and operator tokens issued before this change are refused (`401`), which signs the app out. At startup `SplashController` opens the console only for a saved token carrying `otp: true`.
+- After a code login the phone stays signed in until Sign out or until the token expires (`JWT_EXPIRES_IN`); reopening the app asks for no new code.
+- If WhatsApp cannot send: on the server, `node dist/scripts/adminCode.js` prints a code.
+- Only a platform admin can link or unlink the shared WhatsApp number the codes come from.
+
 
 ---
 

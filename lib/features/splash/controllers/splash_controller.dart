@@ -1,3 +1,4 @@
+import 'dart:convert';
 import 'package:get/get.dart';
 import '../../../core/constants/app_config.dart';
 import '../../../core/enums/user_role.dart';
@@ -44,9 +45,11 @@ class SplashController extends GetxController {
     final session = await _sessionStore.userSession;
     final role = session?.role ?? await _sessionStore.role;
 
-    // Restrict Admin access to authorized mobile numbers only
+    // Restrict Admin access to authorized mobile numbers only, signed in with
+    // the WhatsApp code
     if (role == UserRole.admin || role == UserRole.warden) {
-      if (!AppConfig.isAllowedAdminPhone(session?.phone)) {
+      if (!AppConfig.isAllowedAdminPhone(session?.phone) ||
+          !isCodeVerifiedAdminToken(token)) {
         await _sessionStore.logout();
         Get.offAllNamed(Routes.login);
         return;
@@ -67,6 +70,21 @@ class SplashController extends GetxController {
       role == UserRole.unknown ? UserRole.student : role,
       isAlumni: isAlumni,
     );
+  }
+
+  /// Whether [token] is one the server issued after the admin code (its
+  /// payload carries `otp: true`). Only decides what to show at startup; the
+  /// server verifies the token on every request.
+  static bool isCodeVerifiedAdminToken(String token) {
+    try {
+      final payload = utf8.decode(
+        base64Url.decode(base64Url.normalize(token.split('.')[1])),
+      );
+      final claims = jsonDecode(payload);
+      return claims is Map && claims['otp'] == true;
+    } catch (_) {
+      return false;
+    }
   }
 
   /// Launched by tapping a caller-ID popup: land on the phonebook with that student.

@@ -29,12 +29,14 @@ class ScreenTimeAlert {
   static const typeAdminProtected = 'admin_protected';
   static const typeAdminDisabled = 'admin_disabled';
   static const typeSuspectedUninstall = 'suspected_uninstall';
+  static const typeCodeRedeemed = 'code_redeemed';
 
   /// Short title shown on the card.
   String get title => switch (type) {
         typeAdminProtected => 'Removal attempt blocked',
         typeAdminDisabled => 'Protection turned off',
         typeSuspectedUninstall => 'App may be uninstalled',
+        typeCodeRedeemed => 'Warden code used',
         _ => 'Screen time alert',
       };
 

@@ -170,4 +170,39 @@ void main() {
       );
     });
   });
+
+  group('removal codes', () {
+    test('generateRemovalCode sends the student id and reads code/expiresAt from data', () async {
+      api.on('POST /screen-time/removal-codes', {
+        'data': {'code': '483920', 'expiresAt': '2026-11-27T10:15:00Z'},
+      });
+
+      final result = await repo.generateRemovalCode('903');
+
+      expect(api.last('POST /screen-time/removal-codes').data, {'student_id': '903'});
+      expect(result, {'code': '483920', 'expiresAt': '2026-11-27T10:15:00Z'});
+    });
+
+    test('generateRemovalCode throws on failure', () async {
+      api.on('POST /screen-time/removal-codes', {'message': 'No such student'}, status: 404);
+      expect(() => repo.generateRemovalCode('903'), throwsA(isA<ApiException>()));
+    });
+
+    test('verifyRemovalCode is true only on an explicit valid:true', () async {
+      api.on('POST /screen-time/removal-codes/verify', {'valid': true});
+      expect(await repo.verifyRemovalCode('483920'), isTrue);
+      expect(api.last('POST /screen-time/removal-codes/verify').data, {'code': '483920'});
+    });
+
+    test('verifyRemovalCode is false on valid:false, a missing field, or a failed call', () async {
+      api.on('POST /screen-time/removal-codes/verify', {'valid': false});
+      expect(await repo.verifyRemovalCode('000000'), isFalse);
+
+      api.on('POST /screen-time/removal-codes/verify', {'message': 'nope'});
+      expect(await repo.verifyRemovalCode('111111'), isFalse);
+
+      api.on('POST /screen-time/removal-codes/verify', {'message': 'Expired'}, status: 410);
+      expect(await repo.verifyRemovalCode('222222'), isFalse);
+    });
+  });
 }

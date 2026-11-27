@@ -47,4 +47,19 @@ void main() {
     expect(find.text(step), findsOneWidget);
     await close(tester);
   });
+
+  testWidgets('there is no way to skip the required steps', (tester) async {
+    await openSetup(tester);
+
+    // No bypass button of any kind.
+    expect(find.text('Set up later'), findsNothing);
+    expect(find.text('Skip'), findsNothing);
+
+    // The system (hardware/gesture) back button is a no-op while steps are
+    // incomplete: the screen is still showing afterwards, not popped.
+    await tester.binding.handlePopRoute();
+    await tester.pumpAndSettle();
+    expect(find.text(step), findsOneWidget);
+    await close(tester);
+  });
 }

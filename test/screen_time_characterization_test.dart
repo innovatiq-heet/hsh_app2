@@ -302,6 +302,31 @@ void main() {
       expect(c.playStoreBlocked.value, isFalse);
     });
 
+    test('generating a removal code sends the student id and returns the code', () async {
+      replies['POST /screen-time/removal-codes'] = (o) {
+        expect(o.data, {'student_id': '$studentId'});
+        return {
+          'success': true,
+          'data': {'code': '483920', 'expiresAt': '2026-11-27T10:15:00Z'},
+        };
+      };
+      final c = await openStudent();
+
+      final result = await c.generateRemovalCode();
+
+      expect(result['code'], '483920');
+      expect(result['expiresAt'], '2026-11-27T10:15:00Z');
+      expect(c.isGeneratingRemovalCode.value, isFalse);
+    });
+
+    test('a failed removal-code request throws and clears the loading flag', () async {
+      replies['POST /screen-time/removal-codes'] = (_) => fail;
+      final c = await openStudent();
+
+      await expectLater(c.generateRemovalCode(), throwsA(anything));
+      expect(c.isGeneratingRemovalCode.value, isFalse);
+    });
+
     test('curfew and daily limit send exactly those three fields', () async {
       final c = await openStudent();
       await c.updateCurfewAndLimit(limitMinutes: 120, startBedtime: '22:30', endBedtime: '05:30');

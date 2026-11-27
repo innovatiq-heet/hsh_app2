@@ -3,6 +3,7 @@ import 'package:get/get.dart';
 import '../../../core/constants/app_colors.dart';
 import '../../../core/constants/app_dimens.dart';
 import '../../../core/constants/app_text_styles.dart';
+import '../../../core/utils/app_snackbar.dart';
 import '../../shared/widgets/app_button.dart';
 import '../../shared/widgets/app_card.dart';
 import '../controllers/screen_time_utils.dart';
@@ -161,6 +162,20 @@ class ParentalControlsCard extends StudentDetailWidget {
                         onPressed: () => _confirmInstallPass(context),
                       ),
                   ],
+
+                  // Removal protection (device admin): a one-time code lets the
+                  // student turn it off themselves for a genuine uninstall or
+                  // handover, without a warden needing to be at the phone.
+                  if (controller.canIssueRemovalCode) ...[
+                    const SizedBox(height: AppDimens.gapLg),
+                    AppButton(
+                      label: 'Generate removal code',
+                      icon: Icons.vpn_key_rounded,
+                      variant: AppButtonVariant.outline,
+                      isLoading: controller.isGeneratingRemovalCode.value,
+                      onPressed: controller.isSelfDevice ? null : () => _confirmRemovalCode(context),
+                    ),
+                  ],
                 ],
               ),
             ),
@@ -216,6 +231,84 @@ class ParentalControlsCard extends StudentDetailWidget {
       ),
     );
     if (ok == true) controller.toggleDeviceLock(lock);
+  }
+
+  /// Confirms, generates a one-time 6-digit code (`generateRemovalCode`),
+  /// then shows it once so it can be read to the student directly. The code
+  /// turns off removal protection on their phone when they enter it there —
+  /// see `docs/PARENT_CONTROL_DOCS.md` §5.7.
+  Future<void> _confirmRemovalCode(BuildContext context) async {
+    final name = controller.selectedStudent.value is Map
+        ? (controller.selectedStudent.value['name'] ?? 'this student').toString()
+        : 'this student';
+    final ok = await Get.dialog<bool>(
+      AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(AppDimens.radiusLg)),
+        title: const Text('Generate removal code?'),
+        content: Text(
+          'This creates a one-time code that lets $name turn off removal protection on their own '
+          'phone and uninstall the app. Only generate it for a genuine uninstall or phone handover — '
+          'anyone who has the code can use it, so read it to $name directly rather than sending it '
+          'where others could see it.',
+          style: AppTextStyles.bodyMd.copyWith(color: AppColors.textSecondary),
+        ),
+        actions: [
+          TextButton(onPressed: () => Get.back(result: false), child: const Text('Cancel')),
+          AppButton(
+            label: 'Generate code',
+            icon: Icons.vpn_key_rounded,
+            variant: AppButtonVariant.primary,
+            expand: false,
+            onPressed: () => Get.back(result: true),
+          ),
+        ],
+      ),
+    );
+    if (ok != true) return;
+
+    try {
+      final result = await controller.generateRemovalCode();
+      final code = (result['code'] ?? '').toString();
+      final expiresAt = (result['expiresAt'] ?? result['expires_at'] ?? '').toString();
+      if (code.isEmpty) throw StateError('removal code response had no code');
+      if (!context.mounted) return;
+      await Get.dialog<void>(
+        AlertDialog(
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(AppDimens.radiusLg)),
+          title: const Text('Removal code'),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Center(
+                child: Text(
+                  code,
+                  style: AppTextStyles.displayMd.copyWith(letterSpacing: 6, fontWeight: FontWeight.bold),
+                ),
+              ),
+              const SizedBox(height: AppDimens.gapMd),
+              if (expiresAt.isNotEmpty)
+                Text(
+                  'Expires $expiresAt · usable once.',
+                  textAlign: TextAlign.center,
+                  style: AppTextStyles.bodySm.copyWith(color: AppColors.textSecondary),
+                ),
+              const SizedBox(height: AppDimens.gapSm),
+              Text(
+                'Read this to $name directly. Do not post or forward it.',
+                textAlign: TextAlign.center,
+                style: AppTextStyles.bodySm.copyWith(color: AppColors.textSecondary),
+              ),
+            ],
+          ),
+          actions: [
+            AppButton(label: 'Done', expand: false, onPressed: () => Get.back()),
+          ],
+        ),
+      );
+    } catch (e) {
+      AppSnackbar.error('Failed', 'Could not generate a removal code.');
+    }
   }
 
   Future<void> _confirmPlayStore(BuildContext context, {required bool block}) async {

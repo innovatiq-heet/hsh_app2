@@ -261,6 +261,12 @@ class BlockedAppActivity : Activity() {
         }
         cardLayout.addView(pkgView, pkgLp)
 
+        // Removal code entry (only for the device-admin-deactivation screen): a warden-issued
+        // one-time code lets the student turn off removal protection themselves.
+        if (blockReason == BlockReason.ADMIN_PROTECTED) {
+            addRemovalCodeEntry(cardLayout)
+        }
+
         // Request Approval Button (when app is blocked / restricted or installer blocked)
         if (blockReason == BlockReason.APP_BLOCKED || blockReason == BlockReason.INSTALLER_BLOCKED) {
             val reqBtn = Button(this).apply {
@@ -519,6 +525,91 @@ class BlockedAppActivity : Activity() {
     }
 
 
+
+    /**
+     * A 6-digit code field + submit button, for the device-admin-deactivation screen only. A
+     * valid code (checked against the server, see [RemovalCodeVerifier]) turns off removal
+     * protection on this phone right away and sends the student home; a wrong or missing code
+     * does nothing (stays blocked, same as tapping nothing at all).
+     */
+    private fun addRemovalCodeEntry(cardLayout: LinearLayout) {
+        val label = TextView(this).apply {
+            text = "Have a code from your warden?"
+            textSize = 13f
+            setTextColor(Color.parseColor("#B0B0B0"))
+            gravity = Gravity.CENTER_HORIZONTAL
+        }
+        cardLayout.addView(
+            label,
+            LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.WRAP_CONTENT,
+                LinearLayout.LayoutParams.WRAP_CONTENT,
+            ).apply { topMargin = dp(20) },
+        )
+
+        val codeInput = android.widget.EditText(this).apply {
+            hint = "6-digit code"
+            inputType = android.text.InputType.TYPE_CLASS_NUMBER
+            filters = arrayOf(android.text.InputFilter.LengthFilter(6))
+            gravity = Gravity.CENTER
+            textSize = 20f
+            letterSpacing = 0.3f
+            setTextColor(Color.WHITE)
+            setHintTextColor(Color.parseColor("#666666"))
+            val bg = GradientDrawable().apply {
+                setColor(Color.parseColor("#2A2A2A"))
+                cornerRadius = dp(10).toFloat()
+                setStroke(dp(1), Color.parseColor("#444444"))
+            }
+            background = bg
+            val pad = dp(12)
+            setPadding(pad, pad, pad, pad)
+        }
+        cardLayout.addView(
+            codeInput,
+            LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT)
+                .apply { topMargin = dp(8) },
+        )
+
+        val submitBtn = Button(this).apply {
+            text = "Submit code"
+            textSize = 14f
+            setTextColor(Color.WHITE)
+            setTypeface(Typeface.DEFAULT_BOLD)
+            val bg = GradientDrawable().apply {
+                setColor(Color.parseColor("#16A34A"))
+                cornerRadius = dp(12).toFloat()
+            }
+            background = bg
+        }
+        submitBtn.setOnClickListener {
+            val code = codeInput.text.toString().trim()
+            if (code.length != 6) {
+                android.widget.Toast.makeText(this, "Enter the 6-digit code your warden gave you", android.widget.Toast.LENGTH_SHORT).show()
+                return@setOnClickListener
+            }
+            submitBtn.isEnabled = false
+            submitBtn.text = "Checking…"
+            RemovalCodeVerifier.verify(this, code) { valid ->
+                runOnUiThread {
+                    if (valid) {
+                        HshDeviceAdmin.remove(this)
+                        android.widget.Toast.makeText(this, "Removal protection turned off", android.widget.Toast.LENGTH_LONG).show()
+                        goToHomeScreen()
+                    } else {
+                        submitBtn.isEnabled = true
+                        submitBtn.text = "Submit code"
+                        android.widget.Toast.makeText(this, "Wrong or expired code", android.widget.Toast.LENGTH_SHORT).show()
+                    }
+                }
+            }
+        }
+        cardLayout.addView(
+            submitBtn,
+            LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, dp(48))
+                .apply { topMargin = dp(10) },
+        )
+    }
 
     private fun dp(value: Int): Int {
         return TypedValue.applyDimension(

@@ -25,6 +25,7 @@ class SessionStore extends GetxService {
   static const _kUserSession = 'user_session';
   static const _kStudentProfile = 'student_profile';
   static const _kLastAttendanceDate = 'last_attendance_date';
+  static const _kRequiredSetupEverCompleted = 'required_setup_ever_completed';
 
   SharedPreferences? _prefs;
 
@@ -72,7 +73,10 @@ class SessionStore extends GetxService {
 
       _cachedLastAttendanceDate = prefs.getString(_kLastAttendanceDate);
     } catch (e) {
-      developer.log('Failed to initialize SharedPreferences: $e', name: 'SessionStore');
+      developer.log(
+        'Failed to initialize SharedPreferences: $e',
+        name: 'SessionStore',
+      );
     }
   }
 
@@ -91,6 +95,23 @@ class SessionStore extends GetxService {
 
   /// Synchronous check if current session is an alumni / former resident.
   bool get isAlumni => _cachedSession?.isAlumni ?? false;
+
+  /// Whether the four required device-setup steps (usage access, app rules,
+  /// location "allow all the time", device admin — not the optional battery
+  /// step) have ever all been granted at once on this install. Once true, a
+  /// later regression (one turned back off) requires a warden override code
+  /// to resume, instead of a student quietly re-granting it themselves.
+  /// Cleared on logout so a different student signing into a handed-down
+  /// phone starts fresh.
+  Future<bool> get requiredSetupEverCompleted async {
+    final prefs = await _instance;
+    return prefs.getBool(_kRequiredSetupEverCompleted) ?? false;
+  }
+
+  Future<void> markRequiredSetupCompleted() async {
+    final prefs = await _instance;
+    await prefs.setBool(_kRequiredSetupEverCompleted, true);
+  }
 
   /// Asynchronous check if active user session is an alumni / former resident.
   Future<bool> get isAlumniUser async {
@@ -120,12 +141,13 @@ class SessionStore extends GetxService {
     final resolvedRoom = UserSession.isValidHostelRoom(room)
         ? room!.trim()
         : (UserSession.isValidHostelRoom(effectiveProfile?.room)
-            ? effectiveProfile!.room.trim()
-            : (room ?? ''));
+              ? effectiveProfile!.room.trim()
+              : (room ?? ''));
     final hasValidRoom = UserSession.isValidHostelRoom(resolvedRoom);
     final isHardcodedAlumni =
         (studentCode ?? '').trim().replaceFirst(RegExp(r'^0+'), '') == '345';
-    final computedIsAlumni = canBeAlumni &&
+    final computedIsAlumni =
+        canBeAlumni &&
         (isHardcodedAlumni ||
             (!hasValidRoom &&
                 (isAlumni == true ||
@@ -159,10 +181,16 @@ class SessionStore extends GetxService {
         prefs.setString(_kToken, token),
         prefs.setString(_kUserSession, jsonEncode(session.toJson())),
         if (effectiveProfile != null)
-          prefs.setString(_kStudentProfile, jsonEncode(effectiveProfile.toJson())),
+          prefs.setString(
+            _kStudentProfile,
+            jsonEncode(effectiveProfile.toJson()),
+          ),
       ]);
     } catch (e) {
-      developer.log('Error saving session to SharedPreferences: $e', name: 'SessionStore');
+      developer.log(
+        'Error saving session to SharedPreferences: $e',
+        name: 'SessionStore',
+      );
     }
 
     // Set authorization on ApiClient
@@ -201,10 +229,16 @@ class SessionStore extends GetxService {
       final prefs = await _instance;
       await prefs.setString(_kStudentProfile, jsonEncode(profile.toJson()));
       if (_cachedSession != null) {
-        await prefs.setString(_kUserSession, jsonEncode(_cachedSession!.toJson()));
+        await prefs.setString(
+          _kUserSession,
+          jsonEncode(_cachedSession!.toJson()),
+        );
       }
     } catch (e) {
-      developer.log('Error updating student profile in SharedPreferences: $e', name: 'SessionStore');
+      developer.log(
+        'Error updating student profile in SharedPreferences: $e',
+        name: 'SessionStore',
+      );
     }
   }
 
@@ -228,9 +262,13 @@ class SessionStore extends GetxService {
         prefs.remove(_kUserSession),
         prefs.remove(_kStudentProfile),
         prefs.remove(_kLastAttendanceDate),
+        prefs.remove(_kRequiredSetupEverCompleted),
       ]);
     } catch (e) {
-      developer.log('Error clearing SharedPreferences on logout: $e', name: 'SessionStore');
+      developer.log(
+        'Error clearing SharedPreferences on logout: $e',
+        name: 'SessionStore',
+      );
     }
 
     // 2. Clear ApiClient authorization
@@ -315,7 +353,8 @@ class SessionStore extends GetxService {
   }
 
   Future<String?> get cachedAadhar async {
-    if (_cachedStudentProfile != null && _cachedStudentProfile!.aadhar.isNotEmpty) {
+    if (_cachedStudentProfile != null &&
+        _cachedStudentProfile!.aadhar.isNotEmpty) {
       return _cachedStudentProfile!.aadhar;
     }
     await _ensureProfileLoaded();
@@ -324,14 +363,13 @@ class SessionStore extends GetxService {
 
   Future<void> cacheAadhar(String aadhar) async {
     if (_cachedStudentProfile != null) {
-      await saveStudentProfile(
-        _cachedStudentProfile!.copyWith(aadhar: aadhar),
-      );
+      await saveStudentProfile(_cachedStudentProfile!.copyWith(aadhar: aadhar));
     }
   }
 
   Future<String?> get cachedPhone async {
-    if (_cachedStudentProfile != null && _cachedStudentProfile!.phone.isNotEmpty) {
+    if (_cachedStudentProfile != null &&
+        _cachedStudentProfile!.phone.isNotEmpty) {
       return _cachedStudentProfile!.phone;
     }
     if (_cachedSession != null && _cachedSession!.phone.isNotEmpty) {
@@ -348,7 +386,8 @@ class SessionStore extends GetxService {
   }
 
   Future<String?> get cachedStudentCode async {
-    if (_cachedStudentProfile != null && _cachedStudentProfile!.bankCode.isNotEmpty) {
+    if (_cachedStudentProfile != null &&
+        _cachedStudentProfile!.bankCode.isNotEmpty) {
       return _cachedStudentProfile!.bankCode;
     }
     if (_cachedSession != null && _cachedSession!.studentCode.isNotEmpty) {
@@ -362,12 +401,16 @@ class SessionStore extends GetxService {
     if (_cachedSession != null) {
       _cachedSession = _cachedSession!.copyWith(studentCode: code);
       final prefs = await _instance;
-      await prefs.setString(_kUserSession, jsonEncode(_cachedSession!.toJson()));
+      await prefs.setString(
+        _kUserSession,
+        jsonEncode(_cachedSession!.toJson()),
+      );
     }
   }
 
   Future<String?> get cachedBloodGroup async {
-    if (_cachedStudentProfile != null && _cachedStudentProfile!.bloodGroup.isNotEmpty) {
+    if (_cachedStudentProfile != null &&
+        _cachedStudentProfile!.bloodGroup.isNotEmpty) {
       return _cachedStudentProfile!.bloodGroup;
     }
     await _ensureProfileLoaded();
@@ -381,7 +424,8 @@ class SessionStore extends GetxService {
   }
 
   Future<String?> get cachedVehicleNumber async {
-    if (_cachedStudentProfile != null && _cachedStudentProfile!.vehicleNumber.isNotEmpty) {
+    if (_cachedStudentProfile != null &&
+        _cachedStudentProfile!.vehicleNumber.isNotEmpty) {
       return _cachedStudentProfile!.vehicleNumber;
     }
     await _ensureProfileLoaded();
@@ -390,12 +434,15 @@ class SessionStore extends GetxService {
 
   Future<void> cacheVehicleNumber(String vehicle) async {
     if (_cachedStudentProfile != null) {
-      await saveStudentProfile(_cachedStudentProfile!.copyWith(vehicleNumber: vehicle));
+      await saveStudentProfile(
+        _cachedStudentProfile!.copyWith(vehicleNumber: vehicle),
+      );
     }
   }
 
   Future<String?> get cachedRoom async {
-    if (_cachedStudentProfile != null && _cachedStudentProfile!.room.isNotEmpty) {
+    if (_cachedStudentProfile != null &&
+        _cachedStudentProfile!.room.isNotEmpty) {
       return _cachedStudentProfile!.room;
     }
     if (_cachedSession != null && _cachedSession!.room.isNotEmpty) {
@@ -407,9 +454,7 @@ class SessionStore extends GetxService {
 
   Future<void> cacheRoom(String room) async {
     if (_cachedStudentProfile != null) {
-      await saveStudentProfile(
-        _cachedStudentProfile!.copyWith(room: room),
-      );
+      await saveStudentProfile(_cachedStudentProfile!.copyWith(room: room));
     }
   }
 
@@ -435,14 +480,18 @@ class SessionStore extends GetxService {
 
   Future<void> saveMarkedSessionTime(String sessionKey, DateTime time) async {
     final prefs = await _instance;
-    await prefs.setString('att_session_time_$sessionKey', time.toIso8601String());
+    await prefs.setString(
+      'att_session_time_$sessionKey',
+      time.toIso8601String(),
+    );
   }
 
   Future<DateTime?> getMarkedSessionTime(String sessionKey) async {
     try {
       final prefs = await _instance;
       final today = DateTime.now();
-      final todayStr = '${today.year}-${today.month.toString().padLeft(2, '0')}-${today.day.toString().padLeft(2, '0')}';
+      final todayStr =
+          '${today.year}-${today.month.toString().padLeft(2, '0')}-${today.day.toString().padLeft(2, '0')}';
       final savedDate = prefs.getString('att_session_date_$sessionKey');
       if (savedDate != todayStr) return null;
       final timeStr = prefs.getString('att_session_time_$sessionKey');
@@ -482,7 +531,8 @@ class SessionStore extends GetxService {
     return null;
   }
 
-  Future<bool> get hasSession async => (await token) != null && (await token)!.isNotEmpty;
+  Future<bool> get hasSession async =>
+      (await token) != null && (await token)!.isNotEmpty;
 
   Future<void> _ensureSessionLoaded() async {
     if (_cachedSession != null) return;

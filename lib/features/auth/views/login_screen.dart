@@ -214,6 +214,37 @@ class _FormPanel extends StatelessWidget {
               keyboardType: TextInputType.text,
               validator: controller.validateStudentId,
             ),
+            Obx(() {
+              if (!controller.needsLoginCode.value) return const SizedBox.shrink();
+              final isAdmin = controller.isAdminCode.value;
+              return Padding(
+                padding: const EdgeInsets.only(top: AppDimens.gapMd),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    AppTextField(
+                      controller: controller.loginCodeController,
+                      label: isAdmin ? 'Admin code' : 'Warden code',
+                      hint: isAdmin
+                          ? '6-digit code sent on WhatsApp'
+                          : '6-digit code from your warden',
+                      prefixIcon: Icons.vpn_key_rounded,
+                      keyboardType: TextInputType.number,
+                    ),
+                    if (isAdmin)
+                      Align(
+                        alignment: Alignment.centerRight,
+                        child: TextButton(
+                          onPressed: controller.isLoading.value
+                              ? null
+                              : controller.resendAdminCode,
+                          child: const Text('Send a new code'),
+                        ),
+                      ),
+                  ],
+                ),
+              );
+            }),
             const SizedBox(height: AppDimens.gapXl),
             Obx(
               () => AppButton(

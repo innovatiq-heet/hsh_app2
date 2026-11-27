@@ -11,7 +11,6 @@ import '../../../core/network/api_exception.dart';
 import '../../../core/network/repository/authentication/auth_repository.dart';
 import '../../../core/network/repository/student_profile/student_profile_repository.dart';
 import '../../../core/network/request/authentication/login_request.dart';
-import '../../../core/network/responses/authentication/auth_session_response.dart';
 import '../../../core/models/auth/user_session.dart';
 import '../../../core/models/student_profile/student_profile_model.dart';
 import '../../../core/storage/session_store.dart';
@@ -26,9 +25,23 @@ class LoginController extends GetxController {
 
   final formKey = GlobalKey<FormState>();
   final TextEditingController studentIdController = TextEditingController();
+  final TextEditingController loginCodeController = TextEditingController();
 
   final isLoading = false.obs;
   final errorMessage = ''.obs;
+
+  /// True once the server has said this login needs a code (a student's or
+  /// leader's second onward, and every admin login — see
+  /// docs/PARENT_CONTROL_DOCS.md §5.7b and §5.7c); the form then shows
+  /// [loginCodeController]'s field, and the next "Sign In" tap resends the
+  /// same credentials with it.
+  final needsLoginCode = false.obs;
+
+  /// The code being asked for is the admin one, sent on WhatsApp to the
+  /// administrator, rather than a student's warden code.
+  final isAdminCode = false.obs;
+
+  String _lastId = '';
 
   @override
   void onInit() {
@@ -40,14 +53,26 @@ class LoginController extends GetxController {
   }
 
   void _clearError() {
+    // The listener also fires on cursor and focus changes (e.g. moving to the
+    // code field); only an edit of the ID itself resets the form.
+    if (studentIdController.text == _lastId) return;
+    _lastId = studentIdController.text;
+
     if (errorMessage.value.isNotEmpty) {
       errorMessage.value = '';
+    }
+    // Editing the ID starts a different login; any pending code prompt was
+    // for the previous one.
+    if (needsLoginCode.value) {
+      needsLoginCode.value = false;
+      loginCodeController.clear();
     }
   }
 
   @override
   void onClose() {
     studentIdController.removeListener(_clearError);
+    loginCodeController.dispose();
     super.onClose();
   }
 
@@ -105,36 +130,9 @@ class LoginController extends GetxController {
       }
 
       if (adminSim != null) {
-        isLoading.value = true;
-        final adminPhone = AppConfig.normalizePhone(adminSim);
-        final apiClient = Get.find<ApiClient>();
-        AuthSessionResponse? adminSession;
-
-        try {
-          adminSession = await _authRepository.login(
-            const LoginRequest(studentId: 'admin', password: 'password123'),
-          );
-        } catch (e) {
-          debugPrint('[AutoLoginAdmin] Remote auth check: $e');
-        }
-
-        final token = (adminSession?.token.isNotEmpty == true)
-            ? adminSession!.token
-            : 'admin_session_${DateTime.now().millisecondsSinceEpoch}';
-
-        apiClient.setAuthToken(token);
-
-        await _session.saveSession(
-          token: token,
-          role: UserRole.admin,
-          email: (adminSession?.email.isNotEmpty == true) ? adminSession!.email : 'admin@hsh.org',
-          name: (adminSession?.name.isNotEmpty == true) ? adminSession!.name : 'Super Admin',
-          phone: adminPhone,
-          studentCode: adminPhone,
-          room: '',
-        );
-
-        _routeByRole(UserRole.admin);
+        // Admin sign-in needs a code sent on WhatsApp, so it is never
+        // automatic: fill in the number and let them tap Sign In.
+        studentIdController.text = AppConfig.normalizePhone(adminSim);
         return;
       }
 
@@ -251,55 +249,13 @@ class LoginController extends GetxController {
         );
       }
 
-      // Priority 1: Direct Admin login via authorized Administrator Mobile Numbers in AppConfig.allowedAdminPhoneNumbers
-      final normalizedInput = AppConfig.normalizePhone(rawInput);
-      final isAllowedAdmin = AppConfig.allowedAdminPhoneNumbers.any(
-            (adminPhone) => AppConfig.normalizePhone(adminPhone) == normalizedInput,
-          ) ||
-          AppConfig.isAllowedAdminPhone(rawInput);
+      // An administrator number signs in as Admin: the server sends a code on
+      // WhatsApp and issues a token only for that code. Nothing on this phone
+      // grants admin access by itself.
+      final isAdminLogin = AppConfig.isAllowedAdminPhone(rawInput);
+      final adminPhone = AppConfig.normalizePhone(rawInput);
 
-      if (isAllowedAdmin) {
-        final adminPhone = normalizedInput.length >= 10
-            ? normalizedInput
-            : (AppConfig.allowedAdminPhoneNumbers.contains('7778885383')
-                ? '7778885383'
-                : AppConfig.allowedAdminPhoneNumbers.first);
-        final apiClient = Get.find<ApiClient>();
-        AuthSessionResponse? adminSession;
-
-        try {
-          adminSession = await _authRepository.login(
-            const LoginRequest(studentId: 'admin', password: 'password123'),
-          );
-        } catch (e) {
-          debugPrint('[AdminMobileLogin] Remote auth check: $e');
-        }
-
-        final token = (adminSession?.token.isNotEmpty == true)
-            ? adminSession!.token
-            : 'admin_session_${DateTime.now().millisecondsSinceEpoch}';
-
-        apiClient.setAuthToken(token);
-
-        await _session.saveSession(
-          token: token,
-          role: UserRole.admin,
-          email: (adminSession?.email.isNotEmpty == true)
-              ? adminSession!.email
-              : 'admin@hsh.org',
-          name: (adminSession?.name.isNotEmpty == true)
-              ? adminSession!.name
-              : 'Super Admin',
-          phone: adminPhone,
-          studentCode: adminPhone,
-          room: '',
-        );
-
-        _routeByRole(UserRole.admin);
-        return;
-      }
-
-      String resolvedId = rawInput;
+      String resolvedId = isAdminLogin ? 'admin' : rawInput;
       String? password;
 
       if (lower == 'complainsolver' ||
@@ -317,10 +273,17 @@ class LoginController extends GetxController {
         password = 'password123';
       }
 
-      // Step 1: Authenticate credentials
+      // Step 1: Authenticate credentials (plus the code, once asked for it)
       final session = await _authRepository.login(
-        LoginRequest(studentId: resolvedId, password: password),
+        LoginRequest(
+          studentId: resolvedId,
+          password: password,
+          code: needsLoginCode.value ? loginCodeController.text.trim() : null,
+        ),
       );
+      // A successful login with a code clears the prompt for next time.
+      needsLoginCode.value = false;
+      loginCodeController.clear();
 
       if (session.token.isEmpty) {
         throw const ApiException('Invalid credentials or user not found.');
@@ -383,11 +346,17 @@ class LoginController extends GetxController {
       }
 
       // Step 4: Verification successful! Now save session & student data via SharedPreferences & OOP model
-      final effectivePhone = session.phone.isNotEmpty
+      // The splash screen keeps an admin signed in only with an admin number
+      // saved, so the typed one is stored.
+      final effectivePhone = isAdminLogin
+          ? adminPhone
+          : session.phone.isNotEmpty
           ? session.phone
           : (rawInput.length >= 10 ? rawInput : '');
 
-      final effectiveCode = session.studentCode.isNotEmpty
+      final effectiveCode = isAdminLogin
+          ? adminPhone
+          : session.studentCode.isNotEmpty
           ? session.studentCode
           : studentIdController.text.trim();
       final effectiveRoom = UserSession.isValidHostelRoom(session.room)
@@ -410,7 +379,9 @@ class LoginController extends GetxController {
       await _session.saveSession(
         token: session.token,
         role: session.role,
-        email: session.email,
+        email: isAdminLogin && session.email.isEmpty
+            ? 'admin@hsh.org'
+            : session.email,
         name: session.name,
         phone: effectivePhone,
         studentCode: effectiveCode,
@@ -422,6 +393,16 @@ class LoginController extends GetxController {
       _routeByRole(session.role, isAlumni: isAlumni);
     } on ApiException catch (e) {
       Get.find<ApiClient>().setAuthToken(null);
+      if (e.statusCode == 428) {
+        // A code is needed (or the one just entered wasn't it). Show the
+        // field, don't treat it as a credentials failure.
+        isAdminCode.value = AppConfig.isAllowedAdminPhone(
+          studentIdController.text.trim(),
+        );
+        needsLoginCode.value = true;
+        AppSnackbar.info('Code needed', e.message);
+        return;
+      }
       final friendly = _formatErrorMessage(e.message);
       _showError(friendly);
     } catch (_) {
@@ -432,6 +413,12 @@ class LoginController extends GetxController {
     } finally {
       isLoading.value = false;
     }
+  }
+
+  /// Admin only: asks for a fresh code (the server sends at most one a minute).
+  Future<void> resendAdminCode() {
+    loginCodeController.clear();
+    return login();
   }
 
   String _formatErrorMessage(String message) {

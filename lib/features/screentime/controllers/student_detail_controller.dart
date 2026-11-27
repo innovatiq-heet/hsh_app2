@@ -1460,6 +1460,13 @@ class StudentDetailController extends GetxController
     return mySession.id.isNotEmpty && mySession.id == _studentId;
   }
 
+  /// Removal codes are issued by wardens and admins only; the server refuses
+  /// leaders.
+  bool get canIssueRemovalCode {
+    if (!Get.isRegistered<SessionStore>()) return true;
+    return Get.find<SessionStore>().currentSession?.role != UserRole.leader;
+  }
+
   /// Saves only the given policy [fields] for the selected student (the PUT is
   /// a partial update), so a change made before the policy finished loading
   /// can't overwrite the student's other rules. Throws on failure so callers
@@ -1920,6 +1927,27 @@ class StudentDetailController extends GetxController
       debugPrint('[ScreenTime] revokeInstallPass error: $e');
       _applyPolicy(previous);
       AppSnackbar.error('Failed', 'Could not revoke install pass.');
+    }
+  }
+
+  /// Whether a removal-code request is in flight.
+  final RxBool isGeneratingRemovalCode = false.obs;
+
+  /// Issues a one-time 6-digit code the student can enter on their own phone
+  /// to turn off removal protection themselves (a legitimate uninstall or
+  /// handover), without a warden needing to be physically present. The
+  /// code and its expiry are returned for display; it is never stored here.
+  /// Throws on failure (e.g. `hsh_api` not supporting this endpoint yet).
+  Future<Map<String, dynamic>> generateRemovalCode() async {
+    final id = _studentId;
+    if (id.isEmpty) {
+      throw StateError('Student has not installed the monitoring app yet.');
+    }
+    isGeneratingRemovalCode.value = true;
+    try {
+      return await _repo.generateRemovalCode(id);
+    } finally {
+      isGeneratingRemovalCode.value = false;
     }
   }
 

@@ -5,6 +5,7 @@ import '../../../core/constants/app_colors.dart';
 import '../../../core/constants/app_dimens.dart';
 import '../../../core/constants/app_text_styles.dart';
 import '../../../core/enums/user_role.dart';
+import '../../../core/network/repository/screentime/screen_time_repository.dart';
 import '../../../core/services/geofence_device_service.dart';
 import '../../../core/services/screen_time_service.dart';
 import '../../../core/storage/session_store.dart';
@@ -29,7 +30,22 @@ class _DeviceSetupScreenState extends State<DeviceSetupScreen>
   bool _admin = false;
   bool _batterySkipped = false;
   bool _checking = true;
+  // Set only for a session this screen doesn't apply to (alumni/leader), so
+  // the one-time programmatic pop below isn't blocked by [canPop].
+  bool _bypass = false;
   Timer? _poll;
+  final _repo = ScreenTimeRepository();
+
+  /// Whether the four required steps have ever all been granted at once on
+  /// this install ([SessionStore.requiredSetupEverCompleted]); loaded once.
+  bool _everCompleted = false;
+
+  /// A required permission regressed (was on, now off) after [_everCompleted]:
+  /// the step list is locked until a warden code is entered.
+  bool _needsCode = false;
+  bool _verifyingCode = false;
+  String? _codeError;
+  final _codeController = TextEditingController();
 
   /// The app blocker needs "Display over other apps" (plus Usage access, step 1).
   bool get _blocker => _overlay;
@@ -44,22 +60,31 @@ class _DeviceSetupScreenState extends State<DeviceSetupScreen>
         : null;
     if (session?.isAlumni == true || session?.role == UserRole.leader) {
       ScreenTimeService.stopMonitoring();
+      _bypass = true;
       WidgetsBinding.instance.addPostFrameCallback((_) {
         if (mounted) Get.back();
       });
       return;
     }
     WidgetsBinding.instance.addObserver(this);
+    _loadEverCompleted();
     _refresh();
     // Some ROMs don't fire a lifecycle event when the Settings panel is a
     // dialog over our activity; a slow poll catches those.
     _poll = Timer.periodic(const Duration(seconds: 3), (_) => _refresh());
   }
 
+  Future<void> _loadEverCompleted() async {
+    if (!Get.isRegistered<SessionStore>()) return;
+    final done = await Get.find<SessionStore>().requiredSetupEverCompleted;
+    if (mounted) setState(() => _everCompleted = done);
+  }
+
   @override
   void dispose() {
     WidgetsBinding.instance.removeObserver(this);
     _poll?.cancel();
+    _codeController.dispose();
     super.dispose();
   }
 
@@ -77,6 +102,7 @@ class _DeviceSetupScreenState extends State<DeviceSetupScreen>
     ]);
     final location = await GeofenceDeviceService.locationPermission();
     if (!mounted) return;
+    final wasRequiredDone = _requiredDone;
     setState(() {
       _usage = results[0];
       _overlay = results[1];
@@ -85,7 +111,49 @@ class _DeviceSetupScreenState extends State<DeviceSetupScreen>
       _location = location == 'always';
       _checking = false;
     });
-    if (_allDone) _finish();
+
+    if (!wasRequiredDone && _requiredDone && !_everCompleted) {
+      // First time every required step is granted at once: remember it, so a
+      // later regression (one turned back off) needs a warden code to redo.
+      _everCompleted = true;
+      if (Get.isRegistered<SessionStore>()) {
+        await Get.find<SessionStore>().markRequiredSetupCompleted();
+      }
+    } else if (wasRequiredDone &&
+        !_requiredDone &&
+        _everCompleted &&
+        !_needsCode) {
+      // A regression: something that was on is now off. Lock the steps
+      // behind a warden code instead of letting it be quietly redone.
+      setState(() => _needsCode = true);
+    }
+
+    if (_allDone && !_needsCode) _finish();
+  }
+
+  Future<void> _verifyCode() async {
+    final code = _codeController.text.trim();
+    if (code.length != 6) {
+      setState(
+        () => _codeError = 'Enter the 6-digit code your warden gave you',
+      );
+      return;
+    }
+    setState(() {
+      _verifyingCode = true;
+      _codeError = null;
+    });
+    final valid = await _repo.verifyRemovalCode(code);
+    if (!mounted) return;
+    setState(() {
+      _verifyingCode = false;
+      if (valid) {
+        _needsCode = false;
+        _codeController.clear();
+      } else {
+        _codeError = 'Wrong or expired code';
+      }
+    });
   }
 
   void _finish() {
@@ -106,7 +174,10 @@ class _DeviceSetupScreenState extends State<DeviceSetupScreen>
     ].where((b) => b).length;
 
     return PopScope(
-      canPop: true,
+      // Required steps can't be skipped: back is a no-op until they're all
+      // done (device admin stays unprotected otherwise — a student bypassing
+      // this screen could fully uninstall the app with no confirmation).
+      canPop: _bypass || _requiredDone,
       child: Scaffold(
         backgroundColor: AppColors.mainBackground,
         body: SafeArea(
@@ -168,74 +239,77 @@ class _DeviceSetupScreenState extends State<DeviceSetupScreen>
                 ),
                 const SizedBox(height: AppDimens.gapLg),
 
-                Expanded(
-                  child: ListView(
-                    children: [
-                      _Step(
-                        index: 1,
-                        icon: Icons.query_stats_rounded,
-                        title: '',
-                        done: _usage,
-                        checking: _checking,
-                        onAction: ScreenTimeService.openUsageSettings,
-                        enabled: true,
-                      ),
-                      const SizedBox(height: AppDimens.gapMd),
-                      _Step(
-                        index: 2,
-                        icon: Icons.shield_rounded,
-                        title: '',
-                        done: _blocker,
-                        checking: _checking,
-                        onAction: ScreenTimeService.openOverlaySettings,
-                        enabled: true,
-                      ),
-                      const SizedBox(height: AppDimens.gapMd),
-                      _Step(
-                        index: 3,
-                        icon: Icons.my_location_rounded,
-                        title: '',
-                        done: _location,
-                        checking: _checking,
-                        onAction: () async {
-                          final level =
-                              await GeofenceDeviceService.requestLocationAlways();
-                          if (mounted)
-                            setState(() => _location = level == 'always');
-                        },
-                        enabled: true,
-                      ),
-                      const SizedBox(height: AppDimens.gapMd),
-                      _Step(
-                        index: 4,
-                        icon: Icons.battery_saver_rounded,
-                        title: '',
-                        done: _battery,
-                        skipped: _batterySkipped && !_battery,
-                        checking: _checking,
-                        onAction: () async {
-                          final shown =
-                              await ScreenTimeService.requestIgnoreBatteryOptimizations();
-                          // Only phones without this setting may skip it: without the
-                          // exemption Android won't restart monitoring after a Stop.
-                          if (!shown && mounted)
-                            setState(() => _batterySkipped = true);
-                        },
-                        enabled: true,
-                      ),
-                      const SizedBox(height: AppDimens.gapMd),
-                      _Step(
-                        index: 5,
-                        icon: Icons.admin_panel_settings_rounded,
-                        title: '',
-                        done: _admin,
-                        checking: _checking,
-                        onAction: ScreenTimeService.requestDeviceAdmin,
-                        enabled: true,
-                      ),
-                    ],
+                if (_needsCode)
+                  Expanded(child: _buildCodeGate())
+                else
+                  Expanded(
+                    child: ListView(
+                      children: [
+                        _Step(
+                          index: 1,
+                          // icon: Icons.query_stats_rounded,
+                          title: '',
+                          done: _usage,
+                          checking: _checking,
+                          onAction: ScreenTimeService.openUsageSettings,
+                          enabled: true,
+                        ),
+                        const SizedBox(height: AppDimens.gapMd),
+                        _Step(
+                          index: 2,
+                          // icon: Icons.shield_rounded,
+                          title: '',
+                          done: _blocker,
+                          checking: _checking,
+                          onAction: ScreenTimeService.openOverlaySettings,
+                          enabled: true,
+                        ),
+                        const SizedBox(height: AppDimens.gapMd),
+                        _Step(
+                          index: 3,
+                          // icon: Icons.my_location_rounded,
+                          title: '',
+                          done: _location,
+                          checking: _checking,
+                          onAction: () async {
+                            final level =
+                                await GeofenceDeviceService.requestLocationAlways();
+                            if (mounted)
+                              setState(() => _location = level == 'always');
+                          },
+                          enabled: true,
+                        ),
+                        const SizedBox(height: AppDimens.gapMd),
+                        _Step(
+                          index: 4,
+                          // icon: Icons.battery_saver_rounded,
+                          title: '',
+                          done: _battery,
+                          skipped: _batterySkipped && !_battery,
+                          checking: _checking,
+                          onAction: () async {
+                            final shown =
+                                await ScreenTimeService.requestIgnoreBatteryOptimizations();
+                            // Only phones without this setting may skip it: without the
+                            // exemption Android won't restart monitoring after a Stop.
+                            if (!shown && mounted)
+                              setState(() => _batterySkipped = true);
+                          },
+                          enabled: true,
+                        ),
+                        const SizedBox(height: AppDimens.gapMd),
+                        _Step(
+                          index: 5,
+                          // icon: Icons.admin_panel_settings_rounded,
+                          title: '',
+                          done: _admin,
+                          checking: _checking,
+                          onAction: ScreenTimeService.requestDeviceAdmin,
+                          enabled: true,
+                        ),
+                      ],
+                    ),
                   ),
-                ),
 
                 AppButton(
                   label: _allDone ? 'Continue' : 'Waiting for setup…',
@@ -243,18 +317,6 @@ class _DeviceSetupScreenState extends State<DeviceSetupScreen>
                   onPressed: _allDone ? _finish : null,
                 ),
                 const SizedBox(height: 6),
-                TextButton(
-                  onPressed: () => Get.back(),
-                  child: const Text(
-                    'Set up later',
-                    style: TextStyle(
-                      color: AppColors.textSecondary,
-                      fontSize: 13,
-                      fontWeight: FontWeight.w600,
-                    ),
-                  ),
-                ),
-                const SizedBox(height: 2),
                 Text(
                   'Having trouble? Ask your warden for help.',
                   textAlign: TextAlign.center,
@@ -269,11 +331,69 @@ class _DeviceSetupScreenState extends State<DeviceSetupScreen>
       ),
     );
   }
+
+  /// Shown instead of the step list once a required permission that was
+  /// already granted gets turned off: the student can't just redo it
+  /// themselves, a warden has to issue a code first.
+  Widget _buildCodeGate() {
+    return Center(
+      child: SingleChildScrollView(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const Icon(
+              Icons.lock_outline_rounded,
+              size: 40,
+              color: AppColors.primary,
+            ),
+            const SizedBox(height: AppDimens.gapMd),
+            Text(
+              'Ask your warden for a code',
+              style: AppTextStyles.title,
+              textAlign: TextAlign.center,
+            ),
+            const SizedBox(height: 6),
+            Text(
+              'One of the required settings was turned off. Enter the code your '
+              'warden gives you to continue setup.',
+              style: AppTextStyles.bodyMd.copyWith(
+                color: AppColors.textSecondary,
+              ),
+              textAlign: TextAlign.center,
+            ),
+            const SizedBox(height: AppDimens.gapLg),
+            TextField(
+              controller: _codeController,
+              keyboardType: TextInputType.number,
+              textAlign: TextAlign.center,
+              maxLength: 6,
+              style: AppTextStyles.title,
+              decoration: InputDecoration(
+                counterText: '',
+                hintText: '6-digit code',
+                errorText: _codeError,
+                border: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(AppDimens.radiusMd),
+                ),
+              ),
+            ),
+            const SizedBox(height: AppDimens.gapMd),
+            AppButton(
+              label: 'Submit code',
+              icon: Icons.check_rounded,
+              isLoading: _verifyingCode,
+              onPressed: _verifyingCode ? null : _verifyCode,
+            ),
+          ],
+        ),
+      ),
+    );
+  }
 }
 
 class _Step extends StatelessWidget {
   final int index;
-  final IconData icon;
+  // final IconData icon;
   final String title;
   final bool done;
   final bool skipped;
@@ -283,7 +403,7 @@ class _Step extends StatelessWidget {
 
   const _Step({
     required this.index,
-    required this.icon,
+    // required this.icon,
     required this.title,
     required this.done,
     this.skipped = false,
@@ -330,11 +450,11 @@ class _Step extends StatelessWidget {
                   color: color.withValues(alpha: 0.12),
                   shape: BoxShape.circle,
                 ),
-                child: Icon(
-                  done ? Icons.check_rounded : icon,
-                  color: color,
-                  size: 22,
-                ),
+                // child: Icon(
+                //   done ? Icons.check_rounded : icon,
+                //   color: color,
+                //   size: 22,
+                // ),
               ),
               const SizedBox(width: 12),
               Expanded(

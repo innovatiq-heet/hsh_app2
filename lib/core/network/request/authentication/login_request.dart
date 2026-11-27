@@ -3,10 +3,17 @@ class LoginRequest {
   final String? email;
   final String? password;
 
+  /// A warden-issued 6-digit code, required from a student's/leader's second
+  /// login onward (`AuthRepository.login` throws with `statusCode: 428` when
+  /// one is needed but missing or wrong — see docs/PARENT_CONTROL_DOCS.md
+  /// §5.7a). Omitted (not sent at all) on a first attempt with no code yet.
+  final String? code;
+
   const LoginRequest({
     String? studentId,
     String? email,
     this.password,
+    this.code,
   })  : studentId = studentId ?? email ?? '',
         email = email ?? studentId;
 
@@ -16,6 +23,7 @@ class LoginRequest {
         'student_id': studentId,
         'email': email ?? studentId,
         'password': password ?? '',
+        if (code != null && code!.trim().isNotEmpty) 'code': code!.trim(),
       };
 }
 

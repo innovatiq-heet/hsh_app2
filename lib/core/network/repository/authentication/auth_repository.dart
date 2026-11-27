@@ -72,6 +72,16 @@ class AuthRepository extends BaseRepository {
       } catch (_) {}
     }
 
+    // A student/leader's second login onward needs a warden-issued code
+    // (docs/PARENT_CONTROL_DOCS.md §5.7a); `statusCode: 428` lets
+    // LoginController tell this apart from a plain wrong-credentials error.
+    if (parsed is Map && parsed['requires_code'] == true) {
+      throw ApiException(
+        (parsed['message'] ?? "Enter the code your warden gave you.").toString(),
+        statusCode: 428,
+      );
+    }
+
     if (parsed is Map) {
       final success = parsed['success'];
       final status = parsed['status'];

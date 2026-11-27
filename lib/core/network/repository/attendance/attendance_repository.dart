@@ -54,6 +54,16 @@ class AttendanceRepository {
     ]);
   }
 
+  /// Extracts machine-readable error code from backend DioException envelope
+  String? _extractErrorCode(DioException e) {
+    final data = e.response?.data;
+    if (data is Map && data['code'] != null) {
+      final code = data['code'].toString().trim();
+      if (code.isNotEmpty) return code;
+    }
+    return null;
+  }
+
   /// Extracts descriptive error message from backend DioException envelope
   String _extractErrorMessage(DioException e) {
     final data = e.response?.data;
@@ -378,15 +388,41 @@ class AttendanceRepository {
         data: request.toJson(),
         options: await _authOptions(),
       );
-      final rawData = response.data['data'];
-      final record = AttendanceRecord.fromJson(
-        rawData is Map<String, dynamic> ? rawData : {'type': request.type.apiValue, 'viaCode': request.viaCode},
-      );
+      final body = response.data;
+      final rawData = body is Map ? body['data'] : null;
+      final Map<String, dynamic> recordMap;
+      if (rawData is Map<String, dynamic>) {
+        recordMap = {
+          ...rawData,
+          if (body is Map && body['phase'] != null && rawData['phase'] == null)
+            'phase': body['phase'],
+          if (body is Map && body['is_late'] != null && rawData['is_late'] == null)
+            'is_late': body['is_late'],
+          if (body is Map && body['message'] != null && rawData['message'] == null)
+            'message': body['message'],
+          if (rawData['session_key'] == null && rawData['sessionKey'] == null)
+            'session_key': request.sessionKey ?? request.type.apiValue,
+        };
+      } else {
+        recordMap = {
+          'type': request.type.apiValue,
+          'session_key': request.sessionKey ?? request.type.apiValue,
+          'viaCode': request.viaCode,
+          if (body is Map && body['phase'] != null) 'phase': body['phase'],
+          if (body is Map && body['is_late'] != null) 'is_late': body['is_late'],
+          if (body is Map && body['message'] != null) 'message': body['message'],
+        };
+      }
+      final record = AttendanceRecord.fromJson(recordMap);
       _mockMarkedToday[request.type] = record.time;
       return record;
     } on DioException catch (e) {
       if (e.response != null) {
-        throw ApiException(_extractErrorMessage(e), statusCode: e.response?.statusCode);
+        throw ApiException(
+          _extractErrorMessage(e),
+          statusCode: e.response?.statusCode,
+          code: _extractErrorCode(e),
+        );
       }
       developer.log('mark attendance connection error, recording locally', name: 'AttendanceRepo');
       final now = DateTime.now().toUtc();

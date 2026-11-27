@@ -423,8 +423,78 @@ class _AttendanceScreenState extends State<AttendanceScreen>
   Future<void> _performBleScan(
     AttendanceType type, {
     required bool isAttendanceOpen,
+    String? sessionKey,
+    int? targetPhase,
+    AttendanceScheduleItem? item,
   }) async {
-    if (controller.alreadyMarked.value) {
+    final effectiveKey = (sessionKey ?? item?.sessionKey ?? type.apiValue)
+        .toLowerCase()
+        .trim();
+    final phases =
+        controller.todaySessionPhases[effectiveKey] ?? const <int>{};
+    final isSingleAlreadyMarked = item != null
+        ? (!item.hasMultipleAttendance &&
+              item.isCompletedToday(
+                fallbackSingleMarked:
+                    controller.todaySessionStatus[effectiveKey] != null ||
+                    controller.todayStatus[type] != null,
+              ))
+        : (controller.todaySessionStatus[effectiveKey] != null ||
+              controller.todayStatus[type] != null);
+
+    if (item != null && item.hasMultipleAttendance) {
+      final p1Done = item.isPhase1Marked || phases.contains(1);
+      final p2Done = item.isPhase2Marked || phases.contains(2);
+      final resolvedPhase = targetPhase ?? item.currentOpenPhase();
+
+      if (item.isCompletedToday() || (p1Done && p2Done)) {
+        _showResultDialog(
+          title: 'Already Marked',
+          message:
+              'Your attendance for ${item.sessionName} is already complete for today.',
+          icon: Icons.info_outline_rounded,
+          color: AppColors.primary,
+          buttonLabel: 'Understood',
+        );
+        return;
+      }
+
+      if (resolvedPhase == 1 && p1Done) {
+        _showResultDialog(
+          title: '1st Attendance Marked',
+          message:
+              'You have already completed 1st attendance. Wait for the 2nd window (${item.phase2StartTime ?? '--:--'} – ${item.phase2EndTime ?? '--:--'}).',
+          icon: Icons.schedule_rounded,
+          color: AppColors.primary,
+          buttonLabel: 'Understood',
+        );
+        return;
+      }
+
+      if (resolvedPhase == 2 && !p1Done) {
+        _showResultDialog(
+          title: 'Not Eligible for 2nd Attendance',
+          message:
+              'You did not complete the 1st attendance for ${item.sessionName}, so you cannot mark the 2nd attendance.',
+          icon: Icons.block_rounded,
+          color: AppColors.cancelledRed,
+          buttonLabel: 'Understood',
+        );
+        return;
+      }
+
+      if (resolvedPhase == 2 && p2Done) {
+        _showResultDialog(
+          title: 'Already Marked',
+          message:
+              'Your 2nd attendance for ${item.sessionName} is already marked.',
+          icon: Icons.info_outline_rounded,
+          color: AppColors.primary,
+          buttonLabel: 'Understood',
+        );
+        return;
+      }
+    } else if (isSingleAlreadyMarked) {
       _showResultDialog(
         title: 'Already Marked',
         message: 'Your attendance is already marked for today.',
@@ -448,16 +518,32 @@ class _AttendanceScreenState extends State<AttendanceScreen>
     }
 
     try {
-      final record = await controller.markWithBle(type);
+      final record = await controller.markWithBle(
+        type,
+        sessionKey: effectiveKey,
+        targetPhase: targetPhase ?? item?.currentOpenPhase(),
+      );
       if (record != null) {
         if (mounted) {
+          final markedPhase = record.phase ?? targetPhase;
+          final sessionLabel = item?.sessionName ?? type.label;
+          final title = markedPhase == 2
+              ? 'Attendance Complete!'
+              : (markedPhase == 1
+                  ? '1st Attendance Marked!'
+                  : 'Attendance Marked!');
+          final subtitle = (record.message != null &&
+                  record.message!.trim().isNotEmpty)
+              ? record.message!
+              : (markedPhase == 1 && item?.phase2StartTime != null
+                  ? '1st attendance recorded. Complete 2nd attendance during ${item!.phase2StartTime} – ${item.phase2EndTime}.'
+                  : 'Your attendance for $sessionLabel has been recorded successfully.');
           NamedropAttendanceOverlay.show(
             context,
-            title: 'Attendance Marked!',
-            sessionName: type.label,
+            title: title,
+            sessionName: sessionLabel,
             eventType: type,
-            subtitle:
-                'Your attendance for ${type.label} has been recorded successfully.',
+            subtitle: subtitle,
           );
         }
       }
@@ -564,12 +650,96 @@ class _AttendanceScreenState extends State<AttendanceScreen>
     });
   }
 
+  Widget _buildPhaseMiniRow({
+    required String label,
+    required String timeRange,
+    required String statusLabel,
+    required Color statusBg,
+    required Color statusFg,
+  }) {
+    return Row(
+      children: [
+        Flexible(
+          child: Text(
+            '$label: $timeRange',
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: AppTextStyles.caption.copyWith(
+              fontSize: 11.5,
+              color: const Color(0xFF6E7D87),
+              fontWeight: FontWeight.w500,
+            ),
+          ),
+        ),
+        const SizedBox(width: 6),
+        Container(
+          padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 1.5),
+          decoration: BoxDecoration(
+            color: statusBg,
+            borderRadius: BorderRadius.circular(10),
+          ),
+          child: Text(
+            statusLabel,
+            maxLines: 1,
+            softWrap: false,
+            style: AppTextStyles.caption.copyWith(
+              color: statusFg,
+              fontSize: 10,
+              fontWeight: FontWeight.w700,
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildStatusPill({
+    required String label,
+    required Color bg,
+    required Color fg,
+    double fontSize = 12,
+    FontWeight fontWeight = FontWeight.w600,
+  }) {
+    return Container(
+      padding: const EdgeInsets.symmetric(
+        horizontal: 9,
+        vertical: 5.5,
+      ),
+      decoration: BoxDecoration(
+        color: bg,
+        borderRadius: BorderRadius.circular(16),
+      ),
+      child: Text(
+        label,
+        style: AppTextStyles.caption.copyWith(
+          color: fg,
+          fontSize: fontSize,
+          fontWeight: fontWeight,
+        ),
+      ),
+    );
+  }
+
   Widget _buildScheduleCard({
     required AttendanceScheduleItem item,
     required bool isMarked,
     required bool isActiveNow,
   }) {
     final iconData = _resolveScheduleIcon(item.iconName, item.attendanceType);
+    final sessionKey = item.sessionKey.toLowerCase().trim();
+    final recordedPhases =
+        controller.todaySessionPhases[sessionKey] ?? const <int>{};
+    final phase1Done = item.isPhase1Marked || recordedPhases.contains(1);
+    final phase2Done = item.isPhase2Marked || recordedPhases.contains(2);
+    final openPhase = item.currentOpenPhase();
+    final isIneligible = item.isPhase2Ineligible() && !phase1Done;
+    final isWaitingP2 = item.isWaitingForPhase2() && !phase2Done;
+    final isOnLeave = item.overallStatus == 'leave';
+    final isIncompleteClosed =
+        item.hasMultipleAttendance && item.overallStatus == 'incomplete';
+    final isAbsentClosed = item.hasMultipleAttendance &&
+        (item.overallStatus == 'absent' ||
+            (isIneligible && !item.isPhase2WindowOpen()));
 
     return Material(
       color: Colors.transparent,
@@ -585,7 +755,13 @@ class _AttendanceScreenState extends State<AttendanceScreen>
               subtitle: 'Attendance verified for ${item.sessionName}.',
             );
           } else if (isActiveNow) {
-            _performBleScan(item.attendanceType, isAttendanceOpen: true);
+            _performBleScan(
+              item.attendanceType,
+              isAttendanceOpen: true,
+              sessionKey: item.sessionKey,
+              targetPhase: openPhase,
+              item: item,
+            );
           } else if (!item.isScheduledToday) {
             ScaffoldMessenger.of(context).showSnackBar(
               SnackBar(
@@ -593,6 +769,57 @@ class _AttendanceScreenState extends State<AttendanceScreen>
                   '${item.sessionName} is not scheduled for today.',
                 ),
                 duration: const Duration(seconds: 2),
+                backgroundColor: const Color(0xFF376682),
+                behavior: SnackBarBehavior.floating,
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(10),
+                ),
+              ),
+            );
+          } else if (isIneligible) {
+            _showResultDialog(
+              title: 'Not Eligible for 2nd Attendance',
+              message:
+                  'You missed the 1st attendance window (${item.startTime} – ${item.endTime}), so 2nd attendance cannot be marked.',
+              icon: Icons.block_rounded,
+              color: AppColors.cancelledRed,
+              buttonLabel: 'Understood',
+            );
+          } else if (isWaitingP2) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(
+                content: Text(
+                  '1st attendance marked! 2nd attendance opens between ${item.phase2StartTime ?? '--:--'} and ${item.phase2EndTime ?? '--:--'}.',
+                ),
+                duration: const Duration(seconds: 3),
+                backgroundColor: const Color(0xFF0F766E),
+                behavior: SnackBarBehavior.floating,
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(10),
+                ),
+              ),
+            );
+          } else if (isIncompleteClosed) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(
+                content: Text(
+                  '${item.sessionName} closed (1st marked, 2nd missed).',
+                ),
+                duration: const Duration(seconds: 2),
+                backgroundColor: const Color(0xFFB45309),
+                behavior: SnackBarBehavior.floating,
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(10),
+                ),
+              ),
+            );
+          } else if (item.hasMultipleAttendance && item.phase2StartTime != null) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(
+                content: Text(
+                  '${item.sessionName} phases: ${item.startTime}–${item.endTime} & ${item.phase2StartTime}–${item.phase2EndTime}.',
+                ),
+                duration: const Duration(seconds: 3),
                 backgroundColor: const Color(0xFF376682),
                 behavior: SnackBarBehavior.floating,
                 shape: RoundedRectangleBorder(
@@ -669,65 +896,129 @@ class _AttendanceScreenState extends State<AttendanceScreen>
                       overflow: TextOverflow.ellipsis,
                     ),
                     const SizedBox(height: 2),
-                    Text(
-                      '${item.startTime} – ${item.endTime}',
-                      maxLines: 1,
-                      softWrap: false,
-                      overflow: TextOverflow.ellipsis,
-                      style: AppTextStyles.caption.copyWith(
-                        fontSize: 12,
-                        color: const Color(0xFF9AA7B0),
-                        fontWeight: FontWeight.w400,
+                    if (!item.hasMultipleAttendance) ...[
+                      Text(
+                        '${item.startTime} – ${item.endTime}',
+                        maxLines: 1,
+                        softWrap: false,
+                        overflow: TextOverflow.ellipsis,
+                        style: AppTextStyles.caption.copyWith(
+                          fontSize: 12,
+                          color: const Color(0xFF9AA7B0),
+                          fontWeight: FontWeight.w400,
+                        ),
                       ),
-                    ),
-                    if (item.lateTime != null &&
-                        item.lateTime!.trim().isNotEmpty) ...[
-                      const SizedBox(height: 4),
-                      Container(
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 7,
-                          vertical: 2,
-                        ),
-                        decoration: BoxDecoration(
-                          color: const Color(0xFFFDEEE2),
-                          borderRadius: BorderRadius.circular(16),
-                        ),
-                        child: Text(
-                          'Late after ${item.lateTime}',
-                          maxLines: 1,
-                          softWrap: false,
-                          overflow: TextOverflow.ellipsis,
-                          style: AppTextStyles.caption.copyWith(
-                            color: const Color(0xFF8A5A1F),
-                            fontSize: 10.5,
-                            fontWeight: FontWeight.w600,
+                      if (item.lateTime != null &&
+                          item.lateTime!.trim().isNotEmpty) ...[
+                        const SizedBox(height: 4),
+                        Container(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 7,
+                            vertical: 2,
+                          ),
+                          decoration: BoxDecoration(
+                            color: const Color(0xFFFDEEE2),
+                            borderRadius: BorderRadius.circular(16),
+                          ),
+                          child: Text(
+                            'Late after ${item.lateTime}',
+                            maxLines: 1,
+                            softWrap: false,
+                            overflow: TextOverflow.ellipsis,
+                            style: AppTextStyles.caption.copyWith(
+                              color: const Color(0xFF8A5A1F),
+                              fontSize: 10.5,
+                              fontWeight: FontWeight.w600,
+                            ),
                           ),
                         ),
+                      ],
+                    ] else ...[
+                      const SizedBox(height: 2),
+                      _buildPhaseMiniRow(
+                        label: '1st',
+                        timeRange: '${item.startTime}–${item.endTime}',
+                        statusLabel: phase1Done
+                            ? (item.isPhase1Late ? 'Late' : 'Done')
+                            : (item.isPhase1WindowOpen()
+                                ? 'Open'
+                                : (item.phase1Status == 'absent' ||
+                                        hasHHMMWindowEnded(
+                                          item.startTime,
+                                          item.endTime,
+                                        )
+                                    ? 'Missed'
+                                    : 'Upcoming')),
+                        statusBg: phase1Done
+                            ? const Color(0xFFE8F5E9)
+                            : (item.isPhase1WindowOpen()
+                                ? const Color(0xFFE0F2FE)
+                                : (item.phase1Status == 'absent' ||
+                                        hasHHMMWindowEnded(
+                                          item.startTime,
+                                          item.endTime,
+                                        )
+                                    ? const Color(0xFFFDECEC)
+                                    : const Color(0xFFEDF4F7))),
+                        statusFg: phase1Done
+                            ? const Color(0xFF2E7D32)
+                            : (item.isPhase1WindowOpen()
+                                ? AppColors.primary
+                                : (item.phase1Status == 'absent' ||
+                                        hasHHMMWindowEnded(
+                                          item.startTime,
+                                          item.endTime,
+                                        )
+                                    ? const Color(0xFFB42318)
+                                    : const Color(0xFF5E8A9D))),
                       ),
+                      if (item.phase2StartTime != null &&
+                          item.phase2EndTime != null) ...[
+                        const SizedBox(height: 4),
+                        _buildPhaseMiniRow(
+                          label: '2nd',
+                          timeRange:
+                              '${item.phase2StartTime}–${item.phase2EndTime}',
+                          statusLabel: phase2Done
+                              ? (item.isPhase2Late ? 'Late' : 'Done')
+                              : (isIneligible
+                                  ? 'Ineligible'
+                                  : (item.isPhase2WindowOpen()
+                                      ? 'Open'
+                                      : (item.phase2Status == 'absent' ||
+                                              hasHHMMWindowEnded(
+                                                item.phase2StartTime,
+                                                item.phase2EndTime,
+                                              )
+                                          ? 'Missed'
+                                          : 'Upcoming'))),
+                          statusBg: phase2Done
+                              ? const Color(0xFFE8F5E9)
+                              : (isIneligible
+                                  ? const Color(0xFFFDECEC)
+                                  : (item.isPhase2WindowOpen()
+                                      ? const Color(0xFFE0F2FE)
+                                      : const Color(0xFFEDF4F7))),
+                          statusFg: phase2Done
+                              ? const Color(0xFF2E7D32)
+                              : (isIneligible
+                                  ? const Color(0xFFB42318)
+                                  : (item.isPhase2WindowOpen()
+                                      ? AppColors.primary
+                                      : const Color(0xFF5E8A9D))),
+                        ),
+                      ],
                     ],
                   ],
                 ),
               ),
               const SizedBox(width: 6),
-              // Right Status Pill (Upcoming, Open Now, Done)
+              // Right Status Pill (Upcoming, Open Now, Wait 2nd, Ineligible, Incomplete, Done)
               if (isMarked)
-                Container(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 9,
-                    vertical: 5.5,
-                  ),
-                  decoration: BoxDecoration(
-                    color: const Color(0xFFE8F5E9),
-                    borderRadius: BorderRadius.circular(16),
-                  ),
-                  child: Text(
-                    'Done',
-                    style: AppTextStyles.caption.copyWith(
-                      color: const Color(0xFF2E7D32),
-                      fontSize: 12,
-                      fontWeight: FontWeight.w600,
-                    ),
-                  ),
+                _buildStatusPill(
+                  label: 'Done',
+                  bg: const Color(0xFFE8F5E9),
+                  fg: const Color(0xFF2E7D32),
                 )
               else if (isActiveNow)
                 Container(
@@ -747,7 +1038,9 @@ class _AttendanceScreenState extends State<AttendanceScreen>
                     ],
                   ),
                   child: Text(
-                    'Open Now',
+                    item.hasMultipleAttendance
+                        ? (openPhase == 2 ? 'Mark 2nd' : 'Mark 1st')
+                        : 'Open Now',
                     style: AppTextStyles.caption.copyWith(
                       color: Colors.white,
                       fontSize: 12,
@@ -756,42 +1049,53 @@ class _AttendanceScreenState extends State<AttendanceScreen>
                   ),
                 )
               else if (!item.isScheduledToday)
-                Container(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 9,
-                    vertical: 5.5,
-                  ),
-                  decoration: BoxDecoration(
-                    color: const Color(0xFFF3F1EC),
-                    borderRadius: BorderRadius.circular(16),
-                  ),
-                  child: Text(
-                    'Not Today',
-                    style: AppTextStyles.caption.copyWith(
-                      color: const Color(0xFF8C9BA5),
-                      fontSize: 11.5,
-                      fontWeight: FontWeight.w600,
-                    ),
-                  ),
+                _buildStatusPill(
+                  label: 'Not Today',
+                  bg: const Color(0xFFF3F1EC),
+                  fg: const Color(0xFF8C9BA5),
+                  fontSize: 11.5,
+                )
+              else if (isOnLeave)
+                _buildStatusPill(
+                  label: 'On Leave',
+                  bg: const Color(0xFFEDF4F7),
+                  fg: const Color(0xFF376682),
+                  fontSize: 11.5,
+                )
+              else if (isIneligible)
+                _buildStatusPill(
+                  label: 'Ineligible',
+                  bg: const Color(0xFFFDECEC),
+                  fg: const Color(0xFFB42318),
+                  fontSize: 11.5,
+                )
+              else if (isWaitingP2)
+                _buildStatusPill(
+                  label: 'Wait 2nd',
+                  bg: const Color(0xFFE6F4F1),
+                  fg: const Color(0xFF0F766E),
+                  fontSize: 11.5,
+                )
+              else if (isIncompleteClosed)
+                _buildStatusPill(
+                  label: 'Incomplete',
+                  bg: const Color(0xFFFFF4E5),
+                  fg: const Color(0xFFB45309),
+                  fontSize: 11.5,
+                )
+              else if (isAbsentClosed)
+                _buildStatusPill(
+                  label: 'Missed',
+                  bg: const Color(0xFFF3F1EC),
+                  fg: const Color(0xFF8C9BA5),
+                  fontSize: 11.5,
                 )
               else
-                Container(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 9,
-                    vertical: 5.5,
-                  ),
-                  decoration: BoxDecoration(
-                    color: const Color(0xFFEDF4F7),
-                    borderRadius: BorderRadius.circular(16),
-                  ),
-                  child: Text(
-                    'Upcoming',
-                    style: AppTextStyles.caption.copyWith(
-                      color: const Color(0xFF5E8A9D),
-                      fontSize: 12,
-                      fontWeight: FontWeight.w500,
-                    ),
-                  ),
+                _buildStatusPill(
+                  label: 'Upcoming',
+                  bg: const Color(0xFFEDF4F7),
+                  fg: const Color(0xFF5E8A9D),
+                  fontWeight: FontWeight.w500,
                 ),
             ],
           ),
@@ -906,23 +1210,44 @@ class _AttendanceScreenState extends State<AttendanceScreen>
                                     builder: (context) {
                                       final item = schedules[i];
                                       final type = item.attendanceType;
-                                      final markedTime =
-                                          controller.todayStatus[type];
-                                      final isMarked =
-                                          markedTime != null ||
-                                          (controller.alreadyMarked.value &&
-                                              statusData?.activeType == type);
+                                      final sessionKey =
+                                          item.sessionKey.toLowerCase().trim();
+                                      final recordedPhases =
+                                          controller.todaySessionPhases[sessionKey] ??
+                                          const <int>{};
+                                      final singleFallbackMarked =
+                                          controller.todaySessionStatus[sessionKey] !=
+                                                  null ||
+                                              controller.todayStatus[type] !=
+                                                  null ||
+                                              (controller.alreadyMarked.value &&
+                                                  statusData?.activeType == type);
+                                      final isMarked = item.hasMultipleAttendance
+                                          ? (item.isCompletedToday() ||
+                                              (recordedPhases.contains(1) &&
+                                                  recordedPhases.contains(2)))
+                                          : item.isCompletedToday(
+                                              fallbackSingleMarked:
+                                                  singleFallbackMarked,
+                                            );
                                       final isWindowOpen =
                                           item.isScheduledToday &&
-                                              _isTimingActiveNow(
-                                                item.startTime,
-                                                item.endTime,
-                                              );
-                                      final isActiveNow = !isMarked &&
-                                          item.isScheduledToday &&
-                                          (isWindowOpen ||
-                                              (controller.attendanceActive.value &&
-                                                  statusData?.activeType == type));
+                                          (item.hasMultipleAttendance
+                                              ? item.currentOpenPhase() != null
+                                              : _isTimingActiveNow(
+                                                  item.startTime,
+                                                  item.endTime,
+                                                ));
+                                      final isActiveNow = item.hasMultipleAttendance
+                                          ? (!isMarked &&
+                                              item.isScheduledToday &&
+                                              item.canMarkPhaseNow())
+                                          : (!isMarked &&
+                                              item.isScheduledToday &&
+                                              (isWindowOpen ||
+                                                  (controller.attendanceActive.value &&
+                                                      statusData?.activeType ==
+                                                          type)));
 
                                       return Padding(
                                         padding: const EdgeInsets.only(bottom: 12),

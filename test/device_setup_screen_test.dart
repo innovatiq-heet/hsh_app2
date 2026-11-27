@@ -11,7 +11,7 @@ import 'support/test_fonts.dart';
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
 
-  const step = 'Step 3 · ';
+  const step = 'Step 3';
 
   setUpAll(loadDeviceLikeFonts);
   tearDown(Get.reset);

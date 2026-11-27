@@ -29,7 +29,6 @@ class _DeviceSetupScreenState extends State<DeviceSetupScreen>
   bool _battery = false;
   bool _admin = false;
   bool _batterySkipped = false;
-  bool _checking = true;
   // Set only for a session this screen doesn't apply to (alumni/leader), so
   // the one-time programmatic pop below isn't blocked by [canPop].
   bool _bypass = false;
@@ -109,7 +108,6 @@ class _DeviceSetupScreenState extends State<DeviceSetupScreen>
       _battery = results[2];
       _admin = results[3];
       _location = location == 'always';
-      _checking = false;
     });
 
     if (!wasRequiredDone && _requiredDone && !_everCompleted) {
@@ -247,65 +245,47 @@ class _DeviceSetupScreenState extends State<DeviceSetupScreen>
                       children: [
                         _Step(
                           index: 1,
-                          // icon: Icons.query_stats_rounded,
-                          title: '',
                           done: _usage,
-                          checking: _checking,
                           onAction: ScreenTimeService.openUsageSettings,
-                          enabled: true,
                         ),
                         const SizedBox(height: AppDimens.gapMd),
-                        _Step(
+               _Step(
                           index: 2,
-                          // icon: Icons.shield_rounded,
-                          title: '',
                           done: _blocker,
-                          checking: _checking,
                           onAction: ScreenTimeService.openOverlaySettings,
-                          enabled: true,
                         ),
                         const SizedBox(height: AppDimens.gapMd),
                         _Step(
                           index: 3,
-                          // icon: Icons.my_location_rounded,
-                          title: '',
                           done: _location,
-                          checking: _checking,
                           onAction: () async {
                             final level =
                                 await GeofenceDeviceService.requestLocationAlways();
-                            if (mounted)
+                            if (mounted) {
                               setState(() => _location = level == 'always');
+                            }
                           },
-                          enabled: true,
                         ),
                         const SizedBox(height: AppDimens.gapMd),
                         _Step(
                           index: 4,
-                          // icon: Icons.battery_saver_rounded,
-                          title: '',
                           done: _battery,
                           skipped: _batterySkipped && !_battery,
-                          checking: _checking,
                           onAction: () async {
                             final shown =
                                 await ScreenTimeService.requestIgnoreBatteryOptimizations();
                             // Only phones without this setting may skip it: without the
                             // exemption Android won't restart monitoring after a Stop.
-                            if (!shown && mounted)
+                            if (!shown && mounted) {
                               setState(() => _batterySkipped = true);
+                            }
                           },
-                          enabled: true,
                         ),
                         const SizedBox(height: AppDimens.gapMd),
                         _Step(
                           index: 5,
-                          // icon: Icons.admin_panel_settings_rounded,
-                          title: '',
                           done: _admin,
-                          checking: _checking,
                           onAction: ScreenTimeService.requestDeviceAdmin,
-                          enabled: true,
                         ),
                       ],
                     ),
@@ -393,40 +373,23 @@ class _DeviceSetupScreenState extends State<DeviceSetupScreen>
 
 class _Step extends StatelessWidget {
   final int index;
-  // final IconData icon;
-  final String title;
   final bool done;
   final bool skipped;
-  final bool checking;
-  final bool enabled;
   final VoidCallback onAction;
 
   const _Step({
     required this.index,
-    // required this.icon,
-    required this.title,
     required this.done,
     this.skipped = false,
-    required this.checking,
-    this.enabled = true,
     required this.onAction,
   });
 
   @override
   Widget build(BuildContext context) {
-    final active = enabled && !done;
-    final color = done
-        ? AppColors.successGreen
-        : skipped
-        ? AppColors.textMuted
-        : active
-        ? AppColors.primary
-        : AppColors.textLight;
-
     return Material(
       color: Colors.transparent,
       child: InkWell(
-        onTap: active ? onAction : null,
+        onTap: done ? null : onAction,
         borderRadius: BorderRadius.circular(AppDimens.radiusLg),
         child: AnimatedContainer(
           duration: const Duration(milliseconds: 220),
@@ -435,35 +398,19 @@ class _Step extends StatelessWidget {
             color: AppColors.surface,
             borderRadius: BorderRadius.circular(AppDimens.radiusLg),
             border: Border.all(
-              color: active
-                  ? AppColors.primary.withValues(alpha: 0.5)
-                  : AppColors.borderLight,
-              width: active ? 1.5 : 1,
+              color: done
+                  ? AppColors.borderLight
+                  : AppColors.primary.withValues(alpha: 0.5),
+              width: done ? 1 : 1.5,
             ),
           ),
           child: Row(
             children: [
-              Container(
-                width: 40,
-                height: 40,
-                decoration: BoxDecoration(
-                  color: color.withValues(alpha: 0.12),
-                  shape: BoxShape.circle,
-                ),
-                // child: Icon(
-                //   done ? Icons.check_rounded : icon,
-                //   color: color,
-                //   size: 22,
-                // ),
-              ),
-              const SizedBox(width: 12),
               Expanded(
                 child: Text(
-                  'Step $index · $title',
+                  'Step $index',
                   style: AppTextStyles.title.copyWith(
-                    color: enabled || done
-                        ? AppColors.textPrimary
-                        : AppColors.textMuted,
+                    color: AppColors.textPrimary,
                   ),
                 ),
               ),
@@ -484,7 +431,10 @@ class _Step extends StatelessWidget {
                   ),
                 )
               else
-                Icon(Icons.chevron_right_rounded, color: color),
+                const Icon(
+                  Icons.chevron_right_rounded,
+                  color: AppColors.primary,
+                ),
             ],
           ),
         ),

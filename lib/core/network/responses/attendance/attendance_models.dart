@@ -1,4 +1,97 @@
+import 'dart:convert';
+
 import '../../../enums/attendance_type.dart';
+
+String? _normHHMM(dynamic raw) {
+  final s = raw?.toString().trim();
+  if (s == null || s.isEmpty || s == 'null') return null;
+  return s.length >= 5 ? s.substring(0, 5) : s;
+}
+
+Map<String, dynamic>? _extractTodaySlot(dynamic rawDaySchedules) {
+  List<dynamic>? parsed;
+  if (rawDaySchedules is List) {
+    parsed = rawDaySchedules;
+  } else if (rawDaySchedules is String && rawDaySchedules.trim().isNotEmpty) {
+    try {
+      final decoded = jsonDecode(rawDaySchedules);
+      if (decoded is List) parsed = decoded;
+    } catch (_) {}
+  }
+  if (parsed == null || parsed.isEmpty) return null;
+
+  const weekdayNames = ['mon', 'tue', 'wed', 'thu', 'fri', 'sat', 'sun'];
+  final todayShort = weekdayNames[DateTime.now().weekday - 1];
+  for (final slot in parsed) {
+    if (slot is Map && slot['days'] is List) {
+      final days = slot['days'] as List;
+      if (days.any((d) {
+        final s = d.toString().trim().toLowerCase();
+        return s.length >= 3 && s.substring(0, 3) == todayShort;
+      })) {
+        return Map<String, dynamic>.from(slot);
+      }
+    }
+  }
+  return null;
+}
+
+/// Checks if `now` (defaults to local time) falls inside an `[startHHMM, endHHMM]` window,
+/// including overnight windows where `end < start`.
+bool isHHMMInWindow(String? startHHMM, String? endHHMM, [DateTime? now]) {
+  final start = _normHHMM(startHHMM);
+  final end = _normHHMM(endHHMM);
+  if (start == null || end == null) return false;
+  if (start == '00:00' && end == '00:00') return false;
+
+  final sParts = start.split(':');
+  final eParts = end.split(':');
+  if (sParts.length < 2 || eParts.length < 2) return false;
+  final sH = int.tryParse(sParts[0]);
+  final sM = int.tryParse(sParts[1]);
+  final eH = int.tryParse(eParts[0]);
+  final eM = int.tryParse(eParts[1]);
+  if (sH == null || sM == null || eH == null || eM == null) return false;
+
+  final cur = now ?? DateTime.now();
+  final nowMins = cur.hour * 60 + cur.minute;
+  final startMins = sH * 60 + sM;
+  final endMins = eH * 60 + eM;
+  if (startMins == endMins) return false;
+  if (startMins < endMins) {
+    return nowMins >= startMins && nowMins <= endMins;
+  }
+  return nowMins >= startMins || nowMins <= endMins;
+}
+
+/// Returns true once the `[startHHMM, endHHMM]` window has finished for `now`.
+bool hasHHMMWindowEnded(String? startHHMM, String? endHHMM, [DateTime? now]) {
+  final start = _normHHMM(startHHMM);
+  final end = _normHHMM(endHHMM);
+  if (start == null || end == null) return false;
+  if (start == '00:00' && end == '00:00') return false;
+
+  final sParts = start.split(':');
+  final eParts = end.split(':');
+  if (sParts.length < 2 || eParts.length < 2) return false;
+  final sH = int.tryParse(sParts[0]);
+  final sM = int.tryParse(sParts[1]);
+  final eH = int.tryParse(eParts[0]);
+  final eM = int.tryParse(eParts[1]);
+  if (sH == null || sM == null || eH == null || eM == null) return false;
+
+  final cur = now ?? DateTime.now();
+  final nowMins = cur.hour * 60 + cur.minute;
+  final startMins = sH * 60 + sM;
+  final endMins = eH * 60 + eM;
+  if (startMins < endMins) {
+    return nowMins > endMins;
+  }
+  if (startMins > endMins) {
+    return nowMins > endMins && nowMins < startMins;
+  }
+  return false;
+}
 
 /// Single attendance record returned by the backend (spec v2.0.0).
 /// Supports both student self-scans and operator/admin manual entries.
@@ -10,6 +103,10 @@ class AttendanceRecord {
   final AttendanceType type;
   final bool viaCode;
   final String? ip;
+  final int? phase;
+  final bool isLate;
+  final String? message;
+  final String? _sessionKey;
 
   const AttendanceRecord({
     required this.id,
@@ -19,13 +116,20 @@ class AttendanceRecord {
     required this.type,
     required this.viaCode,
     this.ip,
-  });
+    this.phase,
+    this.isLate = false,
+    this.message,
+    String? sessionKey,
+  }) : _sessionKey = sessionKey;
 
   /// Convenience getter matching previous `AttendanceLogEntry.markedAt` interface.
   DateTime get markedAt => time;
 
-  /// Getter for session key from attendance type.
-  String get sessionKey => type.apiValue;
+  /// Getter for session key from backend payload or fallback to [type].
+  String get sessionKey {
+    final sk = _sessionKey;
+    return (sk != null && sk.isNotEmpty) ? sk : type.apiValue;
+  }
 
   factory AttendanceRecord.fromJson(Map<String, dynamic> json) {
     DateTime parseDate(dynamic v) {
@@ -34,7 +138,11 @@ class AttendanceRecord {
       return DateTime.now().toUtc();
     }
 
-    final rawType = json['type']?.toString() ?? json['session_type']?.toString() ?? 'aarti';
+    final rawType = json['session_key']?.toString() ??
+        json['sessionKey']?.toString() ??
+        json['type']?.toString() ??
+        json['session_type']?.toString() ??
+        'aarti';
     final dateVal = parseDate(json['date'] ?? json['session_date'] ?? json['marked_at']);
     DateTime timeVal;
     if (json['time'] != null || json['marked_at'] != null) {
@@ -56,6 +164,11 @@ class AttendanceRecord {
       timeVal = dateVal;
     }
 
+    final rawPhase = json['phase'];
+    final int? parsedPhase = rawPhase is num
+        ? rawPhase.toInt()
+        : int.tryParse(rawPhase?.toString() ?? '');
+
     return AttendanceRecord(
       id: json['id'] ?? json['_id'] ?? 0,
       aadhar: json['aadhar']?.toString() ?? json['student_code']?.toString() ?? json['bank_code']?.toString(),
@@ -64,6 +177,10 @@ class AttendanceRecord {
       type: AttendanceTypeX.fromApi(rawType),
       viaCode: json['viaCode'] == true,
       ip: json['ip']?.toString(),
+      phase: parsedPhase,
+      isLate: json['is_late'] == true || json['is_late'] == 1 || json['isLate'] == true,
+      message: json['message']?.toString(),
+      sessionKey: rawType,
     );
   }
 
@@ -72,10 +189,117 @@ class AttendanceRecord {
     if (aadhar != null) 'aadhar': aadhar,
     'date': date.toIso8601String(),
     'time': time.toIso8601String(),
+    if (phase != null) 'phase': phase,
+    if (isLate) 'is_late': isLate,
+    if (message != null) 'message': message,
     'type': type.apiValue,
     'viaCode': viaCode,
     if (ip != null) 'ip': ip,
   };
+}
+
+extension AttendanceScheduleItemPhaseX on AttendanceScheduleItem {
+  bool get isPhase1Marked => firstAttendance?['is_marked'] == true;
+  bool get isPhase2Marked => secondAttendance?['is_marked'] == true;
+  bool get isPhase1Late => firstAttendance?['is_late'] == true;
+  bool get isPhase2Late => secondAttendance?['is_late'] == true;
+  String get phase1Status => firstAttendance?['status']?.toString() ?? '';
+  String get phase2Status => secondAttendance?['status']?.toString() ?? '';
+
+  /// Returns true if Phase 1 is open now (server payload when [now] is omitted, else [now]).
+  bool isPhase1WindowOpen([DateTime? now]) {
+    if (!isScheduledToday) return false;
+    if (now == null && firstAttendance != null && firstAttendance!['is_open_now'] is bool) {
+      return firstAttendance!['is_open_now'] as bool;
+    }
+    return isHHMMInWindow(startTime, endTime, now);
+  }
+
+  /// Returns true if Phase 2 is open now (server payload when [now] is omitted, else [now]).
+  bool isPhase2WindowOpen([DateTime? now]) {
+    if (!isScheduledToday || !hasMultipleAttendance) return false;
+    if (now == null && secondAttendance != null && secondAttendance!['is_open_now'] is bool) {
+      return secondAttendance!['is_open_now'] as bool;
+    }
+    return isHHMMInWindow(phase2StartTime, phase2EndTime, now);
+  }
+
+  /// Returns the currently active/open phase (`1` or `2`), or `null` if closed.
+  int? currentOpenPhase([DateTime? now]) {
+    if (!isScheduledToday) return null;
+    if (hasMultipleAttendance) {
+      if (isPhase1WindowOpen(now)) return 1;
+      if (isPhase2WindowOpen(now)) return 2;
+      if (now == null && (activePhase == 1 || activePhase == 2)) return activePhase;
+      return null;
+    }
+    return isHHMMInWindow(startTime, endTime, now) ? 1 : null;
+  }
+
+  /// True when the student missed Phase 1 and is blocked from Phase 2.
+  bool isPhase2Ineligible([DateTime? now]) {
+    if (!hasMultipleAttendance || !isScheduledToday) return false;
+    if (phase2Status == 'not_eligible') return true;
+    if (secondAttendance?['is_eligible'] == false && !isPhase1Marked) return true;
+    if (!isPhase1Marked && hasHHMMWindowEnded(startTime, endTime, now)) {
+      return true;
+    }
+    return false;
+  }
+
+  /// True after Phase 1 is marked while waiting for Phase 2 to open.
+  bool isWaitingForPhase2([DateTime? now]) {
+    if (!hasMultipleAttendance || !isScheduledToday) return false;
+    if (isPhase2Marked || isPhase2WindowOpen(now) || isPhase2Ineligible(now)) {
+      return false;
+    }
+    if (hasHHMMWindowEnded(phase2StartTime, phase2EndTime, now)) {
+      return false;
+    }
+    if (now == null && phase1Status.isNotEmpty && phase2Status == 'upcoming') {
+      return isPhase1Marked && !isPhase1WindowOpen();
+    }
+    return isPhase1Marked && hasHHMMWindowEnded(startTime, endTime, now);
+  }
+
+  /// True when today's attendance requirements for this session are completely fulfilled.
+  bool isCompletedToday({bool fallbackSingleMarked = false}) {
+    if (hasMultipleAttendance) {
+      return overallStatus == 'complete' || (isPhase1Marked && isPhase2Marked);
+    }
+    return overallStatus == 'marked' ||
+        overallStatus == 'complete' ||
+        isPhase1Marked ||
+        fallbackSingleMarked;
+  }
+
+  /// True when the student can mark attendance right now for this session.
+  bool canMarkPhaseNow({bool fallbackSingleMarked = false, DateTime? now}) {
+    if (!isScheduledToday) return false;
+    if (overallStatus == 'leave') return false;
+    if (hasMultipleAttendance) {
+      if (now == null && canMark != null) return canMark!;
+      final openPhase = currentOpenPhase(now);
+      if (openPhase == 1) return !isPhase1Marked && !fallbackSingleMarked;
+      if (openPhase == 2) return isPhase1Marked && !isPhase2Marked;
+      return false;
+    }
+    if (now == null && canMark != null) return canMark!;
+    return !fallbackSingleMarked && isHHMMInWindow(startTime, endTime, now);
+  }
+
+  String? get activeOutOfRangeMessage {
+    if (!hasMultipleAttendance) return null;
+    final p = currentOpenPhase();
+    if (p == 2) {
+      final msg = secondAttendance?['out_of_range_message']?.toString().trim();
+      if (msg != null && msg.isNotEmpty) return msg;
+    } else if (p == 1) {
+      final msg = firstAttendance?['out_of_range_message']?.toString().trim();
+      if (msg != null && msg.isNotEmpty) return msg;
+    }
+    return null;
+  }
 }
 
 /// Single schedule session configuration from `/api/schedule-data` or `/attendance/schedule`
@@ -144,7 +368,10 @@ class AttendanceScheduleItem {
         if (slot is Map) {
           final days = slot['days'];
           if (days is List &&
-              days.any((d) => d.toString().trim().toLowerCase() == todayName)) {
+              days.any((d) {
+                final s = d.toString().trim().toLowerCase();
+                return s.length >= 3 && s.substring(0, 3) == todayName;
+              })) {
             foundTodaySlot = true;
             final sTime = slot['startTime'] ?? slot['start_time'];
             final eTime = slot['endTime'] ?? slot['end_time'];
@@ -187,10 +414,6 @@ class AttendanceScheduleItem {
       }
     }
 
-    final rawP2Start = json['phase2_start_time']?.toString();
-    final rawP2End = json['phase2_end_time']?.toString();
-    final rawP2Late = json['phase2_late_time']?.toString();
-
     return AttendanceScheduleItem(
       id: json['id'] is int
           ? json['id'] as int
@@ -206,12 +429,29 @@ class AttendanceScheduleItem {
       isForAllStudents: json['is_for_all_students'] as bool? ?? true,
       isActive: json['is_active'] as bool? ?? true,
       isScheduledToday: isScheduledToday,
-      hasMultipleAttendance: json['has_multiple_attendance'] == true || json['has_multiple_attendance'] == 1,
-      phase2StartTime: rawP2Start != null && rawP2Start.length >= 5 ? rawP2Start.substring(0, 5) : rawP2Start,
-      phase2EndTime: rawP2End != null && rawP2End.length >= 5 ? rawP2End.substring(0, 5) : rawP2End,
-      phase2LateTime: rawP2Late != null && rawP2Late.length >= 5 && rawP2Late != 'null' ? rawP2Late.substring(0, 5) : null,
-      activePhase: json['active_phase'] as int?,
-      canMark: json['can_mark'] as bool?,
+      hasMultipleAttendance: json['has_multiple_attendance'] == true ||
+          json['has_multiple_attendance'] == 1 ||
+          (_extractTodaySlot(json['day_schedules'])?['hasMultipleAttendance'] == true) ||
+          (_extractTodaySlot(json['day_schedules'])?['has_multiple_attendance'] == true),
+      phase2StartTime: _normHHMM(
+        json['phase2_start_time'] ??
+            _extractTodaySlot(json['day_schedules'])?['phase2StartTime'] ??
+            _extractTodaySlot(json['day_schedules'])?['phase2_start_time'],
+      ),
+      phase2EndTime: _normHHMM(
+        json['phase2_end_time'] ??
+            _extractTodaySlot(json['day_schedules'])?['phase2EndTime'] ??
+            _extractTodaySlot(json['day_schedules'])?['phase2_end_time'],
+      ),
+      phase2LateTime: _normHHMM(
+        json['phase2_late_time'] ??
+            _extractTodaySlot(json['day_schedules'])?['phase2LateTime'] ??
+            _extractTodaySlot(json['day_schedules'])?['phase2_late_time'],
+      ),
+      activePhase: json['active_phase'] is num
+          ? (json['active_phase'] as num).toInt()
+          : int.tryParse(json['active_phase']?.toString() ?? ''),
+      canMark: json['can_mark'] == null ? null : (json['can_mark'] == true || json['can_mark'] == 1),
       overallStatus: json['overall_status']?.toString(),
       firstAttendance: json['first_attendance'] is Map ? Map<String, dynamic>.from(json['first_attendance'] as Map) : null,
       secondAttendance: json['second_attendance'] is Map ? Map<String, dynamic>.from(json['second_attendance'] as Map) : null,

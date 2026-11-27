@@ -167,9 +167,24 @@ class AttendanceScannerController extends GetxController {
     isBleSearching.value = false;
 
     try {
+      String? sessionKey = selectedType.value.apiValue;
+      int? targetPhase;
+      if (Get.isRegistered<AttendanceController>()) {
+        final attCtrl = Get.find<AttendanceController>();
+        final matched = attCtrl.schedulesList.firstWhereOrNull(
+          (s) => s.attendanceType == selectedType.value,
+        );
+        if (matched != null) {
+          sessionKey = matched.sessionKey;
+          targetPhase = matched.currentOpenPhase();
+        }
+      }
+
       final record = await _repository.mark(
         MarkAttendanceRequest(
           type: selectedType.value,
+          sessionKey: sessionKey,
+          targetPhase: targetPhase,
           viaCode: false,
           rssi: rssi,
         ),
@@ -186,7 +201,9 @@ class AttendanceScannerController extends GetxController {
             const SizedBox(width: AppDimens.gapSm),
             Expanded(
               child: Text(
-                'Attendance Marked successfully.',
+                (record.message != null && record.message!.trim().isNotEmpty)
+                    ? record.message!
+                    : 'Attendance Marked successfully.',
                 style: AppTextStyles.bodySm.copyWith(
                   color: Colors.white,
                   fontWeight: FontWeight.w700,
@@ -272,16 +289,26 @@ class AttendanceScannerController extends GetxController {
     try {
       int? floorId;
       String? serviceUuid;
+      String? sessionKey = selectedType.value.apiValue;
+      int? targetPhase;
       if (Get.isRegistered<AttendanceController>()) {
         final attCtrl = Get.find<AttendanceController>();
         floorId = attCtrl.assignedFloorId.value;
         serviceUuid = attCtrl.currentFloorServiceUuid.value;
+        final matched = attCtrl.schedulesList.firstWhereOrNull(
+          (s) => s.attendanceType == selectedType.value,
+        );
+        if (matched != null) {
+          sessionKey = matched.sessionKey;
+          targetPhase = matched.currentOpenPhase();
+        }
       }
 
       final record = await _repository.mark(
         MarkAttendanceRequest(
           type: selectedType.value,
-          sessionKey: selectedType.value.apiValue,
+          sessionKey: sessionKey,
+          targetPhase: targetPhase,
           viaCode: true,
           qrToken: qrToken,
           floorId: floorId,

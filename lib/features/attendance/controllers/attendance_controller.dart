@@ -9,6 +9,7 @@ import 'package:permission_handler/permission_handler.dart';
 import '../../../core/abstracts/mixins/load_state_mixin.dart';
 import '../../../core/enums/attendance_type.dart';
 import '../../../core/models/student_profile/student_profile_model.dart';
+import '../../../core/network/api_exception.dart';
 import '../../../core/network/repository/attendance/attendance_repository.dart';
 import '../../../core/network/repository/floors/floor_strings_repository.dart';
 import '../../../core/network/repository/student_profile/student_profile_repository.dart';
@@ -35,6 +36,7 @@ class AttendanceController extends GetxController with LoadStateMixin {
 
   // Per-session tracking map: sessionKey -> marked DateTime
   final todaySessionStatus = <String, DateTime?>{}.obs;
+  final todaySessionPhases = <String, Set<int>>{}.obs;
   final todayStatus = <AttendanceType, DateTime?>{}.obs;
   final studentStatus = Rxn<StudentAttendanceStatus>();
   final schedulesList = <AttendanceScheduleItem>[].obs;
@@ -136,13 +138,35 @@ class AttendanceController extends GetxController with LoadStateMixin {
   }
 
   String friendlyError(dynamic e) {
+    final code = e is ApiException ? e.code?.toUpperCase().trim() : null;
     final raw = e.toString();
     final msg = raw.toLowerCase();
+
+    if (code == 'NOT_ELIGIBLE_MISSED_FIRST' ||
+        msg.contains('not eligible to mark second attendance') ||
+        msg.contains('did not complete the first attendance')) {
+      return 'You are not eligible for 2nd attendance because you missed 1st attendance.';
+    }
+
+    if (code == 'BETWEEN_ATTENDANCE_WINDOWS' ||
+        code == 'FIRST_WINDOW_CLOSED' ||
+        code == 'SECOND_WINDOW_CLOSED') {
+      return e is ApiException && e.message.trim().isNotEmpty
+          ? e.message
+          : 'This attendance window is currently closed.';
+    }
+
+    if (code == 'LATE_LIMIT_EXCEEDED' || msg.contains('late_limit_exceeded')) {
+      return 'You have exceeded the maximum allowed late days this month (10).';
+    }
 
     if (msg.contains('already_marked') ||
         msg.contains('already marked') ||
         msg.contains('student_already_marked')) {
-      return 'Your attendance is already marked for today. Come back tomorrow!';
+      if (e is ApiException && e.message.trim().isNotEmpty) {
+        return e.message;
+      }
+      return 'Your attendance is already marked for this window.';
     }
     if (msg.contains('device_already_used')) {
       return 'This device has already been used to mark attendance today.';
@@ -203,24 +227,78 @@ class AttendanceController extends GetxController with LoadStateMixin {
       // 1. Fetch student status from backend
       final sStatus = await _repository.getStudentStatus();
       studentStatus.value = sStatus;
+      alreadyMarked.value = sStatus.alreadyMarked;
       attendanceActive.value = sStatus.attendanceActive;
       startTime.value = sStatus.startTime;
       endTime.value = sStatus.endTime;
       rawSchedules.assignAll(sStatus.rawSchedules);
 
-      // 2. Fetch all live attendance schedules
+      // 2. Fetch all live attendance schedules and merge WITHOUT dropping
+      // per-student two-phase status from /attendance/my-status.
       final liveSchedules = await _repository.fetchAttendanceSchedules(
         existingSchedules: sStatus.allSchedules,
       );
 
+      final statusByKey = <String, AttendanceScheduleItem>{
+        for (final item in sStatus.allSchedules)
+          item.sessionKey.toLowerCase().trim(): item,
+      };
+
       if (liveSchedules.isNotEmpty) {
-        schedulesList.assignAll(liveSchedules);
+        final merged = <AttendanceScheduleItem>[];
+        final seenKeys = <String>{};
+        for (final live in liveSchedules) {
+          final key = live.sessionKey.toLowerCase().trim();
+          seenKeys.add(key);
+          merged.add(statusByKey[key] ?? live);
+        }
+        for (final extra in sStatus.allSchedules) {
+          final key = extra.sessionKey.toLowerCase().trim();
+          if (!seenKeys.contains(key)) {
+            merged.add(extra);
+          }
+        }
+        schedulesList.assignAll(merged);
       } else if (sStatus.allSchedules.isNotEmpty) {
         schedulesList.assignAll(sStatus.allSchedules);
       }
 
-      // 3. Load locally cached attendance timestamp per session for today
+      // Rebuild today's status cleanly so Phase 1 alone never locks out Phase 2
+      todaySessionStatus.clear();
+      todaySessionPhases.clear();
+      todayStatus.clear();
+
+      final scheduleByKey = <String, AttendanceScheduleItem>{
+        for (final s in schedulesList) s.sessionKey.toLowerCase().trim(): s,
+      };
+
+      // Record phase completions reported directly by /attendance/my-status
+      for (final s in sStatus.allSchedules) {
+        final key = s.sessionKey.toLowerCase().trim();
+        final phases = todaySessionPhases.putIfAbsent(key, () => <int>{});
+        if (s.hasMultipleAttendance) {
+          if (s.isPhase1Marked) phases.add(1);
+          if (s.isPhase2Marked) phases.add(2);
+          if (s.isCompletedToday()) {
+            final t = DateTime.tryParse(
+                  s.secondAttendance?['marked_at']?.toString() ??
+                      s.firstAttendance?['marked_at']?.toString() ??
+                      '',
+                ) ??
+                DateTime.now();
+            todaySessionStatus[key] = t;
+            todayStatus[s.attendanceType] = t;
+          }
+        } else if (s.isCompletedToday()) {
+          final t = DateTime.now();
+          todaySessionStatus[key] = t;
+          todayStatus[s.attendanceType] = t;
+        }
+      }
+
+      // 3. Load locally cached attendance timestamp per single-phase session for today
       for (final s in schedulesList) {
+        if (s.hasMultipleAttendance) continue;
         final key = s.sessionKey.toLowerCase().trim();
         final localMarkedTime = await store.getMarkedSessionTime(key);
         if (localMarkedTime != null) {
@@ -238,19 +316,37 @@ class AttendanceController extends GetxController with LoadStateMixin {
         );
         for (final log in logs) {
           final sKey = log.sessionKey.toLowerCase().trim();
-          todaySessionStatus[sKey] = log.time;
-          todayStatus[log.type] = log.time;
+          if (log.phase != null) {
+            todaySessionPhases.putIfAbsent(sKey, () => <int>{}).add(log.phase!);
+          }
+          final matchedSched = scheduleByKey[sKey];
+          final isMulti = matchedSched?.hasMultipleAttendance ?? false;
+          if (!isMulti) {
+            todaySessionStatus[sKey] = log.time;
+            todayStatus[log.type] = log.time;
+          } else {
+            final phases = todaySessionPhases[sKey];
+            final completeFromServer = matchedSched?.isCompletedToday() ?? false;
+            if (completeFromServer || (phases != null && phases.contains(1) && phases.contains(2))) {
+              todaySessionStatus[sKey] = log.time;
+              todayStatus[log.type] = log.time;
+            }
+          }
         }
       } catch (_) {}
 
       // 5. If server status indicates an active session is marked, record it for that session
       if (sStatus.alreadyMarked && sStatus.activeSessionType != null) {
         final activeKey = sStatus.activeSessionType!.toLowerCase().trim();
-        if (todaySessionStatus[activeKey] == null) {
+        final matchedSched = scheduleByKey[activeKey];
+        final isMulti = matchedSched?.hasMultipleAttendance ?? false;
+        if ((!isMulti || (matchedSched?.isCompletedToday() ?? false)) &&
+            todaySessionStatus[activeKey] == null) {
           todaySessionStatus[activeKey] = DateTime.now();
         }
       }
 
+      todaySessionPhases.refresh();
       todaySessionStatus.refresh();
       todayStatus.refresh();
 
@@ -422,6 +518,7 @@ class AttendanceController extends GetxController with LoadStateMixin {
   Future<AttendanceRecord?> markWithBle(
     AttendanceType type, {
     String? sessionKey,
+    int? targetPhase,
   }) async {
     final effectiveKey = (sessionKey ?? type.apiValue).toLowerCase().trim();
     if (isMarking.value &&
@@ -660,6 +757,7 @@ class AttendanceController extends GetxController with LoadStateMixin {
         MarkAttendanceRequest(
           type: type,
           sessionKey: effectiveKey,
+          targetPhase: targetPhase,
           viaCode: false,
           rssi: matchedRssi,
           floorId: targetFloorId,
@@ -667,18 +765,36 @@ class AttendanceController extends GetxController with LoadStateMixin {
         ),
       );
 
+      // Determine whether this session requires two phases before marking as completely done
+      final matchedSched = schedulesList.firstWhereOrNull(
+        (s) => s.sessionKey.toLowerCase().trim() == effectiveKey,
+      );
+      final isMultiPhase = matchedSched?.hasMultipleAttendance ?? false;
+      final markedPhase = result.phase ?? targetPhase;
+      if (markedPhase != null) {
+        todaySessionPhases.putIfAbsent(effectiveKey, () => <int>{}).add(markedPhase);
+        todaySessionPhases.refresh();
+      }
+      final isSessionCompleted = !isMultiPhase ||
+          markedPhase == 2 ||
+          (todaySessionPhases[effectiveKey]?.containsAll({1, 2}) ?? false);
+
       // Save locally and update state
       final today = DateFormat('yyyy-MM-dd').format(DateTime.now());
-      todaySessionStatus[effectiveKey] = result.time;
-      todaySessionStatus.refresh();
-      todayStatus[type] = result.time;
-      todayStatus.refresh();
+      if (isSessionCompleted) {
+        todaySessionStatus[effectiveKey] = result.time;
+        todaySessionStatus.refresh();
+        todayStatus[type] = result.time;
+        todayStatus.refresh();
+      }
 
       try {
         final store = Get.find<SessionStore>();
         await store.saveLastAttendanceDate(today);
-        await store.saveMarkedSessionDate(effectiveKey, today);
-        await store.saveMarkedSessionTime(effectiveKey, result.time);
+        if (!isMultiPhase) {
+          await store.saveMarkedSessionDate(effectiveKey, today);
+          await store.saveMarkedSessionTime(effectiveKey, result.time);
+        }
       } catch (_) {}
 
       await load(showLoading: false);
@@ -692,11 +808,25 @@ class AttendanceController extends GetxController with LoadStateMixin {
 
   void onAttendanceMarked(AttendanceRecord record) {
     final key = record.sessionKey.toLowerCase().trim();
-    todaySessionStatus[key] = record.time;
-    todaySessionStatus.refresh();
-    todayStatus[record.type] = record.time;
-    todayStatus.refresh();
-    alreadyMarked.value = true;
+    final matchedSched = schedulesList.firstWhereOrNull(
+      (s) => s.sessionKey.toLowerCase().trim() == key,
+    );
+    final isMultiPhase = matchedSched?.hasMultipleAttendance ?? false;
+    if (record.phase != null) {
+      todaySessionPhases.putIfAbsent(key, () => <int>{}).add(record.phase!);
+      todaySessionPhases.refresh();
+    }
+    final isSessionCompleted = !isMultiPhase ||
+        record.phase == 2 ||
+        (todaySessionPhases[key]?.containsAll({1, 2}) ?? false);
+
+    if (isSessionCompleted) {
+      todaySessionStatus[key] = record.time;
+      todaySessionStatus.refresh();
+      todayStatus[record.type] = record.time;
+      todayStatus.refresh();
+      alreadyMarked.value = true;
+    }
     recentHistory.insert(0, record);
     recentHistory.refresh();
   }

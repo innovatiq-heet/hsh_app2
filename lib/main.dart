@@ -1,5 +1,4 @@
-// FIREBASE DISABLED: see pubspec.yaml.
-// import 'package:firebase_core/firebase_core.dart';
+import 'package:firebase_core/firebase_core.dart';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:image_picker_android/image_picker_android.dart';
@@ -20,12 +19,11 @@ void main() async {
   if (imagePickerImplementation is ImagePickerAndroid) {
     imagePickerImplementation.useAndroidPhotoPicker = true;
   }
-  // FIREBASE DISABLED: see pubspec.yaml.
-  // try {
-  //   await Firebase.initializeApp();
-  // } catch (e) {
-  //   debugPrint('Firebase initialization warning in main: $e');
-  // }
+  try {
+    await Firebase.initializeApp();
+  } catch (e) {
+    debugPrint('Firebase initialization warning in main: $e');
+  }
   runApp(const HshApp());
 }
 

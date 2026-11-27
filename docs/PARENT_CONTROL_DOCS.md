@@ -241,12 +241,16 @@ While HSH is an active **device admin**, Android's App info page disables **Forc
 - **A server that can't store block events never makes the phone look offline:** if a ping carrying `blockEvents` gets a 5xx, `ScreenTimeSync` sends it again at once without them (usage, compliance and geofence events still go). The block events stay queued for the next ping.
 - Not covered: very fast taps on phones where the usage event arrives late, ROMs that show this screen under another class name, safe mode, ADB, and a factory reset. The uninstall itself can't be reported (the app is gone); the phone just stops pinging. Only Device Owner (a hostel-owned, enrolled phone) closes this fully.
 
-**Backend needed to alert the warden** (the app side is done; `hsh_api` is a separate repo):
+**Push notifications are live on the app side (2026-11-28): Firebase/FCM, switched off since the "FIREBASE DISABLED" rollback, is re-enabled** — `PushNotificationService` initializes Firebase, requests permission, registers the device's FCM token with the backend (`POST /auth/fcm-token`, already implemented), and a received push routes a tap straight to the student's Screen Time page when its `data.type` is `admin_protected`, `admin_disabled`, `suspected_uninstall` or `code_redeemed` (same handling as any other Screen Time push). Two things are still needed before a warden's phone actually buzzes:
+
+- **`android/app/google-services.json`**: not checked in (per `AGENTS.md`, no new credentials are committed). Download it from the Firebase console for this app's package name and drop it in locally — the Gradle plugin (`android/app/build.gradle.kts`) only applies when that file exists, so its absence is harmless, it just means no FCM token.
+- **`hsh_api` must actually send the push**, not only create the in-app alert row:
 
 1. `POST /screen-time/ping`: store `blockEvents` (today they are ignored), at least those with `reason: "admin_protected"`: student id from the token, `packageName`, `appName`, `reason`, `at` (epoch ms).
-2. On an `admin_protected` event, or when `compliance.deviceAdminActive` changes to `false`, send a push notification to the student's wardens/leaders ("<name> tried to turn off HSH removal protection") and show it in the Screen Time alerts.
-3. Uninstall can only be inferred: alert when a student with an active session sends no ping for a set time (for example 30 minutes with no ping after the last one had `deviceAdminActive: false`).
-4. Keep returning the latest `compliance` on `GET /screen-time/students` and `/live` (already done today): the student's Monitoring section and the install pill read it.
+2. On an `admin_protected` event, or when `compliance.deviceAdminActive` changes to `false`, send an **FCM push** (not just a Screen Time alert row) to the student's wardens'/leaders' registered tokens, with `data: {"type": "admin_protected", "student_id": "...", ...}` (`type: "admin_disabled"` when it actually turns off) — that `type` is what the app's tap-routing switches on. Also show it in the Screen Time alerts list as today.
+3. Uninstall can only be inferred: alert when a student with an active session sends no ping for a set time (for example 30 minutes with no ping after the last one had `deviceAdminActive: false`) — push `type: "suspected_uninstall"`.
+4. On a redeemed removal code (§5.7a), push `type: "code_redeemed"` the same way.
+5. Keep returning the latest `compliance` on `GET /screen-time/students` and `/live` (already done today): the student's Monitoring section and the install pill read it.
 
 ### 5.7a Removal codes (break-glass uninstall, 2026-11-27)
 

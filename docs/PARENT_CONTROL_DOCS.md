@@ -262,11 +262,12 @@ A warden-issued one-time 6-digit code lets a student turn off removal protection
 
 By policy, a student's/leader's **first ever login is free; every login after that needs a warden-issued code** — this is deliberately broader than "only after a detected reinstall": it also covers a student simply logging out and back in, an expired/cleared local session, or a new phone, not just evasion attempts. Resuming an already-stored session (the common case — the app reopening with a valid cached token, handled in `SplashController`, never touching `/auth/login`) is **not** a login and is never gated; this only applies when credentials are submitted fresh, i.e. `POST /auth/login` (and `/auth/auto-login`) for `student`/`leader` roles. Admin, warden and staff accounts must never be gated by this — practically all of them need to already be able to log in to issue a code in the first place.
 
-`LoginRequest` carries an optional `code`; `LoginController.login()` sends it once the server has asked for one.
+`LoginRequest` carries an optional `code`; `LoginController.login()` sends it once the server has asked for one. Every `POST /auth/login` from this app also carries `"client": "hsh_app2_mobile"`.
 
 1. A student's / leader's later login without a right code gets HTTP `428` `{"requires_code": true, "message": "…"}` and no token.
 2. The code is the one from §5.7a. A correct code completes the login and is used up.
-3. Alumni, staff and viewer logins are not gated. Admin and operator logins use their own code (§5.7c). The server switch `LOGIN_CODE_GATE=off` turns this gate off.
+3. Alumni, staff and viewer logins are not gated. Admin and operator logins use their own code (§5.7c). This gate applies only when the server sets `LOGIN_CODE_GATE=on`; it is off otherwise.
+4. **Must not reach the attendance web portal.** Students currently log in on a separate web portal to mark attendance, and that must keep working exactly as it does today — this gate exists to slow down a phone that's being re-set-up after someone turned monitoring off, not to block a student from a browser. The server must key the gate on the `client: "hsh_app2_mobile"` field above, not on role alone: a `student`/`leader` login with no `client` field, or a different one, is the web portal (or another caller) and must never be asked for a code, regardless of `LOGIN_CODE_GATE`.
 
 ### 5.7c Admin login code on WhatsApp (2026-11-27)
 

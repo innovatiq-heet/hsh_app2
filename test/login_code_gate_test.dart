@@ -41,6 +41,16 @@ void main() {
     );
   });
 
+  test(
+    'LoginRequest always identifies this app so the backend never gates the attendance web portal',
+    () {
+      expect(
+        const LoginRequest(studentId: '0345').toJson()['client'],
+        'hsh_app2_mobile',
+      );
+    },
+  );
+
   test('a 200 response with requires_code throws ApiException(statusCode: 428)', () async {
     api.on('POST /auth/login', {
       'requires_code': true,

@@ -23,6 +23,9 @@ class LoginRequest {
         'student_id': studentId,
         'email': email ?? studentId,
         'password': password ?? '',
+        // Lets the backend scope the second-login code gate (§5.7b) to this
+        // app only — the attendance web portal must keep working ungated.
+        'client': 'hsh_app2_mobile',
         if (code != null && code!.trim().isNotEmpty) 'code': code!.trim(),
       };
 }

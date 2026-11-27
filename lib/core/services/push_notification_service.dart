@@ -80,6 +80,15 @@ class PushNotificationService extends GetxService {
     if (payload != null) _navigateFromPayload(payload);
   }
 
+  /// What tapping a notification with this payload does.
+  @visibleForTesting
+  void openPayload(Map<String, dynamic> data) => _navigateFromPayload(data);
+
+  /// The server's name for the Screen Time page in a push's `route`. The app's
+  /// route is [Routes.studentScreenTime], so such a push is routed like any
+  /// other Screen Time one.
+  static const _serverScreenTimeRoute = '/student-screen-time';
+
   /// High importance notification channel for Android.
   static const AndroidNotificationChannel _channel = AndroidNotificationChannel(
     'hsh_high_importance_channel',
@@ -309,12 +318,15 @@ class PushNotificationService extends GetxService {
       return;
     }
     final targetRoute = data['route'] ?? data['screen'];
-    if (targetRoute is String && targetRoute.isNotEmpty) {
+    final namesScreenTime = targetRoute == _serverScreenTimeRoute;
+    if (!namesScreenTime && targetRoute is String && targetRoute.isNotEmpty) {
       Get.toNamed(targetRoute, arguments: data);
       return;
     }
 
-    final type = data['type']?.toString().toLowerCase();
+    final type = namesScreenTime
+        ? 'screen_time'
+        : data['type']?.toString().toLowerCase();
     switch (type) {
       case 'attendance':
       case 'attendance_alert':
@@ -346,6 +358,7 @@ class PushNotificationService extends GetxService {
         break;
       case 'screentime':
       case 'screen_time':
+      case 'screen_time_alert':
       case 'app_request':
       // Removal-protection alerts (docs/PARENT_CONTROL_DOCS.md §5.7):
       // a student tried to or did turn off monitoring, or may have

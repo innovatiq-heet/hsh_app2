@@ -43,20 +43,33 @@ class _SpaceEditorSheetState extends State<SpaceEditorSheet> {
     if (_name.text.trim().isEmpty || _saving) return;
     setState(() => _saving = true);
     try {
-      final body = {
-        'floor_id': widget.floorId,
-        'space_type_id': _typeId,
-        'name': _name.text.trim(),
-        if (_room.text.trim().isNotEmpty) 'room_number': _room.text.trim(),
-        if (_cap.text.trim().isNotEmpty) 'capacity': int.tryParse(_cap.text.trim()),
-        if (_desc.text.trim().isNotEmpty) 'description': _desc.text.trim(),
-      };
+      final name = _name.text.trim();
+      final room = _room.text.trim();
+      final capacity = int.tryParse(_cap.text.trim());
+      final description = _desc.text.trim();
+
       if (widget.existing == null) {
-        await _repo.createSpace(body);
-        AppSnackbar.success('Space created', '${_name.text.trim()} added.');
+        await _repo.createSpace({
+          'floor_id': widget.floorId,
+          'space_type_id': _typeId,
+          'name': name,
+          if (room.isNotEmpty) 'room_number': room,
+          'capacity': ?capacity,
+          if (description.isNotEmpty) 'description': description,
+        });
+        AppSnackbar.success('Space created', '$name added.');
       } else {
-        await _repo.updateSpace(widget.existing!.id, body);
-        AppSnackbar.success('Space updated', '${_name.text.trim()} saved.');
+        // Partial update: only fields that actually changed from `existing`.
+        final existing = widget.existing!;
+        final body = <String, dynamic>{
+          if (_typeId != existing.spaceTypeId) 'space_type_id': _typeId,
+          if (name != existing.name) 'name': name,
+          if (room != (existing.roomNumber ?? '')) 'room_number': room,
+          if (capacity != existing.capacity) 'capacity': capacity,
+          if (description != (existing.description ?? '')) 'description': description,
+        };
+        if (body.isNotEmpty) await _repo.updateSpace(existing.id, body);
+        AppSnackbar.success('Space updated', '$name saved.');
       }
       if (mounted) Navigator.of(context).pop(true);
     } catch (e) {

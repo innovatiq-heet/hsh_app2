@@ -3,10 +3,8 @@ import 'package:get/get.dart';
 import '../../../core/constants/app_colors.dart';
 import '../../../core/constants/app_dimens.dart';
 import '../../../core/constants/app_routes.dart';
-import '../../../core/enums/user_role.dart';
 import '../../../core/models/space_amenities/space_amenity_models.dart';
 import '../../../core/network/repository/space_amenities/space_amenities_repository.dart';
-import '../../../core/storage/session_store.dart';
 import '../../../core/utils/app_snackbar.dart';
 import '../../../core/utils/date_formatting.dart';
 import '../../shared/widgets/app_refresh_indicator.dart';
@@ -15,6 +13,7 @@ import '../../shared/widgets/empty_state.dart';
 import '../../shared/widgets/navy_sliver_header.dart';
 import '../../shared/widgets/phonebook_style_widgets.dart';
 import '../../shared/widgets/skeleton_loader.dart';
+import '../utils/space_amenity_access.dart';
 import '../utils/space_amenity_ui.dart';
 import '../widgets/add_amenity_sheet.dart';
 import '../widgets/space_editor_sheet.dart';
@@ -34,9 +33,6 @@ class _SpaceDetailsScreenState extends State<SpaceDetailsScreen> {
   bool _loading = true;
   String? _error;
   final Set<int> _expandedTypes = {};
-
-  UserRole get _role => Get.find<SessionStore>().currentSession?.role ?? UserRole.unknown;
-  bool get _isAdminOrWarden => _role.canOperate;
 
   @override
   void initState() {
@@ -103,7 +99,7 @@ class _SpaceDetailsScreenState extends State<SpaceDetailsScreen> {
 
     return Scaffold(
       backgroundColor: PhonebookTheme.bg,
-      floatingActionButton: _isAdminOrWarden && sp != null
+      floatingActionButton: SpaceAmenityAccess.canConfigure && sp != null
           ? FloatingActionButton.extended(
               onPressed: () async {
                 final added = await showModalBottomSheet<bool>(
@@ -140,13 +136,13 @@ class _SpaceDetailsScreenState extends State<SpaceDetailsScreen> {
                   subtitle: subtitle,
                   onBack: () => Navigator.of(context).pop(),
                   actions: [
-                    if (_isAdminOrWarden)
+                    if (SpaceAmenityAccess.canConfigure)
                       NavyHeaderAction(
                         icon: Icons.edit_outlined,
                         tooltip: 'Edit space',
                         onTap: _openEditSpace,
                       ),
-                    if (_isAdminOrWarden)
+                    if (SpaceAmenityAccess.canConfigure)
                       NavyHeaderAction(
                         icon: Icons.archive_outlined,
                         tooltip: 'Archive space',
@@ -250,7 +246,7 @@ class _SpaceDetailsScreenState extends State<SpaceDetailsScreen> {
                             ],
                           ),
                         const SizedBox(height: AppDimens.gapMd),
-                        if (data.assignedStudents.isNotEmpty)
+                        if (data.assignedStudents.isNotEmpty && SpaceAmenityAccess.canViewResidents)
                           _ExpandableInfoSection(
                             title: 'Assigned Students (${data.assignedStudents.length})',
                             icon: Icons.people_outline_rounded,
@@ -277,14 +273,14 @@ class _SpaceDetailsScreenState extends State<SpaceDetailsScreen> {
                                   title: Text('${c['item'] ?? ''} (${c['category'] ?? ''})', style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 13.5)),
                                   subtitle: Text('${c['comment'] ?? c['status'] ?? ''}', maxLines: 2, overflow: TextOverflow.ellipsis, style: const TextStyle(fontSize: 11.5)),
                                   trailing: const Icon(Icons.chevron_right_rounded, size: 18),
-                                  onTap: _role.canSolveComplaints
+                                  onTap: SpaceAmenityAccess.canMaintain
                                       ? () => Get.toNamed(Routes.complainAdminDetail, arguments: '${c['id']}')?.then((_) => _load(showLoading: false))
                                       : null,
                                 ),
                             ],
                           ),
                         ],
-                        if (data.space.roomNumber != null && _isAdminOrWarden) ...[
+                        if (data.space.roomNumber != null && SpaceAmenityAccess.canConfigure) ...[
                           const SizedBox(height: 10),
                           _ExpandableInfoSection(
                             title: 'Room Keys (${data.roomKeys.length})',

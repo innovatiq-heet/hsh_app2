@@ -2,16 +2,15 @@ import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import '../../../core/constants/app_colors.dart';
 import '../../../core/constants/app_dimens.dart';
-import '../../../core/enums/user_role.dart';
 import '../../../core/models/space_amenities/space_amenity_models.dart';
 import '../../../core/network/repository/space_amenities/space_amenities_repository.dart';
-import '../../../core/storage/session_store.dart';
 import '../../shared/widgets/app_refresh_indicator.dart';
 import '../../shared/widgets/async_state_view.dart';
 import '../../shared/widgets/empty_state.dart';
 import '../../shared/widgets/navy_sliver_header.dart';
 import '../../shared/widgets/phonebook_style_widgets.dart';
 import '../../shared/widgets/skeleton_loader.dart';
+import '../utils/space_amenity_access.dart';
 import '../utils/space_amenity_ui.dart';
 import '../widgets/space_editor_sheet.dart';
 import 'space_details_screen.dart';
@@ -35,9 +34,6 @@ class _FloorDetailsScreenState extends State<FloorDetailsScreen> {
   int? _spaceTypeId;
   bool _hasIssuesOnly = false;
   bool _gridView = true;
-
-  bool get _isAdminOrWarden =>
-      (Get.find<SessionStore>().currentSession?.role ?? UserRole.unknown).canOperate;
 
   @override
   void initState() {
@@ -70,7 +66,7 @@ class _FloorDetailsScreenState extends State<FloorDetailsScreen> {
 
     return Scaffold(
       backgroundColor: PhonebookTheme.bg,
-      floatingActionButton: _isAdminOrWarden && _data != null
+      floatingActionButton: SpaceAmenityAccess.canConfigure && _data != null
           ? FloatingActionButton.extended(
               onPressed: () async {
                 final created = await showModalBottomSheet<bool>(

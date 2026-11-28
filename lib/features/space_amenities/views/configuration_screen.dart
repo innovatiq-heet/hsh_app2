@@ -7,9 +7,11 @@ import '../../../core/network/repository/space_amenities/space_amenities_reposit
 import '../../../core/utils/app_snackbar.dart';
 import '../../shared/widgets/app_refresh_indicator.dart';
 import '../../shared/widgets/async_state_view.dart';
+import '../../shared/widgets/empty_state.dart';
 import '../../shared/widgets/navy_sliver_header.dart';
 import '../../shared/widgets/phonebook_style_widgets.dart';
 import '../../shared/widgets/skeleton_loader.dart';
+import '../utils/space_amenity_access.dart';
 
 class SpaceConfigurationScreen extends StatefulWidget {
   const SpaceConfigurationScreen({super.key});
@@ -235,6 +237,28 @@ class _SpaceConfigurationScreenState extends State<SpaceConfigurationScreen> {
 
   @override
   Widget build(BuildContext context) {
+    if (!SpaceAmenityAccess.canConfigure) {
+      return Scaffold(
+        backgroundColor: PhonebookTheme.bg,
+        body: CustomScrollView(
+          slivers: [
+            NavySliverHeader(
+              title: 'Configuration',
+              subtitle: 'Spaces, inventory types & maintenance rules',
+              onBack: () => Navigator.of(context).pop(),
+            ),
+            const SliverFillRemaining(
+              hasScrollBody: false,
+              child: EmptyState(
+                icon: Icons.lock_outline,
+                title: 'Restricted',
+                message: 'Configuration is available to administrators and wardens.',
+              ),
+            ),
+          ],
+        ),
+      );
+    }
     return Scaffold(
       backgroundColor: PhonebookTheme.bg,
       body: AsyncStateView(

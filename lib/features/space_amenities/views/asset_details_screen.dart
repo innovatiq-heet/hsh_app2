@@ -4,7 +4,6 @@ import 'package:qr_flutter/qr_flutter.dart';
 import '../../../core/constants/app_config.dart';
 import '../../../core/constants/app_dimens.dart';
 import '../../../core/constants/app_routes.dart';
-import '../../../core/enums/user_role.dart';
 import '../../../core/models/space_amenities/space_amenity_models.dart';
 import '../../../core/network/repository/space_amenities/space_amenities_repository.dart';
 import '../../../core/storage/session_store.dart';
@@ -17,6 +16,7 @@ import '../../shared/widgets/info_row.dart';
 import '../../shared/widgets/navy_sliver_header.dart';
 import '../../shared/widgets/phonebook_style_widgets.dart';
 import '../../shared/widgets/skeleton_loader.dart';
+import '../utils/space_amenity_access.dart';
 import '../utils/space_amenity_ui.dart';
 import '../widgets/maintenance_update_sheet.dart';
 import '../widgets/replace_asset_sheet.dart';
@@ -36,11 +36,6 @@ class _AssetDetailsScreenState extends State<AssetDetailsScreen> with SingleTick
   AssetDetailsResponse? _data;
   bool _loading = true;
   String? _error;
-
-  UserRole get _role => Get.find<SessionStore>().currentSession?.role ?? UserRole.unknown;
-  bool get _isAdminOrWarden => _role.canOperate;
-  bool get _canMaintain => _role.canSolveComplaints;
-  bool get _isStudentOrLeader => _role.isStudentOrLeader;
 
   @override
   void initState() {
@@ -206,7 +201,7 @@ class _AssetDetailsScreenState extends State<AssetDetailsScreen> with SingleTick
                       tooltip: 'Asset QR Code',
                       onTap: () => _showQrDialog(asset),
                     ),
-                    if (_isAdminOrWarden && !asset.isArchived)
+                    if (SpaceAmenityAccess.canConfigure && !asset.isArchived)
                       NavyHeaderAction(
                         icon: Icons.more_vert_rounded,
                         tooltip: 'Asset actions',
@@ -313,7 +308,7 @@ class _AssetDetailsScreenState extends State<AssetDetailsScreen> with SingleTick
                         const SizedBox(height: 12),
                         Row(
                           children: [
-                            if (_isStudentOrLeader && !asset.isArchived)
+                            if (SpaceAmenityAccess.isStudentOrLeader && !asset.isArchived)
                               Expanded(
                                 child: ElevatedButton.icon(
                                   onPressed: () => Get.toNamed(
@@ -331,8 +326,8 @@ class _AssetDetailsScreenState extends State<AssetDetailsScreen> with SingleTick
                                   label: const Text('Report Complaint'),
                                 ),
                               ),
-                            if (_canMaintain && !asset.isArchived) ...[
-                              if (_isStudentOrLeader) const SizedBox(width: 8),
+                            if (SpaceAmenityAccess.canMaintain && !asset.isArchived) ...[
+                              if (SpaceAmenityAccess.isStudentOrLeader) const SizedBox(width: 8),
                               Expanded(
                                 child: ElevatedButton.icon(
                                   onPressed: () async {
@@ -343,7 +338,7 @@ class _AssetDetailsScreenState extends State<AssetDetailsScreen> with SingleTick
                                         assetId: asset.id,
                                         assetName: '${asset.name} (${asset.assetCode})',
                                         currentCondition: asset.condition,
-                                        canReplaceAsset: _isAdminOrWarden,
+                                        canReplaceAsset: SpaceAmenityAccess.canConfigure,
                                       ),
                                     );
                                     if (ok == true) _load(showLoading: false);
@@ -378,7 +373,7 @@ class _AssetDetailsScreenState extends State<AssetDetailsScreen> with SingleTick
                   _DetailsTab(asset: asset),
                   _ComplaintsTab(
                     complaints: data.complaints,
-                    isStaff: _canMaintain,
+                    isStaff: SpaceAmenityAccess.canMaintain,
                     onRefresh: () => _load(showLoading: false),
                   ),
                   _LocationHistoryTab(history: data.locationHistory),

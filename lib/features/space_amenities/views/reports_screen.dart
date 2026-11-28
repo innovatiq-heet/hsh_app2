@@ -5,9 +5,11 @@ import '../../../core/constants/app_dimens.dart';
 import '../../../core/network/repository/space_amenities/space_amenities_repository.dart';
 import '../../shared/widgets/app_refresh_indicator.dart';
 import '../../shared/widgets/async_state_view.dart';
+import '../../shared/widgets/empty_state.dart';
 import '../../shared/widgets/navy_sliver_header.dart';
 import '../../shared/widgets/phonebook_style_widgets.dart';
 import '../../shared/widgets/skeleton_loader.dart';
+import '../utils/space_amenity_access.dart';
 
 class SpaceReportsScreen extends StatefulWidget {
   const SpaceReportsScreen({super.key});
@@ -40,6 +42,28 @@ class _SpaceReportsScreenState extends State<SpaceReportsScreen> {
 
   @override
   Widget build(BuildContext context) {
+    if (!SpaceAmenityAccess.canConfigure) {
+      return Scaffold(
+        backgroundColor: PhonebookTheme.bg,
+        body: CustomScrollView(
+          slivers: [
+            NavySliverHeader(
+              title: 'Reports & Analytics',
+              subtitle: 'Asset health, expenses & warranties',
+              onBack: () => Navigator.of(context).pop(),
+            ),
+            const SliverFillRemaining(
+              hasScrollBody: false,
+              child: EmptyState(
+                icon: Icons.lock_outline,
+                title: 'Restricted',
+                message: 'Reports are available to administrators and wardens.',
+              ),
+            ),
+          ],
+        ),
+      );
+    }
     return Scaffold(
       backgroundColor: PhonebookTheme.bg,
       body: AsyncStateView(

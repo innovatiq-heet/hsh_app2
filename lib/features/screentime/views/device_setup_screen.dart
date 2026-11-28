@@ -28,6 +28,7 @@ class _DeviceSetupScreenState extends State<DeviceSetupScreen>
   bool _location = false;
   bool _battery = false;
   bool _admin = false;
+  bool _deviceOwner = false;
   bool _batterySkipped = false;
   // Set only for a session this screen doesn't apply to (alumni/leader), so
   // the one-time programmatic pop below isn't blocked by [canPop].
@@ -74,9 +75,20 @@ class _DeviceSetupScreenState extends State<DeviceSetupScreen>
   }
 
   Future<void> _loadEverCompleted() async {
-    if (!Get.isRegistered<SessionStore>()) return;
-    final done = await Get.find<SessionStore>().requiredSetupEverCompleted;
-    if (mounted) setState(() => _everCompleted = done);
+    var done = false;
+    if (Get.isRegistered<SessionStore>()) {
+      done = await Get.find<SessionStore>().requiredSetupEverCompleted;
+    }
+    if (!done) {
+      done = await ScreenTimeService.hasCompletedNativeSetup();
+    }
+    final isDo = await ScreenTimeService.isDeviceOwner();
+    if (mounted) {
+      setState(() {
+        _everCompleted = done;
+        _deviceOwner = isDo;
+      });
+    }
   }
 
   @override
@@ -117,12 +129,9 @@ class _DeviceSetupScreenState extends State<DeviceSetupScreen>
       if (Get.isRegistered<SessionStore>()) {
         await Get.find<SessionStore>().markRequiredSetupCompleted();
       }
-    } else if (wasRequiredDone &&
-        !_requiredDone &&
-        _everCompleted &&
-        !_needsCode) {
-      // A regression: something that was on is now off. Lock the steps
-      // behind a warden code instead of letting it be quietly redone.
+    } else if (!_requiredDone && _everCompleted && !_needsCode) {
+      // A regression (or cleared app data after previous server-confirmed setup):
+      // lock the steps behind a warden code instead of letting it be quietly redone.
       setState(() => _needsCode = true);
     }
 
@@ -156,6 +165,8 @@ class _DeviceSetupScreenState extends State<DeviceSetupScreen>
 
   void _finish() {
     _poll?.cancel();
+    ScreenTimeService.markSetupCompleted();
+    _repo.markSetupCompleted();
     ScreenTimeService.syncNow();
     GeofenceDeviceService.sampleNow();
     if (Get.currentRoute.contains('device-setup')) Get.back();
@@ -208,6 +219,31 @@ class _DeviceSetupScreenState extends State<DeviceSetupScreen>
                     color: AppColors.textSecondary,
                   ),
                 ),
+                if (_deviceOwner) ...[
+                  const SizedBox(height: AppDimens.gapSm),
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                    decoration: BoxDecoration(
+                      color: AppColors.successGreen.withValues(alpha: 0.12),
+                      borderRadius: BorderRadius.circular(AppDimens.radiusMd),
+                    ),
+                    child: Row(
+                      children: [
+                        const Icon(Icons.verified_user_rounded, size: 16, color: AppColors.successGreen),
+                        const SizedBox(width: 6),
+                        Expanded(
+                          child: Text(
+                            'Device Owner protection active (zero-bypass mode)',
+                            style: AppTextStyles.caption.copyWith(
+                              color: AppColors.successGreen,
+                              fontWeight: FontWeight.w700,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
                 const SizedBox(height: AppDimens.gapXl),
 
                 // Progress

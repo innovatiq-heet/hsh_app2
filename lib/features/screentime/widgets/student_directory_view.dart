@@ -16,6 +16,7 @@ import '../../../core/utils/string_formatting.dart';
 import 'app_brand_icon.dart';
 import 'app_install_status_pill.dart';
 import 'app_requests_banner.dart';
+import 'device_requests_banner.dart';
 import '../../shared/widgets/student_avatar.dart';
 
 /// Warden's directory: search, quick filters and one row per student that
@@ -44,6 +45,7 @@ class StudentDirectoryView extends GetView<ScreenTimeDirectoryController> {
                   ? const NightCurfewCard(footer: _GlobalCurfewBanner(embedded: true))
                   : const _GlobalCurfewBanner()),
               const SizedBox(height: 10),
+              DeviceRequestsBanner(controller: controller),
               AppRequestsBanner(host: controller),
               _SummaryStrip(),
               const SizedBox(height: 10),
@@ -234,7 +236,7 @@ class _SummaryStrip extends GetView<ScreenTimeDirectoryController> {
               borderRadius: BorderRadius.circular(10),
               child: AnimatedContainer(
                 duration: const Duration(milliseconds: 160),
-                padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 2),
+                padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 4),
                 decoration: BoxDecoration(
                   color: selected ? const Color(0xFF0284C7) : Colors.transparent,
                   borderRadius: BorderRadius.circular(10),
@@ -267,31 +269,35 @@ class _SummaryStrip extends GetView<ScreenTimeDirectoryController> {
                           ),
                         ],
                         Flexible(
-                          child: Text(
-                            count,
-                            style: TextStyle(
-                              color: selected ? Colors.white : const Color(0xFF0F172A),
-                              fontSize: 16,
-                              fontWeight: FontWeight.w800,
-                              height: 1.1,
+                          child: FittedBox(
+                            fit: BoxFit.scaleDown,
+                            child: Text(
+                              count,
+                              style: TextStyle(
+                                color: selected ? Colors.white : const Color(0xFF0F172A),
+                                fontSize: 15.5,
+                                fontWeight: FontWeight.w800,
+                                height: 1.1,
+                              ),
+                              maxLines: 1,
                             ),
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
                           ),
                         ),
                       ],
                     ),
                     const SizedBox(height: 3),
-                    Text(
-                      label,
-                      style: TextStyle(
-                        color: selected ? Colors.white.withValues(alpha: 0.95) : const Color(0xFF64748B),
-                        fontSize: 10.5,
-                        fontWeight: selected ? FontWeight.w700 : FontWeight.w600,
-                        height: 1.1,
+                    FittedBox(
+                      fit: BoxFit.scaleDown,
+                      child: Text(
+                        label,
+                        style: TextStyle(
+                          color: selected ? Colors.white.withValues(alpha: 0.95) : const Color(0xFF64748B),
+                          fontSize: 10.5,
+                          fontWeight: selected ? FontWeight.w700 : FontWeight.w600,
+                          height: 1.1,
+                        ),
+                        maxLines: 1,
                       ),
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
                     ),
                   ],
                 ),
@@ -753,10 +759,10 @@ class _SearchField extends GetView<ScreenTimeDirectoryController> {
                   fontWeight: FontWeight.w600,
                 ),
                 decoration: InputDecoration(
-                  hintText: 'Search by name, room, Aadhar or phone...',
+                  hintText: 'Search name, room or code...',
                   hintStyle: const TextStyle(
                     color: Color(0xFF94A3B8),
-                    fontSize: 14,
+                    fontSize: 13.5,
                     fontWeight: FontWeight.w400,
                   ),
                   isDense: true,
@@ -1056,6 +1062,9 @@ class _StudentRow extends GetView<ScreenTimeDirectoryController> {
     final lastSeen = lastSeenOf(student);
     final currentApp = (student['currentApp'] ?? '').toString();
     final currentPkg = (student['currentPackage'] ?? '').toString();
+    final lastUsed = lastUsedAppOf(student);
+    final isActivelyUsing = isOnline && isScreenOn && currentApp.isNotEmpty && currentApp != 'Idle';
+    final lastUsedAgo = lastUsed != null ? formatLastUsedAgo(lastUsed.minutesAgo, lastUsed.usedAt) : '';
 
     final rawBattery = student['batteryLevel'] ??
         student['battery_level'] ??
@@ -1204,7 +1213,7 @@ class _StudentRow extends GetView<ScreenTimeDirectoryController> {
                     children: [
                       Row(
                         children: [
-                          Flexible(
+                          Expanded(
                             child: Text(
                               name,
                               style: const TextStyle(
@@ -1219,25 +1228,25 @@ class _StudentRow extends GetView<ScreenTimeDirectoryController> {
                           const SizedBox(width: 6),
                           Container(
                             padding: const EdgeInsets.symmetric(
-                              horizontal: 6,
-                              vertical: 1.5,
+                              horizontal: 6.5,
+                              vertical: 2,
                             ),
                             decoration: BoxDecoration(
                               color: const Color(0xFFF1F5F9),
                               borderRadius: BorderRadius.circular(6),
                             ),
                             child: Text(
-                              'Room $room',
+                              'Rm $room',
                               style: const TextStyle(
                                 fontSize: 10.5,
-                                fontWeight: FontWeight.w600,
+                                fontWeight: FontWeight.w700,
                                 color: Color(0xFF475569),
                               ),
                             ),
                           ),
                         ],
                       ),
-                      const SizedBox(height: 3),
+                      const SizedBox(height: 3.5),
                       Row(
                         children: [
                           Flexible(
@@ -1261,63 +1270,98 @@ class _StudentRow extends GetView<ScreenTimeDirectoryController> {
                           ],
                         ],
                       ),
-                      const SizedBox(height: 4),
-                      AppInstallStatusPill(status: appInstallStatusOf(student), compact: true),
-                      if (locked || restricted > 0 || hasInstallPass || lowBattery || isDisconnected || extendedOffline) ...[
-                        const SizedBox(height: 6),
-                        Wrap(
-                          spacing: 6,
-                          runSpacing: 4,
-                          children: [
-                            if (isDisconnected)
-                              _Tag(
-                                icon: Icons.wifi_off_rounded,
-                                label: lastSeen != null
-                                    ? 'Disconnected (${DateFormat('h:mm a').format(lastSeen)})'
-                                    : 'Disconnected (>15m)',
-                                color: const Color(0xFFDC2626),
-                                bg: const Color(0xFFFEF2F2),
+                      if (!isActivelyUsing && lastUsed != null) ...[
+                        const SizedBox(height: 5),
+                        Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 7.5, vertical: 3.5),
+                          decoration: BoxDecoration(
+                            color: const Color(0xFFF8FAFC),
+                            borderRadius: BorderRadius.circular(8),
+                            border: Border.all(color: const Color(0xFFE2E8F0)),
+                          ),
+                          child: Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              AppBrandIcon(
+                                packageName: lastUsed.packageName,
+                                appName: lastUsed.appName,
+                                size: 15,
+                                showBadge: false,
                               ),
-                            if (lowBattery)
-                              _Tag(
-                                icon: Icons.battery_alert_rounded,
-                                label: 'Low battery ($battery%)',
-                                color: const Color(0xFFDC2626),
-                                bg: const Color(0xFFFEF2F2),
+                              const SizedBox(width: 5.5),
+                              Flexible(
+                                child: Text(
+                                  lastUsedAgo.isNotEmpty
+                                      ? 'Last: ${lastUsed.appName} · $lastUsedAgo'
+                                      : 'Last: ${lastUsed.appName}',
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                  style: const TextStyle(
+                                    fontSize: 11,
+                                    fontWeight: FontWeight.w600,
+                                    color: Color(0xFF334155),
+                                  ),
+                                ),
                               ),
-                            if (extendedOffline && !isDisconnected)
-                              _Tag(
-                                icon: Icons.cloud_off_rounded,
-                                label: lastSeen != null
-                                    ? 'Offline (${relativeTime(lastSeen)})'
-                                    : 'Offline (>12h)',
-                                color: const Color(0xFFD97706),
-                                bg: const Color(0xFFFEF3C7),
-                              ),
-                            if (hasInstallPass)
-                              const _Tag(
-                                icon: Icons.install_mobile_rounded,
-                                label: 'Install pass',
-                                color: Color(0xFF0284C7),
-                                bg: Color(0xFFE0F2FE),
-                              ),
-                            if (locked)
-                              const _Tag(
-                                icon: Icons.lock_rounded,
-                                label: 'Locked',
-                                color: Color(0xFFDC2626),
-                                bg: Color(0xFFFEF2F2),
-                              ),
-                            if (restricted > 0 && !locked)
-                              _Tag(
-                                icon: Icons.block_rounded,
-                                label: '$restricted blocked',
-                                color: const Color(0xFF0284C7),
-                                bg: const Color(0xFFE0F2FE),
-                              ),
-                          ],
+                            ],
+                          ),
                         ),
                       ],
+                      const SizedBox(height: 5),
+                      Wrap(
+                        spacing: 6,
+                        runSpacing: 4,
+                        crossAxisAlignment: WrapCrossAlignment.center,
+                        children: [
+                          AppInstallStatusPill(status: appInstallStatusOf(student), compact: true),
+                          if (isDisconnected)
+                            _Tag(
+                              icon: Icons.wifi_off_rounded,
+                              label: lastSeen != null
+                                  ? 'Offline ${DateFormat('h:mm a').format(lastSeen)}'
+                                  : 'Disconnected',
+                              color: const Color(0xFFDC2626),
+                              bg: const Color(0xFFFEF2F2),
+                            ),
+                          if (lowBattery)
+                            _Tag(
+                              icon: Icons.battery_alert_rounded,
+                              label: 'Low battery ($battery%)',
+                              color: const Color(0xFFDC2626),
+                              bg: const Color(0xFFFEF2F2),
+                            ),
+                          if (extendedOffline && !isDisconnected)
+                            _Tag(
+                              icon: Icons.cloud_off_rounded,
+                              label: lastSeen != null
+                                  ? 'Offline (${relativeTime(lastSeen)})'
+                                  : 'Offline (>12h)',
+                              color: const Color(0xFFD97706),
+                              bg: const Color(0xFFFEF3C7),
+                            ),
+                          if (hasInstallPass)
+                            const _Tag(
+                              icon: Icons.install_mobile_rounded,
+                              label: 'Install pass',
+                              color: Color(0xFF0284C7),
+                              bg: Color(0xFFE0F2FE),
+                            ),
+                          if (locked)
+                            const _Tag(
+                              icon: Icons.lock_rounded,
+                              label: 'Locked',
+                              color: Color(0xFFDC2626),
+                              bg: Color(0xFFFEF2F2),
+                            ),
+                          if (restricted > 0 && !locked)
+                            _Tag(
+                              icon: Icons.block_rounded,
+                              label: '$restricted blocked',
+                              color: const Color(0xFF0284C7),
+                              bg: const Color(0xFFE0F2FE),
+                            ),
+                        ],
+                      ),
                     ],
                   ),
                 ),
@@ -1466,23 +1510,38 @@ class _EntryButton extends StatelessWidget {
         borderRadius: BorderRadius.circular(14),
         onTap: onTap,
         child: Container(
-          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
+          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 10),
           decoration: BoxDecoration(
             borderRadius: BorderRadius.circular(14),
             border: Border.all(color: const Color(0xFFE2E8F0)),
           ),
           child: Row(
             children: [
-              Icon(icon, size: 20, color: const Color(0xFF4F46E5)),
+              Container(
+                width: 28,
+                height: 28,
+                decoration: BoxDecoration(
+                  color: const Color(0xFFEEF2FF),
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: Icon(icon, size: 17, color: const Color(0xFF4F46E5)),
+              ),
               const SizedBox(width: 8),
               Expanded(
-                child: Text(
-                  label,
-                  overflow: TextOverflow.ellipsis,
-                  style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 13.5, color: Color(0xFF0F172A)),
+                child: Align(
+                  alignment: Alignment.centerLeft,
+                  child: FittedBox(
+                    fit: BoxFit.scaleDown,
+                    child: Text(
+                      label,
+                      maxLines: 1,
+                      style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 13.5, color: Color(0xFF0F172A)),
+                    ),
+                  ),
                 ),
               ),
-              const Icon(Icons.chevron_right_rounded, size: 18, color: Color(0xFF94A3B8)),
+              const SizedBox(width: 4),
+              const Icon(Icons.chevron_right_rounded, size: 17, color: Color(0xFF94A3B8)),
             ],
           ),
         ),
@@ -1548,17 +1607,17 @@ class _GlobalCurfewBanner extends GetView<ScreenTimeDirectoryController> {
                     children: [
                       Flexible(
                         child: Text(
-                          embedded ? 'Campus geofence (location alerts)' : 'Night Curfew',
+                          embedded ? 'Campus geofence' : 'Night Curfew',
                           maxLines: 1,
                           overflow: TextOverflow.ellipsis,
                           style: TextStyle(
-                            fontSize: embedded ? 12.5 : 14,
+                            fontSize: embedded ? 13 : 14,
                             fontWeight: FontWeight.w700,
                             color: const Color(0xFF0F172A),
                           ),
                         ),
                       ),
-                      const SizedBox(width: 8),
+                      const SizedBox(width: 6),
                       Container(
                         padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 1.5),
                         decoration: BoxDecoration(
@@ -1577,38 +1636,37 @@ class _GlobalCurfewBanner extends GetView<ScreenTimeDirectoryController> {
                     ],
                   ),
                   const SizedBox(height: 3),
-                  Row(
+                  Wrap(
+                    spacing: 8,
+                    runSpacing: 2,
+                    crossAxisAlignment: WrapCrossAlignment.center,
                     children: [
-                      const Icon(
-                        Icons.schedule_rounded,
-                        size: 13,
-                        color: Color(0xFF64748B),
-                      ),
-                      const SizedBox(width: 4),
-                      Flexible(
-                        child: Text(
-                          policy.formatTimeRange(),
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                          style: const TextStyle(
-                            fontSize: 11,
+                      Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          const Icon(
+                            Icons.schedule_rounded,
+                            size: 12.5,
                             color: Color(0xFF64748B),
-                            fontWeight: FontWeight.w600,
                           ),
-                        ),
+                          const SizedBox(width: 4),
+                          Text(
+                            embedded ? 'Location · ${policy.formatTimeRange()}' : policy.formatTimeRange(),
+                            style: const TextStyle(
+                              fontSize: 11,
+                              color: Color(0xFF64748B),
+                              fontWeight: FontWeight.w600,
+                            ),
+                          ),
+                        ],
                       ),
-                      const SizedBox(width: 8),
                       InkWell(
-                        onTap: () =>
-                            _showEditCurfewHours(context, controller, policy),
+                        onTap: () => _showEditCurfewHours(context, controller, policy),
                         borderRadius: BorderRadius.circular(4),
                         child: const Padding(
-                          padding: EdgeInsets.symmetric(
-                            horizontal: 4,
-                            vertical: 1,
-                          ),
+                          padding: EdgeInsets.symmetric(horizontal: 4, vertical: 1),
                           child: Text(
-                            'Edit Hours',
+                            'Edit hours',
                             style: TextStyle(
                               fontSize: 11,
                               color: Color(0xFF0284C7),

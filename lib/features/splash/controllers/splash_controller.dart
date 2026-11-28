@@ -4,6 +4,7 @@ import '../../../core/constants/app_config.dart';
 import '../../../core/enums/user_role.dart';
 import '../../../core/constants/app_routes.dart';
 import '../../../core/network/api_client.dart';
+import '../../../core/services/app_update_service.dart';
 import '../../../core/services/screen_time_service.dart';
 import '../../../features/phonebook/services/caller_id_service.dart';
 import '../../../core/services/push_notification_service.dart';
@@ -24,6 +25,9 @@ class SplashController extends GetxController {
     ShorebirdService.instance.checkForUpdatesAndDownload();
 
     await Future.delayed(const Duration(milliseconds: 600));
+    if (await AppUpdateService.instance.enforceForceUpdateIfNeeded(onCleared: _bootstrap)) {
+      return;
+    }
     final token = await _sessionStore.token;
 
     if (token == null || token.trim().isEmpty) {

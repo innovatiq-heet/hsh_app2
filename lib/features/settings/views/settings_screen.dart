@@ -10,7 +10,6 @@ import '../../shared/widgets/app_button.dart';
 import '../../shared/widgets/app_card.dart';
 import '../../shared/widgets/brand.dart';
 import '../../shared/widgets/gradient_header.dart';
-import '../../shared/widgets/icon_badge.dart';
 import '../../shared/widgets/section_header.dart';
 import '../../shared/widgets/section_list_tile.dart';
 import '../../shared/widgets/privacy_and_disclosures_sheet.dart';
@@ -21,68 +20,6 @@ import '../../student_profile/controllers/student_profile_controller.dart';
 
 class SettingScreen extends StatelessWidget {
   const SettingScreen({super.key});
-
-  Future<void> _logout() async {
-    await Get.find<SessionStore>().logout();
-    Get.offAllNamed(Routes.login);
-  }
-
-  void _showLogoutDialog(BuildContext context) {
-    showDialog(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        backgroundColor: AppColors.surface,
-        surfaceTintColor: Colors.transparent,
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(AppDimens.radiusXl),
-        ),
-        contentPadding: const EdgeInsets.fromLTRB(24, 24, 24, 20),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            const IconBadge(
-              icon: Icons.logout_rounded,
-              color: AppColors.cancelledRed,
-              size: 56,
-            ),
-            const SizedBox(height: AppDimens.gapLg),
-            Text('Log out?', style: AppTextStyles.headline),
-            const SizedBox(height: AppDimens.gapSm),
-            Text(
-              'Are you sure you want to log out of ${AppStrings.appName}? You will need to sign in again to access your account.',
-              style: AppTextStyles.bodyMd.copyWith(
-                color: AppColors.textSecondary,
-              ),
-              textAlign: TextAlign.center,
-            ),
-            const SizedBox(height: AppDimens.gapXl),
-            Row(
-              children: [
-                Expanded(
-                  child: AppButton(
-                    label: AppStrings.cancel,
-                    variant: AppButtonVariant.outline,
-                    onPressed: () => Navigator.of(ctx).pop(),
-                  ),
-                ),
-                const SizedBox(width: AppDimens.gapMd),
-                Expanded(
-                  child: AppButton(
-                    label: AppStrings.logout,
-                    variant: AppButtonVariant.danger,
-                    onPressed: () {
-                      Navigator.of(ctx).pop();
-                      _logout();
-                    },
-                  ),
-                ),
-              ],
-            ),
-          ],
-        ),
-      ),
-    );
-  }
 
   // void _showLanguageSheet(BuildContext context) {
   //   showModalBottomSheet(

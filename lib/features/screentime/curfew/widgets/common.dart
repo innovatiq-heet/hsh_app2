@@ -3,6 +3,7 @@ import 'package:flutter/services.dart';
 
 import '../../../../core/constants/app_dimens.dart';
 import '../../../shared/widgets/navy_sliver_header.dart';
+import '../curfew_schedule.dart';
 import '../screen_time_api.dart';
 
 /// The Screen Time module's palette (same values as the directory, the
@@ -825,22 +826,22 @@ const _weekdays = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
 
 String _two(int n) => n.toString().padLeft(2, '0');
 
-/// "today 22:00", "tomorrow 06:00", "Mon 22:00" (device local time).
-String shortWhen(DateTime t) {
-  final local = t.toLocal();
-  final now = DateTime.now();
-  final today = DateTime(now.year, now.month, now.day);
-  final day = DateTime(local.year, local.month, local.day);
+/// "today 22:00", "tomorrow 06:00", "Mon 22:00" in IST (Asia/Kolkata).
+String shortWhen(DateTime t, {DateTime? now}) {
+  final ist = istNow(t);
+  final istCurrent = istNow(now);
+  final today = DateTime.utc(istCurrent.year, istCurrent.month, istCurrent.day);
+  final day = DateTime.utc(ist.year, ist.month, ist.day);
   final diff = day.difference(today).inDays;
-  final hm = '${_two(local.hour)}:${_two(local.minute)}';
+  final hm = '${_two(ist.hour)}:${_two(ist.minute)}';
   if (diff == 0) return 'today $hm';
   if (diff == 1) return 'tomorrow $hm';
-  return '${_weekdays[local.weekday - 1]} $hm';
+  return '${_weekdays[ist.weekday - 1]} $hm';
 }
 
-/// "21 Nov, 18:05".
+/// "21 Nov, 18:05" in IST (Asia/Kolkata).
 String shortDateTime(DateTime t) {
   const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
-  final l = t.toLocal();
-  return '${l.day} ${months[l.month - 1]}, ${_two(l.hour)}:${_two(l.minute)}';
+  final ist = istNow(t);
+  return '${ist.day} ${months[ist.month - 1]}, ${_two(ist.hour)}:${_two(ist.minute)}';
 }

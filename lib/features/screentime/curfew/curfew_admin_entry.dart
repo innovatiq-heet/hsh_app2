@@ -98,6 +98,7 @@ class FilteredStudentsScreen extends StatelessWidget {
     'using_in_session': 'Using phone in curfew',
     'over_limit': 'Over daily limit',
     'protection_removed': 'Protection removed',
+    'tampered': 'Tampered settings / clock',
     'locked': 'Locked',
     'no_session': 'Not in any session',
   };

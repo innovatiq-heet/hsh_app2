@@ -7,6 +7,7 @@ import '../../../core/constants/app_text_styles.dart';
 import '../../shared/widgets/app_card.dart';
 import '../controllers/screen_time_utils.dart';
 import '../controllers/student_detail_controller.dart';
+import '../curfew/curfew_schedule.dart';
 import 'student_detail_widget.dart';
 
 /// Month calendar of one student's screen time. Each day shows its total and
@@ -42,14 +43,18 @@ class _CalendarBody extends StatefulWidget {
 }
 
 class _CalendarBodyState extends State<_CalendarBody> {
-  late DateTime _month = DateTime(DateTime.now().year, DateTime.now().month);
+  late DateTime _month = (() {
+    final nowIst = istNow();
+    return DateTime(nowIst.year, nowIst.month);
+  })();
 
   StudentDetailController get controller => widget.controller;
 
   @override
   Widget build(BuildContext context) {
     return Obx(() {
-      final today = DateTime.now();
+      final nowIst = istNow();
+      final today = DateTime(nowIst.year, nowIst.month, nowIst.day);
       final thisMonth = DateTime(today.year, today.month);
       final earliest = _earliestMonth(thisMonth);
       final canGoBack = _month.isAfter(earliest);

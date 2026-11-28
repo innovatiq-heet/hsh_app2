@@ -94,11 +94,24 @@ class MainActivity : FlutterActivity() {
                         openOverlaySettings()
                         result.success(null)
                     }
-                    // Device admin: disables Force stop / Uninstall while a student is signed in.
+                    // Device admin / owner: disables Force stop / Uninstall while a student is signed in.
                     "isDeviceAdminActive" -> result.success(HshDeviceAdmin.isActive(this))
+                    "isDeviceOwner" -> result.success(HshDeviceAdmin.isDeviceOwner(this))
                     "requestDeviceAdmin" -> {
                         runCatching { startActivity(HshDeviceAdmin.requestIntent(this)) }
                         result.success(null)
+                    }
+                    "hasCompletedNativeSetup" -> result.success(
+                        PolicyStore.hasCompletedSetup(applicationContext) || PolicyStore.policy(applicationContext).setupCompleted
+                    )
+                    "markSetupCompleted" -> {
+                        PolicyStore.markSetupCompleted(applicationContext)
+                        screenTimeExecutor.execute { ScreenTimeSync.reportSetupCompleted(applicationContext) }
+                        result.success(true)
+                    }
+                    "grantUpdatePass" -> {
+                        PolicyStore.grantUpdatePass(applicationContext)
+                        result.success(true)
                     }
                     "isBatteryOptimizationIgnored" -> {
                         val pm = getSystemService(Context.POWER_SERVICE) as PowerManager
@@ -150,6 +163,10 @@ class MainActivity : FlutterActivity() {
                                         "days" to it.days.sorted(), "name" to it.name)
                                 },
                                 "inCurfewNow" to CurfewSchedule.isInCurfew(p.effectiveCurfews, System.currentTimeMillis()),
+                                "restrictAppInstalls" to p.restrictAppInstalls,
+                                "installPassUntil" to p.installPassUntil,
+                                "restrictBrowsers" to p.restrictBrowsers,
+                                "setupCompleted" to p.setupCompleted,
                                 "version" to p.version,
                                 "appliedAt" to PolicyStore.policyAppliedAt(applicationContext),
                             ),

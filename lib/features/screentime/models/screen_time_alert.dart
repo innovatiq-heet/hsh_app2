@@ -30,6 +30,10 @@ class ScreenTimeAlert {
   static const typeAdminDisabled = 'admin_disabled';
   static const typeSuspectedUninstall = 'suspected_uninstall';
   static const typeCodeRedeemed = 'code_redeemed';
+  static const typePermissionRevoked = 'permission_revoked';
+  static const typeClockTamper = 'clock_tamper';
+  static const typeProlongedOffline = 'prolonged_offline';
+  static const typeSecondaryProfile = 'secondary_profile';
 
   /// Short title shown on the card.
   String get title => switch (type) {
@@ -37,11 +41,20 @@ class ScreenTimeAlert {
         typeAdminDisabled => 'Protection turned off',
         typeSuspectedUninstall => 'App may be uninstalled',
         typeCodeRedeemed => 'Warden code used',
+        typePermissionRevoked => 'Required permission off',
+        typeClockTamper => 'Clock tampering detected',
+        typeProlongedOffline => 'Phone offline too long',
+        typeSecondaryProfile => 'Second profile / Dual Apps',
         _ => 'Screen time alert',
       };
 
   /// Whether the phone may no longer be monitored (worse than a blocked attempt).
-  bool get isSevere => type == typeAdminDisabled || type == typeSuspectedUninstall;
+  bool get isSevere =>
+      type == typeAdminDisabled ||
+      type == typeSuspectedUninstall ||
+      type == typePermissionRevoked ||
+      type == typeClockTamper ||
+      type == typeSecondaryProfile;
 
   /// Parses one row; returns null for a row without a usable id.
   static ScreenTimeAlert? tryParse(dynamic raw) {

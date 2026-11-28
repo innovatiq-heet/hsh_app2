@@ -635,6 +635,7 @@ class _AttentionScreenState extends State<AttentionScreen> {
 
   static const _types = {
     'protection_removed': 'Protection removed',
+    'tampered': 'Tampered settings / clock',
     'session_use': 'Used phone in curfew',
     'offline': 'Offline',
     'over_limit': 'Over limit',

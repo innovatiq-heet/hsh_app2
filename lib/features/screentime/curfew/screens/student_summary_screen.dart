@@ -27,6 +27,9 @@ class _StudentSummaryScreenState extends State<StudentSummaryScreen> {
     'installer_blocked': 'Tried to install an app',
     'device_locked': 'Phone locked',
     'admin_protected': 'Tried to remove protection',
+    'settings_protected': 'Opened protected settings',
+    'browser_restricted': 'Browser restricted',
+    'clock_tampered': 'Automatic time turned off',
   };
 
   @override
@@ -41,9 +44,20 @@ class _StudentSummaryScreenState extends State<StudentSummaryScreen> {
         builder: (context, s, reload) {
           final student = s.student;
           final name = student.name ?? '#${student.id}';
+          final lastAgo = s.lastUsedAppMinutesAgo;
+          final lastAgoText = lastAgo == null
+              ? ''
+              : (lastAgo < 1
+                    ? 'just now'
+                    : (lastAgo < 60
+                          ? '${lastAgo}m ago'
+                          : (lastAgo < 1440 ? '${lastAgo ~/ 60}h ago' : '${lastAgo ~/ 1440}d ago')));
           final statusLine = [
             ConnectionDot.labelOf(s.connectionStatus),
-            if (s.isScreenOn && s.currentApp != null) 'using ${s.currentApp}',
+            if (s.isScreenOn && s.currentApp != null && s.currentApp!.isNotEmpty)
+              'using ${s.currentApp}'
+            else if (s.lastUsedApp != null && s.lastUsedApp!.isNotEmpty)
+              'last used ${s.lastUsedApp}${lastAgoText.isNotEmpty ? ' ($lastAgoText)' : ''}',
             if (s.batteryLevel != null) 'battery ${s.batteryLevel}%',
           ].join(' · ');
           return ListView(padding: const EdgeInsets.fromLTRB(16, 12, 16, 32), children: [
@@ -158,6 +172,40 @@ class _StudentSummaryScreenState extends State<StudentSummaryScreen> {
                         ),
                         Text(formatMinutes(s.topApps[i].minutes),
                             style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w700, color: StPalette.accent)),
+                      ]),
+                    ),
+                  ],
+                ]),
+              ),
+            ],
+            if (s.recentApps.isNotEmpty) ...[
+              const SectionHeader('Recently used apps', icon: Icons.history_rounded),
+              SurfaceCard(
+                padding: const EdgeInsets.symmetric(vertical: 4),
+                child: Column(children: [
+                  for (var i = 0; i < s.recentApps.length; i++) ...[
+                    if (i > 0) const Divider(height: 1, color: StPalette.divider, indent: 14, endIndent: 14),
+                    Padding(
+                      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+                      child: Row(children: [
+                        Expanded(
+                          child: Text(s.recentApps[i].appName,
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: const TextStyle(fontSize: 13.5, fontWeight: FontWeight.w600, color: StPalette.ink)),
+                        ),
+                        Text(
+                          [
+                            if (s.recentApps[i].minutes > 0) formatMinutes(s.recentApps[i].minutes),
+                            if (s.recentApps[i].minutesAgo != null)
+                              (s.recentApps[i].minutesAgo! < 1
+                                  ? 'just now'
+                                  : (s.recentApps[i].minutesAgo! < 60
+                                        ? '${s.recentApps[i].minutesAgo}m ago'
+                                        : '${s.recentApps[i].minutesAgo! ~/ 60}h ago')),
+                          ].join(' · '),
+                          style: const TextStyle(fontSize: 12.5, fontWeight: FontWeight.w600, color: StPalette.textSecondary),
+                        ),
                       ]),
                     ),
                   ],

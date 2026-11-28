@@ -7,6 +7,7 @@ import 'package:hsh_app2/features/screentime/controllers/screen_time_utils.dart'
 import 'package:hsh_app2/features/screentime/curfew/curfew_schedule.dart';
 import 'package:hsh_app2/features/screentime/curfew/models.dart';
 import 'package:hsh_app2/features/screentime/curfew/screen_time_api.dart';
+import 'package:hsh_app2/features/screentime/curfew/widgets/common.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import 'support/fake_api.dart';
@@ -126,6 +127,27 @@ void main() {
         throwsA(isA<ScreenTimeApiException>()
             .having((e) => e.message, 'message', 'Unknown students')
             .having((e) => e.data?['invalid_student_ids'], 'invalid ids', [99])),
+      );
+    });
+  });
+
+  group('IST time formatting', () {
+    test('shortWhen and shortDateTime format UTC instants in IST (+05:30)', () {
+      // 18:00 IST on Mon 23 Nov = 12:30 UTC on 23 Nov.
+      final nowIst1800 = DateTime.utc(2026, 11, 23, 12, 30);
+      // 22:00 IST on Mon 23 Nov = 16:30 UTC on 23 Nov (same IST day).
+      expect(shortWhen(DateTime.utc(2026, 11, 23, 16, 30), now: nowIst1800), 'today 22:00');
+      // 00:30 IST on Tue 24 Nov = 19:00 UTC on 23 Nov (next IST day, even though same UTC day).
+      expect(shortWhen(DateTime.utc(2026, 11, 23, 19, 0), now: nowIst1800), 'tomorrow 00:30');
+      expect(shortDateTime(DateTime.utc(2026, 11, 23, 19, 0)), '24 Nov, 00:30');
+    });
+
+    test('normalizeDateString and extractRecordDate convert UTC instants to IST date', () {
+      expect(normalizeDateString('2026-11-23T19:00:00Z'), '2026-11-24');
+      expect(normalizeDateString('2026-11-23 23:45:00'), '2026-11-23');
+      expect(
+        extractRecordDate({'timestamp': DateTime.utc(2026, 11, 23, 19, 0).millisecondsSinceEpoch}),
+        '2026-11-24',
       );
     });
   });

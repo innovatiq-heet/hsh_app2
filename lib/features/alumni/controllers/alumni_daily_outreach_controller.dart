@@ -80,7 +80,7 @@ class AlumniDailyOutreachController extends GetxController {
     if (Get.isRegistered<SessionStore>()) {
       final session = Get.find<SessionStore>().currentSession;
       isLeader.value = session?.role == UserRole.leader;
-      isAdmin.value = session?.role == UserRole.admin;
+      isAdmin.value = session?.role == UserRole.admin || session?.role == UserRole.warden;
     }
     loadDailyOutreach();
     if (isLeader.value) loadAutoSettings();
@@ -205,7 +205,7 @@ class AlumniDailyOutreachController extends GetxController {
   }
 
   Future<bool> updateContact(AlumniOutreachHistoryModel item, {String? number, String? reachability}) async {
-    if (!isAdmin.value || !contactBusyIds.add(item.studentId)) return false;
+    if (!canEditProfile || !contactBusyIds.add(item.studentId)) return false;
     try {
       await _repository.updateOutreachContact(item.studentId, whatsappNumber: number, reachability: reachability);
       await Future.wait([loadHistory(), loadDailyOutreach()]);
@@ -221,6 +221,113 @@ class AlumniDailyOutreachController extends GetxController {
       return false;
     } finally {
       contactBusyIds.remove(item.studentId);
+    }
+  }
+
+  /// Leaders can ONLY mark reachability + response (no detail edits).
+  /// Only admins/operators can edit student profile details.
+  bool get canEditProfile => isAdmin.value && !isLeader.value;
+
+  Future<bool> updateStatusAndResponse({
+    required int studentId,
+    required String name,
+    required String reachability,
+    String? outreachResponse,
+    String? outreachResponseNote,
+  }) async {
+    if (!contactBusyIds.add(studentId)) return false;
+    try {
+      final res = await _repository.updateOutreachResponse(
+        studentId,
+        reachability: reachability,
+        outreachResponse: outreachResponse,
+        outreachResponseNote: outreachResponseNote,
+      );
+      final savedReachability = (res['whatsappReachability'] ?? reachability).toString();
+      final savedResp = res['outreachResponse']?.toString();
+      final savedNote = res['outreachResponseNote']?.toString();
+
+      final cur = outreachData.value;
+      if (cur != null) {
+        outreachData.value = AlumniDailyOutreachDataModel(
+          groupName: cur.groupName,
+          date: cur.date,
+          scope: cur.scope,
+          targetDailyCount: cur.targetDailyCount,
+          contactedTodayCount: cur.contactedTodayCount,
+          totalAlumniInGroup: cur.totalAlumniInGroup,
+          totalMessagedAlumni: cur.totalMessagedAlumni,
+          messageTemplate: cur.messageTemplate,
+          students: [
+            for (final s in cur.students)
+              s.studentId == studentId
+                  ? s.withReachability(
+                      reachability: savedReachability,
+                      response: savedResp,
+                      note: savedNote,
+                    )
+                  : s,
+          ],
+        );
+      }
+      if (historyLoaded.value) {
+        await loadHistory();
+      } else {
+        historyLoaded.value = false;
+      }
+
+      final respLabel = savedResp != null && savedResp.isNotEmpty
+          ? ' (${savedResp[0].toUpperCase()}${savedResp.substring(1)} response)'
+          : '';
+      AppSnackbar.success(
+        'Status Saved',
+        '$name marked ${savedReachability == 'reachable' ? 'Reachable$respLabel' : 'Not Reachable'}.',
+      );
+      return true;
+    } catch (e) {
+      AppSnackbar.error('Could Not Update Status', _message(e));
+      return false;
+    } finally {
+      contactBusyIds.remove(studentId);
+    }
+  }
+
+  Future<Map<String, dynamic>> loadFullProfile(int studentId) async {
+    if (!canEditProfile) throw 'Only administrators can edit student details.';
+    return _repository.getAdminFullAlumniProfile(studentId);
+  }
+
+  Future<bool> saveFullProfile(int studentId, Map<String, dynamic> payload) async {
+    if (!canEditProfile || !contactBusyIds.add(studentId)) return false;
+    try {
+      await _repository.saveAdminFullAlumniProfile(studentId, payload);
+      await Future.wait([
+        loadDailyOutreach(),
+        if (historyLoaded.value) loadHistory(),
+      ]);
+      AppSnackbar.success('Profile Saved', 'Alumnus complete details updated.');
+      return true;
+    } catch (e) {
+      AppSnackbar.error('Save Failed', _message(e));
+      return false;
+    } finally {
+      contactBusyIds.remove(studentId);
+    }
+  }
+
+  Future<void> openHistoryWhatsApp(AlumniOutreachHistoryModel item) async {
+    final raw = item.whatsappNumber.trim().isNotEmpty ? item.whatsappNumber : item.phone;
+    final clean = raw.replaceAll(RegExp(r'[^0-9]'), '');
+    if (clean.isEmpty) {
+      AppSnackbar.warning('No Contact Number', 'No phone or WhatsApp number for ${item.name}.');
+      return;
+    }
+    final fullNumber = clean.length == 10 ? '91$clean' : clean;
+    final uri = Uri.parse('https://wa.me/$fullNumber');
+    if (await canLaunchUrl(uri)) {
+      await launchUrl(uri, mode: LaunchMode.externalApplication);
+    } else {
+      AppSnackbar.warning('WhatsApp Did Not Open', 'Could not open WhatsApp for ${item.name}.');
     }
   }
 

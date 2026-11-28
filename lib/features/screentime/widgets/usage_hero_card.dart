@@ -6,6 +6,7 @@ import '../../../core/constants/app_dimens.dart';
 import '../../../core/constants/app_text_styles.dart';
 import '../../shared/widgets/animated_counter.dart';
 import '../controllers/screen_time_utils.dart';
+import '../curfew/curfew_schedule.dart';
 import 'student_detail_widget.dart';
 
 /// The headline number for the selected day, with the daily allowance and
@@ -24,7 +25,7 @@ class UsageHeroCard extends StudentDetailWidget {
       final overLimit = limit > 0 && total >= limit;
 
       return Container(
-        padding: const EdgeInsets.all(20),
+        padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 14),
         decoration: BoxDecoration(
           gradient: isToday
               ? AppColors.heroGradient
@@ -36,9 +37,9 @@ class UsageHeroCard extends StudentDetailWidget {
           borderRadius: BorderRadius.circular(AppDimens.radiusLg),
           boxShadow: [
             BoxShadow(
-              color: AppColors.primaryDark.withValues(alpha: 0.25),
-              blurRadius: 18,
-              offset: const Offset(0, 8),
+              color: AppColors.primaryDark.withValues(alpha: 0.2),
+              blurRadius: 14,
+              offset: const Offset(0, 6),
             ),
           ],
         ),
@@ -59,38 +60,33 @@ class UsageHeroCard extends StudentDetailWidget {
                   _pill('Live', Icons.sensors_rounded, Colors.white),
               ],
             ),
-            const SizedBox(height: 10),
+            const SizedBox(height: 6),
             Row(
               crossAxisAlignment: CrossAxisAlignment.baseline,
               textBaseline: TextBaseline.alphabetic,
               children: [
                 AnimatedCounter(
                   value: total ~/ 60,
-                  style: AppTextStyles.displayXl.copyWith(color: Colors.white, fontSize: 44, height: 1),
+                  style: AppTextStyles.displayXl.copyWith(color: Colors.white, fontSize: 34, height: 1),
                 ),
-                Text('h  ', style: AppTextStyles.title.copyWith(color: Colors.white70)),
+                Text('h  ', style: AppTextStyles.subtitle.copyWith(color: Colors.white70)),
                 AnimatedCounter(
                   value: total % 60,
-                  style: AppTextStyles.displayXl.copyWith(color: Colors.white, fontSize: 44, height: 1),
+                  style: AppTextStyles.displayXl.copyWith(color: Colors.white, fontSize: 34, height: 1),
                 ),
-                Text('m', style: AppTextStyles.title.copyWith(color: Colors.white70)),
+                Text('m', style: AppTextStyles.subtitle.copyWith(color: Colors.white70)),
+                const Spacer(),
+                Text(
+                  limit > 0 ? '${formatMinutes(total)} / ${formatMinutes(limit)}' : 'No daily limit',
+                  style: AppTextStyles.caption.copyWith(
+                    color: limit > 0 ? Colors.white : Colors.white60,
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
               ],
             ),
-            const SizedBox(height: 16),
-
-            // Daily allowance
             if (limit > 0) ...[
-              Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  Text('Daily allowance', style: AppTextStyles.caption.copyWith(color: Colors.white70)),
-                  Text(
-                    '${formatMinutes(total)} of ${formatMinutes(limit)}',
-                    style: AppTextStyles.caption.copyWith(color: Colors.white, fontWeight: FontWeight.w700),
-                  ),
-                ],
-              ),
-              const SizedBox(height: 6),
+              const SizedBox(height: 10),
               ClipRRect(
                 borderRadius: BorderRadius.circular(4),
                 child: TweenAnimationBuilder<double>(
@@ -99,7 +95,7 @@ class UsageHeroCard extends StudentDetailWidget {
                   curve: Curves.easeOutCubic,
                   builder: (_, v, _) => LinearProgressIndicator(
                     value: v,
-                    minHeight: 7,
+                    minHeight: 5,
                     backgroundColor: Colors.white.withValues(alpha: 0.2),
                     valueColor: AlwaysStoppedAnimation(
                       overLimit ? const Color(0xFFFF8A80) : Colors.white,
@@ -107,29 +103,24 @@ class UsageHeroCard extends StudentDetailWidget {
                   ),
                 ),
               ),
-            ] else
-              Text(
-                'No daily limit set',
-                style: AppTextStyles.caption.copyWith(color: Colors.white60),
-              ),
-
+            ],
             if (night > 0) ...[
-              const SizedBox(height: 14),
+              const SizedBox(height: 10),
               Container(
-                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
                 decoration: BoxDecoration(
-                  color: Colors.black.withValues(alpha: 0.22),
+                  color: Colors.black.withValues(alpha: 0.2),
                   borderRadius: BorderRadius.circular(AppDimens.radiusSm),
                 ),
                 child: Row(
                   children: [
-                    const Icon(Icons.nightlight_round, color: Color(0xFFFFCC80), size: 16),
-                    const SizedBox(width: 8),
+                    const Icon(Icons.nightlight_round, color: Color(0xFFFFCC80), size: 15),
+                    const SizedBox(width: 6),
                     Expanded(
                       child: Text(
                         '${formatMinutes(night)} used during curfew'
                         '${controller.bedtimeStart.value.isEmpty ? '' : ' (${controller.bedtimeStart.value}–${controller.bedtimeEnd.value})'}',
-                        style: AppTextStyles.bodySm.copyWith(color: Colors.white),
+                        style: AppTextStyles.caption.copyWith(color: Colors.white),
                       ),
                     ),
                   ],
@@ -146,7 +137,7 @@ class UsageHeroCard extends StudentDetailWidget {
     if (isToday) return 'SCREEN TIME TODAY';
     try {
       final parsed = DateTime.parse(controller.effectiveSelectedDate);
-      final yest = DateTime.now().subtract(const Duration(days: 1));
+      final yest = istNow().subtract(const Duration(days: 1));
       if (parsed.year == yest.year && parsed.month == yest.month && parsed.day == yest.day) {
         return 'SCREEN TIME YESTERDAY';
       }

@@ -11,6 +11,7 @@ import '../../../core/network/repository/student_profile/student_profile_reposit
 import '../../../core/constants/app_routes.dart';
 import '../../../core/enums/user_role.dart';
 import '../../../core/storage/session_store.dart';
+import '../../screentime/widgets/warden_logout_dialog.dart';
 
 class StudentProfileController extends GetxController
     with AadharResolvingMixin, LoadStateMixin {
@@ -145,7 +146,9 @@ class StudentProfileController extends GetxController
   }
 
   Future<void> logout() async {
-    await Get.find<SessionStore>().logout();
-    Get.offAllNamed(Routes.login);
+    final loggedOut = await WardenLogoutGuard.confirmAndLogout(Get.context);
+    if (loggedOut) {
+      Get.offAllNamed(Routes.login);
+    }
   }
 }

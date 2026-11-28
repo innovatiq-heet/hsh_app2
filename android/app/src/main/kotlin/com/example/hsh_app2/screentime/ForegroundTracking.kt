@@ -39,22 +39,53 @@ object ForegroundReplay {
  * plain JVM tests.
  */
 object ProtectedScreens {
+    enum class TamperKind { DEVICE_ADMIN, USAGE_ACCESS, OVERLAY, DATE_TIME, DEVELOPER_OPTIONS }
+
     val SETTINGS_PACKAGES = setOf(
         "com.android.settings",
         "com.samsung.android.settings",
         "com.miui.securitycenter",
+        "com.coloros.settings",
+        "com.oplus.settings",
+        "com.vivo.settings",
+        "com.iqoo.settings",
+        "com.android.permissioncontroller",
+        "com.google.android.permissioncontroller",
     )
+
+    private fun simpleClassName(className: String?): String =
+        className?.substringAfterLast('.')?.substringAfterLast('$').orEmpty()
 
     /**
      * Whether [packageName]/[className] is Settings' device admin
      * activate / deactivate screen (`DeviceAdminAdd`, also opened by
-     * "Uninstall" on the App info page of an active admin). The device admin
-     * *list* is left alone, and so is every other Settings screen.
+     * "Uninstall" on the App info page of an active admin).
      */
     fun isDeviceAdminScreen(packageName: String?, className: String?): Boolean =
-        packageName in SETTINGS_PACKAGES &&
-            className != null &&
-            className.substringAfterLast('.').substringAfterLast('$') == "DeviceAdminAdd"
+        packageName in SETTINGS_PACKAGES && simpleClassName(className) == "DeviceAdminAdd"
+
+    /**
+     * Categorises sensitive Settings screens that would let a student revoke
+     * required HSH permissions or shift the device clock.
+     */
+    fun tamperScreenKind(packageName: String?, className: String?): TamperKind? {
+        if (packageName !in SETTINGS_PACKAGES || className.isNullOrBlank()) return null
+        val cls = simpleClassName(className)
+        return when {
+            cls == "DeviceAdminAdd" -> TamperKind.DEVICE_ADMIN
+            cls.contains("UsageAccess", ignoreCase = true) ||
+                cls.contains("UsageStats", ignoreCase = true) ||
+                cls.contains("UsageData", ignoreCase = true) -> TamperKind.USAGE_ACCESS
+            cls.contains("Overlay", ignoreCase = true) ||
+                cls.contains("AppearOnTop", ignoreCase = true) ||
+                cls.contains("SystemAlertWindow", ignoreCase = true) -> TamperKind.OVERLAY
+            cls.contains("DateTimeSettings", ignoreCase = true) ||
+                cls.contains("ZonePicker", ignoreCase = true) -> TamperKind.DATE_TIME
+            cls.contains("DevelopmentSettings", ignoreCase = true) ||
+                cls.contains("DeveloperOption", ignoreCase = true) -> TamperKind.DEVELOPER_OPTIONS
+            else -> null
+        }
+    }
 }
 
 /**

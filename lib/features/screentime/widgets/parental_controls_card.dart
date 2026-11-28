@@ -25,9 +25,9 @@ class ParentalControlsCard extends StudentDetailWidget {
       final start = controller.bedtimeStart.value;
       final end = controller.bedtimeEnd.value;
       final blocked = controller.blockedPackages.length;
-      final appLimitsCount = controller.appLimits.length;
       final busy = controller.isUpdatingPolicy.value;
       final playStoreBlocked = controller.playStoreBlocked.value;
+      final browsersBlocked = controller.restrictBrowsers.value;
 
       return AppCard(
         padding: EdgeInsets.zero,
@@ -36,7 +36,7 @@ class ParentalControlsCard extends StudentDetailWidget {
           children: [
             // State strip
             Container(
-              padding: const EdgeInsets.symmetric(horizontal: AppDimens.cardPadding, vertical: 14),
+              padding: const EdgeInsets.symmetric(horizontal: AppDimens.cardPadding, vertical: 12),
               decoration: BoxDecoration(
                 color: locked ? AppColors.cancelledRed : AppColors.primarySoft,
                 borderRadius: const BorderRadius.vertical(top: Radius.circular(AppDimens.radiusLg)),
@@ -45,6 +45,7 @@ class ParentalControlsCard extends StudentDetailWidget {
                 children: [
                   Icon(
                     locked ? Icons.lock_rounded : Icons.verified_user_rounded,
+                    size: 20,
                     color: locked ? Colors.white : AppColors.primary,
                   ),
                   const SizedBox(width: 10),
@@ -56,28 +57,30 @@ class ParentalControlsCard extends StudentDetailWidget {
                           locked ? 'Phone is locked' : 'Parental controls',
                           style: AppTextStyles.title.copyWith(color: locked ? Colors.white : AppColors.textPrimary),
                         ),
-                        Text(
-                          locked
-                              ? 'Only calls and this app work until you unlock'
-                              : _summary(blocked, appLimitsCount, limit, start, end),
-                          style: AppTextStyles.bodySm.copyWith(
-                            color: locked ? Colors.white.withValues(alpha: 0.85) : AppColors.textSecondary,
+                        if (locked)
+                          Text(
+                            'Calls & HSH Connect only',
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: AppTextStyles.caption.copyWith(
+                              color: Colors.white.withValues(alpha: 0.85),
+                            ),
                           ),
-                        ),
                       ],
                     ),
                   ),
+                  const SizedBox(width: 8),
                   _AppliedBadge(dark: locked, controller: controller),
                 ],
               ),
             ),
 
             Padding(
-              padding: const EdgeInsets.all(AppDimens.cardPadding),
+              padding: const EdgeInsets.all(14),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
-                  // Rule tiles: one way into each settings screen
+                  // Rule tiles: one tap into bedtime/limit or blocked apps
                   Row(
                     children: [
                       _RuleTile(
@@ -87,7 +90,7 @@ class ParentalControlsCard extends StudentDetailWidget {
                         color: AppColors.secondary,
                         onTap: controller.isSelfDevice ? null : () => CurfewLimitScreen.open(context, controller),
                       ),
-                      const SizedBox(width: AppDimens.gapSm),
+                      const SizedBox(width: 10),
                       _RuleTile(
                         icon: Icons.block_rounded,
                         label: 'Blocked apps',
@@ -97,7 +100,7 @@ class ParentalControlsCard extends StudentDetailWidget {
                       ),
                     ],
                   ),
-                  const SizedBox(height: AppDimens.gapLg),
+                  const SizedBox(height: 12),
 
                   if (controller.isSelfDevice) ...[
                     Container(
@@ -120,60 +123,121 @@ class ParentalControlsCard extends StudentDetailWidget {
                         ],
                       ),
                     ),
-                    const SizedBox(height: AppDimens.gapLg),
+                    const SizedBox(height: 12),
                   ],
 
-                  // Primary action
-                  AppButton(
-                    label: locked ? 'Unlock phone' : 'Lock phone now',
-                    icon: locked ? Icons.lock_open_rounded : Icons.lock_rounded,
-                    variant: locked ? AppButtonVariant.outline : AppButtonVariant.danger,
-                    isLoading: busy,
-                    onPressed: controller.isSelfDevice ? null : () => _confirmLock(context, !locked),
+                  // Grouped quick controls (Phone lock, Play Store, Web browsers)
+                  Container(
+                    decoration: BoxDecoration(
+                      color: AppColors.surfaceMuted,
+                      borderRadius: BorderRadius.circular(AppDimens.radiusMd),
+                      border: Border.all(color: AppColors.borderLight),
+                    ),
+                    child: Column(
+                      children: [
+                        _ActionControlRow(
+                          icon: locked ? Icons.lock_rounded : Icons.lock_open_rounded,
+                          iconColor: locked ? AppColors.cancelledRed : AppColors.textSecondary,
+                          title: 'Phone lock',
+                          status: locked ? 'Locked (calls only)' : 'Unlocked',
+                          statusColor: locked ? AppColors.cancelledRed : AppColors.textMuted,
+                          trailing: FilledButton.tonalIcon(
+                            style: FilledButton.styleFrom(
+                              backgroundColor: locked ? AppColors.primarySoft : const Color(0xFFFEE2E2),
+                              foregroundColor: locked ? AppColors.primaryDark : AppColors.cancelledRed,
+                              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                              minimumSize: Size.zero,
+                              tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                            ),
+                            onPressed: (controller.isSelfDevice || busy)
+                                ? null
+                                : () => _confirmLock(context, !locked),
+                            icon: Icon(locked ? Icons.lock_open_rounded : Icons.lock_rounded, size: 15),
+                            label: Text(
+                              locked ? 'Unlock' : 'Lock',
+                              style: const TextStyle(fontSize: 12.5, fontWeight: FontWeight.w700),
+                            ),
+                          ),
+                        ),
+                        const Divider(height: 1, color: AppColors.borderLight),
+                        _PlayStoreRow(
+                          blocked: playStoreBlocked,
+                          passMinutesLeft: controller.hasActiveInstallPass
+                              ? controller.installPassRemainingMinutes
+                              : 0,
+                          onChanged: controller.isSelfDevice
+                              ? null
+                              : (allow) => _confirmPlayStore(context, block: !allow),
+                          onPassTap: (controller.isSelfDevice || !playStoreBlocked || busy)
+                              ? null
+                              : () => controller.hasActiveInstallPass
+                                  ? controller.revokeInstallPass()
+                                  : _confirmInstallPass(context),
+                        ),
+                        const Divider(height: 1, color: AppColors.borderLight),
+                        _ToggleRow(
+                          icon: Icons.public_rounded,
+                          title: 'Web browsers',
+                          status: browsersBlocked ? 'Blocked (Chrome, Brave, etc.)' : 'Allowed',
+                          color: browsersBlocked ? AppColors.cancelledRed : AppColors.successGreen,
+                          allowed: !browsersBlocked,
+                          onChanged: controller.isSelfDevice
+                              ? null
+                              : (allow) => controller.setBrowsersRestricted(!allow),
+                        ),
+                      ],
+                    ),
                   ),
 
-                  // Play Store: permanent block / allow
-                  const SizedBox(height: AppDimens.gapLg),
-                  _PlayStoreRow(
-                    blocked: playStoreBlocked,
-                    passMinutesLeft: controller.hasActiveInstallPass
-                        ? controller.installPassRemainingMinutes
-                        : 0,
-                    onChanged: controller.isSelfDevice ? null : (allow) => _confirmPlayStore(context, block: !allow),
-                  ),
-
-                  // While blocked: a 15-min install pass for a one-off download.
-                  if (playStoreBlocked) ...[
-                    const SizedBox(height: AppDimens.gapSm),
-                    if (controller.hasActiveInstallPass)
-                      AppButton(
-                        label: 'Revoke Play Store pass (${controller.installPassRemainingMinutes}m left)',
-                        icon: Icons.lock_clock_rounded,
-                        variant: AppButtonVariant.outline,
-                        isLoading: busy,
-                        onPressed: () => controller.revokeInstallPass(),
-                      )
-                    else
-                      AppButton(
-                        label: 'Grant 15-min install pass',
-                        icon: Icons.install_mobile_rounded,
-                        variant: AppButtonVariant.secondary,
-                        isLoading: busy,
-                        onPressed: () => _confirmInstallPass(context),
-                      ),
-                  ],
-
-                  // Removal protection (device admin): a one-time code lets the
-                  // student turn it off themselves for a genuine uninstall or
-                  // handover, without a warden needing to be at the phone.
-                  if (controller.canIssueRemovalCode) ...[
-                    const SizedBox(height: AppDimens.gapLg),
-                    AppButton(
-                      label: 'Generate removal code',
-                      icon: Icons.vpn_key_rounded,
-                      variant: AppButtonVariant.outline,
-                      isLoading: controller.isGeneratingRemovalCode.value,
-                      onPressed: controller.isSelfDevice ? null : () => _confirmRemovalCode(context),
+                  if (controller.canIssueRemovalCode || controller.isSelectedStudentEnrolled) ...[
+                    const SizedBox(height: 10),
+                    Row(
+                      children: [
+                        if (controller.canIssueRemovalCode)
+                          Expanded(
+                            child: OutlinedButton.icon(
+                              style: OutlinedButton.styleFrom(
+                                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 9),
+                                side: const BorderSide(color: AppColors.border),
+                                shape: RoundedRectangleBorder(
+                                  borderRadius: BorderRadius.circular(AppDimens.radiusMd),
+                                ),
+                              ),
+                              onPressed: (controller.isSelfDevice || controller.isGeneratingRemovalCode.value)
+                                  ? null
+                                  : () => _confirmRemovalCode(context),
+                              icon: const Icon(Icons.vpn_key_rounded, size: 16),
+                              label: Text(
+                                controller.isGeneratingRemovalCode.value ? 'Generating…' : 'Removal code',
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                                style: const TextStyle(fontSize: 12.5, fontWeight: FontWeight.w600),
+                              ),
+                            ),
+                          ),
+                        if (controller.canIssueRemovalCode && controller.isSelectedStudentEnrolled)
+                          const SizedBox(width: 8),
+                        if (controller.isSelectedStudentEnrolled)
+                          Expanded(
+                            child: OutlinedButton.icon(
+                              style: OutlinedButton.styleFrom(
+                                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 9),
+                                side: const BorderSide(color: AppColors.border),
+                                shape: RoundedRectangleBorder(
+                                  borderRadius: BorderRadius.circular(AppDimens.radiusMd),
+                                ),
+                              ),
+                              onPressed: () => _openPolicyHistory(context),
+                              icon: const Icon(Icons.history_rounded, size: 16),
+                              label: const Text(
+                                'Change history',
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                                style: TextStyle(fontSize: 12.5, fontWeight: FontWeight.w600),
+                              ),
+                            ),
+                          ),
+                      ],
                     ),
                   ],
                 ],
@@ -191,16 +255,6 @@ class ParentalControlsCard extends StudentDetailWidget {
     final allowance = limit > 0 ? formatMinutes(limit) : '';
     if (bedtime.isEmpty && allowance.isEmpty) return 'Off';
     return [bedtime, allowance].where((p) => p.isNotEmpty).join(' · ');
-  }
-
-  String _summary(int blocked, int appLimitsCount, int limit, String start, String end) {
-    final parts = <String>[
-      if (blocked > 0) '$blocked app${blocked == 1 ? '' : 's'} blocked',
-      if (appLimitsCount > 0) '$appLimitsCount app limit${appLimitsCount == 1 ? '' : 's'}',
-      if (limit > 0) '${formatMinutes(limit)} per day',
-      if (start.isNotEmpty && end.isNotEmpty) 'curfew $start–$end',
-    ];
-    return parts.isEmpty ? 'No restrictions' : parts.join(' • ');
   }
 
   Future<void> _confirmLock(BuildContext context, bool lock) async {
@@ -370,6 +424,94 @@ class ParentalControlsCard extends StudentDetailWidget {
     );
     if (ok == true) controller.grantInstallPass(minutes: 15);
   }
+
+  Future<void> _openPolicyHistory(BuildContext context) async {
+    await showModalBottomSheet<void>(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: AppColors.surface,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(AppDimens.radiusXl)),
+      ),
+      builder: (ctx) => DraggableScrollableSheet(
+        initialChildSize: 0.55,
+        minChildSize: 0.35,
+        maxChildSize: 0.88,
+        expand: false,
+        builder: (_, scrollCtrl) => FutureBuilder<List<Map<String, dynamic>>>(
+          future: controller.fetchPolicyHistory(),
+          builder: (_, snap) {
+            return Padding(
+              padding: const EdgeInsets.fromLTRB(20, 14, 20, 16),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  Center(
+                    child: Container(
+                      width: 36,
+                      height: 4,
+                      decoration: BoxDecoration(
+                        color: AppColors.border,
+                        borderRadius: BorderRadius.circular(2),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 12),
+                  Text('Policy change history', style: AppTextStyles.headline),
+                  const SizedBox(height: 4),
+                  Text(
+                    'Immutable audit log of locks, limits, and app rules.',
+                    style: AppTextStyles.bodySm.copyWith(color: AppColors.textSecondary),
+                  ),
+                  const SizedBox(height: 12),
+                  Expanded(
+                    child: snap.connectionState == ConnectionState.waiting
+                        ? const Center(child: CircularProgressIndicator())
+                        : snap.hasError
+                            ? Center(
+                                child: Text(
+                                  'Could not load change history.',
+                                  style: AppTextStyles.bodySm.copyWith(color: AppColors.textSecondary),
+                                ),
+                              )
+                            : (snap.data == null || snap.data!.isEmpty)
+                                ? Center(
+                                    child: Text(
+                                      'No policy changes recorded yet.',
+                                      style: AppTextStyles.bodySm.copyWith(color: AppColors.textSecondary),
+                                    ),
+                                  )
+                                : ListView.separated(
+                                    controller: scrollCtrl,
+                                    itemCount: snap.data!.length,
+                                    separatorBuilder: (_, _) => const Divider(height: 1),
+                                    itemBuilder: (_, i) {
+                                      final row = snap.data![i];
+                                      final msg = (row['message'] ?? '').toString();
+                                      final actor = (row['actor_name'] ?? 'Supervisor').toString();
+                                      final rawAt = row['created_at'];
+                                      final dt = rawAt == null ? null : DateTime.tryParse(rawAt.toString())?.toLocal();
+                                      final when = dt == null ? '' : relativeTime(dt);
+                                      return ListTile(
+                                        contentPadding: EdgeInsets.zero,
+                                        leading: const Icon(Icons.shield_outlined, color: AppColors.primary, size: 20),
+                                        title: Text(msg, style: AppTextStyles.bodyMd.copyWith(fontWeight: FontWeight.w600)),
+                                        subtitle: Text(
+                                          when.isEmpty ? actor : '$actor · $when',
+                                          style: AppTextStyles.caption.copyWith(color: AppColors.textMuted),
+                                        ),
+                                      );
+                                    },
+                                  ),
+                  ),
+                ],
+              ),
+            );
+          },
+        ),
+      ),
+    );
+  }
 }
 
 /// "Applied on phone 2 min ago" vs "Waiting for phone": compares the version
@@ -421,51 +563,161 @@ class _AppliedBadge extends StudentDetailWidget {
   }
 }
 
-/// "Play Store · Blocked / Allowed" with a switch that is on when allowed.
+class _ActionControlRow extends StatelessWidget {
+  final IconData icon;
+  final Color iconColor;
+  final String title;
+  final String status;
+  final Color statusColor;
+  final Widget trailing;
+
+  const _ActionControlRow({
+    required this.icon,
+    required this.iconColor,
+    required this.title,
+    required this.status,
+    required this.statusColor,
+    required this.trailing,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(12, 9, 10, 9),
+      child: Row(
+        children: [
+          Icon(icon, size: 19, color: iconColor),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(title, style: AppTextStyles.bodyMd.copyWith(fontWeight: FontWeight.w700, fontSize: 13.5)),
+                Text(
+                  status,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: AppTextStyles.caption.copyWith(color: statusColor),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(width: 8),
+          trailing,
+        ],
+      ),
+    );
+  }
+}
+
+/// "Play Store · Blocked / Allowed" with an inline 15-min pass action when blocked.
 class _PlayStoreRow extends StatelessWidget {
   final bool blocked;
-
-  /// Minutes left on a running install pass (0 = none).
   final int passMinutesLeft;
   final ValueChanged<bool>? onChanged;
+  final VoidCallback? onPassTap;
 
   const _PlayStoreRow({
     required this.blocked,
     required this.passMinutesLeft,
     this.onChanged,
+    this.onPassTap,
   });
 
   @override
   Widget build(BuildContext context) {
     final color = blocked ? AppColors.cancelledRed : AppColors.successGreen;
     final status = !blocked
-        ? 'Allowed: can install and update apps'
+        ? 'Allowed (install & update)'
         : passMinutesLeft > 0
-            ? 'Blocked · install pass open (${passMinutesLeft}m left)'
-            : 'Blocked, along with other app stores and APK installs';
+            ? 'Blocked · ${passMinutesLeft}m pass left'
+            : 'Blocked (stores & APKs)';
 
-    return Container(
-      padding: const EdgeInsets.fromLTRB(12, 8, 4, 8),
-      decoration: BoxDecoration(
-        color: AppColors.surfaceMuted,
-        borderRadius: BorderRadius.circular(AppDimens.radiusMd),
-        border: Border.all(color: AppColors.borderLight),
-      ),
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(12, 4, 4, 4),
       child: Row(
         children: [
-          Icon(Icons.shop_rounded, size: 20, color: color),
+          Icon(Icons.shop_rounded, size: 19, color: color),
           const SizedBox(width: 10),
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text('Play Store', style: AppTextStyles.bodyMd.copyWith(fontWeight: FontWeight.w700)),
-                Text(status, style: AppTextStyles.caption.copyWith(color: color)),
+                Text('Play Store', style: AppTextStyles.bodyMd.copyWith(fontWeight: FontWeight.w700, fontSize: 13.5)),
+                Text(
+                  status,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: AppTextStyles.caption.copyWith(color: color),
+                ),
+              ],
+            ),
+          ),
+          if (blocked && onPassTap != null)
+            TextButton(
+              style: TextButton.styleFrom(
+                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                minimumSize: Size.zero,
+                tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+              ),
+              onPressed: onPassTap,
+              child: Text(
+                passMinutesLeft > 0 ? 'Revoke' : '15m pass',
+                style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w700),
+              ),
+            ),
+          Switch(
+            value: !blocked,
+            activeThumbColor: AppColors.successGreen,
+            onChanged: onChanged,
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _ToggleRow extends StatelessWidget {
+  final IconData icon;
+  final String title;
+  final String status;
+  final Color color;
+  final bool allowed;
+  final ValueChanged<bool>? onChanged;
+
+  const _ToggleRow({
+    required this.icon,
+    required this.title,
+    required this.status,
+    required this.color,
+    required this.allowed,
+    this.onChanged,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(12, 4, 4, 4),
+      child: Row(
+        children: [
+          Icon(icon, size: 19, color: color),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(title, style: AppTextStyles.bodyMd.copyWith(fontWeight: FontWeight.w700, fontSize: 13.5)),
+                Text(
+                  status,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: AppTextStyles.caption.copyWith(color: color),
+                ),
               ],
             ),
           ),
           Switch(
-            value: !blocked,
+            value: allowed,
             activeThumbColor: AppColors.successGreen,
             onChanged: onChanged,
           ),
@@ -497,7 +749,7 @@ class _RuleTile extends StatelessWidget {
         onTap: onTap,
         borderRadius: BorderRadius.circular(AppDimens.radiusMd),
         child: Container(
-          padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 10),
+          padding: const EdgeInsets.symmetric(vertical: 10, horizontal: 11),
           decoration: BoxDecoration(
             color: AppColors.surfaceMuted,
             borderRadius: BorderRadius.circular(AppDimens.radiusMd),
@@ -506,15 +758,27 @@ class _RuleTile extends StatelessWidget {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Icon(icon, size: 18, color: color),
-              const SizedBox(height: 8),
+              Row(
+                children: [
+                  Icon(icon, size: 17, color: color),
+                  const Spacer(),
+                  if (onTap != null)
+                    const Icon(Icons.chevron_right_rounded, size: 16, color: AppColors.textMuted),
+                ],
+              ),
+              const SizedBox(height: 6),
               Text(
                 value,
-                style: AppTextStyles.bodyMd.copyWith(fontWeight: FontWeight.w700),
+                style: AppTextStyles.bodyMd.copyWith(fontWeight: FontWeight.w700, fontSize: 13.5),
                 maxLines: 1,
                 overflow: TextOverflow.ellipsis,
               ),
-              Text(label, style: AppTextStyles.caption.copyWith(color: AppColors.textMuted)),
+              Text(
+                label,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: AppTextStyles.caption.copyWith(color: AppColors.textMuted),
+              ),
             ],
           ),
         ),

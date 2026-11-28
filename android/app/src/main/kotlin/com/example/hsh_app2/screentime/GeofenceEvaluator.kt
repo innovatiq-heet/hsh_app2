@@ -5,6 +5,7 @@ import android.util.Log
 import org.json.JSONArray
 import org.json.JSONObject
 import java.util.Calendar
+import java.util.TimeZone
 import kotlin.math.cos
 import kotlin.math.max
 import kotlin.math.min
@@ -13,7 +14,7 @@ import kotlin.math.sqrt
 /** Warden-configured curfew geofence rules. */
 data class GeofencePolicy(
     val active: Boolean = true,
-    /** "HH:mm" local time. */
+    /** "HH:mm" in IST (Asia/Kolkata). */
     val start: String = "22:00",
     val end: String = "06:00",
     /** "Daily" or weekday names ("Mon", "Tue", …): the day the curfew *starts*. */
@@ -76,7 +77,7 @@ data class GeofencePolicy(
         private fun parseIso(s: String): Long? = runCatching {
             java.time.OffsetDateTime.parse(s).toInstant().toEpochMilli()
         }.getOrElse {
-            runCatching { java.time.LocalDateTime.parse(s).atZone(java.time.ZoneId.systemDefault()).toInstant().toEpochMilli() }.getOrNull()
+            runCatching { java.time.LocalDateTime.parse(s).atZone(java.time.ZoneId.of("Asia/Kolkata")).toInstant().toEpochMilli() }.getOrNull()
         }
 
         private fun optBool(o: JSONObject, vararg keys: String): Boolean? {
@@ -159,9 +160,15 @@ object GeofenceEvaluator {
 
     // ---------- Curfew window ----------
 
+    private val IST_TZ: TimeZone = TimeZone.getTimeZone("Asia/Kolkata")
+
+    /** Calendar anchored in IST (Asia/Kolkata) for the given instant. */
+    fun istCalendar(millis: Long = System.currentTimeMillis()): Calendar =
+        Calendar.getInstance(IST_TZ).apply { timeInMillis = millis }
+
     fun isInCurfew(
         policy: GeofencePolicy,
-        now: Calendar = Calendar.getInstance(),
+        now: Calendar = istCalendar(),
         context: Context? = null,
     ): Boolean {
         if (!policy.active) return false
@@ -177,13 +184,14 @@ object GeofenceEvaluator {
             if (autoTime == 0) return true
         }
 
-        val cur = now.get(Calendar.HOUR_OF_DAY) * 60 + now.get(Calendar.MINUTE)
+        val istNow = istCalendar(now.timeInMillis)
+        val cur = istNow.get(Calendar.HOUR_OF_DAY) * 60 + istNow.get(Calendar.MINUTE)
         val overnight = start > end
         val inWindow = if (!overnight) cur in start until end else cur >= start || cur < end
         if (!inWindow) return false
 
         // Which day's curfew is this? Past midnight in an overnight window it's yesterday's.
-        val day = (now.clone() as Calendar).apply { if (overnight && cur < end) add(Calendar.DAY_OF_YEAR, -1) }
+        val day = (istNow.clone() as Calendar).apply { if (overnight && cur < end) add(Calendar.DAY_OF_YEAR, -1) }
         return matchesDay(policy.repeatDays, day.get(Calendar.DAY_OF_WEEK))
     }
 
@@ -207,7 +215,7 @@ object GeofenceEvaluator {
     /** Curfew is on, no gate pass → the fence is being enforced right now. */
     fun isEnforcing(context: Context, now: Long = System.currentTimeMillis()): Boolean {
         val policy = PolicyStore.geofencePolicy(context)
-        return policy.active && !policy.isExempt(now) && isInCurfew(policy, context = context)
+        return policy.active && !policy.isExempt(now) && isInCurfew(policy, now = istCalendar(now), context = context)
     }
 
     /**

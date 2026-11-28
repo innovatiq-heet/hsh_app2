@@ -19,6 +19,44 @@ class PackageInstallReceiver : BroadcastReceiver() {
     companion object {
         private const val TAG = "PackageInstallReceiver"
 
+        fun requestAppApprovalSync(
+            context: Context,
+            packageName: String,
+            appName: String,
+            reason: String? = null,
+        ): Boolean {
+            val token = PolicyStore.token(context)
+            val baseUrl = PolicyStore.baseUrl(context)
+            if (token.isNullOrEmpty() || baseUrl.isNullOrEmpty()) return false
+
+            return try {
+                val url = URL("$baseUrl/screen-time/apps/request")
+                val conn = (url.openConnection() as HttpURLConnection).apply {
+                    requestMethod = "POST"
+                    connectTimeout = 10_000
+                    readTimeout = 10_000
+                    doOutput = true
+                    setRequestProperty("Content-Type", "application/json")
+                    setRequestProperty("Accept", "application/json")
+                    setRequestProperty("Authorization", "Bearer $token")
+                }
+                val body = JSONObject().apply {
+                    put("package_name", packageName)
+                    put("app_name", appName)
+                    if (!reason.isNullOrBlank()) put("reason", reason.trim())
+                }
+                conn.outputStream.use { it.write(body.toString().toByteArray(Charsets.UTF_8)) }
+                val code = conn.responseCode
+                Log.i(TAG, "Submitted approval request for $packageName ($appName): code $code")
+                val ok = code in 200..299
+                if (ok) PolicyStore.removePendingQuarantine(context, packageName)
+                ok
+            } catch (e: Exception) {
+                Log.w(TAG, "Failed to submit approval request for $packageName", e)
+                false
+            }
+        }
+
         fun requestAppApproval(
             context: Context,
             packageName: String,
@@ -26,44 +64,9 @@ class PackageInstallReceiver : BroadcastReceiver() {
             reason: String? = null,
             onDone: ((Boolean) -> Unit)? = null
         ) {
-            val token = PolicyStore.token(context)
-            val baseUrl = PolicyStore.baseUrl(context)
-            if (token.isNullOrEmpty() || baseUrl.isNullOrEmpty()) {
-                onDone?.invoke(false)
-                return
-            }
-
             thread(name = "AppApprovalRequestThread") {
-                var success = false
-                try {
-                    val url = URL("$baseUrl/screen-time/apps/request")
-                    val conn = (url.openConnection() as HttpURLConnection).apply {
-                        requestMethod = "POST"
-                        connectTimeout = 10_000
-                        readTimeout = 10_000
-                        doOutput = true
-                        setRequestProperty("Content-Type", "application/json")
-                        setRequestProperty("Accept", "application/json")
-                        setRequestProperty("Authorization", "Bearer $token")
-                    }
-
-                    val body = JSONObject().apply {
-                        put("package_name", packageName)
-                        put("app_name", appName)
-                        if (!reason.isNullOrBlank()) {
-                            put("reason", reason.trim())
-                        }
-                    }
-
-                    conn.outputStream.use { it.write(body.toString().toByteArray(Charsets.UTF_8)) }
-                    val code = conn.responseCode
-                    Log.i(TAG, "Submitted approval request for $packageName ($appName): code $code")
-                    success = code in 200..299
-                } catch (e: Exception) {
-                    Log.w(TAG, "Failed to submit approval request for $packageName", e)
-                } finally {
-                    onDone?.invoke(success)
-                }
+                val success = requestAppApprovalSync(context, packageName, appName, reason)
+                onDone?.invoke(success)
             }
         }
     }
@@ -90,10 +93,11 @@ class PackageInstallReceiver : BroadcastReceiver() {
 
         Log.i(TAG, "New app installed: $packageName ($appName). Quarantining and requesting warden approval.")
 
-        // 1. Instantly quarantine / auto-block locally
+        // 1. Persist in durable offline quarantine queue + immediately block locally
+        PolicyStore.addPendingQuarantine(context, packageName, appName)
         PolicyStore.addBlockedPackage(context, packageName)
 
-        // 2. Transmit request to hostel administration
+        // 2. Transmit request to hostel administration (clears pending queue on 2xx)
         requestAppApproval(context, packageName, appName)
     }
 }

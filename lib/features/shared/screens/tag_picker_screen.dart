@@ -13,6 +13,7 @@ class TagPickerScreen extends StatefulWidget {
   final RxBool isLoading;
   final ValueChanged<int> onToggle;
   final Future<void> Function() onRefresh;
+  final bool showCounts;
 
   const TagPickerScreen({
     super.key,
@@ -21,6 +22,7 @@ class TagPickerScreen extends StatefulWidget {
     required this.isLoading,
     required this.onToggle,
     required this.onRefresh,
+    this.showCounts = true,
   });
 
   /// Opens the picker and completes when it is closed.
@@ -31,6 +33,7 @@ class TagPickerScreen extends StatefulWidget {
     required RxBool isLoading,
     required ValueChanged<int> onToggle,
     required Future<void> Function() onRefresh,
+    bool showCounts = true,
   }) {
     return Navigator.of(context).push(
       MaterialPageRoute<void>(
@@ -40,6 +43,7 @@ class TagPickerScreen extends StatefulWidget {
           isLoading: isLoading,
           onToggle: onToggle,
           onRefresh: onRefresh,
+          showCounts: showCounts,
         ),
       ),
     );
@@ -125,7 +129,9 @@ class _TagPickerScreenState extends State<TagPickerScreen> {
           tone: t.color,
           toneSoft: t.backgroundColor,
           badgeIcon: Icons.groups_rounded,
-          badgeLabel: '${t.studentCount} ${t.studentCount == 1 ? 'student' : 'students'}',
+          badgeLabel: widget.showCounts
+              ? '${t.studentCount} ${t.studentCount == 1 ? 'student' : 'students'}'
+              : '',
           badgeTextColor: PhonebookTheme.slate,
           selected: selected.contains(t.id),
           onTap: () => widget.onToggle(t.id),

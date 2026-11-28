@@ -296,29 +296,31 @@ class PickerTile extends StatelessWidget {
                           overflow: TextOverflow.ellipsis,
                           style: AppTextStyles.subtitle.copyWith(color: PhonebookTheme.ink, fontSize: 13.5, height: 1.25),
                         ),
-                        const SizedBox(height: 3),
-                        Container(
-                          padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 1),
-                          decoration: BoxDecoration(
-                            color: toneSoft,
-                            borderRadius: BorderRadius.circular(AppDimens.radiusPill),
-                          ),
-                          child: Row(
-                            mainAxisSize: MainAxisSize.min,
-                            children: [
-                              Icon(badgeIcon, size: 11, color: tone),
-                              const SizedBox(width: 4),
-                              Flexible(
-                                child: Text(
-                                  badgeLabel,
-                                  maxLines: 1,
-                                  overflow: TextOverflow.ellipsis,
-                                  style: AppTextStyles.caption.copyWith(color: badgeTextColor ?? tone, fontSize: 10.5),
+                        if (badgeLabel.isNotEmpty) ...[
+                          const SizedBox(height: 3),
+                          Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 1),
+                            decoration: BoxDecoration(
+                              color: toneSoft,
+                              borderRadius: BorderRadius.circular(AppDimens.radiusPill),
+                            ),
+                            child: Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                Icon(badgeIcon, size: 11, color: tone),
+                                const SizedBox(width: 4),
+                                Flexible(
+                                  child: Text(
+                                    badgeLabel,
+                                    maxLines: 1,
+                                    overflow: TextOverflow.ellipsis,
+                                    style: AppTextStyles.caption.copyWith(color: badgeTextColor ?? tone, fontSize: 10.5),
+                                  ),
                                 ),
-                              ),
-                            ],
+                              ],
+                            ),
                           ),
-                        ),
+                        ],
                       ],
                     ),
                   ),

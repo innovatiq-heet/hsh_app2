@@ -1,3 +1,4 @@
+import '../controllers/student_detail_controller.dart';
 import 'app_limit_sheet.dart';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
@@ -11,7 +12,8 @@ import 'student_detail_widget.dart';
 import 'app_brand_icon.dart';
 import '../views/restrict_apps_screen.dart';
 
-/// Per-app usage for the selected day, with a block/allow toggle on each row.
+/// Per-app usage for the selected day, with explicit allow/block status pills
+/// and daily time-limit controls.
 class AppUsageCard extends StudentDetailWidget {
   const AppUsageCard({super.key, required super.controller});
 
@@ -22,6 +24,9 @@ class AppUsageCard extends StudentDetailWidget {
       final filter = controller.selectedAppFilter.value;
       final isToday = controller.isTodaySelected;
       final total = controller.selectedDayTotalMinutes;
+      final activeFilter = filter == 'Restricted'
+          ? 'Restricted'
+          : (filter == 'Limited' ? 'Limited' : 'All');
 
       return AppCard(
         padding: const EdgeInsets.all(AppDimens.cardPadding),
@@ -34,7 +39,7 @@ class AppUsageCard extends StudentDetailWidget {
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Text('Apps', style: AppTextStyles.title),
+                      Text('App activity', style: AppTextStyles.title),
                       const SizedBox(height: 2),
                       Text(
                         isToday
@@ -47,15 +52,17 @@ class AppUsageCard extends StudentDetailWidget {
                 ),
                 TextButton.icon(
                   onPressed: () => RestrictAppsScreen.open(context, controller),
-                  icon: const Icon(Icons.add_moderator_rounded, size: 18),
-                  label: const Text('Restrict'),
-                  style: TextButton.styleFrom(foregroundColor: AppColors.cancelledRed),
+                  icon: const Icon(Icons.shield_outlined, size: 17),
+                  label: const Text('Block presets'),
+                  style: TextButton.styleFrom(
+                    foregroundColor: AppColors.cancelledRed,
+                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                  ),
                 ),
               ],
             ),
             const SizedBox(height: 10),
 
-            // Search + filter on one line
             TextField(
               controller: controller.appSearchController,
               onChanged: (v) => controller.appSearchQuery.value = v,
@@ -82,41 +89,42 @@ class AppUsageCard extends StudentDetailWidget {
               ),
             ),
             const SizedBox(height: 10),
-            SegmentedButton<String>(
-              segments: [
-                ButtonSegment(
-                  value: 'Used',
-                  label: Text('Used (${controller.usedAppsCount})'),
-                ),
-                ButtonSegment(
-                  value: 'All',
-                  label: Text('All (${controller.totalAvailableAppsCount})'),
-                ),
-                ButtonSegment(
-                  value: 'Restricted',
-                  label: Text('Blocked (${controller.blockedPackages.length})'),
-                ),
-              ],
-              selected: {
-                filter == 'All'
-                    ? 'All'
-                    : (filter == 'Restricted' ? 'Restricted' : 'Used')
-              },
-              onSelectionChanged: (s) => controller.selectedAppFilter.value = s.first,
-              showSelectedIcon: false,
-              style: ButtonStyle(
-                visualDensity: VisualDensity.compact,
-                textStyle: WidgetStatePropertyAll(AppTextStyles.label.copyWith(fontWeight: FontWeight.w600)),
-                side: const WidgetStatePropertyAll(BorderSide(color: AppColors.border)),
-                backgroundColor: WidgetStateProperty.resolveWith(
-                  (states) => states.contains(WidgetState.selected) ? AppColors.primary : AppColors.surface,
-                ),
-                foregroundColor: WidgetStateProperty.resolveWith(
-                  (states) => states.contains(WidgetState.selected) ? Colors.white : AppColors.textPrimary,
-                ),
+
+            // Full-width pill tabs with equal segments so labels never clip.
+            Container(
+              padding: const EdgeInsets.all(3),
+              decoration: BoxDecoration(
+                color: AppColors.surfaceMuted,
+                borderRadius: BorderRadius.circular(AppDimens.radiusPill),
+                border: Border.all(color: AppColors.borderLight),
+              ),
+              child: Row(
+                children: [
+                  _FilterPillTab(
+                    label: 'All (${controller.totalAvailableAppsCount})',
+                    selected: activeFilter == 'All',
+                    onTap: () => controller.selectedAppFilter.value = 'All',
+                  ),
+                  _FilterPillTab(
+                    label: 'Blocked (${controller.blockedPackages.length})',
+                    selected: activeFilter == 'Restricted',
+                    activeColor: AppColors.cancelledRed,
+                    onTap: () => controller.selectedAppFilter.value = 'Restricted',
+                  ),
+                  _FilterPillTab(
+                    label: 'Limits (${controller.limitedAppsCount})',
+                    selected: activeFilter == 'Limited',
+                    onTap: () => controller.selectedAppFilter.value = 'Limited',
+                  ),
+                ],
               ),
             ),
-            const SizedBox(height: AppDimens.gapLg),
+            const SizedBox(height: 8),
+            Text(
+              'Tap an app row for a daily limit • Tap Allowed / Blocked to change access',
+              style: AppTextStyles.caption.copyWith(color: AppColors.textMuted),
+            ),
+            const SizedBox(height: AppDimens.gapMd),
 
             if (controller.isLoadingDateUsage.value && list.isEmpty)
               const Padding(
@@ -134,21 +142,23 @@ class AppUsageCard extends StudentDetailWidget {
               )
             else if (list.isEmpty)
               EmptyState(
-                icon: filter == 'Restricted'
+                icon: activeFilter == 'Restricted'
                     ? Icons.verified_user_outlined
-                    : (filter == 'Limited' ? Icons.hourglass_bottom_rounded : Icons.apps_outlined),
-                title: filter == 'Restricted'
-                    ? 'Nothing blocked yet'
-                    : (filter == 'Limited'
+                    : (activeFilter == 'Limited' ? Icons.hourglass_bottom_rounded : Icons.apps_outlined),
+                title: activeFilter == 'Restricted'
+                    ? 'No blocked apps yet'
+                    : (activeFilter == 'Limited'
                         ? 'No app limits set'
                         : (isToday ? 'No app usage recorded' : 'No per-app breakdown for this day')),
-                message: filter == 'Restricted'
-                    ? 'Use "Restrict" to block distracting apps on this phone.'
-                    : (isToday
-                        ? 'Usage appears once the phone reports in (every ~5 minutes).'
-                        : (total > 0
-                            ? 'Daily total is ${formatMinutes(total)}. Individual app breakdown is logged live during each day.'
-                            : 'No usage was logged on this day.')),
+                message: activeFilter == 'Restricted'
+                    ? 'Tap "Allowed" on any app or open "Block presets" to restrict distracting apps.'
+                    : (activeFilter == 'Limited'
+                        ? 'Tap any app row or its timer icon to set a daily limit.'
+                        : (isToday
+                            ? 'Usage appears once the phone reports in (every ~5 minutes).'
+                            : (total > 0
+                                ? 'Daily total is ${formatMinutes(total)}. Individual app breakdown is logged live during each day.'
+                                : 'No usage was logged on this day.'))),
               )
             else
               ListView.separated(
@@ -162,6 +172,50 @@ class AppUsageCard extends StudentDetailWidget {
         ),
       );
     });
+  }
+}
+
+class _FilterPillTab extends StatelessWidget {
+  final String label;
+  final bool selected;
+  final Color activeColor;
+  final VoidCallback onTap;
+
+  const _FilterPillTab({
+    required this.label,
+    required this.selected,
+    this.activeColor = AppColors.primary,
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Expanded(
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(AppDimens.radiusPill),
+        child: AnimatedContainer(
+          duration: const Duration(milliseconds: 160),
+          padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 8),
+          decoration: BoxDecoration(
+            color: selected ? activeColor : Colors.transparent,
+            borderRadius: BorderRadius.circular(AppDimens.radiusPill),
+          ),
+          alignment: Alignment.center,
+          child: FittedBox(
+            fit: BoxFit.scaleDown,
+            child: Text(
+              label,
+              maxLines: 1,
+              style: AppTextStyles.label.copyWith(
+                fontWeight: FontWeight.w700,
+                color: selected ? Colors.white : AppColors.textPrimary,
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
   }
 }
 
@@ -295,38 +349,103 @@ class _AppRow extends StudentDetailWidget {
                 ],
               ),
             ),
-            const SizedBox(width: 4),
-            Tooltip(
-              message: limit > 0
-                  ? 'Edit time limit (${formatMinutes(limit)})'
-                  : 'Set time limit',
-              child: IconButton(
-                icon: Icon(
-                  limit > 0 ? Icons.hourglass_top_rounded : Icons.timer_outlined,
-                  size: 20,
-                  color: limit > 0 ? AppColors.primary : AppColors.textMuted,
+            const SizedBox(width: 6),
+            if (StudentDetailController.isCoreAndroidService(pkg) && !blocked)
+              Tooltip(
+                message: 'Essential Android service — protected so Google Pay and alerts keep working',
+                child: Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 6),
+                  decoration: BoxDecoration(
+                    color: AppColors.surfaceMuted,
+                    borderRadius: BorderRadius.circular(AppDimens.radiusPill),
+                    border: Border.all(color: AppColors.borderLight),
+                  ),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      const Icon(Icons.verified_user_outlined, size: 13, color: AppColors.textMuted),
+                      const SizedBox(width: 4),
+                      Text(
+                        'System',
+                        style: AppTextStyles.caption.copyWith(
+                          fontWeight: FontWeight.w600,
+                          color: AppColors.textMuted,
+                        ),
+                      ),
+                    ],
+                  ),
                 ),
-                onPressed: () => AppLimitSheet.show(
-                  context,
-                  controller: controller,
-                  packageName: pkg,
-                  appName: name,
-                  currentLimit: limit,
-                  currentUsage: mins,
+              )
+            else ...[
+              Tooltip(
+                message: limit > 0
+                    ? 'Edit time limit (${formatMinutes(limit)})'
+                    : 'Set time limit',
+                child: IconButton(
+                  constraints: const BoxConstraints.tightFor(width: 34, height: 34),
+                  padding: EdgeInsets.zero,
+                  icon: Icon(
+                    limit > 0 ? Icons.hourglass_top_rounded : Icons.timer_outlined,
+                    size: 19,
+                    color: limit > 0 ? AppColors.primary : AppColors.textMuted,
+                  ),
+                  onPressed: () => AppLimitSheet.show(
+                    context,
+                    controller: controller,
+                    packageName: pkg,
+                    appName: name,
+                    currentLimit: limit,
+                    currentUsage: mins,
+                  ),
                 ),
               ),
-            ),
-            Tooltip(
-              message: blocked ? 'Allow $name' : 'Block $name',
-              child: Switch.adaptive(
-                value: !blocked,
-                activeTrackColor: AppColors.successGreen,
-                inactiveThumbColor: Colors.white,
-                inactiveTrackColor: AppColors.cancelledRed,
-                trackOutlineColor: const WidgetStatePropertyAll(Colors.transparent),
-                onChanged: (allowed) => controller.toggleAppBlock(pkg, name, !allowed),
+              const SizedBox(width: 4),
+              Semantics(
+                button: true,
+                toggled: !blocked,
+                label: blocked ? 'Allow $name' : 'Block $name',
+                child: Tooltip(
+                  message: blocked ? 'Tap to allow $name' : 'Tap to block $name',
+                  child: InkWell(
+                    onTap: () => controller.toggleAppBlock(pkg, name, !blocked),
+                    borderRadius: BorderRadius.circular(AppDimens.radiusPill),
+                    child: AnimatedContainer(
+                      duration: const Duration(milliseconds: 160),
+                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                      decoration: BoxDecoration(
+                        color: blocked
+                            ? AppColors.cancelledRed.withValues(alpha: 0.12)
+                            : AppColors.successGreen.withValues(alpha: 0.12),
+                        borderRadius: BorderRadius.circular(AppDimens.radiusPill),
+                        border: Border.all(
+                          color: blocked
+                              ? AppColors.cancelledRed.withValues(alpha: 0.45)
+                              : AppColors.successGreen.withValues(alpha: 0.45),
+                        ),
+                      ),
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Icon(
+                            blocked ? Icons.block_rounded : Icons.check_circle_rounded,
+                            size: 14,
+                            color: blocked ? AppColors.cancelledRed : AppColors.successGreen,
+                          ),
+                          const SizedBox(width: 4),
+                          Text(
+                            blocked ? 'Blocked' : 'Allowed',
+                            style: AppTextStyles.caption.copyWith(
+                              fontWeight: FontWeight.w700,
+                              color: blocked ? AppColors.cancelledRed : AppColors.successGreen,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                ),
               ),
-            ),
+            ],
           ],
         ),
       ),

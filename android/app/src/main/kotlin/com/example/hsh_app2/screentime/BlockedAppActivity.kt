@@ -6,6 +6,9 @@ import android.content.Intent
 import android.graphics.Color
 import android.graphics.Typeface
 import android.graphics.drawable.GradientDrawable
+import android.media.AudioAttributes
+import android.media.AudioFocusRequest
+import android.media.AudioManager
 import android.os.Build
 import android.os.Bundle
 import android.os.Handler
@@ -75,6 +78,7 @@ class BlockedAppActivity : Activity() {
         }
 
         renderContent(intent)
+        pauseBackgroundPlayback()
         PolicyStore.addPolicyListener(policyListener)
     }
 
@@ -83,6 +87,33 @@ class BlockedAppActivity : Activity() {
         setIntent(intent)
         if (intent != null) {
             renderContent(intent)
+        }
+        pauseBackgroundPlayback()
+    }
+
+    /** Briefly grabs audio focus so background video/music from a blocked app pauses right away. */
+    private fun pauseBackgroundPlayback() {
+        val am = getSystemService(Context.AUDIO_SERVICE) as? AudioManager ?: return
+        runCatching {
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                val req = AudioFocusRequest.Builder(AudioManager.AUDIOFOCUS_GAIN_TRANSIENT)
+                    .setAudioAttributes(
+                        AudioAttributes.Builder()
+                            .setUsage(AudioAttributes.USAGE_ASSISTANCE_SONIFICATION)
+                            .setContentType(AudioAttributes.CONTENT_TYPE_SONIFICATION)
+                            .build()
+                    )
+                    .build()
+                am.requestAudioFocus(req)
+                handler.postDelayed({ runCatching { am.abandonAudioFocusRequest(req) } }, 600)
+            } else {
+                @Suppress("DEPRECATION")
+                am.requestAudioFocus(null, AudioManager.STREAM_MUSIC, AudioManager.AUDIOFOCUS_GAIN_TRANSIENT)
+                handler.postDelayed({
+                    @Suppress("DEPRECATION")
+                    runCatching { am.abandonAudioFocus(null) }
+                }, 600)
+            }
         }
     }
 
@@ -261,10 +292,10 @@ class BlockedAppActivity : Activity() {
         }
         cardLayout.addView(pkgView, pkgLp)
 
-        // Removal code entry (only for the device-admin-deactivation screen): a warden-issued
-        // one-time code lets the student turn off removal protection themselves.
-        if (blockReason == BlockReason.ADMIN_PROTECTED) {
-            addRemovalCodeEntry(cardLayout)
+        // Removal / settings code entry (device-admin or protected-settings screen):
+        // a warden-issued one-time code unlocks removal protection or grants a 3-min settings pass.
+        if (blockReason == BlockReason.ADMIN_PROTECTED || blockReason == BlockReason.SETTINGS_PROTECTED) {
+            addRemovalCodeEntry(cardLayout, blockReason)
         }
 
         // Request Approval Button (when app is blocked / restricted or installer blocked)
@@ -532,7 +563,7 @@ class BlockedAppActivity : Activity() {
      * protection on this phone right away and sends the student home; a wrong or missing code
      * does nothing (stays blocked, same as tapping nothing at all).
      */
-    private fun addRemovalCodeEntry(cardLayout: LinearLayout) {
+    private fun addRemovalCodeEntry(cardLayout: LinearLayout, reason: BlockReason) {
         val label = TextView(this).apply {
             text = "Have a code from your warden?"
             textSize = 13f
@@ -590,12 +621,19 @@ class BlockedAppActivity : Activity() {
             }
             submitBtn.isEnabled = false
             submitBtn.text = "Checking…"
-            RemovalCodeVerifier.verify(this, code) { valid ->
+            val purpose = if (reason == BlockReason.SETTINGS_PROTECTED) "settings" else "removal"
+            RemovalCodeVerifier.verify(this, code, purpose) { valid ->
                 runOnUiThread {
                     if (valid) {
-                        HshDeviceAdmin.remove(this)
-                        android.widget.Toast.makeText(this, "Removal protection turned off", android.widget.Toast.LENGTH_LONG).show()
-                        goToHomeScreen()
+                        if (reason == BlockReason.SETTINGS_PROTECTED) {
+                            PolicyStore.grantSettingsPass(this, 3 * 60_000L)
+                            android.widget.Toast.makeText(this, "Settings unlocked for 3 minutes", android.widget.Toast.LENGTH_LONG).show()
+                            finish()
+                        } else {
+                            HshDeviceAdmin.remove(this)
+                            android.widget.Toast.makeText(this, "Removal protection turned off", android.widget.Toast.LENGTH_LONG).show()
+                            goToHomeScreen()
+                        }
                     } else {
                         submitBtn.isEnabled = true
                         submitBtn.text = "Submit code"

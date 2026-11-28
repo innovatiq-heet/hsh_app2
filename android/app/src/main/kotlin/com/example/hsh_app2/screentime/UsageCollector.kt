@@ -14,7 +14,6 @@ import java.io.ByteArrayOutputStream
 import android.os.Build
 import android.os.PowerManager
 import android.os.Process
-import java.util.Calendar
 
 /** Foreground time of every app for one calendar day, read from the OS. */
 data class UsageSnapshot(
@@ -65,21 +64,10 @@ object UsageCollector {
     fun isScreenOn(context: Context): Boolean =
         (context.getSystemService(Context.POWER_SERVICE) as PowerManager).isInteractive
 
-    /** Local midnight (start of day) for the given instant. */
-    fun startOfDay(millis: Long): Long = Calendar.getInstance().run {
-        timeInMillis = millis
-        set(Calendar.HOUR_OF_DAY, 0)
-        set(Calendar.MINUTE, 0)
-        set(Calendar.SECOND, 0)
-        set(Calendar.MILLISECOND, 0)
-        timeInMillis
-    }
+    /** IST (Asia/Kolkata) midnight for the given instant. */
+    fun startOfDay(millis: Long): Long = CurfewSchedule.istMidnight(millis)
 
-    fun nextDayStart(dayStart: Long): Long = Calendar.getInstance().run {
-        timeInMillis = dayStart
-        add(Calendar.DAY_OF_YEAR, 1)
-        timeInMillis
-    }
+    fun nextDayStart(dayStart: Long): Long = dayStart + CurfewSchedule.DAY_MS
 
     /**
      * Package whose activity is resumed right now, from usage events. Null
@@ -117,6 +105,30 @@ object UsageCollector {
             fg = ForegroundReplay.step(fg, event.eventType, event.packageName, event.className)
         }
         return fg
+    }
+
+    /**
+     * Packages simultaneously resumed right now (e.g. split-screen or floating
+     * windows), inferred from recent usage events where ACTIVITY_RESUMED wasn't
+     * matched by a PAUSED/STOPPED for that package.
+     */
+    fun activeResumedPackages(context: Context, lookbackMs: Long = 10 * 60 * 1000L): Set<String> {
+        if (!isScreenOn(context) || !hasPermission(context)) return emptySet()
+        val now = System.currentTimeMillis()
+        val usm = context.getSystemService(Context.USAGE_STATS_SERVICE) as UsageStatsManager
+        val events = runCatching { usm.queryEvents(now - lookbackMs, now) }.getOrNull() ?: return emptySet()
+        val event = UsageEvents.Event()
+        val active = LinkedHashSet<String>()
+        while (events.hasNextEvent()) {
+            events.getNextEvent(event)
+            val pkg = event.packageName ?: continue
+            when (event.eventType) {
+                ACTIVITY_RESUMED -> active.add(pkg)
+                ACTIVITY_PAUSED, 23 -> active.remove(pkg)
+                SCREEN_NON_INTERACTIVE, KEYGUARD_SHOWN, DEVICE_SHUTDOWN -> active.clear()
+            }
+        }
+        return active
     }
 
     /** Collects usage for [dayStart, min(dayEnd, now)). */

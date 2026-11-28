@@ -76,6 +76,7 @@ class ScreenTimeDirectoryController extends GetxController with WidgetsBindingOb
       _refreshLoadedStudents(),
       loadGlobalCurfew(),
       fetchAppRequests(),
+      fetchDeviceRequests(),
     ]);
   }
 
@@ -90,6 +91,7 @@ class ScreenTimeDirectoryController extends GetxController with WidgetsBindingOb
         fetchStudentsList(),
         loadGlobalCurfew(),
         fetchAppRequests(),
+        fetchDeviceRequests(),
       ]);
     }
   }
@@ -112,6 +114,7 @@ class ScreenTimeDirectoryController extends GetxController with WidgetsBindingOb
     _closeDetail();
     clearSearch();
     fetchAppRequests();
+    fetchDeviceRequests();
   }
 
   void _closeDetail() {
@@ -140,6 +143,9 @@ class ScreenTimeDirectoryController extends GetxController with WidgetsBindingOb
   /// List of student app installation requests pending warden approval
   @override
   final RxList<Map<String, dynamic>> pendingAppRequests = <Map<String, dynamic>>[].obs;
+
+  /// Pending new-device / app-reinstall login approvals for wardens/admins.
+  final RxList<Map<String, dynamic>> pendingDeviceRequests = <Map<String, dynamic>>[].obs;
 
   final RxBool isLoadingAppRequests = false.obs;
 
@@ -826,6 +832,7 @@ class ScreenTimeDirectoryController extends GetxController with WidgetsBindingOb
     _openPendingTarget();
     unawaited(_loadTotalHostelStudentCount());
     unawaited(fetchAppRequests());
+    unawaited(fetchDeviceRequests());
     await Future.wait([
       fetchStudentsList(),
       loadGlobalCurfew(),
@@ -1814,6 +1821,43 @@ class ScreenTimeDirectoryController extends GetxController with WidgetsBindingOb
     } catch (e) {
       debugPrint('[ScreenTime] reviewAppRequest error: $e');
       AppSnackbar.error('Action Failed', 'Could not review app request: $e');
+    }
+  }
+
+  /// Fetch pending device transfer / reinstall login requests (warden/admin only).
+  Future<void> fetchDeviceRequests() async {
+    if (!currentRole.value.canOperate) {
+      pendingDeviceRequests.clear();
+      return;
+    }
+    try {
+      final rows = await _repo.pendingDeviceRequests();
+      pendingDeviceRequests.assignAll(rows);
+    } catch (e) {
+      debugPrint('[ScreenTime] fetchDeviceRequests error: $e');
+    }
+  }
+
+  /// Approve or reject a student's new-device or app-reinstall login request.
+  Future<void> reviewDeviceRequest(int requestId, {required bool approve}) async {
+    if (requestId <= 0) return;
+    try {
+      if (approve) {
+        await _repo.approveDeviceRequest(requestId);
+        AppSnackbar.success(
+          'Device Approved',
+          'Student can now sign in and their new device is registered.',
+        );
+      } else {
+        await _repo.rejectDeviceRequest(requestId);
+        AppSnackbar.info('Device Rejected', 'Login approval request rejected.');
+      }
+      pendingDeviceRequests.removeWhere(
+        (r) => int.tryParse((r['id'] ?? '').toString()) == requestId,
+      );
+    } catch (e) {
+      debugPrint('[ScreenTime] reviewDeviceRequest error: $e');
+      AppSnackbar.error('Action Failed', 'Could not update device request: $e');
     }
   }
 

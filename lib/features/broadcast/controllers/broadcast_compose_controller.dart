@@ -16,6 +16,7 @@ import '../../../core/utils/app_snackbar.dart';
 import '../../../core/utils/image_type.dart';
 import '../../shared/utils/student_picker_host.dart';
 import '../utils/tag_members.dart';
+import '../widgets/rich_message_editor.dart';
 import 'broadcast_admin_gate.dart';
 
 /// A random UUID v4, used as `client_request_id` so a retried send is never
@@ -78,7 +79,7 @@ class BroadcastComposeController extends GetxController
   final RxnString groupAudiencePreset = RxnString();
 
   final titleController = TextEditingController();
-  final messageController = TextEditingController();
+  final RichBroadcastTextController messageController = RichBroadcastTextController();
   final title = ''.obs;
   final message = ''.obs;
 
@@ -89,6 +90,7 @@ class BroadcastComposeController extends GetxController
   /// Who in the selected tags gets it: current students, alumni, or both.
   /// Must be chosen (null until then) before a broadcast with tags is sent.
   final tagScope = Rxn<TagMemberScope>();
+  bool _tagScopeAutoAssigned = false;
 
   /// The selected tags' members, split current / alumni (for the counts and
   /// for sending to one group only).
@@ -205,7 +207,7 @@ class BroadcastComposeController extends GetxController
   // --- validation ---
 
   String get trimmedTitle => title.value.trim();
-  String get trimmedMessage => message.value.trim();
+  String get trimmedMessage => messageController.toFormattedMarkup().trim();
 
   /// Title is optional: valid if empty or within limit.
   bool get titleValid => trimmedTitle.length <= maxTitle;
@@ -229,7 +231,11 @@ class BroadcastComposeController extends GetxController
   Future<void> loadTags() async {
     isTagsLoading.value = true;
     try {
-      tags.assignAll(dedupeTags(await _tagsRepo.getTags()));
+      final fetched = await _tagsRepo.getTags(excludeSystem: isLeaderView.value);
+      final deduped = dedupeTags(fetched);
+      tags.assignAll(
+        isLeaderView.value ? deduped.where((t) => !t.isSystem).toList() : deduped,
+      );
     } catch (_) {
       // Individual picks still work without tags.
     } finally {
@@ -256,6 +262,7 @@ class BroadcastComposeController extends GetxController
       if (preset != null) {
         selectedTagIds.clear();
         tagScope.value = null;
+        _tagScopeAutoAssigned = false;
         tagMembers.value = TagMembers.empty;
         selectedStudents.clear();
       }
@@ -268,12 +275,16 @@ class BroadcastComposeController extends GetxController
       selectedTagIds.add(tagId);
       groupAudiencePreset.value = null;
     }
-    if (selectedTagIds.isEmpty) tagScope.value = null;
+    if (selectedTagIds.isEmpty || _tagScopeAutoAssigned) {
+      tagScope.value = null;
+      _tagScopeAutoAssigned = false;
+    }
     _refreshMembers();
     _schedulePreview();
   }
 
   void setTagScope(TagMemberScope scope) {
+    _tagScopeAutoAssigned = false;
     tagScope.value = scope;
     _schedulePreview();
   }
@@ -296,7 +307,32 @@ class BroadcastComposeController extends GetxController
       }
     }
     final rows = _studentRows;
-    tagMembers.value = rows == null ? TagMembers.empty : TagMembers.of(rows, selectedTagIds.toSet());
+    Iterable<Map> scopedRows = rows ?? const <Map>[];
+    if (isLeaderView.value && leaderGroupName.value.isNotEmpty && rows != null) {
+      final target = leaderGroupName.value.trim().toLowerCase();
+      scopedRows = rows.where((r) {
+        final g = (r['group_name'] ?? r['groupName'] ?? r['group'] ?? '')
+            .toString()
+            .trim()
+            .toLowerCase();
+        return g.isEmpty || g == target;
+      });
+    }
+    final members = rows == null ? TagMembers.empty : TagMembers.of(scopedRows, selectedTagIds.toSet());
+    tagMembers.value = members;
+
+    // If the selected tags only have current students OR only alumni, select that
+    // group automatically instead of forcing a confusing 3-way choice.
+    if (tagScope.value == null && rows != null) {
+      if (members.current.isNotEmpty && members.alumni.isEmpty) {
+        tagScope.value = TagMemberScope.current;
+        _tagScopeAutoAssigned = true;
+      } else if (members.current.isEmpty && members.alumni.isNotEmpty) {
+        tagScope.value = TagMemberScope.alumni;
+        _tagScopeAutoAssigned = true;
+      }
+    }
+
     // A choice of one group depends on these numbers.
     if (tagScope.value != null && tagScope.value != TagMemberScope.all) _schedulePreview();
   }

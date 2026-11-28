@@ -14,6 +14,7 @@ import '../../shared/screens/student_picker_screen.dart';
 import '../../shared/screens/tag_picker_screen.dart';
 import '../controllers/broadcast_compose_controller.dart';
 import '../utils/tag_members.dart';
+import '../widgets/rich_message_editor.dart';
 
 /// Admin → Broadcast → New: write the message, choose the audience, send.
 class BroadcastComposeScreen extends GetView<BroadcastComposeController> {
@@ -215,33 +216,9 @@ class BroadcastComposeScreen extends GetView<BroadcastComposeController> {
                   const SizedBox(height: 18),
                   const PhonebookSectionHeader(title: 'Message'),
                   PhonebookCard(
-                    child: Column(
-                      children: [
-                        TextField(
-                          controller: controller.titleController,
-                          maxLength: BroadcastComposeController.maxTitle,
-                          textCapitalization: TextCapitalization.sentences,
-                          style: _fieldTextStyle,
-                          decoration: _fieldDecoration(
-                            label: 'Title (Optional)',
-                            hint: 'e.g. Water supply (leave blank for quick notice)',
-                          ),
-                        ),
-                        const SizedBox(height: 14),
-                        TextField(
-                          controller: controller.messageController,
-                          maxLength: BroadcastComposeController.maxMessage,
-                          minLines: 4,
-                          maxLines: 10,
-                          textCapitalization: TextCapitalization.sentences,
-                          style: _fieldTextStyle,
-                          decoration: _fieldDecoration(
-                            label: 'Message',
-                            hint: 'What do students need to know?',
-                            alignLabelWithHint: true,
-                          ),
-                        ),
-                      ],
+                    child: RichMessageComposer(
+                      controller: controller.messageController,
+                      maxLength: BroadcastComposeController.maxMessage,
                     ),
                   ),
                   const SizedBox(height: 18),
@@ -338,34 +315,6 @@ class _PictureCard extends StatelessWidget {
       }),
     );
   }
-}
-
-const _fieldTextStyle = TextStyle(color: PhonebookTheme.ink, fontSize: 14);
-
-/// Phonebook-style outlined field, as in the complaint form.
-InputDecoration _fieldDecoration({
-  required String label,
-  required String hint,
-  bool alignLabelWithHint = false,
-}) {
-  OutlineInputBorder border(Color color, [double width = 1]) => OutlineInputBorder(
-        borderRadius: BorderRadius.circular(14),
-        borderSide: BorderSide(color: color, width: width),
-      );
-  return InputDecoration(
-    labelText: label,
-    hintText: hint,
-    alignLabelWithHint: alignLabelWithHint,
-    filled: true,
-    fillColor: PhonebookTheme.bg,
-    labelStyle: const TextStyle(color: PhonebookTheme.muted),
-    floatingLabelStyle: const TextStyle(color: PhonebookTheme.blue, fontWeight: FontWeight.w600),
-    hintStyle: TextStyle(color: PhonebookTheme.muted.withValues(alpha: 0.7)),
-    counterStyle: const TextStyle(color: PhonebookTheme.muted, fontSize: 11),
-    border: border(PhonebookTheme.border),
-    enabledBorder: border(PhonebookTheme.border),
-    focusedBorder: border(PhonebookTheme.blue, 1.6),
-  );
 }
 
 /// Segmented delivery channel picker: Both (App & WhatsApp), In-App, or WhatsApp.
@@ -550,6 +499,7 @@ class _AudienceCard extends StatelessWidget {
                 isLoading: controller.isTagsLoading,
                 onToggle: controller.toggleTag,
                 onRefresh: controller.refreshTags,
+                showCounts: !controller.isLeaderView.value,
               ),
             ),
           ),
@@ -654,7 +604,65 @@ class _TagScope extends StatelessWidget {
       final members = controller.tagMembers.value;
       final loading = controller.isMembersLoading.value;
       final error = controller.membersError.value;
-      String count(int n) => loading ? '…' : '$n';
+      final curCount = members.current.length;
+      final alumCount = members.alumni.length;
+      final totalCount = curCount + alumCount;
+
+      if (loading) {
+        return Padding(
+          padding: const EdgeInsets.only(top: AppDimens.gapLg),
+          child: Row(
+            children: [
+              const SizedBox(
+                width: 14,
+                height: 14,
+                child: CircularProgressIndicator(strokeWidth: 2),
+              ),
+              const SizedBox(width: 8),
+              Text(
+                'Checking recipients…',
+                style: AppTextStyles.bodySm.copyWith(color: PhonebookTheme.muted),
+              ),
+            ],
+          ),
+        );
+      }
+
+      if (error != null) {
+        return Padding(
+          padding: const EdgeInsets.only(top: AppDimens.gapSm),
+          child: Text(error, style: AppTextStyles.bodySm.copyWith(color: PhonebookTheme.red)),
+        );
+      }
+
+      // Only one kind of member exists in these tags -> show a single clear badge.
+      if (curCount > 0 && alumCount == 0) {
+        return Padding(
+          padding: const EdgeInsets.only(top: AppDimens.gapMd),
+          child: PhonebookTintChip(
+            label: 'Current students · $curCount',
+            icon: Icons.school_rounded,
+            color: PhonebookTheme.green,
+            selected: true,
+            onTap: () {},
+          ),
+        );
+      }
+      if (alumCount > 0 && curCount == 0) {
+        return Padding(
+          padding: const EdgeInsets.only(top: AppDimens.gapMd),
+          child: PhonebookTintChip(
+            label: 'Alumni only · $alumCount',
+            icon: Icons.workspace_premium_rounded,
+            color: PhonebookTheme.purple,
+            selected: true,
+            onTap: () {},
+          ),
+        );
+      }
+      if (totalCount == 0) {
+        return const SizedBox.shrink();
+      }
 
       return Padding(
         padding: const EdgeInsets.only(top: AppDimens.gapLg),
@@ -671,20 +679,20 @@ class _TagScope extends StatelessWidget {
               runSpacing: AppDimens.gapSm,
               children: [
                 PhonebookTintChip(
-                  label: 'Current & alumni · ${count(members.current.length + members.alumni.length)}',
+                  label: 'Current & alumni · $totalCount',
                   icon: Icons.groups_rounded,
                   selected: scope == TagMemberScope.all,
                   onTap: () => controller.setTagScope(TagMemberScope.all),
                 ),
                 PhonebookTintChip(
-                  label: 'Current only · ${count(members.current.length)}',
+                  label: 'Current only · $curCount',
                   icon: Icons.school_rounded,
                   color: PhonebookTheme.green,
                   selected: scope == TagMemberScope.current,
                   onTap: () => controller.setTagScope(TagMemberScope.current),
                 ),
                 PhonebookTintChip(
-                  label: 'Alumni only · ${count(members.alumni.length)}',
+                  label: 'Alumni only · $alumCount',
                   icon: Icons.workspace_premium_rounded,
                   color: PhonebookTheme.purple,
                   selected: scope == TagMemberScope.alumni,
@@ -692,12 +700,7 @@ class _TagScope extends StatelessWidget {
                 ),
               ],
             ),
-            if (error != null)
-              Padding(
-                padding: const EdgeInsets.only(top: AppDimens.gapSm),
-                child: Text(error, style: AppTextStyles.bodySm.copyWith(color: PhonebookTheme.red)),
-              )
-            else if (scope == null)
+            if (scope == null)
               Padding(
                 padding: const EdgeInsets.only(top: AppDimens.gapSm),
                 child: Text(
@@ -754,7 +757,9 @@ class _SelectedTags extends StatelessWidget {
             SelectedEntry(
               id: t.id,
               title: t.name,
-              subtitle: '${t.studentCount} ${t.studentCount == 1 ? 'student' : 'students'}',
+              subtitle: controller.isLeaderView.value
+                  ? ''
+                  : '${t.studentCount} ${t.studentCount == 1 ? 'student' : 'students'}',
               leading: Icon(Icons.sell_rounded, size: 18, color: t.color),
               leadingColor: t.backgroundColor,
               onRemove: () => controller.toggleTag(t.id),

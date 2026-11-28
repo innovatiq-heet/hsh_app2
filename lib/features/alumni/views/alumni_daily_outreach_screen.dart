@@ -11,6 +11,7 @@ import '../../shared/widgets/navy_sliver_header.dart';
 import '../../shared/widgets/sheet_scaffold.dart';
 import '../../shared/widgets/skeleton_loader.dart';
 import '../controllers/alumni_daily_outreach_controller.dart';
+import '../widgets/alumni_outreach_sheets.dart';
 import '../../shared/widgets/student_avatar.dart';
 
 /// Colours of the leader tools (Birthday Wishes, Screen Time): slate text and
@@ -280,7 +281,7 @@ class AlumniDailyOutreachScreen extends GetView<AlumniDailyOutreachController> {
           scrollDirection: Axis.horizontal,
           child: Row(
             children: [
-              for (final filter in const ['all', 'not_reachable', 'not_verified', 'reachable'])
+              for (final filter in const ['all', 'reachable', 'not_reachable'])
                 Padding(
                   padding: const EdgeInsets.only(right: 6),
                   child: ChoiceChip(
@@ -626,7 +627,7 @@ class _TabPills extends StatelessWidget {
 // One alumnus
 // ======================================================================
 
-enum _MoreAction { editMessage, copy, markDone, skip }
+enum _MoreAction { contactStatus, profile, editMessage, copy, markDone, skip }
 
 /// Title row of today's list with the admin-only Send All button, placed like
 /// the one in Birthday Wishes.
@@ -948,6 +949,13 @@ class _AlumnusCard extends StatelessWidget {
                         fontWeight: done ? FontWeight.w600 : FontWeight.w500,
                       ),
                     ),
+                    if (_reachabilityLabel(s.whatsappReachability).isNotEmpty) ...[
+                      const SizedBox(height: 4),
+                      _OutreachStatusBadges(
+                        reachability: s.whatsappReachability,
+                        response: s.outreachResponse,
+                      ),
+                    ],
                   ],
                 ),
               ),
@@ -982,6 +990,23 @@ class _AlumnusCard extends StatelessWidget {
                 shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
                 onSelected: (a) {
                   switch (a) {
+                    case _MoreAction.contactStatus:
+                      showOutreachStatusSheet(
+                        context,
+                        controller: controller,
+                        studentId: s.studentId,
+                        name: s.name,
+                        currentReachability: s.whatsappReachability,
+                        currentResponse: s.outreachResponse,
+                        currentNote: s.outreachResponseNote,
+                      );
+                    case _MoreAction.profile:
+                      showAdminFullProfileEditorSheet(
+                        context,
+                        controller: controller,
+                        studentId: s.studentId,
+                        fallbackName: s.name,
+                      );
                     case _MoreAction.editMessage:
                       _EditMessageSheet.show(controller, s);
                     case _MoreAction.copy:
@@ -993,6 +1018,24 @@ class _AlumnusCard extends StatelessWidget {
                   }
                 },
                 itemBuilder: (_) => [
+                  const PopupMenuItem(
+                    value: _MoreAction.contactStatus,
+                    child: ListTile(
+                      leading: Icon(Icons.fact_check_outlined, color: _C.accent),
+                      title: Text('Reachable / Response'),
+                      subtitle: Text('Mark reachable or not reachable'),
+                      contentPadding: EdgeInsets.zero,
+                    ),
+                  ),
+                  if (controller.canEditProfile)
+                    const PopupMenuItem(
+                      value: _MoreAction.profile,
+                      child: ListTile(
+                        leading: Icon(Icons.person_outline_rounded, color: _C.ink),
+                        title: Text('Profile & Edit Info'),
+                        contentPadding: EdgeInsets.zero,
+                      ),
+                    ),
                   if (!done)
                     const PopupMenuItem(
                       value: _MoreAction.editMessage,
@@ -1206,14 +1249,74 @@ class _DayHeading extends StatelessWidget {
 String _reachabilityLabel(String status) => switch (status) {
   'reachable' => 'Reachable',
   'not_reachable' => 'Not Reachable',
-  _ => 'Not Verified',
+  _ => '',
 };
 
 Color _reachabilityColor(String status) => switch (status) {
   'reachable' => _C.done,
   'not_reachable' => _C.danger,
-  _ => const Color(0xFFD97706),
+  _ => _C.muted,
 };
+
+String _responseLabel(String? response) => switch (response) {
+  'positive' => 'Positive',
+  'neutral' => 'Neutral',
+  'negative' => 'Negative',
+  _ => '',
+};
+
+Color _responseColor(String? response) => switch (response) {
+  'positive' => _C.done,
+  'neutral' => const Color(0xFFD97706),
+  'negative' => _C.danger,
+  _ => _C.muted,
+};
+
+class _OutreachStatusBadges extends StatelessWidget {
+  final String reachability;
+  final String? response;
+  const _OutreachStatusBadges({required this.reachability, this.response});
+
+  @override
+  Widget build(BuildContext context) {
+    final reachLabel = _reachabilityLabel(reachability);
+    final respLabel = reachability == 'reachable' ? _responseLabel(response) : '';
+    if (reachLabel.isEmpty && respLabel.isEmpty) return const SizedBox.shrink();
+
+    final reachColor = _reachabilityColor(reachability);
+    final respColor = _responseColor(response);
+
+    return Wrap(
+      spacing: 6,
+      runSpacing: 4,
+      children: [
+        if (reachLabel.isNotEmpty)
+          _statusPill(reachLabel, reachColor),
+        if (respLabel.isNotEmpty)
+          _statusPill(respLabel, respColor),
+      ],
+    );
+  }
+
+  Widget _statusPill(String label, Color color) => Container(
+        padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2),
+        decoration: BoxDecoration(
+          color: color.withValues(alpha: 0.12),
+          borderRadius: BorderRadius.circular(10),
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(Icons.circle, size: 7, color: color),
+            const SizedBox(width: 4),
+            Text(
+              label,
+              style: TextStyle(fontSize: 10.5, fontWeight: FontWeight.w700, color: color),
+            ),
+          ],
+        ),
+      );
+}
 
 class _HistoryRow extends StatelessWidget {
   final AlumniOutreachHistoryModel item;
@@ -1378,38 +1481,15 @@ class _HistoryRow extends StatelessWidget {
     }
   }
 
-  Future<void> _changeStatus(BuildContext context) async {
-    final status = await showModalBottomSheet<String>(
-      context: context,
-      showDragHandle: true,
-      builder: (ctx) => SafeArea(
-        child: Padding(
-          padding: const EdgeInsets.fromLTRB(20, 0, 20, 16),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(item.name, style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w700)),
-              const SizedBox(height: 4),
-              const Text('Is this number reachable on WhatsApp?', style: TextStyle(color: _C.muted)),
-              const SizedBox(height: 12),
-              for (final value in const ['reachable', 'not_reachable', 'not_verified'])
-                ListTile(
-                  contentPadding: EdgeInsets.zero,
-                  leading: Icon(Icons.circle, size: 16, color: _reachabilityColor(value)),
-                  title: Text(_reachabilityLabel(value)),
-                  trailing: item.whatsappReachability == value ? const Icon(Icons.check, color: _C.accent) : null,
-                  onTap: () => Navigator.of(ctx).pop(value),
-                ),
-            ],
-          ),
-        ),
-      ),
-    );
-    if (status != null && status != item.whatsappReachability) {
-      await controller.updateContact(item, reachability: status);
-    }
-  }
+  Future<void> _openStatusSheet(BuildContext context) => showOutreachStatusSheet(
+        context,
+        controller: controller,
+        studentId: item.studentId,
+        name: item.name,
+        currentReachability: item.whatsappReachability,
+        currentResponse: item.outreachResponse,
+        currentNote: item.outreachResponseNote,
+      );
 
   String _senderSummary() {
     final rolePrefix = item.isSentByAdmin ? 'Admin' : 'Leader';
@@ -1419,7 +1499,6 @@ class _HistoryRow extends StatelessWidget {
 
   Future<void> _showDetails(BuildContext context) async {
     final time = _timeOf(item.contactedAt);
-    final statusColor = _reachabilityColor(item.whatsappReachability);
     await showModalBottomSheet<void>(
       context: context,
       isScrollControlled: true,
@@ -1514,23 +1593,9 @@ class _HistoryRow extends StatelessWidget {
                         style: TextStyle(fontSize: 11.5, fontWeight: FontWeight.w600, color: _C.muted),
                       ),
                       const Spacer(),
-                      Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-                        decoration: BoxDecoration(
-                          color: statusColor.withValues(alpha: 0.12),
-                          borderRadius: BorderRadius.circular(12),
-                        ),
-                        child: Row(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            Icon(Icons.circle, size: 8, color: statusColor),
-                            const SizedBox(width: 5),
-                            Text(
-                              _reachabilityLabel(item.whatsappReachability),
-                              style: TextStyle(fontSize: 11, fontWeight: FontWeight.w700, color: statusColor),
-                            ),
-                          ],
-                        ),
+                      _OutreachStatusBadges(
+                        reachability: item.whatsappReachability,
+                        response: item.outreachResponse,
                       ),
                     ],
                   ),
@@ -1572,10 +1637,10 @@ class _HistoryRow extends StatelessWidget {
                 ],
               ),
             ),
-            if (controller.isAdmin.value) ...[
-              const SizedBox(height: 12),
-              Row(
-                children: [
+            const SizedBox(height: 12),
+            Row(
+              children: [
+                if (controller.canEditProfile) ...[
                   Expanded(
                     child: OutlinedButton.icon(
                       onPressed: () {
@@ -1587,28 +1652,64 @@ class _HistoryRow extends StatelessWidget {
                     ),
                   ),
                   const SizedBox(width: 8),
+                ],
+                Expanded(
+                  child: OutlinedButton.icon(
+                    onPressed: () {
+                      Navigator.of(ctx).pop();
+                      _openStatusSheet(context);
+                    },
+                    icon: const Icon(Icons.verified_outlined, size: 17),
+                    label: const Text('Set status'),
+                  ),
+                ),
+              ],
+            ),
+            if (controller.canEditProfile) ...[
+              const SizedBox(height: 8),
+              Row(
+                children: [
                   Expanded(
                     child: OutlinedButton.icon(
                       onPressed: () {
                         Navigator.of(ctx).pop();
-                        _changeStatus(context);
+                        showAdminFullProfileEditorSheet(
+                          context,
+                          controller: controller,
+                          studentId: item.studentId,
+                          fallbackName: item.name,
+                        );
                       },
-                      icon: const Icon(Icons.verified_outlined, size: 17),
-                      label: const Text('Set status'),
+                      icon: const Icon(Icons.person_outline_rounded, size: 17),
+                      label: const Text('Edit Profile'),
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: TextButton.icon(
+                      onPressed: () {
+                        Navigator.of(ctx).pop();
+                        _showChanges(context);
+                      },
+                      icon: const Icon(Icons.history_rounded, size: 17),
+                      label: const Text('Number log'),
                     ),
                   ),
                 ],
               ),
-              const SizedBox(height: 6),
-              Align(
-                alignment: Alignment.centerLeft,
-                child: TextButton.icon(
-                  onPressed: () {
-                    Navigator.of(ctx).pop();
-                    _showChanges(context);
-                  },
-                  icon: const Icon(Icons.history_rounded, size: 17),
-                  label: const Text('View WhatsApp number change log'),
+            ],
+            if (item.outreachResponseNote != null && item.outreachResponseNote!.trim().isNotEmpty) ...[
+              const SizedBox(height: 10),
+              Container(
+                width: double.infinity,
+                padding: const EdgeInsets.all(10),
+                decoration: BoxDecoration(
+                  color: _C.soft,
+                  borderRadius: BorderRadius.circular(10),
+                ),
+                child: Text(
+                  'Note: ${item.outreachResponseNote}',
+                  style: const TextStyle(fontSize: 12.5, color: _C.body),
                 ),
               ),
             ],
@@ -1655,15 +1756,16 @@ class _HistoryRow extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final time = _timeOf(item.contactedAt);
-    final statusColor = _reachabilityColor(item.whatsappReachability);
     final avatarBg = item.isSentByAdmin ? _C.accentSoft : _C.doneSoft;
     final avatarFg = item.isSentByAdmin ? _C.accent : _C.done;
+    final targetPhone = item.phone.trim().isNotEmpty ? item.phone : item.whatsappNumber;
+    final hasPhone = targetPhone.replaceAll(RegExp(r'[^0-9]'), '').isNotEmpty;
 
     return InkWell(
       onTap: () => _showDetails(context),
       borderRadius: BorderRadius.circular(10),
       child: Padding(
-        padding: const EdgeInsets.symmetric(vertical: 12),
+        padding: const EdgeInsets.symmetric(vertical: 10),
         child: Row(
           children: [
             CircleAvatar(
@@ -1675,73 +1777,127 @@ class _HistoryRow extends StatelessWidget {
                 color: avatarFg,
               ),
             ),
-            const SizedBox(width: 12),
+            const SizedBox(width: 10),
             Expanded(
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Row(
-                    children: [
-                      Expanded(
-                        child: Text(
-                          item.name,
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                          style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w700, color: _C.ink),
-                        ),
-                      ),
-                      if (time != null)
-                        Text(time, style: const TextStyle(fontSize: 11.5, color: _C.muted)),
-                    ],
-                  ),
-                  const SizedBox(height: 4),
-                  Row(
-                    children: [
-                      Expanded(
-                        child: Text(
-                          '${item.whatsappNumber.isEmpty ? 'No WhatsApp' : item.whatsappNumber} · Room ${item.pastRoom}',
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                          style: const TextStyle(fontSize: 12, color: _C.body),
-                        ),
-                      ),
-                      const SizedBox(width: 8),
-                      Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2),
-                        decoration: BoxDecoration(
-                          color: statusColor.withValues(alpha: 0.12),
-                          borderRadius: BorderRadius.circular(10),
-                        ),
-                        child: Row(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            Icon(Icons.circle, size: 7, color: statusColor),
-                            const SizedBox(width: 4),
-                            Text(
-                              _reachabilityLabel(item.whatsappReachability),
-                              style: TextStyle(fontSize: 10.5, fontWeight: FontWeight.w700, color: statusColor),
-                            ),
-                          ],
-                        ),
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 4),
                   Text(
-                    _senderSummary(),
+                    item.name,
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
-                    style: TextStyle(
-                      fontSize: 11.5,
-                      fontWeight: FontWeight.w600,
-                      color: item.isSentByAdmin ? _C.accent : _C.muted,
-                    ),
+                    style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w700, color: _C.ink),
                   ),
+                  const SizedBox(height: 2),
+                  Text(
+                    '${item.whatsappNumber.isEmpty ? 'No WhatsApp' : item.whatsappNumber} · Rm ${item.pastRoom}',
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: const TextStyle(fontSize: 12, color: _C.body),
+                  ),
+                  const SizedBox(height: 4),
+                  Row(
+                    children: [
+                      Flexible(
+                        child: Text(
+                          time != null ? '${_senderSummary()} · $time' : _senderSummary(),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: TextStyle(
+                            fontSize: 11,
+                            fontWeight: FontWeight.w600,
+                            color: item.isSentByAdmin ? _C.accent : _C.muted,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                  if (_reachabilityLabel(item.whatsappReachability).isNotEmpty) ...[
+                    const SizedBox(height: 5),
+                    _OutreachStatusBadges(
+                      reachability: item.whatsappReachability,
+                      response: item.outreachResponse,
+                    ),
+                  ],
                 ],
               ),
             ),
             const SizedBox(width: 4),
-            const Icon(Icons.chevron_right_rounded, size: 20, color: _C.muted),
+            _RoundIconButton(
+              icon: Icons.call_rounded,
+              tooltip: 'Call',
+              size: 32,
+              onTap: !hasPhone ? null : () => controller.callPhone(targetPhone),
+            ),
+            const SizedBox(width: 4),
+            _RoundIconButton(
+              icon: Icons.send_rounded,
+              tooltip: 'Open WhatsApp',
+              size: 32,
+              background: _C.whatsapp.withValues(alpha: 0.14),
+              foreground: _C.done,
+              onTap: !hasPhone ? null : () => controller.openHistoryWhatsApp(item),
+            ),
+            PopupMenuButton<String>(
+              tooltip: 'More',
+              padding: EdgeInsets.zero,
+              icon: const Icon(Icons.more_vert_rounded, color: _C.muted, size: 20),
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+              onSelected: (v) {
+                switch (v) {
+                  case 'status':
+                    _openStatusSheet(context);
+                  case 'profile':
+                    showAdminFullProfileEditorSheet(
+                      context,
+                      controller: controller,
+                      studentId: item.studentId,
+                      fallbackName: item.name,
+                    );
+                  case 'edit_wa':
+                    _edit(context);
+                  case 'changes':
+                    _showChanges(context);
+                }
+              },
+              itemBuilder: (_) => [
+                const PopupMenuItem(
+                  value: 'status',
+                  child: ListTile(
+                    leading: Icon(Icons.fact_check_outlined, color: _C.accent),
+                    title: Text('Reachable / Response'),
+                    subtitle: Text('Mark reachable or not reachable'),
+                    contentPadding: EdgeInsets.zero,
+                  ),
+                ),
+                if (controller.canEditProfile) ...[
+                  const PopupMenuItem(
+                    value: 'profile',
+                    child: ListTile(
+                      leading: Icon(Icons.person_outline_rounded, color: _C.ink),
+                      title: Text('Profile & Edit Info'),
+                      contentPadding: EdgeInsets.zero,
+                    ),
+                  ),
+                  const PopupMenuItem(
+                    value: 'edit_wa',
+                    child: ListTile(
+                      leading: Icon(Icons.edit_outlined),
+                      title: Text('Edit WhatsApp'),
+                      contentPadding: EdgeInsets.zero,
+                    ),
+                  ),
+                  const PopupMenuItem(
+                    value: 'changes',
+                    child: ListTile(
+                      leading: Icon(Icons.history_rounded),
+                      title: Text('Number change log'),
+                      contentPadding: EdgeInsets.zero,
+                    ),
+                  ),
+                ],
+              ],
+            ),
           ],
         ),
       ),

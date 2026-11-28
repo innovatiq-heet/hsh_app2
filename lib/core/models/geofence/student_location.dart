@@ -49,6 +49,9 @@ class LocationFix {
   /// When the phone took the fix.
   final DateTime fixTime;
 
+  /// When the server received the fix, if provided.
+  final DateTime? receivedAt;
+
   const LocationFix({
     required this.latitude,
     required this.longitude,
@@ -57,17 +60,22 @@ class LocationFix {
     required this.insideCampus,
     required this.distanceMeters,
     required this.fixTime,
+    this.receivedAt,
   });
 
-  factory LocationFix.fromJson(Map<dynamic, dynamic> json) => LocationFix(
-        latitude: _toDouble(json['latitude']) ?? 0,
-        longitude: _toDouble(json['longitude']) ?? 0,
-        accuracyMeters: _toDouble(json['accuracyMeters']) ?? 0,
-        mocked: json['mocked'] == true,
-        insideCampus: json['insideCampus'] is bool ? json['insideCampus'] as bool : null,
-        distanceMeters: _toDouble(json['distanceMeters']),
-        fixTime: DateTime.fromMillisecondsSinceEpoch((_toDouble(json['fixTime']) ?? 0).toInt()),
-      );
+  factory LocationFix.fromJson(Map<dynamic, dynamic> json) {
+    final receivedMs = (_toDouble(json['receivedAt']) ?? 0).toInt();
+    return LocationFix(
+      latitude: _toDouble(json['latitude']) ?? 0,
+      longitude: _toDouble(json['longitude']) ?? 0,
+      accuracyMeters: _toDouble(json['accuracyMeters']) ?? 0,
+      mocked: json['mocked'] == true,
+      insideCampus: json['insideCampus'] is bool ? json['insideCampus'] as bool : null,
+      distanceMeters: _toDouble(json['distanceMeters']),
+      fixTime: DateTime.fromMillisecondsSinceEpoch((_toDouble(json['fixTime']) ?? 0).toInt()),
+      receivedAt: receivedMs > 0 ? DateTime.fromMillisecondsSinceEpoch(receivedMs) : null,
+    );
+  }
 
   /// Google Maps link for this point (opens the Maps app when installed).
   Uri get mapsUri => Uri.parse('https://www.google.com/maps/search/?api=1&query=$latitude,$longitude');

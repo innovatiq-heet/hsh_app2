@@ -1,5 +1,6 @@
 import 'dart:convert';
 import '../../../core/utils/date_formatting.dart';
+import '../curfew/curfew_schedule.dart';
 import '../services/app_icon_cache.dart';
 
 // Read-only helpers shared by the directory and the per-student Screen Time
@@ -141,7 +142,17 @@ List<MonitoringCheck> monitoringChecks(Map<String, dynamic> c) {
   add('GPS (location service)', 'Any location at all', flag('locationEnabled'));
   add('Keep running in background', 'Battery exemption, so Android does not pause monitoring',
       flag('batteryOptimizationIgnored'));
+  add('Automatic time', 'Stops changing phone clock to bypass curfews/limits', flag('autoTimeEnabled'));
+  if (flag('clockDriftDetected') == true) {
+    add('Clock sync', 'Phone clock differs from server time', false);
+  }
+  if (flag('multipleUsersOrProfiles') == true) {
+    add('Single user profile', 'Dual Apps or Work Profile detected on device', false);
+  }
   add('Removal protection', 'Stops force-stopping or uninstalling HSH', flag('deviceAdminActive'));
+  if (flag('deviceOwnerActive') == true) {
+    add('Device Owner lock', 'OS-level zero-bypass provisioning is active', true);
+  }
   return checks;
 }
 
@@ -154,6 +165,9 @@ bool isStudentTampered(dynamic s) {
   return c['usageAccess'] == false ||
       isAppBlockerOff(c) ||
       c['deviceAdminActive'] == false ||
+      c['autoTimeEnabled'] == false ||
+      c['clockDriftDetected'] == true ||
+      c['multipleUsersOrProfiles'] == true ||
       locDisabled ||
       locServicesOff;
 }
@@ -268,6 +282,90 @@ String formatMinutes(int mins) {
   return m == 0 ? '${h}h' : '${h}h ${m}m';
 }
 
+const _idleAppLabels = {
+  '',
+  'idle',
+  'standby',
+  'none',
+  'unknown',
+  'off',
+  'screen off',
+  'locked',
+};
+
+String? cleanRealAppName(dynamic raw) {
+  if (raw == null) return null;
+  final text = raw.toString().trim();
+  if (text.isEmpty || _idleAppLabels.contains(text.toLowerCase())) return null;
+  return text;
+}
+
+typedef LastUsedAppInfo = ({
+  String appName,
+  String packageName,
+  DateTime? usedAt,
+  int? minutesAgo,
+});
+
+/// Extracts the student's most recently used app from a `/students`, `/live`,
+/// or `/summary` payload, falling back to a non-idle `currentApp`.
+LastUsedAppInfo? lastUsedAppOf(dynamic s) {
+  if (s is! Map) return null;
+  final app = cleanRealAppName(s['lastUsedApp'] ?? s['last_used_app']) ??
+      cleanRealAppName(s['currentApp'] ?? s['current_app']);
+  if (app == null) return null;
+
+  final pkg = (s['lastUsedAppPackage'] ??
+          s['last_used_app_package'] ??
+          s['currentPackage'] ??
+          s['current_package'] ??
+          '')
+      .toString()
+      .trim();
+
+  final rawAt = s['lastUsedAppAt'] ?? s['last_used_app_at'];
+  DateTime? usedAt;
+  if (rawAt is num) {
+    usedAt = DateTime.fromMillisecondsSinceEpoch(
+      rawAt > 1e12 ? rawAt.toInt() : rawAt.toInt() * 1000,
+    );
+  } else if (rawAt != null) {
+    usedAt = DateTime.tryParse(rawAt.toString())?.toLocal();
+  }
+
+  final rawMins = s['lastUsedAppMinutesAgo'] ?? s['last_used_app_minutes_ago'];
+  int? minsAgo;
+  if (rawMins is num) {
+    minsAgo = rawMins.toInt() < 0 ? 0 : rawMins.toInt();
+  } else if (rawMins != null) {
+    final parsed = int.tryParse(rawMins.toString());
+    if (parsed != null) minsAgo = parsed < 0 ? 0 : parsed;
+  } else if (usedAt != null) {
+    final diff = DateTime.now().difference(usedAt).inMinutes;
+    minsAgo = diff < 0 ? 0 : diff;
+  }
+
+  return (
+    appName: app,
+    packageName: pkg,
+    usedAt: usedAt,
+    minutesAgo: minsAgo,
+  );
+}
+
+String formatLastUsedAgo(int? minutesAgo, DateTime? usedAt) {
+  if (minutesAgo != null) {
+    if (minutesAgo < 1) return 'just now';
+    if (minutesAgo < 60) return '${minutesAgo}m ago';
+    final hours = minutesAgo ~/ 60;
+    if (hours < 24) return '${hours}h ago';
+    final days = hours ~/ 24;
+    return '${days}d ago';
+  }
+  if (usedAt != null) return relativeTime(usedAt);
+  return '';
+}
+
 /// Standardizes any date representation (DateTime, numeric epoch ms/s, or string)
 /// into 'yyyy-MM-dd'.
 String extractRecordDate(dynamic r) {
@@ -293,7 +391,7 @@ String extractRecordDate(dynamic r) {
   }
   if (raw is num) {
     final ms = raw > 1e12 ? raw.toInt() : raw.toInt() * 1000;
-    final dt = DateTime.fromMillisecondsSinceEpoch(ms).toLocal();
+    final dt = istNow(DateTime.fromMillisecondsSinceEpoch(ms, isUtc: true));
     return '${dt.year.toString().padLeft(4, '0')}-${dt.month.toString().padLeft(2, '0')}-${dt.day.toString().padLeft(2, '0')}';
   }
   return normalizeDateString(raw.toString());
@@ -305,7 +403,7 @@ String normalizeDateString(String s) {
   if (trimmed.contains('T') || trimmed.contains('Z') || trimmed.contains(':')) {
     final parsed = DateTime.tryParse(trimmed);
     if (parsed != null) {
-      final dt = parsed.toLocal();
+      final dt = parsed.isUtc ? istNow(parsed) : parsed;
       return '${dt.year.toString().padLeft(4, '0')}-${dt.month.toString().padLeft(2, '0')}-${dt.day.toString().padLeft(2, '0')}';
     }
   }
@@ -316,7 +414,7 @@ String normalizeDateString(String s) {
   }
   final parsed = DateTime.tryParse(trimmed);
   if (parsed != null) {
-    final dt = parsed.toLocal();
+    final dt = parsed.isUtc ? istNow(parsed) : parsed;
     return '${dt.year.toString().padLeft(4, '0')}-${dt.month.toString().padLeft(2, '0')}-${dt.day.toString().padLeft(2, '0')}';
   }
   return trimmed.split('T').first.split(' ').first.trim();

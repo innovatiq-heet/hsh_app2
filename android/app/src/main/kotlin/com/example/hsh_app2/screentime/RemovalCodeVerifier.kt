@@ -26,7 +26,7 @@ object RemovalCodeVerifier {
      * response, a malformed body — is false, never true: a failure must never accidentally grant
      * removal.
      */
-    fun verify(context: Context, code: String, onResult: (Boolean) -> Unit) {
+    fun verify(context: Context, code: String, purpose: String = "removal", onResult: (Boolean) -> Unit) {
         val token = PolicyStore.token(context)
         val baseUrl = PolicyStore.baseUrl(context)
         if (token.isNullOrEmpty() || baseUrl.isNullOrEmpty()) {
@@ -47,7 +47,10 @@ object RemovalCodeVerifier {
                     setRequestProperty("Accept", "application/json")
                     setRequestProperty("Authorization", "Bearer $token")
                 }
-                val body = JSONObject().apply { put("code", code) }
+                val body = JSONObject().apply {
+                    put("code", code)
+                    put("purpose", purpose)
+                }
                 conn.outputStream.use { it.write(body.toString().toByteArray(Charsets.UTF_8)) }
 
                 val status = conn.responseCode

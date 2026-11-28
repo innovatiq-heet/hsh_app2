@@ -13,7 +13,12 @@ import 'app_install_status_pill.dart';
 /// "What is this phone doing right now?" — presence, foreground app, last
 /// report time, and a loud warning if the student switched monitoring off.
 class LiveStatusCard extends StudentDetailWidget {
-  const LiveStatusCard({super.key, required super.controller});
+  final bool showRecentChips;
+  const LiveStatusCard({
+    super.key,
+    required super.controller,
+    this.showRecentChips = true,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -23,13 +28,20 @@ class LiveStatusCard extends StudentDetailWidget {
       final online = controller.isOnline.value;
       final screenOn = controller.isScreenOn.value;
       final app = controller.currentApp.value;
+      final lastApp = controller.lastUsedApp.value;
+      final lastPkg = controller.lastUsedAppPackage.value;
+      final lastAgo = formatLastUsedAgo(
+        controller.lastUsedAppMinutesAgo.value,
+        controller.lastUsedAppAt.value,
+      );
+      final recentApps = controller.recentApps;
       final lastSeen = controller.lastSeenAt.value;
       final comp = controller.compliance;
       final battery = controller.batteryLevel.value;
       final charging = controller.isCharging.value;
-      final hasInstallPass = controller.hasActiveInstallPass;
       final offlineSuspected = controller.isOfflineSuspected;
 
+      final isActivelyUsing = screenOn && app.isNotEmpty && app != 'Idle';
       final color = online
           ? (screenOn ? AppColors.successGreen : AppColors.warningOrange)
           : AppColors.textLight;
@@ -37,7 +49,7 @@ class LiveStatusCard extends StudentDetailWidget {
           ? (screenOn ? 'Screen on' : 'Standby (screen off)')
           : 'Offline';
       final subtitle = online
-          ? (screenOn && app.isNotEmpty && app != 'Idle' ? 'Using $app' : 'Not using the phone')
+          ? (isActivelyUsing ? 'Using $app' : 'Not using the phone')
           : (lastSeen != null
               ? 'Last report ${relativeTime(lastSeen)}'
               : 'No report from this phone yet');
@@ -98,39 +110,71 @@ class LiveStatusCard extends StudentDetailWidget {
               ),
               checks: comp.isEmpty ? const [] : monitoringChecks(Map<String, dynamic>.from(comp)),
             ),
-            if (hasInstallPass) ...[
-              const SizedBox(height: 12),
+            if (!isActivelyUsing && lastApp.isNotEmpty) ...[
+              const SizedBox(height: 10),
               Container(
-                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                padding: const EdgeInsets.symmetric(horizontal: 11, vertical: 8),
                 decoration: BoxDecoration(
-                  color: const Color(0xFFE0F2FE),
-                  borderRadius: BorderRadius.circular(AppDimens.radiusSm),
-                  border: Border.all(color: const Color(0xFFBAE6FD)),
+                  color: const Color(0xFFF8FAFC),
+                  borderRadius: BorderRadius.circular(10),
+                  border: Border.all(color: const Color(0xFFE2E8F0)),
                 ),
                 child: Row(
                   children: [
-                    const Icon(Icons.install_mobile_rounded, color: Color(0xFF0284C7), size: 18),
-                    const SizedBox(width: 8),
-                    Expanded(
-                      child: Text(
-                        'Play Store unlocked (${controller.installPassRemainingMinutes}m left for install)',
-                        style: AppTextStyles.bodySm.copyWith(
-                          fontWeight: FontWeight.w700,
-                          color: const Color(0xFF0284C7),
-                        ),
-                      ),
+                    AppBrandIcon(
+                      packageName: lastPkg,
+                      appName: lastApp,
+                      size: 24,
+                      showBadge: false,
                     ),
-                    TextButton(
-                      style: TextButton.styleFrom(
-                        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                        minimumSize: Size.zero,
-                        tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                    const SizedBox(width: 9),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          const Text(
+                            'Last used app',
+                            style: TextStyle(
+                              fontSize: 10.5,
+                              fontWeight: FontWeight.w600,
+                              color: Color(0xFF64748B),
+                            ),
+                          ),
+                          Text(
+                            lastAgo.isNotEmpty ? '$lastApp · $lastAgo' : lastApp,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: const TextStyle(
+                              fontSize: 13,
+                              fontWeight: FontWeight.w700,
+                              color: Color(0xFF0F172A),
+                            ),
+                          ),
+                        ],
                       ),
-                      onPressed: controller.revokeInstallPass,
-                      child: const Text('Revoke', style: TextStyle(color: Color(0xFF0284C7), fontWeight: FontWeight.bold)),
                     ),
                   ],
                 ),
+              ),
+            ],
+            if (showRecentChips && recentApps.isNotEmpty) ...[
+              const SizedBox(height: 10),
+              const Text(
+                'Recently used',
+                style: TextStyle(
+                  fontSize: 11,
+                  fontWeight: FontWeight.w700,
+                  color: Color(0xFF64748B),
+                ),
+              ),
+              const SizedBox(height: 6),
+              Wrap(
+                spacing: 6,
+                runSpacing: 6,
+                children: [
+                  for (final item in recentApps.take(4))
+                    _RecentAppChip(item: item),
+                ],
               ),
             ],
             if (offlineSuspected) ...[
@@ -200,6 +244,53 @@ class LiveStatusCard extends StudentDetailWidget {
           TextButton(
             onPressed: () => controller.selectDate(controller.todayDateStr),
             child: const Text('Back to today'),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _RecentAppChip extends StatelessWidget {
+  final Map<String, dynamic> item;
+  const _RecentAppChip({required this.item});
+
+  @override
+  Widget build(BuildContext context) {
+    final name = (item['appName'] ?? item['app_name'] ?? item['packageName'] ?? item['package_name'] ?? '').toString().trim();
+    final pkg = (item['packageName'] ?? item['package_name'] ?? '').toString().trim();
+    final mins = toInt(item['minutes']);
+    final minsAgoRaw = item['minutesAgo'] ?? item['minutes_ago'];
+    final minsAgo = minsAgoRaw != null ? toInt(minsAgoRaw) : null;
+    final ago = formatLastUsedAgo(minsAgo, null);
+    final meta = [
+      if (mins > 0) formatMinutes(mins),
+      if (ago.isNotEmpty) ago,
+    ].join(' · ');
+
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 5),
+      decoration: BoxDecoration(
+        color: const Color(0xFFF8FAFC),
+        borderRadius: BorderRadius.circular(10),
+        border: Border.all(color: const Color(0xFFE2E8F0)),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          AppBrandIcon(packageName: pkg, appName: name, size: 16, showBadge: false),
+          const SizedBox(width: 6),
+          Flexible(
+            child: Text(
+              meta.isNotEmpty ? '$name · $meta' : name,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: const TextStyle(
+                fontSize: 11.5,
+                fontWeight: FontWeight.w600,
+                color: Color(0xFF334155),
+              ),
+            ),
           ),
         ],
       ),

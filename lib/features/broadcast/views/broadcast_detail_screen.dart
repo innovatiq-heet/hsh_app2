@@ -13,6 +13,7 @@ import '../../shared/widgets/notice_banner.dart';
 import '../../shared/widgets/phonebook_style_widgets.dart';
 import '../../shared/widgets/status_badge.dart';
 import '../controllers/broadcast_detail_controller.dart';
+import '../utils/broadcast_rich_text.dart';
 import '../widgets/broadcast_widgets.dart';
 
 /// Admin → Broadcast → one broadcast: full message, counts, recipients,
@@ -105,8 +106,8 @@ class BroadcastDetailScreen extends GetView<BroadcastDetailController> {
                                 ],
                               ),
                               const SizedBox(height: 12),
-                              SelectableText(
-                                b.message,
+                              BroadcastRichText(
+                                text: b.message,
                                 style: const TextStyle(
                                   fontSize: 15,
                                   color: PhonebookTheme.ink,

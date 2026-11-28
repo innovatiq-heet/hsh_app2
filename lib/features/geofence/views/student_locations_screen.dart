@@ -29,25 +29,6 @@ class StudentLocationsScreen extends GetView<StudentLocationsController> {
         },
         child: Scaffold(
           backgroundColor: const Color(0xFFF8FAFC),
-          floatingActionButtonLocation: FloatingActionButtonLocation.centerFloat,
-          floatingActionButton: controller.isMapView.value
-              ? null
-              : FloatingActionButton.extended(
-                  heroTag: 'campus_map_fab',
-                  onPressed: controller.toggleViewMode,
-                  backgroundColor: const Color(0xFF0369A1),
-                  foregroundColor: Colors.white,
-                  elevation: 4,
-                  icon: const Icon(Icons.radar_rounded, size: 20),
-                  label: const Text(
-                    'Campus Map View',
-                    style: TextStyle(
-                      fontSize: 13.5,
-                      fontWeight: FontWeight.w700,
-                      letterSpacing: 0.2,
-                    ),
-                  ),
-                ),
           body: controller.isMapView.value
               ? CampusMapView(controller: controller)
               : StudentLocationsListBody(controller: controller),

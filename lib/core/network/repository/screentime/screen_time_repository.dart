@@ -233,11 +233,11 @@ class ScreenTimeRepository extends BaseRepository {
   /// the device-admin screen (`RemovalCodeVerifier.kt`); this is the Dart
   /// copy used when resuming the app after a different required permission
   /// (usage access, app rules, location) was turned off.
-  Future<bool> verifyRemovalCode(String code) async {
+  Future<bool> verifyRemovalCode(String code, {String purpose = 'setup'}) async {
     try {
       final response = await _dio.post(
         '/screen-time/removal-codes/verify',
-        data: {'code': code},
+        data: {'code': code, 'purpose': purpose},
       );
       final body = response.data;
       return body is Map && body['valid'] == true;
@@ -245,4 +245,70 @@ class ScreenTimeRepository extends BaseRepository {
       return false;
     }
   }
+
+  /// Student-side: records on the server that onboarding permissions completed.
+  Future<void> markSetupCompleted({String? deviceModel}) async {
+    try {
+      await _dio.post(
+        '/screen-time/setup-complete',
+        data: {'deviceModel': ?deviceModel},
+      );
+    } on DioException {
+      // Best-effort; native Sync / PolicyStore also tracks it.
+    }
+  }
+
+  /// Warden/admin: immutable audit log of policy/app-rule changes for a student.
+  Future<List<Map<String, dynamic>>> policyHistory(
+    String studentId, {
+    int limit = 50,
+    int offset = 0,
+  }) => _guard(() async {
+    final response = await _dio.get(
+      '/screen-time/students/$studentId/policy-history',
+      queryParameters: {'limit': limit, 'offset': offset},
+    );
+    final body = response.data;
+    final rows = body is Map && body['data'] is List
+        ? body['data'] as List
+        : const [];
+    return rows
+        .whereType<Map>()
+        .map((m) => Map<String, dynamic>.from(m))
+        .toList();
+  });
+
+  /// Warden/admin: pending device transfer / reinstall login approval requests.
+  Future<List<Map<String, dynamic>>> pendingDeviceRequests({
+    String status = 'pending',
+  }) => _guard(() async {
+    final response = await _dio.get(
+      '/screen-time/device-requests',
+      queryParameters: {'status': status},
+    );
+    final body = response.data;
+    final rows = body is Map && body['data'] is List
+        ? body['data'] as List
+        : const [];
+    return rows
+        .whereType<Map>()
+        .map((m) => Map<String, dynamic>.from(m))
+        .toList();
+  });
+
+  Future<void> approveDeviceRequest(int requestId, {String? note}) =>
+      _guard(() async {
+        await _dio.post(
+          '/screen-time/device-requests/$requestId/approve',
+          data: {if (note != null && note.trim().isNotEmpty) 'note': note.trim()},
+        );
+      });
+
+  Future<void> rejectDeviceRequest(int requestId, {String? note}) =>
+      _guard(() async {
+        await _dio.post(
+          '/screen-time/device-requests/$requestId/reject',
+          data: {if (note != null && note.trim().isNotEmpty) 'note': note.trim()},
+        );
+      });
 }

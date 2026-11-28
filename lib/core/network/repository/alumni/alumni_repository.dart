@@ -547,6 +547,65 @@ class AlumniRepository extends BaseRepository {
     }
   }
 
+  /// Leader (own group only) or Admin: updates reachability ('reachable' | 'not_reachable')
+  /// and outreach response ('positive' | 'negative' | 'neutral') without modifying any profile details.
+  Future<Map<String, dynamic>> updateOutreachResponse(
+    int studentId, {
+    required String reachability,
+    String? outreachResponse,
+    String? outreachResponseNote,
+  }) async {
+    try {
+      final response = await _dio.patch(
+        '/alumni/daily-outreach/students/$studentId/response',
+        data: {
+          'whatsappReachability': reachability,
+          'outreachResponse': outreachResponse,
+          'outreachResponseNote': ?outreachResponseNote,
+        },
+      );
+      if (response.data is Map && response.data['data'] is Map) {
+        return Map<String, dynamic>.from(response.data['data'] as Map);
+      }
+      return const {};
+    } on DioException catch (e) {
+      developer.log('AlumniRepository.updateOutreachResponse error: ${errorMessage(e)}', name: 'AlumniRepo');
+      throw errorMessage(e);
+    }
+  }
+
+  Future<Map<String, dynamic>> getAdminFullAlumniProfile(int studentId) async {
+    try {
+      final response = await _dio.get('/alumni/admin/students/$studentId/full-profile');
+      if (response.data is Map && response.data['data'] is Map) {
+        return Map<String, dynamic>.from(response.data['data'] as Map);
+      }
+      throw 'Profile not found';
+    } on DioException catch (e) {
+      developer.log('AlumniRepository.getAdminFullAlumniProfile error: ${errorMessage(e)}', name: 'AlumniRepo');
+      throw errorMessage(e);
+    }
+  }
+
+  Future<Map<String, dynamic>> saveAdminFullAlumniProfile(
+    int studentId,
+    Map<String, dynamic> payload,
+  ) async {
+    try {
+      final response = await _dio.put(
+        '/alumni/admin/students/$studentId/full-profile',
+        data: payload,
+      );
+      if (response.data is Map && response.data['data'] is Map) {
+        return Map<String, dynamic>.from(response.data['data'] as Map);
+      }
+      return const {};
+    } on DioException catch (e) {
+      developer.log('AlumniRepository.saveAdminFullAlumniProfile error: ${errorMessage(e)}', name: 'AlumniRepo');
+      throw errorMessage(e);
+    }
+  }
+
   Future<List<Map<String, dynamic>>> getOutreachContactChanges(int studentId) async {
     try {
       final response = await _dio.get('/alumni/daily-outreach/students/$studentId/contact-changes');

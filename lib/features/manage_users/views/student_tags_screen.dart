@@ -644,16 +644,14 @@ class _StudentTagCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return AppCard(
-      onTap: tag.isSystem
-          ? null
-          : () => Navigator.of(context).push(
-                MaterialPageRoute(
-                  builder: (_) => AssignTagScreen(
-                    tag: tag,
-                    onAssigned: () => controller.load(showLoading: false),
-                  ),
-                ),
-              ),
+      onTap: () => Navigator.of(context).push(
+        MaterialPageRoute(
+          builder: (_) => AssignTagScreen(
+            tag: tag,
+            onAssigned: tag.isSystem ? null : () => controller.load(showLoading: false),
+          ),
+        ),
+      ),
       child: Row(
         children: [
           // Tag color badge circle
@@ -774,10 +772,17 @@ class _StudentTagCard extends StatelessWidget {
             )
           else
             const Padding(
-              padding: EdgeInsets.symmetric(horizontal: 12),
+              padding: EdgeInsets.only(left: 8, right: 4),
               child: Tooltip(
-                message: 'System tags cannot be removed',
-                child: Icon(Icons.lock_rounded, size: 18, color: Color(0xFF94A3B8)),
+                message: 'View students (system tags cannot be edited)',
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Icon(Icons.lock_rounded, size: 17, color: Color(0xFF94A3B8)),
+                    SizedBox(width: 4),
+                    Icon(Icons.chevron_right_rounded, size: 20, color: Color(0xFF94A3B8)),
+                  ],
+                ),
               ),
             ),
         ],

@@ -7,6 +7,7 @@ import '../../shared/widgets/empty_state.dart';
 import '../../shared/widgets/student_contact_card.dart'
     show CelebrantLightChip, CornerWavePainter;
 import '../controllers/broadcast_inbox_controller.dart';
+import '../utils/broadcast_rich_text.dart';
 import '../widgets/broadcast_widgets.dart' show BroadcastImage;
 
 /// Student → More → Announcements: official broadcasts from hostel office,
@@ -145,8 +146,8 @@ class _BroadcastInboxScreenState extends State<BroadcastInboxScreen> {
                     const SizedBox(height: 16),
                     const Divider(color: Color(0xFFF1F5F9), height: 1),
                     const SizedBox(height: 16),
-                    SelectableText(
-                      item.message,
+                    BroadcastRichText(
+                      text: item.message,
                       style: const TextStyle(
                         fontSize: 15,
                         fontWeight: FontWeight.w400,
@@ -934,7 +935,7 @@ class _ExecutiveAnnouncementCard extends StatelessWidget {
 
                     // Message Preview Text
                     Text(
-                      item.message,
+                      BroadcastRichTextHelper.toPlainText(item.message),
                       maxLines: 2,
                       overflow: TextOverflow.ellipsis,
                       style: const TextStyle(

@@ -24,6 +24,8 @@ class FakeAlumniRepository extends AlumniRepository {
   final groupsAsked = <String?>[];
   final contacted = <(int, String?)>[];
   final skipped = <int>[];
+  final responseUpdates = <(int, String, String?, String?)>[];
+  final fullProfileSaves = <(int, Map<String, dynamic>)>[];
   int historyCalls = 0;
   int failLoads = 0;
 
@@ -132,6 +134,52 @@ class FakeAlumniRepository extends AlumniRepository {
         leaderName: 'Ravi',
       ),
     ];
+  }
+
+  @override
+  Future<Map<String, dynamic>> updateOutreachResponse(
+    int studentId, {
+    required String reachability,
+    String? outreachResponse,
+    String? outreachResponseNote,
+  }) async {
+    responseUpdates.add((studentId, reachability, outreachResponse, outreachResponseNote));
+    return {
+      'studentId': studentId,
+      'whatsappReachability': reachability,
+      'outreachResponse': reachability == 'not_reachable' ? null : outreachResponse,
+      'outreachResponseNote': reachability == 'not_reachable' ? null : outreachResponseNote,
+    };
+  }
+
+  @override
+  Future<Map<String, dynamic>> getAdminFullAlumniProfile(int studentId) async {
+    return {
+      'id': studentId,
+      'name': studentId == 102 ? 'Alum Two' : 'Alum One',
+      'phone_number': '9876543210',
+      'whatsapp_number': '9876543210',
+      'email': 'alum@example.com',
+      'past_room': '102',
+      'group_name': 'Param',
+      'current_company': 'Acme Co',
+      'current_designation': 'Engineer',
+      'current_city': 'Ahmedabad',
+      'current_address': 'Navrangpura',
+      'degree': 'B.E.',
+      'field_of_study': 'Computer',
+      'graduation_year': '2020',
+      'bio': 'Alumni member',
+    };
+  }
+
+  @override
+  Future<Map<String, dynamic>> saveAdminFullAlumniProfile(
+    int studentId,
+    Map<String, dynamic> payload,
+  ) async {
+    fullProfileSaves.add((studentId, Map<String, dynamic>.from(payload)));
+    return {'id': studentId, ...payload};
   }
 }
 
@@ -287,8 +335,10 @@ void main() {
       expect(find.text('All senders'), findsOneWidget);
       expect(find.text('By Leaders'), findsOneWidget);
       expect(find.text('By Admin'), findsOneWidget);
+      expect(find.text('Reachable'), findsWidgets);
       expect(find.text('Not Reachable'), findsWidgets);
-      expect(find.text('04:00 PM'), findsOneWidget); // 10:30Z displayed in IST
+      expect(find.text('Not Verified'), findsNothing);
+      expect(find.textContaining('04:00 PM'), findsOneWidget); // 10:30Z displayed in IST
 
       await tester.tap(find.text('Alum One'));
       await tester.pumpAndSettle();
@@ -414,5 +464,96 @@ void main() {
       await tester.pumpAndSettle();
       expect(find.text('Alum Two'), findsOneWidget);
     });
+
+    testWidgets(
+      'leader marks reachable+response or not reachable from 3-dot menu without any edit profile access',
+      (tester) async {
+        await tester.runAsync(() => signIn('leader'));
+        await pumpScreen(tester);
+
+        // Open Today's 3-dot menu for first card (Alum Two, id 102)
+        await tester.tap(find.byWidgetPredicate((w) => w is PopupMenuButton).first);
+        await tester.pumpAndSettle();
+        expect(find.text('Reachable / Response'), findsOneWidget);
+        expect(find.text('Profile & Edit Info'), findsNothing);
+
+        // Choose Reachable -> shows Positive / Neutral / Negative
+        await tester.tap(find.text('Reachable / Response'));
+        await tester.pumpAndSettle();
+        expect(find.text('Reachable'), findsOneWidget);
+        expect(find.text('Not Reachable'), findsOneWidget);
+
+        await tester.tap(find.text('Reachable'));
+        await tester.pumpAndSettle();
+        expect(find.text('Positive'), findsOneWidget);
+        expect(find.text('Neutral'), findsOneWidget);
+        expect(find.text('Negative'), findsOneWidget);
+
+        await tester.tap(find.text('Positive'));
+        await tester.pumpAndSettle();
+        expect(repo.responseUpdates.last.$1, 102);
+        expect(repo.responseUpdates.last.$2, 'reachable');
+        expect(repo.responseUpdates.last.$3, 'positive');
+
+        // Reopen status sheet and mark Not Reachable -> saves without Edit Profile for leader
+        await tester.tap(find.byWidgetPredicate((w) => w is PopupMenuButton).first);
+        await tester.pumpAndSettle();
+        await tester.tap(find.text('Reachable / Response'));
+        await tester.pumpAndSettle();
+        await tester.tap(find.text('Not Reachable'));
+        await tester.pumpAndSettle();
+        expect(repo.responseUpdates.last.$2, 'not_reachable');
+        expect(repo.responseUpdates.last.$3, isNull);
+        expect(find.text('Edit Profile'), findsNothing);
+        expect(find.text('Edit Complete Profile'), findsNothing);
+
+        // Close status sheet
+        await tester.tapAt(const Offset(10, 10));
+        await tester.pumpAndSettle();
+
+        // History tab: 3-dot menu exposes Reachable / Response, hides all edit options for leader
+        await tester.tap(find.text('History'));
+        await tester.pumpAndSettle();
+        expect(find.byIcon(Icons.call_rounded), findsWidgets);
+        await tester.tap(find.byWidgetPredicate((w) => w is PopupMenuButton).first);
+        await tester.pumpAndSettle();
+        expect(find.text('Reachable / Response'), findsOneWidget);
+        expect(find.text('Profile & Edit Info'), findsNothing);
+        expect(find.text('Edit WhatsApp'), findsNothing);
+
+        // Drain GetX snackbar timers cleanly before test disposal.
+        await tester.pump(const Duration(seconds: 4));
+        await tester.pumpAndSettle();
+      },
+    );
+
+    testWidgets(
+      'admin marking not reachable reveals non-auto-opening Edit Profile button and opens profile editor on tap',
+      (tester) async {
+        await tester.runAsync(() => signIn('admin'));
+        await pumpScreen(tester);
+
+        await tester.tap(find.byWidgetPredicate((w) => w is PopupMenuButton).first);
+        await tester.pumpAndSettle();
+        expect(find.text('Profile & Edit Info'), findsOneWidget);
+
+        await tester.tap(find.text('Reachable / Response'));
+        await tester.pumpAndSettle();
+        await tester.tap(find.text('Not Reachable'));
+        await tester.pumpAndSettle();
+
+        expect(repo.responseUpdates.last.$2, 'not_reachable');
+        // Must NOT auto-open full profile editor, instead reveals Edit Profile button
+        expect(find.text('Edit Complete Profile'), findsNothing);
+        expect(find.text('Edit Profile'), findsOneWidget);
+
+        await tester.tap(find.text('Edit Profile'));
+        await tester.pumpAndSettle();
+        expect(find.text('Edit Complete Profile'), findsOneWidget);
+
+        await tester.pump(const Duration(seconds: 4));
+        await tester.pumpAndSettle();
+      },
+    );
   });
 }

@@ -73,9 +73,12 @@ class TagsRepository extends BaseRepository {
     }
   }
 
-  /// Lists all tags with student counts.
-  Future<List<StudentTag>> getTags() => _guard(() async {
-        final response = await _dio.get('/tags');
+  /// Lists all tags with student counts (optionally excluding auto system tags).
+  Future<List<StudentTag>> getTags({bool excludeSystem = false}) => _guard(() async {
+        final response = await _dio.get(
+          '/tags',
+          queryParameters: excludeSystem ? {'exclude_system': '1'} : null,
+        );
         final body = response.data;
         final data = body is Map ? body['data'] : body;
         if (data is List) {
@@ -189,6 +192,28 @@ class TagsRepository extends BaseRepository {
       _guard(() async {
         return _remember(await _dio.delete('/tags/student/$studentId/$tagId'));
       });
+
+  /// Fetches live members and count for a single tag (`GET /tags/:id/students`).
+  Future<({StudentTag? tag, int studentCount, List<Map<String, dynamic>> students})>
+      getTagStudents(int tagId) => _guard(() async {
+            final response = await _dio.get('/tags/$tagId/students');
+            final body = response.data;
+            final data = body is Map ? body['data'] : null;
+            if (data is! Map) throw const ApiException('Tag details not found');
+            final tagMap = data['tag'];
+            final parsedTag = tagMap is Map
+                ? StudentTag.fromJson(Map<String, dynamic>.from(tagMap))
+                : null;
+            final rawList = data['students'];
+            final students = rawList is List
+                ? rawList.whereType<Map>().map((e) => Map<String, dynamic>.from(e)).toList()
+                : const <Map<String, dynamic>>[];
+            final rawCount = data['student_count'];
+            final count = rawCount is num
+                ? rawCount.toInt()
+                : int.tryParse('${rawCount ?? ''}') ?? students.length;
+            return (tag: parsedTag, studentCount: count, students: students);
+          });
 
   /// Fetches all students with their assigned tags and room information.
   Future<List<Map<String, dynamic>>> getStudentsForAssignment() =>

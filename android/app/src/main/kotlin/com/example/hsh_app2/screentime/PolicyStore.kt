@@ -23,6 +23,10 @@ data class DevicePolicy(
     val restrictAppInstalls: Boolean = false,
     /** Epoch ms timestamp until which app stores / installers are temporarily unlocked. */
     val installPassUntil: Long = 0L,
+    /** When true, web browsers are blocked so students can't bypass restricted apps via web. */
+    val restrictBrowsers: Boolean = false,
+    /** True once the backend confirms onboarding setup completed on this student's device. */
+    val setupCompleted: Boolean = false,
     /** Per-app daily allowance in minutes (package → minutes; only apps with a limit). */
     val appLimits: Map<String, Int> = emptyMap(),
     /**
@@ -95,6 +99,11 @@ object PolicyStore {
     private const val KEY_POLICY_VERSION_NUM = "policy_version_num"
     private const val KEY_RESTRICT_APP_INSTALLS = "restrict_app_installs"
     private const val KEY_INSTALL_PASS_UNTIL = "install_pass_until"
+    private const val KEY_RESTRICT_BROWSERS = "restrict_browsers"
+    private const val KEY_SETUP_COMPLETED = "setup_completed"
+    private const val KEY_PENDING_QUARANTINE = "pending_quarantine"
+    private const val KEY_SETTINGS_PASS_UNTIL = "settings_pass_until"
+    private const val KEY_UPDATE_PASS_UNTIL = "update_pass_until"
     /** Longer than any policy request can be in flight (long-poll 25 s + timeouts). */
     private const val STALE_WINDOW_MS = 2 * 60 * 1000L
 
@@ -189,6 +198,8 @@ object PolicyStore {
             version = p.getString(KEY_POLICY_VERSION, "") ?: "",
             restrictAppInstalls = p.getBoolean(KEY_RESTRICT_APP_INSTALLS, false),
             installPassUntil = p.getLong(KEY_INSTALL_PASS_UNTIL, 0L),
+            restrictBrowsers = p.getBoolean(KEY_RESTRICT_BROWSERS, false),
+            setupCompleted = p.getBoolean(KEY_SETUP_COMPLETED, false),
             appLimits = readIntMap(p.getString(KEY_APP_LIMITS, null)),
             curfews = CurfewSchedule.fromStorage(p.getString(KEY_CURFEWS, null)),
         ).also { policyCache = it }
@@ -210,6 +221,8 @@ object PolicyStore {
             .putString(KEY_POLICY_VERSION, policy.version)
             .putBoolean(KEY_RESTRICT_APP_INSTALLS, policy.restrictAppInstalls)
             .putLong(KEY_INSTALL_PASS_UNTIL, policy.installPassUntil)
+            .putBoolean(KEY_RESTRICT_BROWSERS, policy.restrictBrowsers)
+            .putBoolean(KEY_SETUP_COMPLETED, policy.setupCompleted)
             .putString(KEY_APP_LIMITS, JSONObject(policy.appLimits as Map<*, *>).toString())
             .also { e ->
                 val c = policy.curfews
@@ -219,6 +232,7 @@ object PolicyStore {
             .also { if (versionNumber != null) it.putInt(KEY_POLICY_VERSION_NUM, versionNumber) }
             .apply()
         policyCache = policy
+        HshDeviceAdmin.applyDeviceOwnerRestrictions(context, policy, old.blockedPackages)
         if (old != policy) {
             Log.i(TAG, "Policy updated: $policy")
             synchronized(listeners) { listeners.toList() }.forEach { runCatching { it() } }
@@ -246,6 +260,7 @@ object PolicyStore {
             "is_locked", "isLocked", "blockedPackages", "blocked_packages",
             "daily_limit_minutes", "dailyLimitMinutes", "bedtime_start", "bedtimeStart",
             "restrict_app_installs", "restrictAppInstalls", "install_pass_until", "installPassUntil",
+            "restrict_browsers", "restrictBrowsers", "setup_completed", "setupCompleted",
             "apps", "app_limits", "appLimits", "curfew_sessions", "curfewSessions",
         ).any { pol.has(it) || data.has(it) }
         if (!hasAny) return null
@@ -267,9 +282,23 @@ object PolicyStore {
             ?: data.optJSONArray("blocked_packages")
             ?: pol.optJSONArray("blockedPackages")
             ?: pol.optJSONArray("blocked_packages")
-        val blocked = blockedArr?.let { arr ->
+        val pendingQuarantine = pendingQuarantinedPackages(context).keys.toMutableSet()
+        // If full `apps` rules explicitly allow a previously quarantined package, drop its pending quarantine.
+        val serverApps = data.optJSONArray("apps") ?: pol.optJSONArray("apps")
+        if (serverApps != null) {
+            for (i in 0 until serverApps.length()) {
+                val a = serverApps.optJSONObject(i) ?: continue
+                val pkg = optStr(a, "package_name", "packageName") ?: continue
+                if (pendingQuarantine.contains(pkg) && optBool(a, "is_blocked", "isBlocked") == false) {
+                    removePendingQuarantine(context, pkg)
+                    pendingQuarantine.remove(pkg)
+                }
+            }
+        }
+        val baseBlocked = blockedArr?.let { arr ->
             (0 until arr.length()).mapNotNull { arr.optString(it).takeIf { s -> s.isNotBlank() } }.toSet()
         } ?: current.blockedPackages
+        val blocked = baseBlocked + pendingQuarantine
 
         // The backend sends `bedtime_start: null` when the warden turns bedtime
         // off; that must clear it rather than keep the old window.
@@ -281,6 +310,12 @@ object PolicyStore {
 
         val rawPassUntil = optLong(pol, "install_pass_until", "installPassUntil")
             ?: optLong(data, "install_pass_until", "installPassUntil")
+        val restrictBrowsers = optBool(pol, "restrict_browsers", "restrictBrowsers")
+            ?: optBool(data, "restrict_browsers", "restrictBrowsers")
+            ?: current.restrictBrowsers
+        val setupCompleted = optBool(pol, "setup_completed", "setupCompleted")
+            ?: optBool(data, "setup_completed", "setupCompleted")
+            ?: current.setupCompleted
 
         val updated = DevicePolicy(
             isLocked = optBool(pol, "is_locked", "isLocked") ?: optBool(data, "is_locked", "isLocked") ?: current.isLocked,
@@ -293,6 +328,8 @@ object PolicyStore {
                 ?: optBool(data, "restrict_app_installs", "restrictAppInstalls")
                 ?: current.restrictAppInstalls,
             installPassUntil = rawPassUntil ?: current.installPassUntil,
+            restrictBrowsers = restrictBrowsers,
+            setupCompleted = setupCompleted,
             // `/policies/me` sends every app rule; the ping echo sends none, so
             // the stored limits stay until the next full policy.
             appLimits = parseAppLimits(data, pol) ?: current.appLimits,
@@ -333,6 +370,58 @@ object PolicyStore {
         if (!current.blockedPackages.contains(packageName)) {
             val updated = current.copy(blockedPackages = current.blockedPackages + packageName)
             savePolicy(context, updated)
+        }
+    }
+
+    /** Offline sideload queue: keeps `pkg -> appName` until `POST /apps/request` succeeds. */
+    fun pendingQuarantinedPackages(context: Context): Map<String, String> {
+        val raw = prefs(context).getString(KEY_PENDING_QUARANTINE, null) ?: return emptyMap()
+        return runCatching {
+            val obj = JSONObject(raw)
+            obj.keys().asSequence().associateWith { obj.optString(it, it) }
+        }.getOrDefault(emptyMap())
+    }
+
+    fun addPendingQuarantine(context: Context, packageName: String, appName: String) {
+        val obj = runCatching {
+            JSONObject(prefs(context).getString(KEY_PENDING_QUARANTINE, "{}") ?: "{}")
+        }.getOrDefault(JSONObject())
+        obj.put(packageName, appName)
+        prefs(context).edit().putString(KEY_PENDING_QUARANTINE, obj.toString()).apply()
+    }
+
+    fun removePendingQuarantine(context: Context, packageName: String) {
+        val obj = runCatching {
+            JSONObject(prefs(context).getString(KEY_PENDING_QUARANTINE, "{}") ?: "{}")
+        }.getOrDefault(JSONObject())
+        if (obj.has(packageName)) {
+            obj.remove(packageName)
+            prefs(context).edit().putString(KEY_PENDING_QUARANTINE, obj.toString()).apply()
+        }
+    }
+
+    fun hasActiveSettingsPass(context: Context): Boolean =
+        prefs(context).getLong(KEY_SETTINGS_PASS_UNTIL, 0L) > System.currentTimeMillis()
+
+    fun grantSettingsPass(context: Context, durationMs: Long = 3 * 60_000L) {
+        prefs(context).edit().putLong(KEY_SETTINGS_PASS_UNTIL, System.currentTimeMillis() + durationMs).apply()
+    }
+
+    /** Short scoped pass allowing Play Store / package installer to update HSH Connect during a forced update. */
+    fun hasActiveUpdatePass(context: Context): Boolean =
+        prefs(context).getLong(KEY_UPDATE_PASS_UNTIL, 0L) > System.currentTimeMillis()
+
+    fun grantUpdatePass(context: Context, durationMs: Long = 2 * 60_000L) {
+        prefs(context).edit().putLong(KEY_UPDATE_PASS_UNTIL, System.currentTimeMillis() + durationMs).apply()
+    }
+
+    fun hasCompletedSetup(context: Context): Boolean = prefs(context).getBoolean(KEY_SETUP_COMPLETED, false)
+
+    fun markSetupCompleted(context: Context) {
+        prefs(context).edit().putBoolean(KEY_SETUP_COMPLETED, true).apply()
+        val cur = policy(context)
+        if (!cur.setupCompleted) {
+            policyCache = cur.copy(setupCompleted = true)
         }
     }
 
@@ -545,9 +634,14 @@ object PolicyStore {
             .remove(KEY_SENT_CONFIRMED_DATE)
             .remove(KEY_APP_LIMITS)
             .remove(KEY_CURFEWS)
+            .remove(KEY_RESTRICT_BROWSERS)
+            .remove(KEY_SETUP_COMPLETED)
+            .remove(KEY_PENDING_QUARANTINE)
+            .remove(KEY_SETTINGS_PASS_UNTIL)
+            .remove(KEY_UPDATE_PASS_UNTIL)
             .apply()
         geoPolicyCache = null
-        policyCache = policyCache?.copy(appLimits = emptyMap(), curfews = null)
+        policyCache = policyCache?.copy(appLimits = emptyMap(), curfews = null, restrictBrowsers = false, setupCompleted = false)
     }
 
     fun recordGeofenceEvent(context: Context, event: JSONObject) {

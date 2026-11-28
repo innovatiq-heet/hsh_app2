@@ -5,6 +5,8 @@ import android.app.admin.DevicePolicyManager
 import android.content.ComponentName
 import android.content.Context
 import android.content.Intent
+import android.os.Build
+import android.os.UserManager
 import android.util.Log
 import java.util.concurrent.Executors
 
@@ -63,6 +65,74 @@ class HshDeviceAdmin : DeviceAdminReceiver() {
             return runCatching { dpm.isAdminActive(component(context)) }.getOrDefault(false)
         }
 
+        fun isDeviceOwner(context: Context): Boolean {
+            val dpm = context.getSystemService(Context.DEVICE_POLICY_SERVICE) as? DevicePolicyManager ?: return false
+            return runCatching { dpm.isDeviceOwnerApp(context.packageName) }.getOrDefault(false)
+        }
+
+        /**
+         * When provisioned as Device Owner (hostel-managed intake devices), apply
+         * OS-level restrictions that cannot be bypassed in Settings. Safely no-ops
+         * on normal BYOD devices.
+         */
+        fun applyDeviceOwnerRestrictions(
+            context: Context,
+            policy: DevicePolicy,
+            previouslyBlocked: Set<String> = emptySet(),
+        ) {
+            if (!isDeviceOwner(context)) return
+            val dpm = context.getSystemService(Context.DEVICE_POLICY_SERVICE) as? DevicePolicyManager ?: return
+            val admin = component(context)
+            runCatching {
+                dpm.setUninstallBlocked(admin, context.packageName, true)
+                dpm.addUserRestriction(admin, UserManager.DISALLOW_UNINSTALL_APPS)
+                dpm.addUserRestriction(admin, UserManager.DISALLOW_SAFE_BOOT)
+                dpm.addUserRestriction(admin, UserManager.DISALLOW_CONFIG_DATE_TIME)
+                dpm.addUserRestriction(admin, UserManager.DISALLOW_DEBUGGING_FEATURES)
+                dpm.addUserRestriction(admin, UserManager.DISALLOW_ADD_USER)
+
+                if (policy.restrictAppInstalls && !policy.hasActiveInstallPass) {
+                    dpm.addUserRestriction(admin, UserManager.DISALLOW_INSTALL_APPS)
+                    dpm.addUserRestriction(admin, UserManager.DISALLOW_INSTALL_UNKNOWN_SOURCES)
+                } else {
+                    dpm.clearUserRestriction(admin, UserManager.DISALLOW_INSTALL_APPS)
+                    dpm.clearUserRestriction(admin, UserManager.DISALLOW_INSTALL_UNKNOWN_SOURCES)
+                }
+
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
+                    val toSuspend = policy.blockedPackages.filter { it != context.packageName }.toTypedArray()
+                    if (toSuspend.isNotEmpty()) {
+                        dpm.setPackagesSuspended(admin, toSuspend, true)
+                    }
+                    val toUnsuspend = (previouslyBlocked - policy.blockedPackages)
+                        .filter { it != context.packageName }.toTypedArray()
+                    if (toUnsuspend.isNotEmpty()) {
+                        dpm.setPackagesSuspended(admin, toUnsuspend, false)
+                    }
+                }
+            }.onFailure { Log.w(TAG, "applyDeviceOwnerRestrictions warning: ${it.message}") }
+        }
+
+        fun clearDeviceOwnerRestrictions(context: Context) {
+            if (!isDeviceOwner(context)) return
+            val dpm = context.getSystemService(Context.DEVICE_POLICY_SERVICE) as? DevicePolicyManager ?: return
+            val admin = component(context)
+            runCatching {
+                dpm.setUninstallBlocked(admin, context.packageName, false)
+                dpm.clearUserRestriction(admin, UserManager.DISALLOW_UNINSTALL_APPS)
+                dpm.clearUserRestriction(admin, UserManager.DISALLOW_SAFE_BOOT)
+                dpm.clearUserRestriction(admin, UserManager.DISALLOW_CONFIG_DATE_TIME)
+                dpm.clearUserRestriction(admin, UserManager.DISALLOW_DEBUGGING_FEATURES)
+                dpm.clearUserRestriction(admin, UserManager.DISALLOW_ADD_USER)
+                dpm.clearUserRestriction(admin, UserManager.DISALLOW_INSTALL_APPS)
+                dpm.clearUserRestriction(admin, UserManager.DISALLOW_INSTALL_UNKNOWN_SOURCES)
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
+                    val blocked = PolicyStore.policy(context).blockedPackages.toTypedArray()
+                    if (blocked.isNotEmpty()) dpm.setPackagesSuspended(admin, blocked, false)
+                }
+            }.onFailure { Log.w(TAG, "clearDeviceOwnerRestrictions warning: ${it.message}") }
+        }
+
         /** The system "Activate device admin app?" screen, with our explanation. */
         fun requestIntent(context: Context): Intent =
             Intent(DevicePolicyManager.ACTION_ADD_DEVICE_ADMIN)
@@ -77,6 +147,7 @@ class HshDeviceAdmin : DeviceAdminReceiver() {
 
         /** Logout: give up admin so the phone can uninstall the app normally. */
         fun remove(context: Context) {
+            clearDeviceOwnerRestrictions(context)
             if (!isActive(context)) return
             val dpm = context.getSystemService(Context.DEVICE_POLICY_SERVICE) as? DevicePolicyManager ?: return
             runCatching { dpm.removeActiveAdmin(component(context)) }

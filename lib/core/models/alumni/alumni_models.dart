@@ -538,6 +538,8 @@ class AlumniOutreachStudentModel {
   final String phone;
   final String whatsappNumber;
   final String whatsappReachability;
+  final String? outreachResponse; // 'positive' | 'negative' | 'neutral'
+  final String? outreachResponseNote;
   final String pastRoom;
   final int? graduationYear;
   final String? currentCompany;
@@ -556,6 +558,8 @@ class AlumniOutreachStudentModel {
     this.phone = '',
     this.whatsappNumber = '',
     this.whatsappReachability = 'not_verified',
+    this.outreachResponse,
+    this.outreachResponseNote,
     this.pastRoom = 'N/A',
     this.graduationYear,
     this.currentCompany,
@@ -608,6 +612,8 @@ class AlumniOutreachStudentModel {
         phone: phone,
         whatsappNumber: whatsappNumber,
         whatsappReachability: whatsappReachability,
+        outreachResponse: outreachResponse,
+        outreachResponseNote: outreachResponseNote,
         pastRoom: pastRoom,
         graduationYear: graduationYear,
         currentCompany: currentCompany,
@@ -619,7 +625,35 @@ class AlumniOutreachStudentModel {
         contactedAt: (at ?? DateTime.now()).toUtc().toIso8601String(),
       );
 
+  AlumniOutreachStudentModel withReachability({
+    required String reachability,
+    String? response,
+    String? note,
+  }) =>
+      AlumniOutreachStudentModel(
+        outreachId: outreachId,
+        studentId: studentId,
+        name: name,
+        studentCode: studentCode,
+        phone: phone,
+        whatsappNumber: whatsappNumber,
+        whatsappReachability: reachability,
+        outreachResponse: response,
+        outreachResponseNote: note,
+        pastRoom: pastRoom,
+        graduationYear: graduationYear,
+        currentCompany: currentCompany,
+        currentDesignation: currentDesignation,
+        currentCity: currentCity,
+        groupName: groupName,
+        status: status,
+        message: message,
+        contactedAt: contactedAt,
+      );
+
   factory AlumniOutreachStudentModel.fromJson(Map<String, dynamic> json) {
+    final resp = (json['outreachResponse'] ?? json['outreach_response'])?.toString().trim();
+    final note = (json['outreachResponseNote'] ?? json['outreach_response_note'])?.toString().trim();
     return AlumniOutreachStudentModel(
       outreachId: json['outreachId'] != null ? int.tryParse(json['outreachId'].toString()) : null,
       studentId: int.tryParse(json['studentId']?.toString() ?? '0') ?? 0,
@@ -628,6 +662,8 @@ class AlumniOutreachStudentModel {
       phone: json['phone']?.toString() ?? '',
       whatsappNumber: json['whatsappNumber']?.toString() ?? '',
       whatsappReachability: json['whatsappReachability']?.toString() ?? 'not_verified',
+      outreachResponse: resp != null && resp.isNotEmpty && resp != 'null' ? resp : null,
+      outreachResponseNote: note != null && note.isNotEmpty && note != 'null' ? note : null,
       pastRoom: json['pastRoom']?.toString() ?? 'N/A',
       graduationYear: json['graduationYear'] != null ? int.tryParse(json['graduationYear'].toString()) : null,
       currentCompany: json['currentCompany']?.toString(),
@@ -714,6 +750,8 @@ class AlumniOutreachHistoryModel {
   final String phone;
   final String whatsappNumber;
   final String whatsappReachability;
+  final String? outreachResponse;
+  final String? outreachResponseNote;
   final String pastRoom;
   final int? graduationYear;
   final String? currentCompany;
@@ -735,6 +773,8 @@ class AlumniOutreachHistoryModel {
     this.phone = '',
     this.whatsappNumber = '',
     this.whatsappReachability = 'not_verified',
+    this.outreachResponse,
+    this.outreachResponseNote,
     this.pastRoom = 'N/A',
     this.graduationYear,
     this.currentCompany,
@@ -757,6 +797,8 @@ class AlumniOutreachHistoryModel {
     final resolvedScope = rawScope.isNotEmpty
         ? rawScope
         : (rawRole == 'admin' ? 'admin' : 'leader');
+    final rawResponse = _firstNonEmpty(json, const ['outreachResponse', 'outreach_response']);
+    final rawNote = _firstNonEmpty(json, const ['outreachResponseNote', 'outreach_response_note']);
     return AlumniOutreachHistoryModel(
       id: int.tryParse(json['id']?.toString() ?? '0') ?? 0,
       studentId: int.tryParse(json['studentId']?.toString() ?? '0') ?? 0,
@@ -765,6 +807,8 @@ class AlumniOutreachHistoryModel {
       phone: json['phone']?.toString() ?? '',
       whatsappNumber: json['whatsappNumber']?.toString() ?? '',
       whatsappReachability: json['whatsappReachability']?.toString() ?? 'not_verified',
+      outreachResponse: rawResponse.isEmpty || rawResponse == 'null' ? null : rawResponse,
+      outreachResponseNote: rawNote.isEmpty || rawNote == 'null' ? null : rawNote,
       pastRoom: json['pastRoom']?.toString() ?? 'N/A',
       graduationYear: json['graduationYear'] != null ? int.tryParse(json['graduationYear'].toString()) : null,
       currentCompany: json['currentCompany']?.toString(),

@@ -57,6 +57,7 @@ class PolicyPollService : Service() {
     companion object {
         private const val TAG = "PolicyPollService"
         private const val CHANNEL_ID = "hsh_monitoring"
+        private const val ALERT_CHANNEL_ID = "hsh_monitoring_alert"
         private const val NOTIFICATION_ID = 7101
 
         /** Tick / fallback poll: fast while the phone is in use, relaxed when the screen is off. */
@@ -113,6 +114,7 @@ class PolicyPollService : Service() {
     @Volatile private var geoPolicyFetchedAt = 0L
     @Volatile private var retryMs = RETRY_MIN_MS
     @Volatile private var usageBlocker: UsageAppBlocker? = null
+    @Volatile private var wasBlockerReady = false
 
     private val screenOnReceiver = object : BroadcastReceiver() {
         override fun onReceive(context: Context, intent: Intent) {
@@ -165,6 +167,7 @@ class PolicyPollService : Service() {
     private val pollRunnable = object : Runnable {
         override fun run() {
             if (!running) return
+            checkBlockerIntegrity()
             executor.execute {
                 fetchGeofencePolicyIfStale()
                 sampleGeofenceIfDue()
@@ -235,7 +238,15 @@ class PolicyPollService : Service() {
             handler.post(pollRunnable)
             handler.post(keepAliveRunnable)
             syncExecutor.execute { syncLoop() }
-            usageBlocker = UsageAppBlocker(applicationContext).also { it.start() }
+            wasBlockerReady = UsageAppBlocker.isReady(applicationContext)
+            if (!wasBlockerReady) {
+                (getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager)
+                    .notify(NOTIFICATION_ID, buildBlockerAlertNotification())
+            }
+            usageBlocker = UsageAppBlocker(
+                applicationContext,
+                onBlockerLost = { checkBlockerIntegrity() },
+            ).also { it.start() }
             Log.d(TAG, "started")
         } else {
             wakeSync()
@@ -420,15 +431,44 @@ class PolicyPollService : Service() {
         }
     }
 
+    /**
+     * Detects when Display-over-other-apps or Usage Access drops (e.g., student toggled
+     * "Appear on top" off in Samsung Settings). Immediately pushes a compliance ping
+     * so wardens get an alert within seconds, and elevates the ongoing notification.
+     */
+    @Synchronized
+    private fun checkBlockerIntegrity() {
+        val ready = UsageAppBlocker.isReady(applicationContext)
+        if (ready == wasBlockerReady) return
+        wasBlockerReady = ready
+        val nm = getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
+        nm.notify(NOTIFICATION_ID, if (ready) buildNotification() else buildBlockerAlertNotification())
+        if (!ready) {
+            Log.w(TAG, "App blocker permission lost — triggering immediate compliance sync")
+            executor.execute { runCatching { ScreenTimeSync.syncNow(applicationContext) } }
+        } else {
+            wakeSync()
+        }
+    }
+
     private fun createChannel() {
         if (Build.VERSION.SDK_INT < Build.VERSION_CODES.O) return
-        val channel = NotificationChannel(
-            CHANNEL_ID, "Hostel monitoring", NotificationManager.IMPORTANCE_MIN,
-        ).apply {
-            description = "Keeps screen-time monitoring active"
-            setShowBadge(false)
-        }
-        (getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager).createNotificationChannel(channel)
+        val nm = getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
+        nm.createNotificationChannel(
+            NotificationChannel(
+                CHANNEL_ID, "Hostel monitoring", NotificationManager.IMPORTANCE_MIN,
+            ).apply {
+                description = "Keeps screen-time monitoring active"
+                setShowBadge(false)
+            },
+        )
+        nm.createNotificationChannel(
+            NotificationChannel(
+                ALERT_CHANNEL_ID, "Monitoring permission alerts", NotificationManager.IMPORTANCE_HIGH,
+            ).apply {
+                description = "Urgent alert when app blocker or usage access is turned off"
+            },
+        )
     }
 
     private fun buildNotification(): Notification {
@@ -443,6 +483,21 @@ class PolicyPollService : Service() {
             .setPriority(NotificationCompat.PRIORITY_MIN)
             .setOngoing(true)
             .setSilent(true)
+            .setContentIntent(pending)
+            .build()
+    }
+
+    private fun buildBlockerAlertNotification(): Notification {
+        val launch = packageManager.getLaunchIntentForPackage(packageName)
+        val pending = launch?.let {
+            PendingIntent.getActivity(this, 1, it, PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT)
+        }
+        return NotificationCompat.Builder(this, ALERT_CHANNEL_ID)
+            .setSmallIcon(android.R.drawable.ic_dialog_alert)
+            .setContentTitle("App blocker turned off")
+            .setContentText("Open HSH Connect to restore Display over other apps / Usage access")
+            .setPriority(NotificationCompat.PRIORITY_HIGH)
+            .setOngoing(true)
             .setContentIntent(pending)
             .build()
     }

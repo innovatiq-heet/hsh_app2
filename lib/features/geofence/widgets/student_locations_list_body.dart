@@ -43,7 +43,7 @@ class StudentLocationsListBody extends StatelessWidget {
               // Search bar
               SliverToBoxAdapter(
                 child: Padding(
-                  padding: const EdgeInsets.fromLTRB(20, 16, 20, 0),
+                  padding: const EdgeInsets.fromLTRB(16, 14, 16, 0),
                   child: _buildSearchBar(),
                 ),
               ),
@@ -56,7 +56,7 @@ class StudentLocationsListBody extends StatelessWidget {
               // Section header
               SliverToBoxAdapter(
                 child: Padding(
-                  padding: const EdgeInsets.fromLTRB(20, 6, 20, 12),
+                  padding: const EdgeInsets.fromLTRB(16, 4, 16, 10),
                   child: Row(
                     children: [
                       Container(
@@ -174,7 +174,7 @@ class StudentLocationsListBody extends StatelessWidget {
                 }
 
                 return SliverPadding(
-                  padding: const EdgeInsets.fromLTRB(20, 0, 20, 36),
+                  padding: const EdgeInsets.fromLTRB(16, 0, 16, 32),
                   sliver: SuperSliverList(
                     listController: controller.listController,
                     delegate: SliverChildBuilderDelegate(
@@ -184,7 +184,7 @@ class StudentLocationsListBody extends StatelessWidget {
                           controller: controller,
                         );
                         final child = Padding(
-                          padding: const EdgeInsets.only(bottom: 12),
+                          padding: const EdgeInsets.only(bottom: 10),
                           child: card,
                         );
                         if (index < 8) {
@@ -211,7 +211,7 @@ class StudentLocationsListBody extends StatelessWidget {
           Positioned(
             right: 4,
             top: MediaQuery.of(context).padding.top + 68.0,
-            bottom: MediaQuery.of(context).padding.bottom + 80.0,
+            bottom: MediaQuery.of(context).padding.bottom + 24.0,
             child: Align(
               alignment: Alignment.centerRight,
               child: AlphaScrollRail(
@@ -292,7 +292,7 @@ class StudentLocationsListBody extends StatelessWidget {
     return SingleChildScrollView(
       scrollDirection: Axis.horizontal,
       physics: const BouncingScrollPhysics(),
-      padding: const EdgeInsets.fromLTRB(20, 12, 20, 8),
+      padding: const EdgeInsets.fromLTRB(16, 10, 16, 8),
       child: Row(
         children: [
           LocationFilterChip(

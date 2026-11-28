@@ -18,7 +18,7 @@ class StudentLocationsHeader extends SliverPersistentHeaderDelegate {
   double get minExtent => topPadding + 62.0;
 
   @override
-  double get maxExtent => topPadding + 240.0;
+  double get maxExtent => topPadding + 226.0;
 
   @override
   Widget build(
@@ -116,48 +116,6 @@ class StudentLocationsHeader extends SliverPersistentHeaderDelegate {
                       ),
                     ),
                   ),
-
-                  // Campus Map view toggle button
-                  Obx(() {
-                    final isMap = controller.isMapView.value;
-                    return Material(
-                      color: Colors.transparent,
-                      child: InkWell(
-                        onTap: controller.toggleViewMode,
-                        borderRadius: BorderRadius.circular(20),
-                        child: Container(
-                          padding: const EdgeInsets.symmetric(horizontal: 11, vertical: 7),
-                          decoration: BoxDecoration(
-                            color: Colors.white.withValues(alpha: 0.18),
-                            borderRadius: BorderRadius.circular(20),
-                            border: Border.all(
-                              color: Colors.white.withValues(alpha: 0.28),
-                              width: 1,
-                            ),
-                          ),
-                          child: Row(
-                            mainAxisSize: MainAxisSize.min,
-                            children: [
-                              Icon(
-                                isMap ? Icons.view_list_rounded : Icons.radar_rounded,
-                                color: Colors.white,
-                                size: 16,
-                              ),
-                              const SizedBox(width: 5),
-                              Text(
-                                isMap ? 'List' : 'Map',
-                                style: const TextStyle(
-                                  color: Colors.white,
-                                  fontSize: 12,
-                                  fontWeight: FontWeight.w700,
-                                ),
-                              ),
-                            ],
-                          ),
-                        ),
-                      ),
-                    );
-                  }),
                   const SizedBox(width: 8),
 
                   // Refresh button with loading spinner

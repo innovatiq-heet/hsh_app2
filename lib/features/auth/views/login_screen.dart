@@ -217,14 +217,64 @@ class _FormPanel extends StatelessWidget {
             Obx(() {
               if (!controller.needsLoginCode.value) return const SizedBox.shrink();
               final isAdmin = controller.isAdminCode.value;
+              final isDeviceApproval = controller.requiresDeviceApproval.value;
               return Padding(
                 padding: const EdgeInsets.only(top: AppDimens.gapMd),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [
+                    if (isDeviceApproval)
+                      Container(
+                        margin: const EdgeInsets.only(bottom: 12),
+                        padding: const EdgeInsets.all(12),
+                        decoration: BoxDecoration(
+                          color: const Color(0xFFFFFBEB),
+                          borderRadius: BorderRadius.circular(12),
+                          border: Border.all(color: const Color(0xFFFDE68A)),
+                        ),
+                        child: Row(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            const Icon(
+                              Icons.phonelink_lock_rounded,
+                              size: 20,
+                              color: Color(0xFFD97706),
+                            ),
+                            const SizedBox(width: 10),
+                            Expanded(
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  const Text(
+                                    'Admin Device Approval Required',
+                                    style: TextStyle(
+                                      fontSize: 13,
+                                      fontWeight: FontWeight.w700,
+                                      color: Color(0xFF92400E),
+                                    ),
+                                  ),
+                                  const SizedBox(height: 3),
+                                  Text(
+                                    controller.deviceApprovalMessage.value.isNotEmpty
+                                        ? controller.deviceApprovalMessage.value
+                                        : 'Ask your admin/warden to approve this phone in HSH Connect, then tap Sign In again — or enter their 6-digit approval code below.',
+                                    style: const TextStyle(
+                                      fontSize: 12,
+                                      color: Color(0xFF92400E),
+                                      height: 1.35,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
                     AppTextField(
                       controller: controller.loginCodeController,
-                      label: isAdmin ? 'Admin code' : 'Warden code',
+                      label: isAdmin
+                          ? 'Admin code'
+                          : (isDeviceApproval ? 'Approval code (optional if approved in app)' : 'Warden code'),
                       hint: isAdmin
                           ? '6-digit code sent on WhatsApp'
                           : '6-digit code from your warden',

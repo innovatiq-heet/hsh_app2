@@ -27,6 +27,9 @@ class ScreenTimePolicy {
   /// Defaults to false so Play Store is available by default for the user.
   final bool restrictAppInstalls;
 
+  /// Common web browsers blocked on the phone so students can't bypass blocked apps via web.
+  final bool restrictBrowsers;
+
   const ScreenTimePolicy({
     this.isLocked = false,
     this.blockedPackages = const {},
@@ -37,6 +40,7 @@ class ScreenTimePolicy {
     this.appLimits = const {},
     this.installPassUntil = 0,
     this.restrictAppInstalls = false,
+    this.restrictBrowsers = false,
   });
 
   bool get hasBedtime => bedtimeStart.isNotEmpty && bedtimeEnd.isNotEmpty;
@@ -102,6 +106,8 @@ class ScreenTimePolicy {
         _pick(data, ['install_pass_until', 'installPassUntil']);
     final restrictInstalls = _pick(pol, ['restrict_app_installs', 'restrictAppInstalls']) ??
         _pick(data, ['restrict_app_installs', 'restrictAppInstalls']);
+    final restrictBrowsersRaw = _pick(pol, ['restrict_browsers', 'restrictBrowsers']) ??
+        _pick(data, ['restrict_browsers', 'restrictBrowsers']);
 
     if (blocked == null &&
         locked == null &&
@@ -109,7 +115,8 @@ class ScreenTimePolicy {
         !hasBedtime &&
         parsedAppLimits == null &&
         passUntil == null &&
-        restrictInstalls == null) {
+        restrictInstalls == null &&
+        restrictBrowsersRaw == null) {
       return null;
     }
 
@@ -127,6 +134,7 @@ class ScreenTimePolicy {
       appLimits: parsedAppLimits ?? base.appLimits,
       installPassUntil: _toInt(passUntil) ?? base.installPassUntil,
       restrictAppInstalls: _toBool(restrictInstalls) ?? base.restrictAppInstalls,
+      restrictBrowsers: _toBool(restrictBrowsersRaw) ?? base.restrictBrowsers,
     );
   }
 
@@ -153,6 +161,7 @@ class ScreenTimePolicy {
     Map<String, int>? appLimits,
     int? installPassUntil,
     bool? restrictAppInstalls,
+    bool? restrictBrowsers,
   }) =>
       ScreenTimePolicy(
         isLocked: isLocked ?? this.isLocked,
@@ -164,6 +173,7 @@ class ScreenTimePolicy {
         appLimits: appLimits ?? this.appLimits,
         installPassUntil: installPassUntil ?? this.installPassUntil,
         restrictAppInstalls: restrictAppInstalls ?? this.restrictAppInstalls,
+        restrictBrowsers: restrictBrowsers ?? this.restrictBrowsers,
       );
 
   /// Body for `PUT /screen-time/policies/:id`.
@@ -176,6 +186,7 @@ class ScreenTimePolicy {
         'app_limits': appLimits,
         if (installPassUntil > 0) 'install_pass_until': installPassUntil,
         'restrict_app_installs': restrictAppInstalls,
+        'restrict_browsers': restrictBrowsers,
       };
 
   static dynamic _pick(Map m, List<String> keys) {

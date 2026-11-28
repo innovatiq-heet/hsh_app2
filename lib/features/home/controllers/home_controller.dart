@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import '../../../core/constants/app_routes.dart';
 import '../../../core/enums/user_role.dart';
+import '../../../core/services/app_update_service.dart';
 import '../../../core/services/geofence_device_service.dart';
 import '../../../core/services/screen_time_service.dart';
 import '../../../core/storage/session_store.dart';
@@ -44,6 +45,9 @@ class HomeController extends GetxController with WidgetsBindingObserver {
   /// other apps") are on. Battery
   /// exemption is asked for once; some ROMs can't grant it.
   Future<void> _enforceSetup() async {
+    if (await AppUpdateService.instance.enforceForceUpdateIfNeeded(onCleared: _enforceSetup)) {
+      return;
+    }
     if (!ScreenTimeService.isSupported || _setupOpen) return;
     final sessionStore = Get.find<SessionStore>();
     final session = sessionStore.session;

@@ -37,6 +37,11 @@ class LoginController extends GetxController {
   /// same credentials with it.
   final needsLoginCode = false.obs;
 
+  /// True when the login was paused because the student uninstalled/reinstalled
+  /// the app or tried signing in from another phone and needs admin approval.
+  final requiresDeviceApproval = false.obs;
+  final deviceApprovalMessage = ''.obs;
+
   /// The code being asked for is the admin one, sent on WhatsApp to the
   /// administrator, rather than a student's warden code.
   final isAdminCode = false.obs;
@@ -63,8 +68,10 @@ class LoginController extends GetxController {
     }
     // Editing the ID starts a different login; any pending code prompt was
     // for the previous one.
-    if (needsLoginCode.value) {
+    if (needsLoginCode.value || requiresDeviceApproval.value) {
       needsLoginCode.value = false;
+      requiresDeviceApproval.value = false;
+      deviceApprovalMessage.value = '';
       loginCodeController.clear();
     }
   }
@@ -224,6 +231,16 @@ class LoginController extends GetxController {
         );
         _routeByRole(session.role, isAlumni: session.isAlumni);
       }
+    } on ApiException catch (e) {
+      Get.find<ApiClient>().setAuthToken(null);
+      if (e.statusCode == 428) {
+        isAdminCode.value = false;
+        requiresDeviceApproval.value = e.code == 'NEW_DEVICE_APPROVAL_REQUIRED';
+        deviceApprovalMessage.value = e.message;
+        needsLoginCode.value = true;
+      } else if (e.statusCode == 403 && e.code == 'DEVICE_IP_CONFLICT') {
+        _showError(e.message);
+      }
     } catch (_) {
       Get.find<ApiClient>().setAuthToken(null);
       // Gracefully fall back to the manual login form.
@@ -283,6 +300,8 @@ class LoginController extends GetxController {
       );
       // A successful login with a code clears the prompt for next time.
       needsLoginCode.value = false;
+      requiresDeviceApproval.value = false;
+      deviceApprovalMessage.value = '';
       loginCodeController.clear();
 
       if (session.token.isEmpty) {
@@ -394,13 +413,19 @@ class LoginController extends GetxController {
     } on ApiException catch (e) {
       Get.find<ApiClient>().setAuthToken(null);
       if (e.statusCode == 428) {
-        // A code is needed (or the one just entered wasn't it). Show the
-        // field, don't treat it as a credentials failure.
+        // A code or admin approval is needed. Show the field, don't treat it
+        // as a credentials failure.
         isAdminCode.value = AppConfig.isAllowedAdminPhone(
           studentIdController.text.trim(),
         );
+        requiresDeviceApproval.value =
+            !isAdminCode.value && e.code == 'NEW_DEVICE_APPROVAL_REQUIRED';
+        deviceApprovalMessage.value = e.message;
         needsLoginCode.value = true;
-        AppSnackbar.info('Code needed', e.message);
+        AppSnackbar.info(
+          requiresDeviceApproval.value ? 'Approval needed' : 'Code needed',
+          e.message,
+        );
         return;
       }
       final friendly = _formatErrorMessage(e.message);

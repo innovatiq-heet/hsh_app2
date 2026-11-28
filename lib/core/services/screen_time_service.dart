@@ -39,6 +39,15 @@ class ScreenTimeService {
   /// Force stop and Uninstall on the app's App info page. Removed on logout.
   static Future<bool> isDeviceAdminActive() => _bool('isDeviceAdminActive');
 
+  /// Whether HSH is provisioned as Android Device Owner (zero-bypass mode).
+  static Future<bool> isDeviceOwner() => _bool('isDeviceOwner');
+
+  /// Whether the native policy store has confirmed onboarding completion.
+  static Future<bool> hasCompletedNativeSetup() => _bool('hasCompletedNativeSetup');
+
+  /// Marks onboarding setup completed natively and notifies the server.
+  static Future<bool> markSetupCompleted() => _bool('markSetupCompleted');
+
   /// Shows the system "Activate device admin app?" screen.
   static Future<void> requestDeviceAdmin() => _invoke('requestDeviceAdmin');
 
@@ -93,6 +102,10 @@ class ScreenTimeService {
       return null;
     }
   }
+
+  /// Grants a short temporary pass so Android package installers / Play Store
+  /// can apply a mandatory HSH Connect app update even when app installs are blocked.
+  static Future<void> grantUpdatePass() => _invoke('grantUpdatePass');
 
   /// Compliance flags as the device reports them to the backend.
   static Future<Map<String, dynamic>> getCompliance() async {

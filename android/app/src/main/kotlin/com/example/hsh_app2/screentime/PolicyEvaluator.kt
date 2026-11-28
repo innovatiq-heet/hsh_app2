@@ -5,6 +5,7 @@ import android.content.ComponentName
 import android.content.Context
 import android.content.Intent
 import android.content.pm.PackageManager
+import android.net.Uri
 import android.os.Build
 import android.provider.Settings
 import android.view.inputmethod.InputMethodManager
@@ -40,6 +41,21 @@ enum class BlockReason(val wireName: String, val tag: String, val title: String,
         "admin_protected", "HOSTEL POLICY ENFORCEMENT", "Setting Protected",
         "HSH Connect's removal protection can't be turned off while you are signed in. " +
             "It is turned off when you log out. Ask your warden if you need help.",
+    ),
+    /** The student opened protected permissions or clock settings while signed in. */
+    SETTINGS_PROTECTED(
+        "settings_protected", "HOSTEL POLICY ENFORCEMENT", "Setting Protected",
+        "Changing HSH monitoring permissions or phone Date & Time requires a warden override code.",
+    ),
+    /** Web browsers restricted by hostel policy. */
+    BROWSER_RESTRICTED(
+        "browser_restricted", "BROWSER RESTRICTED", "Browser Blocked",
+        "Web browsers are restricted by hostel policy. Ask your warden if you need access.",
+    ),
+    /** Automatic network date/time disabled on a phone with time limits or curfews. */
+    CLOCK_TAMPERED(
+        "clock_tampered", "CLOCK PROTECTION", "Automatic Time Off",
+        "Turn on Automatic date & time in phone settings to continue using apps.",
     );
 
     companion object {
@@ -55,7 +71,7 @@ enum class BlockReason(val wireName: String, val tag: String, val title: String,
  */
 object PolicyEvaluator {
     private const val PROTECTED_CACHE_MS = 5 * 60 * 1000L
-    private const val USAGE_CACHE_MS = 60 * 1000L
+    private const val USAGE_CACHE_MS = 15 * 1000L
 
     /** App stores and package installer packages restricted to prevent unapproved installs. */
     val INSTALLER_PACKAGES = setOf(
@@ -66,9 +82,37 @@ object PolicyEvaluator {
         "com.sec.android.app.samsungapps",
         "com.xiaomi.mipicks",
         "com.heytap.market",
+        "com.oppo.market",
+        "com.coloros.appmarket",
         "com.vivo.appstore",
         "com.huawei.appmarket",
+        "com.aefyr.sai",
+        "com.mt.apkinstaller",
+        "com.apkmirror.helper.prod",
     )
+
+    /** Common Android web browsers blocked when `restrictBrowsers` is enabled. */
+    val BROWSER_PACKAGES = setOf(
+        "com.android.chrome",
+        "com.chrome.beta",
+        "com.chrome.dev",
+        "com.sec.android.app.sbrowser",
+        "org.mozilla.firefox",
+        "com.brave.browser",
+        "com.microsoft.emmx",
+        "com.opera.browser",
+        "com.opera.mini.native",
+        "com.duckduckgo.mobile.android",
+        "com.mi.globalbrowser",
+        "com.android.browser",
+        "com.vivo.browser",
+        "com.heytap.browser",
+        "com.UCMobile.intl",
+    )
+
+    fun isAutoTimeEnabled(context: Context): Boolean = runCatching {
+        Settings.Global.getInt(context.contentResolver, Settings.Global.AUTO_TIME, 1) != 0
+    }.getOrDefault(true)
 
     /** Packages that must always stay reachable: no phone becomes a brick. */
     private val ALWAYS_PROTECTED = setOf(
@@ -107,6 +151,34 @@ object PolicyEvaluator {
     @Volatile private var usageMinutesCache = 0
     @Volatile private var usageCacheAt = 0L
 
+    @Volatile private var dynamicBrowserCache: Set<String> = emptySet()
+    @Volatile private var dynamicBrowserCacheAt = 0L
+
+    /** Resolves every installed browser dynamically on top of [BROWSER_PACKAGES], excluding [ALWAYS_PROTECTED]. */
+    fun browserPackages(context: Context): Set<String> {
+        val now = System.currentTimeMillis()
+        if (now - dynamicBrowserCacheAt < PROTECTED_CACHE_MS && dynamicBrowserCache.isNotEmpty()) {
+            return dynamicBrowserCache
+        }
+        val pm = context.packageManager
+        val found = HashSet<String>(BROWSER_PACKAGES)
+        runCatching {
+            val httpsView = Intent(Intent.ACTION_VIEW, Uri.parse("https://example.com"))
+                .addCategory(Intent.CATEGORY_BROWSABLE)
+            pm.queryIntentActivities(httpsView, PackageManager.MATCH_ALL)
+                .forEach { found.add(it.activityInfo.packageName) }
+            val browserCategory = Intent(Intent.ACTION_MAIN).addCategory(Intent.CATEGORY_APP_BROWSER)
+            pm.queryIntentActivities(browserCategory, PackageManager.MATCH_ALL)
+                .forEach { found.add(it.activityInfo.packageName) }
+        }
+        found.removeAll(ALWAYS_PROTECTED)
+        found.remove("com.android.htmlviewer")
+        found.remove(context.packageName)
+        dynamicBrowserCache = found
+        dynamicBrowserCacheAt = now
+        return found
+    }
+
     /** Returns the reason to block [packageName], or null if it is allowed. */
     fun evaluate(context: Context, packageName: String): BlockReason? {
         if (packageName == context.packageName) return null
@@ -115,18 +187,22 @@ object PolicyEvaluator {
         val policy = PolicyStore.policy(context)
         if (policy.isLocked) return BlockReason.DEVICE_LOCKED
         if (policy.restrictAppInstalls && packageName in INSTALLER_PACKAGES) {
-            if (policy.hasActiveInstallPass) {
-                return null // Allowed during active 15-minute install pass
+            if (policy.hasActiveInstallPass || PolicyStore.hasActiveUpdatePass(context)) {
+                return null // Allowed during active 15-minute install pass or mandatory app update
             }
             return BlockReason.INSTALLER_BLOCKED
         }
+        if (policy.restrictBrowsers && packageName in browserPackages(context)) return BlockReason.BROWSER_RESTRICTED
         if (packageName in policy.blockedPackages) return BlockReason.APP_BLOCKED
+        if (policy.hasCurfew && isInBedtime(policy, context = context)) return BlockReason.BEDTIME
+        if (!isAutoTimeEnabled(context) && (policy.dailyLimitMinutes > 0 || policy.appLimits.isNotEmpty())) {
+            return BlockReason.CLOCK_TAMPERED
+        }
         if (packageName in policy.appLimits &&
             AppLimits.reached(policy.appLimits, packageName, appMinutesToday(context, packageName))
         ) {
             return BlockReason.APP_LIMIT
         }
-        if (policy.hasCurfew && isInBedtime(policy, context = context)) return BlockReason.BEDTIME
         if (policy.dailyLimitMinutes > 0 && todayMinutes(context) >= policy.dailyLimitMinutes) {
             return BlockReason.DAILY_LIMIT
         }

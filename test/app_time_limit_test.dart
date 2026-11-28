@@ -181,4 +181,53 @@ void main() {
     c.appLimits['com.a'] = 15;
     expect(c.appLimitFor('com.a', rowValue: 30), 15);
   });
+
+  testWidgets('apps list avoids duplicate headers, protects system apps, and uses explicit Allowed/Blocked pills',
+      (tester) async {
+    final c = student();
+    c.appBreakdown.add({
+      'packageName': 'com.google.android.gms',
+      'appName': 'Google Play services',
+      'minutes': 3,
+      'dailyLimitMinutes': 0,
+    });
+    c.totalMinutesToday.value = 23;
+
+    tester.view.physicalSize = const Size(360 * 3, 1600 * 3);
+    tester.view.devicePixelRatio = 3;
+    addTearDown(tester.view.reset);
+
+    await tester.pumpWidget(GetMaterialApp(
+      home: Scaffold(body: SingleChildScrollView(child: AppUsageCard(controller: c))),
+    ));
+    await tester.pumpAndSettle();
+
+    expect(find.text('App activity'), findsOneWidget);
+    expect(find.text('Block presets'), findsOneWidget);
+    expect(find.text('All (2)'), findsOneWidget);
+    expect(find.text('Blocked (0)'), findsOneWidget);
+    expect(find.text('Limits (0)'), findsOneWidget);
+    expect(find.textContaining('Used ('), findsNothing);
+
+    // Core Android service shows System badge instead of an Allowed/Blocked toggle.
+    expect(find.text('Google Play services'), findsOneWidget);
+    expect(find.text('System'), findsOneWidget);
+
+    // Regular app shows Allowed pill and toggles to Blocked cleanly on tap.
+    expect(find.text('Allowed'), findsOneWidget);
+    await tester.tap(find.text('Allowed'));
+    await tester.pumpAndSettle();
+
+    expect(ruleRequests.last.data['package_name'], 'com.instagram.android');
+    expect(ruleRequests.last.data['is_blocked'], true);
+    expect(find.text('Blocked (1)'), findsOneWidget);
+    expect(find.text('Blocked'), findsOneWidget);
+
+    await tester.tap(find.text('Blocked (1)'));
+    await tester.pumpAndSettle();
+    expect(find.text('Instagram'), findsOneWidget);
+    expect(find.text('Google Play services'), findsNothing);
+
+    await drainSnackbars(tester);
+  });
 }

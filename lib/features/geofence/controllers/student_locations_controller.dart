@@ -246,16 +246,32 @@ class StudentLocationsController extends GetxController {
   Future<void> openInMaps(StudentLocation student) async {
     final loc = student.location;
     if (loc == null) return;
-    final ok = await launchUrl(loc.mapsUri, mode: LaunchMode.externalApplication).catchError((_) => false);
-    if (!ok) AppSnackbar.error('Maps Error', 'Could not open the map for ${student.name}.');
+    await openCoordsInMaps(loc.latitude, loc.longitude, name: student.name);
   }
 
-  Future<void> callStudent(StudentLocation student) async {
-    if (student.phone.trim().isEmpty) {
-      AppSnackbar.warning('No Number', 'Student mobile number is not available.');
+  Future<void> openCoordsInMaps(double latitude, double longitude, {String name = 'student'}) async {
+    final uri = Uri.parse('https://www.google.com/maps/search/?api=1&query=$latitude,$longitude');
+    final ok = await launchUrl(uri, mode: LaunchMode.externalApplication).catchError((_) => false);
+    if (!ok) AppSnackbar.error('Maps Error', 'Could not open the map for $name.');
+  }
+
+  Future<void> callStudent(StudentLocation student) => _dial(
+        student.phone,
+        emptyMessage: 'Student mobile number is not available.',
+      );
+
+  Future<void> callParent(StudentLocation student) => _dial(
+        student.parentPhone,
+        emptyMessage: 'Parent mobile number is not available.',
+      );
+
+  Future<void> _dial(String rawPhone, {required String emptyMessage}) async {
+    final phone = rawPhone.trim();
+    if (phone.isEmpty) {
+      AppSnackbar.warning('No Number', emptyMessage);
       return;
     }
-    final ok = await launchUrl(Uri(scheme: 'tel', path: student.phone.trim())).catchError((_) => false);
+    final ok = await launchUrl(Uri(scheme: 'tel', path: phone)).catchError((_) => false);
     if (!ok) AppSnackbar.error('Call Error', 'Could not open the phone dialer.');
   }
 }

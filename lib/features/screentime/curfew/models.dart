@@ -426,6 +426,27 @@ class RuleLine {
       );
 }
 
+class RecentApp {
+  RecentApp({
+    required this.packageName,
+    required this.appName,
+    required this.minutes,
+    this.minutesAgo,
+  });
+
+  final String packageName;
+  final String appName;
+  final int minutes;
+  final int? minutesAgo;
+
+  factory RecentApp.fromJson(Map<String, dynamic> j) => RecentApp(
+        packageName: '${j['package_name'] ?? ''}',
+        appName: '${j['app_name'] ?? j['package_name'] ?? ''}',
+        minutes: _int(j['minutes']),
+        minutesAgo: _intOrNull(j['minutes_ago']),
+      );
+}
+
 class StudentSummary {
   StudentSummary(this.raw);
 
@@ -437,6 +458,9 @@ class StudentSummary {
 
   String get connectionStatus => '${_o('status')['connection_status']}';
   String? get currentApp => _o('status')['current_app'] as String?;
+  String? get lastUsedApp => _o('status')['last_used_app'] as String?;
+  String? get lastUsedAppPackage => _o('status')['last_used_app_package'] as String?;
+  int? get lastUsedAppMinutesAgo => _intOrNull(_o('status')['last_used_app_minutes_ago']);
   bool get isScreenOn => _bool(_o('status')['is_screen_on']);
   bool get inCurfewNow => _bool(_o('status')['in_curfew_now']);
   bool get protectionRemoved => _bool(_o('status')['protection_removed']);
@@ -454,6 +478,7 @@ class StudentSummary {
   int get rangeSessionUse => _int(_o('usage')['session_use_minutes']);
   List<Map<String, dynamic>> get days => _maps(_o('usage')['days']);
   List<TopApp> get topApps => _maps(_o('usage')['top_apps']).map(TopApp.fromJson).toList();
+  List<RecentApp> get recentApps => _maps(_o('usage')['recent_apps']).map(RecentApp.fromJson).toList();
 
   List<AttentionReason> get problems => _maps(_o('problems')['attention']).map(AttentionReason.fromJson).toList();
   Map<String, int> get blockAttemptsByReason =>

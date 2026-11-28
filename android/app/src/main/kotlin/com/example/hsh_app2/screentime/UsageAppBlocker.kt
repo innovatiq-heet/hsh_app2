@@ -26,7 +26,10 @@ import android.util.Log
  * permission is missing; [resume] (screen on, service tick, policy change)
  * starts it again.
  */
-class UsageAppBlocker(private val context: Context) {
+class UsageAppBlocker(
+    private val context: Context,
+    private val onBlockerLost: (() -> Unit)? = null,
+) {
 
     companion object {
         private const val TAG = "UsageAppBlocker"
@@ -64,8 +67,8 @@ class UsageAppBlocker(private val context: Context) {
             }
             runCatching { context.startActivity(BlockedAppActivity.intent(context, pkg, appName, reason)) }
                 .onFailure { Log.e(TAG, "BlockedAppActivity failed to launch: ${it.message}") }
-            // A try to turn off removal protection is sent at once, not with the next 5-min ping.
-            if (log && reason == BlockReason.ADMIN_PROTECTED) {
+            // A try to turn off removal protection or tamper with Settings is sent at once.
+            if (log && (reason == BlockReason.ADMIN_PROTECTED || reason == BlockReason.SETTINGS_PROTECTED)) {
                 runCatching { urgentSync.execute { ScreenTimeSync.syncNow(context.applicationContext) } }
             }
         }
@@ -116,29 +119,56 @@ class UsageAppBlocker(private val context: Context) {
      * when there is nothing to watch until [resume].
      */
     private fun check(): Long? {
-        if (!PolicyStore.hasSession(context) ||
-            !UsageCollector.isScreenOn(context) ||
-            !isReady(context)
-        ) {
+        if (!PolicyStore.hasSession(context) || !UsageCollector.isScreenOn(context)) {
             forget()
             return null
         }
+        if (!isReady(context)) {
+            forget()
+            onBlockerLost?.invoke()
+            return null
+        }
         val front = readForeground()
-        val pkg = front?.packageName
-        val reason = when {
-            front == null -> null
-            // Turning off removal protection (only while it is on: setup uses this screen to turn it on).
-            ProtectedScreens.isDeviceAdminScreen(front.packageName, front.className) &&
-                HshDeviceAdmin.isActive(context) -> BlockReason.ADMIN_PROTECTED
-            else -> PolicyEvaluator.evaluate(context, front.packageName)
+        var targetPkg = front?.packageName
+        val reason = when (val kind = ProtectedScreens.tamperScreenKind(front?.packageName, front?.className)) {
+            ProtectedScreens.TamperKind.DEVICE_ADMIN ->
+                if (HshDeviceAdmin.isActive(context)) BlockReason.ADMIN_PROTECTED else null
+            ProtectedScreens.TamperKind.USAGE_ACCESS ->
+                if (UsageCollector.hasPermission(context) && !PolicyStore.hasActiveSettingsPass(context)) {
+                    BlockReason.SETTINGS_PROTECTED
+                } else null
+            ProtectedScreens.TamperKind.OVERLAY ->
+                if (canShowBlockScreen(context) && !PolicyStore.hasActiveSettingsPass(context)) {
+                    BlockReason.SETTINGS_PROTECTED
+                } else null
+            ProtectedScreens.TamperKind.DATE_TIME,
+            ProtectedScreens.TamperKind.DEVELOPER_OPTIONS ->
+                if ((PolicyStore.hasCompletedSetup(context) || PolicyStore.policy(context).setupCompleted || HshDeviceAdmin.isActive(context)) &&
+                    !PolicyStore.hasActiveSettingsPass(context)
+                ) {
+                    BlockReason.SETTINGS_PROTECTED
+                } else null
+            null -> front?.let { PolicyEvaluator.evaluate(context, it.packageName) }
+        } ?: run {
+            // Catch split-screen / floating window evasion where a second package is simultaneously resumed.
+            val secondary = UsageCollector.activeResumedPackages(context)
+                .firstOrNull { it != front?.packageName && PolicyEvaluator.evaluate(context, it) != null }
+            if (secondary != null) {
+                targetPkg = secondary
+                PolicyEvaluator.evaluate(context, secondary)
+            } else {
+                null
+            }
         }
-        // A visit is per activity, so leaving Settings' list for the admin screen counts as new.
-        val visit = front?.let { "${it.packageName}/${it.className}" }
+        // A visit is per activity, so leaving Settings' list for a protected screen counts as new.
+        val visit = targetPkg?.let { p ->
+            if (p == front?.packageName) "${front.packageName}/${front.className}" else "$p/split"
+        }
         val action = throttle.next(visit, reason != null, SystemClock.elapsedRealtime())
-        if (pkg != null && reason != null && action != BlockScreenThrottle.Action.NONE) {
-            show(pkg, reason, log = action == BlockScreenThrottle.Action.SHOW_AND_LOG)
+        if (targetPkg != null && reason != null && action != BlockScreenThrottle.Action.NONE) {
+            show(targetPkg!!, reason, log = action == BlockScreenThrottle.Action.SHOW_AND_LOG)
         }
-        return if (pkg in ProtectedScreens.SETTINGS_PACKAGES) SETTINGS_TICK_MS else TICK_MS
+        return if (front?.packageName in ProtectedScreens.SETTINGS_PACKAGES) SETTINGS_TICK_MS else TICK_MS
     }
 
     private fun readForeground(): ForegroundReplay.Front? {

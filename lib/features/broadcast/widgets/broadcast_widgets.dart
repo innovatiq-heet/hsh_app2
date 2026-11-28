@@ -7,6 +7,7 @@ import '../../../core/utils/date_formatting.dart';
 import '../../shared/widgets/meta_text.dart';
 import '../../shared/widgets/phonebook_style_widgets.dart';
 import '../../shared/widgets/status_badge.dart';
+import '../utils/broadcast_rich_text.dart';
 
 /// The picture of a broadcast (inbox message, admin detail). Draws nothing
 /// when [url] is null, so it can sit under every message. Tap to zoom.
@@ -221,7 +222,7 @@ class BroadcastCard extends StatelessWidget {
           ),
           const SizedBox(height: 6),
           Text(
-            b.message,
+            BroadcastRichTextHelper.toPlainText(b.message),
             maxLines: 2,
             overflow: TextOverflow.ellipsis,
             style: const TextStyle(

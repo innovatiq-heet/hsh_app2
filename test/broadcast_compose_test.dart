@@ -422,5 +422,84 @@ void main() {
       expect(sent, isNotNull);
       expect(api.last('POST /leader/broadcasts').data['audience_preset'], 'all');
     });
+
+    test('leader hides system tags and auto-selects current-only scope when alumni count is 0', () async {
+      Get.reset();
+      Get.testMode = true;
+      SharedPreferences.setMockInitialValues({
+        'auth_token': 'leader-token',
+        'user_session': jsonEncode({'role': 'leader', 'token': 'leader-token', 'name': 'Pavitra Leader'}),
+      });
+      Get.put(SessionStore());
+      api = FakeApi()..install();
+      Get.put(TagsRepository());
+      Get.put(BroadcastsRepository());
+      api.on('GET /tags', {
+        'success': true,
+        'data': [
+          {'id': 1, 'name': 'Regular', 'color': '#10b981', 'is_system': 1, 'student_count': 8},
+          {'id': 2, 'name': 'iPhone', 'color': '#0284c7', 'is_system': 1, 'student_count': 66},
+          {'id': 10, 'name': 'A', 'color': '#0284c7', 'is_system': 0, 'student_count': 38},
+        ],
+      });
+      api.on('GET /leader/broadcasts/audience', {
+        'success': true,
+        'data': {
+          'groupName': 'Pavitra',
+          'residentsCount': 83,
+          'alumniCount': 135,
+          'totalCount': 218,
+          'whatsappConnected': true,
+          'hasLinkedAccount': true,
+        },
+      });
+      api.on('GET /leader/broadcasts/students', {'success': true, 'data': []});
+      api.on('GET /students', {
+        'success': true,
+        'data': [
+          {
+            'id': 201,
+            'name': 'Pavitra Resident',
+            'group_name': 'Pavitra',
+            'is_active': 1,
+            'room_number': '101',
+            'tags': [
+              {'id': 10, 'name': 'A'}
+            ],
+          },
+          {
+            'id': 202,
+            'name': 'Param Resident',
+            'group_name': 'Param',
+            'is_active': 1,
+            'room_number': '102',
+            'tags': [
+              {'id': 10, 'name': 'A'}
+            ],
+          },
+        ],
+      });
+      api.on('POST /leader/broadcasts/preview', {
+        'success': true,
+        'data': {'recipient_count': 1, 'no_device_count': 0, 'no_whatsapp_count': 0, 'whatsapp_connected': true, 'sample': []},
+      });
+
+      final lc = Get.put(BroadcastComposeController(previewDebounce: debounce));
+      await until(() => lc.leaderGroupName.value == 'Pavitra' && !lc.isTagsLoading.value, reason: 'leader ready');
+
+      // System tags are excluded for leaders.
+      expect(lc.tags.map((t) => t.name).toList(), ['A']);
+
+      // Selecting tag A with only current Pavitra students auto-selects current scope
+      // and excludes Param students.
+      lc.messageController.text = 'Pavitra meeting';
+      lc.toggleTag(10);
+      await settle();
+
+      expect(lc.tagMembers.value.current, [201]);
+      expect(lc.tagMembers.value.alumni, isEmpty);
+      expect(lc.tagScope.value, TagMemberScope.current);
+      expect(lc.canSend, isTrue);
+    });
   });
 }

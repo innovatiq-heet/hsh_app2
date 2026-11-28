@@ -8,6 +8,7 @@ import '../../../core/network/repository/screentime/screen_time_repository.dart'
 import '../../../core/utils/app_snackbar.dart';
 import '../../../core/storage/session_store.dart';
 import '../../../core/enums/user_role.dart';
+import '../curfew/curfew_schedule.dart';
 import '../models/screen_time_policy.dart';
 import '../services/app_icon_cache.dart';
 import 'app_requests_host.dart';
@@ -99,6 +100,12 @@ class StudentDetailController extends GetxController
     isOnline.value = isStudentOnline(student);
     isScreenOn.value = isStudentScreenOn(student);
     currentApp.value = (student['currentApp'] ?? 'Idle').toString();
+    final initialLast = lastUsedAppOf(student);
+    lastUsedApp.value = initialLast?.appName ?? '';
+    lastUsedAppPackage.value = initialLast?.packageName ?? '';
+    lastUsedAppAt.value = initialLast?.usedAt;
+    lastUsedAppMinutesAgo.value = initialLast?.minutesAgo;
+    recentApps.clear();
 
     final dirBattery =
         student['batteryLevel'] ??
@@ -224,6 +231,13 @@ class StudentDetailController extends GetxController
   /// Package of the foreground app (for its icon); [currentApp] is the label.
   final RxString currentPackage = ''.obs;
 
+  /// Most recently used real app (preserved even when the phone is in Standby/Offline).
+  final RxString lastUsedApp = ''.obs;
+  final RxString lastUsedAppPackage = ''.obs;
+  final Rx<DateTime?> lastUsedAppAt = Rx<DateTime?>(null);
+  final RxnInt lastUsedAppMinutesAgo = RxnInt();
+  final RxList<Map<String, dynamic>> recentApps = <Map<String, dynamic>>[].obs;
+
   /// Real-time battery percentage (0–100), or -1 when unknown.
   final RxInt batteryLevel = (-1).obs;
 
@@ -244,6 +258,9 @@ class StudentDetailController extends GetxController
   /// student's phone. Backend field `restrict_app_installs`, default false.
   final RxBool playStoreBlocked = false.obs;
 
+  /// Web browsers restricted on the student's phone (`restrict_browsers`).
+  final RxBool restrictBrowsers = false.obs;
+
   /// Whether a temporary Play Store install window is currently active.
   bool get hasActiveInstallPass =>
       installPassUntil.value > DateTime.now().millisecondsSinceEpoch;
@@ -263,7 +280,7 @@ class StudentDetailController extends GetxController
   final RxString selectedDate = ''.obs; // 'yyyy-MM-dd' or empty for today
 
   String get todayDateStr {
-    final now = DateTime.now();
+    final now = istNow();
     return '${now.year.toString().padLeft(4, '0')}-${now.month.toString().padLeft(2, '0')}-${now.day.toString().padLeft(2, '0')}';
   }
 
@@ -932,6 +949,16 @@ class StudentDetailController extends GetxController
   int get usedAppsCount =>
       currentDayRawApps.where((a) => extractAppMinutes(a) > 0).length;
 
+  int get limitedAppsCount {
+    final pkgs = <String>{};
+    for (final entry in appLimits.entries) {
+      if (entry.value > 0 && !_isOurApp(entry.key) && !_isSystemPackage(entry.key)) {
+        pkgs.add(entry.key);
+      }
+    }
+    return pkgs.length;
+  }
+
   int get totalAvailableAppsCount {
     final pkgs = <String>{};
     for (final a in currentDayRawApps) {
@@ -943,6 +970,11 @@ class StudentDetailController extends GetxController
     }
     for (final b in blockedPackages) {
       if (b.isNotEmpty && !_isOurApp(b) && !_isSystemPackage(b)) pkgs.add(b);
+    }
+    for (final entry in appLimits.entries) {
+      if (entry.value > 0 && !_isOurApp(entry.key) && !_isSystemPackage(entry.key)) {
+        pkgs.add(entry.key);
+      }
     }
     return pkgs.length;
   }
@@ -1151,6 +1183,7 @@ class StudentDetailController extends GetxController
     appLimits: Map<String, int>.from(appLimits),
     installPassUntil: installPassUntil.value,
     restrictAppInstalls: playStoreBlocked.value,
+    restrictBrowsers: restrictBrowsers.value,
   );
 
   /// Bumped by every change made on this screen (an optimistic update or its
@@ -1202,6 +1235,7 @@ class StudentDetailController extends GetxController
     appLimits.assignAll(p.appLimits);
     installPassUntil.value = p.installPassUntil;
     playStoreBlocked.value = p.restrictAppInstalls;
+    restrictBrowsers.value = p.restrictBrowsers;
     _syncBlockedStatusToApps();
   }
 
@@ -1226,7 +1260,7 @@ class StudentDetailController extends GetxController
     return isStudentId(id);
   }
 
-  final RxString selectedAppFilter = 'Used'.obs; // 'Used', 'All', 'Restricted'
+  final RxString selectedAppFilter = 'All'.obs; // 'All', 'Restricted', 'Limited'
 
   final RxString appSearchQuery = ''.obs;
 
@@ -1347,6 +1381,28 @@ class StudentDetailController extends GetxController
     }
     currentPackage.value =
         (data['currentPackage'] ?? data['current_package'] ?? '').toString();
+
+    final liveLast = lastUsedAppOf(data);
+    if (liveLast != null) {
+      lastUsedApp.value = liveLast.appName;
+      if (liveLast.packageName.isNotEmpty) {
+        lastUsedAppPackage.value = liveLast.packageName;
+      }
+      if (liveLast.usedAt != null) lastUsedAppAt.value = liveLast.usedAt;
+      if (liveLast.minutesAgo != null) {
+        lastUsedAppMinutesAgo.value = liveLast.minutesAgo;
+      }
+    }
+
+    final rawRecent = data['recentApps'] ?? data['recent_apps'];
+    if (rawRecent is List) {
+      final parsed = rawRecent
+          .whereType<Map>()
+          .map((e) => Map<String, dynamic>.from(e))
+          .toList();
+      recentApps.assignAll(parsed);
+      AppIconCache.ingest(parsed);
+    }
 
     final rawApps = _extractAppsList(data);
     final newApps = _deduplicateAndSortApps(rawApps);
@@ -1930,6 +1986,49 @@ class StudentDetailController extends GetxController
     }
   }
 
+  /// Block or allow common web browsers (`restrict_browsers`).
+  Future<void> setBrowsersRestricted(bool restricted) async {
+    final studentName = selectedStudent.value is Map
+        ? (selectedStudent.value['name'] ?? 'Student')
+        : 'Student';
+    final id = _studentId;
+    if (id.isEmpty) {
+      AppSnackbar.info(
+        'Device Not Setup',
+        '$studentName has not installed the monitoring app on their phone yet.',
+      );
+      return;
+    }
+    final previous = currentPolicy;
+    _applyPolicy(previous.copyWith(restrictBrowsers: restricted));
+
+    try {
+      await _putPolicy({'restrict_browsers': restricted});
+      if (restricted) {
+        AppSnackbar.warning(
+          'Browsers Restricted',
+          '$studentName can no longer open web browsers to bypass blocked apps.',
+        );
+      } else {
+        AppSnackbar.success(
+          'Browsers Allowed',
+          '$studentName can open web browsers again.',
+        );
+      }
+    } catch (e) {
+      debugPrint('[ScreenTime] setBrowsersRestricted error: $e');
+      _applyPolicy(previous);
+      AppSnackbar.error('Failed', 'Could not update browser restriction.');
+    }
+  }
+
+  /// Fetches immutable per-student policy change history for wardens.
+  Future<List<Map<String, dynamic>>> fetchPolicyHistory({int limit = 50}) async {
+    final id = _studentId;
+    if (id.isEmpty) return const [];
+    return _repo.policyHistory(id, limit: limit);
+  }
+
   /// Whether a removal-code request is in flight.
   final RxBool isGeneratingRemovalCode = false.obs;
 
@@ -2013,6 +2112,15 @@ class StudentDetailController extends GetxController
         lower == 'com.android.packageinstaller';
   }
 
+  /// Core Android / Play Services components needed by Google Pay, pushes, and setup.
+  static bool isCoreAndroidService(String pkg) {
+    final lower = pkg.toLowerCase().trim();
+    return lower == 'com.google.android.gms' ||
+        lower == 'com.google.android.gsf' ||
+        lower == 'com.google.android.setupwizard' ||
+        lower == 'com.google.android.ext.services';
+  }
+
   /// Merged and filtered app list for the UI, including restricted packages
   List<Map<String, dynamic>> get displayAppsList {
     final map = <String, Map<String, dynamic>>{};
@@ -2086,6 +2194,20 @@ class StudentDetailController extends GetxController
       }
     }
 
+    // 2b. Ensure apps with a daily time limit appear even if 0m used today
+    for (final entry in appLimits.entries) {
+      final pkg = entry.key;
+      if (entry.value <= 0 || _isOurApp(pkg) || _isSystemPackage(pkg)) continue;
+      if (!map.containsKey(pkg)) {
+        map[pkg] = {
+          'packageName': pkg,
+          'appName': _guessAppName(pkg),
+          'minutes': 0,
+          'isBlocked': blockedPackages.contains(pkg),
+        };
+      }
+    }
+
     final query = appSearchQuery.value.trim().toLowerCase();
     final tab = selectedAppFilter.value;
 
@@ -2104,6 +2226,9 @@ class StudentDetailController extends GetxController
       }
       if (tab == 'Restricted') {
         return isBlocked;
+      }
+      if (tab == 'Limited') {
+        return appLimitFor(pkg, rowValue: item['dailyLimitMinutes']) > 0;
       }
       return true;
     }).toList();

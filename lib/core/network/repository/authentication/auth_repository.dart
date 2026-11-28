@@ -4,6 +4,7 @@ import 'package:dio/dio.dart';
 import 'package:get/get.dart';
 import '../../api_client.dart';
 import '../../api_exception.dart';
+import '../../../services/device_identity_service.dart';
 import '../base_repository.dart';
 import '../../request/authentication/login_request.dart';
 import '../../responses/authentication/auth_session_response.dart';
@@ -11,25 +12,56 @@ import '../../responses/authentication/auth_session_response.dart';
 class AuthRepository extends BaseRepository {
   Dio get _dio => Get.find<ApiClient>().dio;
 
-  Future<AuthSessionResponse> autoLogin(List<String> simNumbers) async {
+  Future<AuthSessionResponse> autoLogin(
+    List<String> simNumbers, {
+    String? code,
+  }) async {
     try {
+      final identity = await DeviceIdentityService.instance.getIdentity();
       final response = await _dio.post(
         '/auth/auto-login',
-        data: {'sim_numbers': simNumbers},
+        data: {
+          'sim_numbers': simNumbers,
+          if (code != null && code.trim().isNotEmpty) 'code': code.trim(),
+          ...identity.toJson(),
+        },
       );
       return _parseSession(response.data);
     } on DioException catch (e) {
-      throw ApiException(errorMessage(e), statusCode: e.response?.statusCode);
+      throw ApiException(
+        errorMessage(e),
+        statusCode: e.response?.statusCode,
+        code: _extractErrorCode(e.response?.data),
+      );
     }
   }
 
   Future<AuthSessionResponse> login(LoginRequest request) async {
     try {
-      final response = await _dio.post('/auth/login', data: request.toJson());
+      final payload = request.toJson();
+      if (!payload.containsKey('device_uuid')) {
+        final identity = await DeviceIdentityService.instance.getIdentity();
+        payload.addAll(identity.toJson());
+      }
+      final response = await _dio.post('/auth/login', data: payload);
       return _parseSession(response.data);
     } on DioException catch (e) {
-      throw ApiException(errorMessage(e), statusCode: e.response?.statusCode);
+      throw ApiException(
+        errorMessage(e),
+        statusCode: e.response?.statusCode,
+        code: _extractErrorCode(e.response?.data),
+      );
     }
+  }
+
+  static String? _extractErrorCode(dynamic body) {
+    if (body is Map) {
+      final raw = body['code'];
+      if (raw != null && raw.toString().trim().isNotEmpty) {
+        return raw.toString().trim();
+      }
+    }
+    return null;
   }
 
   /// Registration creates the account but doesn't return a token, so a

@@ -51,52 +51,45 @@ class StudentOverviewBody extends StudentDetailWidget {
         AppRequestsBanner(host: controller),
         if (!controller.isSelectedStudentEnrolled) const _NotSetUpNotice(),
 
-        // 1. What's happening now
-        LiveStatusCard(controller: controller),
-        const SizedBox(height: AppDimens.gapMd),
+        // 1. What's happening now (compact; Top apps below already lists today's apps)
+        LiveStatusCard(controller: controller, showRecentChips: false),
+        const SizedBox(height: 10),
 
         // 2. How much, against the allowance
         UsageHeroCard(controller: controller),
-        const SizedBox(height: AppDimens.gapMd),
+        const SizedBox(height: 10),
 
         // 3. What the warden can do about it
         ParentalControlsCard(controller: controller),
-        const SizedBox(height: AppDimens.gapMd),
+        const SizedBox(height: 10),
 
-        // 4. Where the time went
+        // 4. Where the time went (links to full Apps screen)
         TopAppsCard(controller: controller, onSeeAll: openApps),
-        const SizedBox(height: AppDimens.gapMd),
+        const SizedBox(height: 10),
 
-        // 5. More
-        AppCard(
-          padding: EdgeInsets.zero,
-          child: Column(
-            children: [
-              _NavTile(
+        // 5. Explore insights & past history (side-by-side; no duplicate Apps link)
+        Row(
+          children: [
+            Expanded(
+              child: _CompactNavCard(
                 icon: Icons.insights_rounded,
                 color: AppColors.primary,
                 title: 'Usage & trends',
-                subtitle: 'Daily charts and averages',
+                subtitle: 'Charts & averages',
                 onTap: openUsage,
               ),
-              const Divider(height: 1, color: AppColors.borderLight),
-              _NavTile(
-                icon: Icons.apps_rounded,
-                color: AppColors.secondaryDark,
-                title: 'Apps',
-                subtitle: 'Time per app, block or limit',
-                onTap: openApps,
-              ),
-              const Divider(height: 1, color: AppColors.borderLight),
-              _NavTile(
+            ),
+            const SizedBox(width: 10),
+            Expanded(
+              child: _CompactNavCard(
                 icon: Icons.history_rounded,
                 color: AppColors.accentLight,
                 title: 'Requests & history',
-                subtitle: 'App requests and a calendar of past days',
+                subtitle: 'Calendar & logs',
                 onTap: openHistory,
               ),
-            ],
-          ),
+            ),
+          ],
         ),
       ],
     );
@@ -147,15 +140,15 @@ class _NotSetUpNotice extends StatelessWidget {
   }
 }
 
-/// One row of the overview's "more" card: icon, title, subtitle, chevron.
-class _NavTile extends StatelessWidget {
+/// Compact horizontal navigation card for Usage & trends and Requests & history.
+class _CompactNavCard extends StatelessWidget {
   final IconData icon;
   final Color color;
   final String title;
   final String subtitle;
   final VoidCallback onTap;
 
-  const _NavTile({
+  const _CompactNavCard({
     required this.icon,
     required this.color,
     required this.title,
@@ -165,27 +158,38 @@ class _NavTile extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return InkWell(
-      onTap: onTap,
-      borderRadius: BorderRadius.circular(AppDimens.radiusLg),
-      child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: AppDimens.cardPadding, vertical: 14),
-        child: Row(
-          children: [
-            IconBadge(icon: icon, color: color),
-            const SizedBox(width: AppDimens.gapMd),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(title, style: AppTextStyles.title),
-                  const SizedBox(height: 2),
-                  Text(subtitle, style: AppTextStyles.bodySm),
-                ],
+    return AppCard(
+      padding: EdgeInsets.zero,
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(AppDimens.radiusLg),
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
+          child: Row(
+            children: [
+              IconBadge(icon: icon, color: color, size: 34),
+              const SizedBox(width: 10),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      title,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: AppTextStyles.subtitle.copyWith(fontSize: 13.5),
+                    ),
+                    Text(
+                      subtitle,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: AppTextStyles.caption.copyWith(color: AppColors.textMuted),
+                    ),
+                  ],
+                ),
               ),
-            ),
-            const Icon(Icons.chevron_right_rounded, color: AppColors.textMuted),
-          ],
+            ],
+          ),
         ),
       ),
     );

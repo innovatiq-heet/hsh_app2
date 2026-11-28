@@ -3,6 +3,7 @@ import 'package:get/get.dart';
 import 'package:intl/intl.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:hsh_app2/features/screentime/controllers/student_detail_controller.dart';
+import 'package:hsh_app2/features/screentime/curfew/curfew_schedule.dart';
 import 'package:hsh_app2/features/screentime/widgets/student_overview_body.dart';
 import 'package:hsh_app2/features/screentime/widgets/top_apps_card.dart';
 import 'package:hsh_app2/features/screentime/widgets/student_usage_body.dart';
@@ -85,11 +86,11 @@ void main() {
           ),
         );
 
-    testWidgets('Usage & trends, Apps and Requests & history each open their own screen', (tester) async {
+    testWidgets('Usage & trends, All apps and Requests & history each open their own screen', (tester) async {
       final c = student();
       for (final entry in {
         'Usage & trends': 'Usage & trends',
-        'Apps': 'Apps',
+        'All apps ›': 'Apps',
         'Requests & history': 'Requests & history',
       }.entries) {
         await pumpOverview(tester, c);
@@ -145,7 +146,7 @@ void main() {
       StudentHistoryScreen.open(host, c);
       await tester.pumpAndSettle();
 
-      final now = DateTime.now();
+      final now = istNow();
       expect(find.text(DateFormat('MMMM yyyy').format(now)), findsOneWidget);
       // Today is selected by default: its day card and its total in the grid.
       expect(find.text('Today'), findsOneWidget);
@@ -158,10 +159,11 @@ void main() {
 
     testWidgets('tapping a day on the calendar selects it', (tester) async {
       final c = student();
+      final nowIst = istNow();
       c.historyRecords.assignAll([
-        {'date': UsageCalendarCard.dateKey(DateTime.now().subtract(const Duration(days: 40))), 'total_screen_time_minutes': 50},
+        {'date': UsageCalendarCard.dateKey(nowIst.subtract(const Duration(days: 40))), 'total_screen_time_minutes': 50},
       ]);
-      final first = DateTime(DateTime.now().year, DateTime.now().month, 1);
+      final first = DateTime(nowIst.year, nowIst.month, 1);
       late BuildContext host;
       await tester.pumpWidget(
         MaterialApp(

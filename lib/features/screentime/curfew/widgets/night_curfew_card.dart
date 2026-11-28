@@ -142,7 +142,9 @@ class _NightCurfewCardState extends State<NightCurfewCard> {
                               Text(
                                 _loading && _sessions == null
                                     ? 'Loading curfews…'
-                                    : '${sessions.length} curfew${sessions.length == 1 ? '' : 's'} · $on on · $running running now',
+                                    : '${sessions.length} curfew${sessions.length == 1 ? '' : 's'} · $on on · $running running',
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
                                 style: const TextStyle(fontSize: 11.5, fontWeight: FontWeight.w600, color: Color(0xFF64748B)),
                               ),
                             ],
@@ -153,14 +155,19 @@ class _NightCurfewCardState extends State<NightCurfewCard> {
                   ),
                 ),
               ),
+              const SizedBox(width: 6),
               TextButton.icon(
                 onPressed: _add,
-                icon: const Icon(Icons.add_rounded, size: 18),
-                label: const Text('Add curfew'),
+                icon: const Icon(Icons.add_rounded, size: 16),
+                label: const Text('Add'),
                 style: TextButton.styleFrom(
                   foregroundColor: StPalette.accent,
-                  visualDensity: VisualDensity.compact,
-                  textStyle: const TextStyle(fontWeight: FontWeight.w800, fontSize: 13),
+                  backgroundColor: StPalette.accentSoft,
+                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                  minimumSize: Size.zero,
+                  tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                  textStyle: const TextStyle(fontWeight: FontWeight.w800, fontSize: 12.5),
                 ),
               ),
               InkWell(

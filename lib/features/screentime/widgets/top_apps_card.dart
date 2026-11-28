@@ -44,32 +44,34 @@ class TopAppsCard extends StudentDetailWidget {
       final isToday = controller.isTodaySelected;
 
       return AppCard(
-        padding: const EdgeInsets.all(AppDimens.cardPadding),
+        padding: const EdgeInsets.fromLTRB(AppDimens.cardPadding, 12, AppDimens.cardPadding, 10),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Row(
               children: [
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text('Top apps', style: AppTextStyles.title),
-                      const SizedBox(height: 2),
-                      Text(
-                        isToday ? 'Most used today' : 'Most used on ${controller.effectiveSelectedDate}',
-                        style: AppTextStyles.bodySm,
-                      ),
-                    ],
-                  ),
+                Text('Top apps', style: AppTextStyles.title),
+                const SizedBox(width: 8),
+                Text(
+                  isToday ? 'Most used today' : controller.effectiveSelectedDate,
+                  style: AppTextStyles.caption.copyWith(color: AppColors.textMuted),
                 ),
-                TextButton(onPressed: onSeeAll, child: const Text('See all')),
+                const Spacer(),
+                TextButton(
+                  style: TextButton.styleFrom(
+                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                    minimumSize: Size.zero,
+                    tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                  ),
+                  onPressed: onSeeAll,
+                  child: const Text('All apps ›'),
+                ),
               ],
             ),
-            const SizedBox(height: AppDimens.gapSm),
+            const SizedBox(height: 6),
             if (apps.isEmpty)
               Padding(
-                padding: const EdgeInsets.symmetric(vertical: AppDimens.gapMd),
+                padding: const EdgeInsets.symmetric(vertical: AppDimens.gapSm),
                 child: Text(
                   'No app usage recorded yet. It appears once the phone reports in.',
                   style: AppTextStyles.bodySm,
@@ -96,11 +98,11 @@ class _TopAppRow extends StatelessWidget {
   Widget build(BuildContext context) {
     final share = dayTotal > 0 ? (app.minutes / dayTotal).clamp(0.0, 1.0) : 0.0;
     return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 10),
+      padding: const EdgeInsets.symmetric(vertical: 7),
       child: Row(
         children: [
-          AppBrandIcon(packageName: app.pkg, appName: app.name, size: 38, showBadge: false),
-          const SizedBox(width: AppDimens.gapMd),
+          AppBrandIcon(packageName: app.pkg, appName: app.name, size: 32, showBadge: false),
+          const SizedBox(width: 10),
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
@@ -109,14 +111,14 @@ class _TopAppRow extends StatelessWidget {
                   app.name,
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
-                  style: AppTextStyles.subtitle.copyWith(fontSize: 14),
+                  style: AppTextStyles.subtitle.copyWith(fontSize: 13.5),
                 ),
-                const SizedBox(height: 6),
+                const SizedBox(height: 4),
                 ClipRRect(
                   borderRadius: BorderRadius.circular(AppDimens.radiusPill),
                   child: LinearProgressIndicator(
                     value: share,
-                    minHeight: 5,
+                    minHeight: 4,
                     backgroundColor: AppColors.primarySoft,
                     valueColor: const AlwaysStoppedAnimation(AppColors.primary),
                   ),
@@ -124,10 +126,10 @@ class _TopAppRow extends StatelessWidget {
               ],
             ),
           ),
-          const SizedBox(width: AppDimens.gapMd),
+          const SizedBox(width: 10),
           Text(
             formatMinutes(app.minutes),
-            style: AppTextStyles.subtitle.copyWith(fontSize: 13.5, color: AppColors.primaryDark),
+            style: AppTextStyles.subtitle.copyWith(fontSize: 13, color: AppColors.primaryDark),
           ),
         ],
       ),

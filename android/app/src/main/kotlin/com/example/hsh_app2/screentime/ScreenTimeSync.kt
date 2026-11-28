@@ -8,6 +8,7 @@ import android.net.ConnectivityManager
 import android.os.BatteryManager
 import android.os.Build
 import android.os.PowerManager
+import android.os.UserManager
 import android.util.Log
 import androidx.core.location.LocationManagerCompat
 import androidx.work.Constraints
@@ -24,6 +25,7 @@ import java.net.HttpURLConnection
 import java.net.URL
 import java.text.SimpleDateFormat
 import java.util.Locale
+import java.util.TimeZone
 import java.util.concurrent.TimeUnit
 
 /**
@@ -65,7 +67,13 @@ object ScreenTimeSync {
     const val STATUS_UNAUTHORIZED = "unauthorized"
     const val STATUS_ERROR = "error"
 
-    private fun dateFormat() = SimpleDateFormat("yyyy-MM-dd", Locale.US)
+    private fun dateFormat() = SimpleDateFormat("yyyy-MM-dd", Locale.US).apply {
+        timeZone = IST_TZ
+    }
+
+    private val IST_TZ: TimeZone = TimeZone.getTimeZone("Asia/Kolkata")
+
+    internal fun istDateString(millis: Long): String = dateFormat().format(millis)
 
     // ---------- Lifecycle ----------
 
@@ -149,6 +157,9 @@ object ScreenTimeSync {
         }
 
         return try {
+            // Flush any offline sideload quarantines so they register on the server before policy sync.
+            flushPendingQuarantines(context)
+
             // Day rolled over since the last successful sync: flush the tail of
             // the previous day first so the minutes before midnight aren't lost.
             // Only when that baseline was lined up with the server for this login:
@@ -469,6 +480,12 @@ object ScreenTimeSync {
         val lm = context.getSystemService(Context.LOCATION_SERVICE) as? LocationManager
         val locationEnabled = lm?.let { LocationManagerCompat.isLocationEnabled(it) } ?: false
         val battery = getBatteryInfo(context)
+        val um = context.getSystemService(Context.USER_SERVICE) as? UserManager
+        val multipleProfiles = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP && um != null) {
+            runCatching { um.userProfiles.size > 1 }.getOrDefault(false)
+        } else {
+            false
+        }
         // UsageAppBlocker needs Usage access + "Display over other apps".
         val appBlocker = if (UsageAppBlocker.isReady(context)) "usage_events" else "off"
         return JSONObject()
@@ -478,6 +495,9 @@ object ScreenTimeSync {
             .put("appBlockerActive", appBlocker != "off")
             // While on, Force stop / Uninstall are disabled on the App info page.
             .put("deviceAdminActive", HshDeviceAdmin.isActive(context))
+            .put("deviceOwnerActive", HshDeviceAdmin.isDeviceOwner(context))
+            .put("autoTimeEnabled", PolicyEvaluator.isAutoTimeEnabled(context))
+            .put("multipleUsersOrProfiles", multipleProfiles)
             .put("batteryOptimizationIgnored", pm.isIgnoringBatteryOptimizations(context.packageName))
             .put("backgroundDataRestricted", bgDataRestricted)
             .put("policyVersion", policy.version)
@@ -559,6 +579,41 @@ object ScreenTimeSync {
         } catch (e: Exception) {
             Log.d(TAG, "fetchAndSavePolicy error: ${e.message}")
             PolicyFetch(-1)
+        } finally {
+            conn?.disconnect()
+        }
+    }
+
+    private fun flushPendingQuarantines(context: Context) {
+        val pending = PolicyStore.pendingQuarantinedPackages(context)
+        if (pending.isEmpty()) return
+        for ((pkg, name) in pending) {
+            PackageInstallReceiver.requestAppApprovalSync(context, pkg, name)
+        }
+    }
+
+    fun reportSetupCompleted(context: Context): Boolean {
+        PolicyStore.markSetupCompleted(context)
+        val token = PolicyStore.token(context)
+        val baseUrl = PolicyStore.baseUrl(context)
+        if (token.isNullOrEmpty() || baseUrl.isNullOrEmpty()) return false
+        var conn: HttpURLConnection? = null
+        return try {
+            conn = (URL("$baseUrl/screen-time/setup-complete").openConnection() as HttpURLConnection).apply {
+                requestMethod = "POST"
+                connectTimeout = 10_000
+                readTimeout = 10_000
+                doOutput = true
+                setRequestProperty("Content-Type", "application/json")
+                setRequestProperty("Accept", "application/json")
+                setRequestProperty("Authorization", "Bearer $token")
+            }
+            val body = JSONObject().put("deviceModel", "${android.os.Build.MANUFACTURER} ${android.os.Build.MODEL}".trim())
+            conn.outputStream.use { it.write(body.toString().toByteArray(Charsets.UTF_8)) }
+            conn.responseCode in 200..299
+        } catch (e: Exception) {
+            Log.d(TAG, "reportSetupCompleted failed: ${e.message}")
+            false
         } finally {
             conn?.disconnect()
         }

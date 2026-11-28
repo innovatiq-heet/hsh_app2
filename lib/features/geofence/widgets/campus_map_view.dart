@@ -5,6 +5,7 @@ import 'package:latlong2/latlong.dart' as ll;
 import '../../../core/models/geofence/student_location.dart';
 import '../../../core/services/geofence_service.dart';
 import '../controllers/student_locations_controller.dart';
+import '../utils/location_accuracy.dart';
 
 /// Interactive radar & map visualization of Hari Saurabh Hostel perimeter
 /// and live student locations.
@@ -41,8 +42,10 @@ class _CampusMapViewState extends State<CampusMapView> {
               .map((p) => ll.LatLng(p.latitude, p.longitude))
               .toList();
 
-          // Prepare Markers
+          // Prepare Markers, and a circle around each showing its accuracy
+          // radius -- a pin alone implies an exactness the fix may not have.
           final markers = <Marker>[];
+          final accuracyCircles = <CircleMarker>[];
           for (final student in students) {
             final loc = student.location;
             if (loc == null || loc.latitude == 0 || loc.longitude == 0) continue;
@@ -52,6 +55,20 @@ class _CampusMapViewState extends State<CampusMapView> {
             final isMocked = loc.mocked;
 
             final point = ll.LatLng(loc.latitude, loc.longitude);
+
+            if (loc.accuracyMeters > 0) {
+              final color = LocationAccuracy.color(loc.accuracyMeters);
+              accuracyCircles.add(
+                CircleMarker(
+                  point: point,
+                  radius: loc.accuracyMeters,
+                  useRadiusInMeter: true,
+                  color: color.withValues(alpha: isSelected ? 0.18 : 0.10),
+                  borderColor: color.withValues(alpha: isSelected ? 0.6 : 0.35),
+                  borderStrokeWidth: isSelected ? 1.6 : 1.0,
+                ),
+              );
+            }
 
             markers.add(
               Marker(
@@ -126,6 +143,7 @@ class _CampusMapViewState extends State<CampusMapView> {
                 ],
               ),
               if (polylines.isNotEmpty) PolylineLayer(polylines: polylines),
+              if (accuracyCircles.isNotEmpty) CircleLayer(circles: accuracyCircles),
               MarkerLayer(markers: markers),
             ],
           );

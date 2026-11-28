@@ -26,6 +26,18 @@ object LocationSampler {
     private const val TIMEOUT_MS = 25_000L
     /** A cached fix younger than this is good enough to skip a new GPS request. */
     private const val FRESH_MS = 60_000L
+    /**
+     * Total time allowed to look for a better live fix before settling for
+     * whatever's best so far. A single `getCurrentLocation` call often
+     * returns the first (coarse, network-based) fix it sees rather than
+     * waiting for GPS to lock, especially indoors — sampling a few times
+     * within this budget and keeping the best one fixes that without a new
+     * dependency.
+     */
+    private const val SAMPLE_BUDGET_MS = 10_000L
+    /** Stop sampling early once a fix is at least this good. */
+    private const val GOOD_ENOUGH_ACCURACY_M = 20f
+    private const val MAX_SAMPLES = 3
 
     enum class Permission { DENIED, FOREGROUND, ALWAYS }
 
@@ -78,19 +90,20 @@ object LocationSampler {
                 else -> return null
             }
 
-            val latch = CountDownLatch(1)
-            val result = AtomicReference<Location?>()
-            val cancel = CancellationSignal()
-            LocationManagerCompat.getCurrentLocation(lm, provider, cancel, ContextCompat.getMainExecutor(context)) {
-                result.set(it)
-                latch.countDown()
+            val budgetDeadline = System.currentTimeMillis() + SAMPLE_BUDGET_MS
+            var best: Location? = null
+            for (attempt in 1..MAX_SAMPLES) {
+                val remaining = budgetDeadline - System.currentTimeMillis()
+                if (attempt > 1 && remaining <= 0) break
+
+                val fix = requestOne(lm, context, provider, minOf(TIMEOUT_MS, remaining.coerceAtLeast(1_000L)))
+                if (fix == null) break // provider/permission failure — a retry won't help
+                if (isMocked(fix)) return toFix(fix) // don't dilute a spoofing signal by averaging it away
+
+                if (best == null || fix.accuracy < best!!.accuracy) best = fix
+                if (best!!.accuracy <= GOOD_ENOUGH_ACCURACY_M) break
             }
-            if (!latch.await(TIMEOUT_MS, TimeUnit.MILLISECONDS)) {
-                cancel.cancel()
-                Log.d(TAG, "timed out waiting for $provider")
-                return null
-            }
-            return result.get()?.let { toFix(it) }
+            return best?.let { toFix(it) }
         } catch (e: SecurityException) {
             Log.w(TAG, "permission revoked mid-sample: ${e.message}")
             return null
@@ -100,22 +113,38 @@ object LocationSampler {
         }
     }
 
-    private fun toFix(l: Location): LocationFix {
-        var isMock = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+    /** One blocking `getCurrentLocation` call, capped at [timeoutMs]. */
+    private fun requestOne(lm: LocationManager, context: Context, provider: String, timeoutMs: Long): Location? {
+        val latch = CountDownLatch(1)
+        val result = AtomicReference<Location?>()
+        val cancel = CancellationSignal()
+        LocationManagerCompat.getCurrentLocation(lm, provider, cancel, ContextCompat.getMainExecutor(context)) {
+            result.set(it)
+            latch.countDown()
+        }
+        if (!latch.await(timeoutMs, TimeUnit.MILLISECONDS)) {
+            cancel.cancel()
+            Log.d(TAG, "timed out waiting for $provider")
+            return null
+        }
+        return result.get()
+    }
+
+    private fun isMocked(l: Location): Boolean {
+        val isMock = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
             l.isMock
         } else {
             @Suppress("DEPRECATION") l.isFromMockProvider
         }
-        // Heuristic: zero accuracy is a signature of artificial GPS injection
-        if (!isMock && l.hasAccuracy() && l.accuracy == 0f) {
-            isMock = true
-        }
-        return LocationFix(
-            latitude = l.latitude,
-            longitude = l.longitude,
-            accuracyMeters = if (l.hasAccuracy()) l.accuracy else 999f,
-            timeMillis = l.time,
-            mocked = isMock,
-        )
+        // Heuristic: zero accuracy is a signature of artificial GPS injection.
+        return isMock || (l.hasAccuracy() && l.accuracy == 0f)
     }
+
+    private fun toFix(l: Location) = LocationFix(
+        latitude = l.latitude,
+        longitude = l.longitude,
+        accuracyMeters = if (l.hasAccuracy()) l.accuracy else 999f,
+        timeMillis = l.time,
+        mocked = isMocked(l),
+    )
 }

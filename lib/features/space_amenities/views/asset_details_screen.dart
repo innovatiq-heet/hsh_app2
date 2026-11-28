@@ -18,6 +18,7 @@ import '../../shared/widgets/phonebook_style_widgets.dart';
 import '../../shared/widgets/skeleton_loader.dart';
 import '../utils/space_amenity_access.dart';
 import '../utils/space_amenity_ui.dart';
+import '../utils/space_data_loader.dart';
 import '../widgets/maintenance_update_sheet.dart';
 import '../widgets/replace_asset_sheet.dart';
 import '../widgets/transfer_asset_sheet.dart';
@@ -33,30 +34,18 @@ class AssetDetailsScreen extends StatefulWidget {
 class _AssetDetailsScreenState extends State<AssetDetailsScreen> with SingleTickerProviderStateMixin {
   final _repo = Get.find<SpaceAmenitiesRepository>();
   late final TabController _tabs = TabController(length: 4, vsync: this);
-  AssetDetailsResponse? _data;
-  bool _loading = true;
-  String? _error;
+  late final _loader = SpaceDataLoader<AssetDetailsResponse>(() => _repo.assetDetails(widget.assetId));
 
   @override
   void initState() {
     super.initState();
-    _load();
+    _loader.load();
   }
 
   @override
   void dispose() {
     _tabs.dispose();
     super.dispose();
-  }
-
-  Future<void> _load({bool showLoading = true}) async {
-    if (showLoading) setState(() { _loading = true; _error = null; });
-    try {
-      final res = await _repo.assetDetails(widget.assetId);
-      if (mounted) setState(() { _data = res; _loading = false; });
-    } catch (e) {
-      if (mounted) setState(() { _error = e.toString(); _loading = false; });
-    }
   }
 
   void _showQrDialog(SpaceAssetModel asset) {
@@ -118,7 +107,7 @@ class _AssetDetailsScreenState extends State<AssetDetailsScreen> with SingleTick
     try {
       await _repo.retireAsset(asset.id, note: note);
       AppSnackbar.success('Asset retired', '${asset.assetCode} archived.');
-      _load(showLoading: false);
+      _loader.load(showLoading: false);
     } catch (e) {
       AppSnackbar.error('Failed', e.toString());
     }
@@ -141,7 +130,7 @@ class _AssetDetailsScreenState extends State<AssetDetailsScreen> with SingleTick
                   isScrollControlled: true,
                   builder: (_) => TransferAssetSheet(asset: asset),
                 );
-                if (ok == true) _load(showLoading: false);
+                if (ok == true) _loader.load(showLoading: false);
               },
             ),
             ListTile(
@@ -154,7 +143,7 @@ class _AssetDetailsScreenState extends State<AssetDetailsScreen> with SingleTick
                   isScrollControlled: true,
                   builder: (_) => ReplaceAssetSheet(oldAsset: asset),
                 );
-                if (res != null) _load(showLoading: false);
+                if (res != null) _loader.load(showLoading: false);
               },
             ),
             ListTile(
@@ -175,20 +164,20 @@ class _AssetDetailsScreenState extends State<AssetDetailsScreen> with SingleTick
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: PhonebookTheme.bg,
-      body: AsyncStateView(
-        isLoading: _loading && _data == null,
-        hasError: _error != null && _data == null,
-        errorMessage: _error ?? '',
-        onRetry: _load,
+      body: Obx(() => AsyncStateView(
+        isLoading: _loader.isLoading.value && _loader.data.value == null,
+        hasError: _loader.hasError.value && _loader.data.value == null,
+        errorMessage: _loader.errorMessage.value,
+        onRetry: _loader.load,
         loadingWidget: const SafeArea(child: SkeletonList()),
         builder: (_) {
-          final data = _data!;
+          final data = _loader.data.value!;
           final asset = data.asset;
           final sColor = SpaceAmenityUi.statusColor(asset.status);
           final token = Get.find<SessionStore>().currentToken ?? '';
 
           return AppRefreshIndicator(
-            onRefresh: () => _load(showLoading: false),
+            onRefresh: () => _loader.load(showLoading: false),
             child: NestedScrollView(
               headerSliverBuilder: (_, _) => [
                 NavySliverHeader(
@@ -321,7 +310,7 @@ class _AssetDetailsScreenState extends State<AssetDetailsScreen> with SingleTick
                                       'categoryId': asset.complaintCategoryId,
                                       'itemId': asset.complaintItemId,
                                     },
-                                  )?.then((_) => _load(showLoading: false)),
+                                  )?.then((_) => _loader.load(showLoading: false)),
                                   icon: const Icon(Icons.report_problem_outlined, size: 18),
                                   label: const Text('Report Complaint'),
                                 ),
@@ -341,7 +330,7 @@ class _AssetDetailsScreenState extends State<AssetDetailsScreen> with SingleTick
                                         canReplaceAsset: SpaceAmenityAccess.canConfigure,
                                       ),
                                     );
-                                    if (ok == true) _load(showLoading: false);
+                                    if (ok == true) _loader.load(showLoading: false);
                                   },
                                   icon: const Icon(Icons.build_outlined, size: 18),
                                   label: const Text('Update Maintenance'),
@@ -374,7 +363,7 @@ class _AssetDetailsScreenState extends State<AssetDetailsScreen> with SingleTick
                   _ComplaintsTab(
                     complaints: data.complaints,
                     isStaff: SpaceAmenityAccess.canMaintain,
-                    onRefresh: () => _load(showLoading: false),
+                    onRefresh: () => _loader.load(showLoading: false),
                   ),
                   _LocationHistoryTab(history: data.locationHistory),
                 ],
@@ -382,7 +371,7 @@ class _AssetDetailsScreenState extends State<AssetDetailsScreen> with SingleTick
             ),
           );
         },
-      ),
+      )),
     );
   }
 }

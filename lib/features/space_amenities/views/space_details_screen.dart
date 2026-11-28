@@ -15,6 +15,7 @@ import '../../shared/widgets/phonebook_style_widgets.dart';
 import '../../shared/widgets/skeleton_loader.dart';
 import '../utils/space_amenity_access.dart';
 import '../utils/space_amenity_ui.dart';
+import '../utils/space_data_loader.dart';
 import '../widgets/add_amenity_sheet.dart';
 import '../widgets/space_editor_sheet.dart';
 import 'asset_details_screen.dart';
@@ -29,29 +30,17 @@ class SpaceDetailsScreen extends StatefulWidget {
 
 class _SpaceDetailsScreenState extends State<SpaceDetailsScreen> {
   final _repo = Get.find<SpaceAmenitiesRepository>();
-  SpaceDetailsResponse? _data;
-  bool _loading = true;
-  String? _error;
+  late final _loader = SpaceDataLoader<SpaceDetailsResponse>(() => _repo.spaceDetails(widget.spaceId));
   final Set<int> _expandedTypes = {};
 
   @override
   void initState() {
     super.initState();
-    _load();
-  }
-
-  Future<void> _load({bool showLoading = true}) async {
-    if (showLoading) setState(() { _loading = true; _error = null; });
-    try {
-      final res = await _repo.spaceDetails(widget.spaceId);
-      if (mounted) setState(() { _data = res; _loading = false; });
-    } catch (e) {
-      if (mounted) setState(() { _error = e.toString(); _loading = false; });
-    }
+    _loader.load();
   }
 
   Future<void> _openEditSpace() async {
-    final data = _data;
+    final data = _loader.data.value;
     if (data == null) return;
     final cfg = await _repo.config();
     if (!mounted) return;
@@ -64,7 +53,7 @@ class _SpaceDetailsScreenState extends State<SpaceDetailsScreen> {
         existing: data.space,
       ),
     );
-    if (updated == true) _load(showLoading: false);
+    if (updated == true) _loader.load(showLoading: false);
   }
 
   Future<void> _archiveSpace() async {
@@ -90,8 +79,10 @@ class _SpaceDetailsScreenState extends State<SpaceDetailsScreen> {
   }
 
   @override
-  Widget build(BuildContext context) {
-    final sp = _data?.space;
+  Widget build(BuildContext context) => Obx(() => _build(context));
+
+  Widget _build(BuildContext context) {
+    final sp = _loader.data.value?.space;
     final title = sp?.name ?? 'Space Details';
     final subtitle = sp == null
         ? 'Loading space…'
@@ -107,27 +98,27 @@ class _SpaceDetailsScreenState extends State<SpaceDetailsScreen> {
                   isScrollControlled: true,
                   builder: (_) => AddAmenitySheet(space: sp),
                 );
-                if (added == true) _load(showLoading: false);
+                if (added == true) _loader.load(showLoading: false);
               },
               icon: const Icon(Icons.add_rounded),
               label: const Text('Add Amenity'),
             )
           : null,
       body: AsyncStateView(
-        isLoading: _loading && _data == null,
-        hasError: _error != null && _data == null,
-        errorMessage: _error ?? '',
-        onRetry: _load,
+        isLoading: _loader.isLoading.value && _loader.data.value == null,
+        hasError: _loader.hasError.value && _loader.data.value == null,
+        errorMessage: _loader.errorMessage.value,
+        onRetry: _loader.load,
         loadingWidget: const SafeArea(child: SkeletonList()),
         builder: (_) {
-          final data = _data!;
+          final data = _loader.data.value!;
           final groupedAssets = <int, List<SpaceAssetModel>>{};
           for (final a in data.assets) {
             groupedAssets.putIfAbsent(a.typeId, () => []).add(a);
           }
 
           return AppRefreshIndicator(
-            onRefresh: () => _load(showLoading: false),
+            onRefresh: () => _loader.load(showLoading: false),
             child: CustomScrollView(
               physics: const AlwaysScrollableScrollPhysics(parent: BouncingScrollPhysics()),
               slivers: [
@@ -224,7 +215,7 @@ class _SpaceDetailsScreenState extends State<SpaceDetailsScreen> {
                                   _AssetCard(
                                     asset: entry.value.first,
                                     onTap: () => Get.to(() => AssetDetailsScreen(assetId: entry.value.first.id))
-                                        ?.then((_) => _load(showLoading: false)),
+                                        ?.then((_) => _loader.load(showLoading: false)),
                                   ),
                                   const SizedBox(height: 10),
                                 ] else ...[
@@ -239,7 +230,7 @@ class _SpaceDetailsScreenState extends State<SpaceDetailsScreen> {
                                       }
                                     }),
                                     onSelectAsset: (a) => Get.to(() => AssetDetailsScreen(assetId: a.id))
-                                        ?.then((_) => _load(showLoading: false)),
+                                        ?.then((_) => _loader.load(showLoading: false)),
                                   ),
                                   const SizedBox(height: 10),
                                 ],
@@ -274,7 +265,7 @@ class _SpaceDetailsScreenState extends State<SpaceDetailsScreen> {
                                   subtitle: Text('${c['comment'] ?? c['status'] ?? ''}', maxLines: 2, overflow: TextOverflow.ellipsis, style: const TextStyle(fontSize: 11.5)),
                                   trailing: const Icon(Icons.chevron_right_rounded, size: 18),
                                   onTap: SpaceAmenityAccess.canMaintain
-                                      ? () => Get.toNamed(Routes.complainAdminDetail, arguments: '${c['id']}')?.then((_) => _load(showLoading: false))
+                                      ? () => Get.toNamed(Routes.complainAdminDetail, arguments: '${c['id']}')?.then((_) => _loader.load(showLoading: false))
                                       : null,
                                 ),
                             ],
@@ -300,7 +291,7 @@ class _SpaceDetailsScreenState extends State<SpaceDetailsScreen> {
                                 alignment: Alignment.centerLeft,
                                 child: TextButton.icon(
                                   onPressed: () => Get.toNamed(Routes.operatorRoomKeysRoom, arguments: data.space.roomNumber)
-                                      ?.then((_) => _load(showLoading: false)),
+                                      ?.then((_) => _loader.load(showLoading: false)),
                                   icon: const Icon(Icons.open_in_new_rounded, size: 16),
                                   label: const Text('Manage Room Keys'),
                                 ),

@@ -10,6 +10,7 @@ import '../../shared/widgets/navy_sliver_header.dart';
 import '../../shared/widgets/phonebook_style_widgets.dart';
 import '../../shared/widgets/skeleton_loader.dart';
 import '../utils/space_amenity_access.dart';
+import '../utils/space_data_loader.dart';
 
 class SpaceReportsScreen extends StatefulWidget {
   const SpaceReportsScreen({super.key});
@@ -20,24 +21,12 @@ class SpaceReportsScreen extends StatefulWidget {
 
 class _SpaceReportsScreenState extends State<SpaceReportsScreen> {
   final _repo = Get.find<SpaceAmenitiesRepository>();
-  Map<String, dynamic>? _data;
-  bool _loading = true;
-  String? _error;
+  late final _loader = SpaceDataLoader<Map<String, dynamic>>(() => _repo.reports());
 
   @override
   void initState() {
     super.initState();
-    _load();
-  }
-
-  Future<void> _load({bool showLoading = true}) async {
-    if (showLoading) setState(() { _loading = true; _error = null; });
-    try {
-      final res = await _repo.reports();
-      if (mounted) setState(() { _data = res; _loading = false; });
-    } catch (e) {
-      if (mounted) setState(() { _error = e.toString(); _loading = false; });
-    }
+    _loader.load();
   }
 
   @override
@@ -66,21 +55,21 @@ class _SpaceReportsScreenState extends State<SpaceReportsScreen> {
     }
     return Scaffold(
       backgroundColor: PhonebookTheme.bg,
-      body: AsyncStateView(
-        isLoading: _loading && _data == null,
-        hasError: _error != null && _data == null,
-        errorMessage: _error ?? '',
-        onRetry: _load,
+      body: Obx(() => AsyncStateView(
+        isLoading: _loader.isLoading.value && _loader.data.value == null,
+        hasError: _loader.hasError.value && _loader.data.value == null,
+        errorMessage: _loader.errorMessage.value,
+        onRetry: _loader.load,
         loadingWidget: const SafeArea(child: SkeletonList()),
         builder: (_) {
-          final d = _data!;
+          final d = _loader.data.value!;
           final byFloor = ((d['by_floor'] as List?) ?? const []).whereType<Map>().toList();
           final byCat = ((d['by_category'] as List?) ?? const []).whereType<Map>().toList();
           final costs = (d['maintenance_costs'] as Map?) ?? const {};
           final expiring = ((d['expiring_warranties'] as List?) ?? const []).whereType<Map>().toList();
 
           return AppRefreshIndicator(
-            onRefresh: () => _load(showLoading: false),
+            onRefresh: () => _loader.load(showLoading: false),
             child: CustomScrollView(
               physics: const AlwaysScrollableScrollPhysics(parent: BouncingScrollPhysics()),
               slivers: [
@@ -170,7 +159,7 @@ class _SpaceReportsScreenState extends State<SpaceReportsScreen> {
             ),
           );
         },
-      ),
+      )),
     );
   }
 }

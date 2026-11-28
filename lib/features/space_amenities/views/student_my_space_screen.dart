@@ -15,6 +15,7 @@ import '../../shared/widgets/navy_sliver_header.dart';
 import '../../shared/widgets/phonebook_style_widgets.dart';
 import '../../shared/widgets/skeleton_loader.dart';
 import '../utils/space_amenity_ui.dart';
+import '../utils/space_data_loader.dart';
 import 'asset_details_screen.dart';
 import 'space_details_screen.dart';
 
@@ -27,26 +28,14 @@ class StudentMySpaceScreen extends StatefulWidget {
 
 class _StudentMySpaceScreenState extends State<StudentMySpaceScreen> {
   final _repo = Get.find<SpaceAmenitiesRepository>();
-  StudentMySpaceResponse? _data;
-  bool _loading = true;
-  String? _error;
+  late final _loader = SpaceDataLoader<StudentMySpaceResponse>(() => _repo.studentMySpace());
 
   bool get _isAlumni => UserSession.isAlumniRoomOrId(room: Get.find<SessionStore>().currentSession?.room);
 
   @override
   void initState() {
     super.initState();
-    _load();
-  }
-
-  Future<void> _load({bool showLoading = true}) async {
-    if (showLoading) setState(() { _loading = true; _error = null; });
-    try {
-      final res = await _repo.studentMySpace();
-      if (mounted) setState(() { _data = res; _loading = false; });
-    } catch (e) {
-      if (mounted) setState(() { _error = e.toString(); _loading = false; });
-    }
+    _loader.load();
   }
 
   void _reportAsset(SpaceAssetModel asset) {
@@ -60,25 +49,25 @@ class _StudentMySpaceScreenState extends State<StudentMySpaceScreen> {
         'categoryId': asset.complaintCategoryId,
         'itemId': asset.complaintItemId,
       },
-    )?.then((_) => _load(showLoading: false));
+    )?.then((_) => _loader.load(showLoading: false));
   }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: PhonebookTheme.bg,
-      body: AsyncStateView(
-        isLoading: _loading && _data == null,
-        hasError: _error != null && _data == null,
-        errorMessage: _error ?? '',
-        onRetry: _load,
+      body: Obx(() => AsyncStateView(
+        isLoading: _loader.isLoading.value && _loader.data.value == null,
+        hasError: _loader.hasError.value && _loader.data.value == null,
+        errorMessage: _loader.errorMessage.value,
+        onRetry: _loader.load,
         loadingWidget: const SafeArea(child: SkeletonList()),
         builder: (_) {
-          final data = _data!;
+          final data = _loader.data.value!;
           final myRoom = data.myRoom;
 
           return AppRefreshIndicator(
-            onRefresh: () => _load(showLoading: false),
+            onRefresh: () => _loader.load(showLoading: false),
             child: CustomScrollView(
               physics: const AlwaysScrollableScrollPhysics(parent: BouncingScrollPhysics()),
               slivers: [
@@ -228,7 +217,7 @@ class _StudentMySpaceScreenState extends State<StudentMySpaceScreen> {
             ),
           );
         },
-      ),
+      )),
     );
   }
 }

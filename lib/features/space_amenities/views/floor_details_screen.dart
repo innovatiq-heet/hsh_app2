@@ -12,6 +12,7 @@ import '../../shared/widgets/phonebook_style_widgets.dart';
 import '../../shared/widgets/skeleton_loader.dart';
 import '../utils/space_amenity_access.dart';
 import '../utils/space_amenity_ui.dart';
+import '../utils/space_data_loader.dart';
 import '../widgets/space_editor_sheet.dart';
 import 'space_details_screen.dart';
 
@@ -25,9 +26,13 @@ class FloorDetailsScreen extends StatefulWidget {
 
 class _FloorDetailsScreenState extends State<FloorDetailsScreen> {
   final _repo = Get.find<SpaceAmenitiesRepository>();
-  FloorDetailsResponse? _data;
-  bool _loading = true;
-  String? _error;
+  late final _loader = SpaceDataLoader<FloorDetailsResponse>(() => _repo.floorDetails(
+        widget.floorId,
+        search: _search,
+        kind: _kindFilter.isEmpty ? null : _kindFilter,
+        spaceTypeId: _spaceTypeId,
+        hasIssues: _hasIssuesOnly,
+      ));
 
   String _search = '';
   String _kindFilter = ''; // '', 'student', 'common'
@@ -38,35 +43,22 @@ class _FloorDetailsScreenState extends State<FloorDetailsScreen> {
   @override
   void initState() {
     super.initState();
-    _load();
-  }
-
-  Future<void> _load({bool showLoading = true}) async {
-    if (showLoading) setState(() { _loading = true; _error = null; });
-    try {
-      final res = await _repo.floorDetails(
-        widget.floorId,
-        search: _search,
-        kind: _kindFilter.isEmpty ? null : _kindFilter,
-        spaceTypeId: _spaceTypeId,
-        hasIssues: _hasIssuesOnly,
-      );
-      if (mounted) setState(() { _data = res; _loading = false; });
-    } catch (e) {
-      if (mounted) setState(() { _error = e.toString(); _loading = false; });
-    }
+    _loader.load();
   }
 
   @override
-  Widget build(BuildContext context) {
-    final floorName = _data?.floorName ?? 'Floor ${widget.floorId}';
-    final subtitle = _data == null
+  Widget build(BuildContext context) => Obx(() => _build(context));
+
+  Widget _build(BuildContext context) {
+    final data0 = _loader.data.value;
+    final floorName = data0?.floorName ?? 'Floor ${widget.floorId}';
+    final subtitle = data0 == null
         ? 'Loading spaces…'
-        : '${_data!.totalSpaces} spaces · ${_data!.totalAssets} amenities · ${_data!.openIssues} open issues';
+        : '${data0.totalSpaces} spaces · ${data0.totalAssets} amenities · ${data0.openIssues} open issues';
 
     return Scaffold(
       backgroundColor: PhonebookTheme.bg,
-      floatingActionButton: SpaceAmenityAccess.canConfigure && _data != null
+      floatingActionButton: SpaceAmenityAccess.canConfigure && data0 != null
           ? FloatingActionButton.extended(
               onPressed: () async {
                 final created = await showModalBottomSheet<bool>(
@@ -74,28 +66,28 @@ class _FloorDetailsScreenState extends State<FloorDetailsScreen> {
                   isScrollControlled: true,
                   builder: (_) => SpaceEditorSheet(
                     floorId: widget.floorId,
-                    spaceTypes: _data!.spaceTypes,
+                    spaceTypes: data0.spaceTypes,
                   ),
                 );
-                if (created == true) _load(showLoading: false);
+                if (created == true) _loader.load(showLoading: false);
               },
               icon: const Icon(Icons.add_rounded),
               label: const Text('Add Space'),
             )
           : null,
       body: AsyncStateView(
-        isLoading: _loading && _data == null,
-        hasError: _error != null && _data == null,
-        errorMessage: _error ?? '',
-        onRetry: _load,
+        isLoading: _loader.isLoading.value && _loader.data.value == null,
+        hasError: _loader.hasError.value && _loader.data.value == null,
+        errorMessage: _loader.errorMessage.value,
+        onRetry: _loader.load,
         loadingWidget: const SafeArea(child: SkeletonList()),
         builder: (_) {
-          final data = _data!;
+          final data = _loader.data.value!;
           final commonSpaces = data.spaces.where((s) => !s.isStudentRoom).toList();
           final studentRooms = data.spaces.where((s) => s.isStudentRoom).toList();
 
           return AppRefreshIndicator(
-            onRefresh: () => _load(showLoading: false),
+            onRefresh: () => _loader.load(showLoading: false),
             child: CustomScrollView(
               physics: const AlwaysScrollableScrollPhysics(parent: BouncingScrollPhysics()),
               slivers: [
@@ -120,7 +112,7 @@ class _FloorDetailsScreenState extends State<FloorDetailsScreen> {
                         TextField(
                           onChanged: (v) {
                             _search = v;
-                            _load(showLoading: false);
+                            _loader.load(showLoading: false);
                           },
                           decoration: InputDecoration(
                             hintText: 'Search spaces on $floorName…',
@@ -148,7 +140,7 @@ class _FloorDetailsScreenState extends State<FloorDetailsScreen> {
                                 selected: _kindFilter.isEmpty && _spaceTypeId == null && !_hasIssuesOnly,
                                 onTap: () {
                                   setState(() { _kindFilter = ''; _spaceTypeId = null; _hasIssuesOnly = false; });
-                                  _load(showLoading: false);
+                                  _loader.load(showLoading: false);
                                 },
                               ),
                               const SizedBox(width: 8),
@@ -157,7 +149,7 @@ class _FloorDetailsScreenState extends State<FloorDetailsScreen> {
                                 selected: _kindFilter == 'student',
                                 onTap: () {
                                   setState(() { _kindFilter = 'student'; _spaceTypeId = null; });
-                                  _load(showLoading: false);
+                                  _loader.load(showLoading: false);
                                 },
                               ),
                               const SizedBox(width: 8),
@@ -166,7 +158,7 @@ class _FloorDetailsScreenState extends State<FloorDetailsScreen> {
                                 selected: _kindFilter == 'common',
                                 onTap: () {
                                   setState(() { _kindFilter = 'common'; _spaceTypeId = null; });
-                                  _load(showLoading: false);
+                                  _loader.load(showLoading: false);
                                 },
                               ),
                               const SizedBox(width: 8),
@@ -176,7 +168,7 @@ class _FloorDetailsScreenState extends State<FloorDetailsScreen> {
                                 color: AppColors.errorRed,
                                 onTap: () {
                                   setState(() => _hasIssuesOnly = !_hasIssuesOnly);
-                                  _load(showLoading: false);
+                                  _loader.load(showLoading: false);
                                 },
                               ),
                               for (final st in data.spaceTypes.where((t) => !t.isStudentRoom)) ...[
@@ -189,7 +181,7 @@ class _FloorDetailsScreenState extends State<FloorDetailsScreen> {
                                       _spaceTypeId = _spaceTypeId == st.id ? null : st.id;
                                       _kindFilter = '';
                                     });
-                                    _load(showLoading: false);
+                                    _loader.load(showLoading: false);
                                   },
                                 ),
                               ],
@@ -211,7 +203,7 @@ class _FloorDetailsScreenState extends State<FloorDetailsScreen> {
                                 space: sp,
                                 compact: false,
                                 onTap: () => Get.to(() => SpaceDetailsScreen(spaceId: sp.id))
-                                    ?.then((_) => _load(showLoading: false)),
+                                    ?.then((_) => _loader.load(showLoading: false)),
                               ),
                               const SizedBox(height: 10),
                             ],
@@ -235,7 +227,7 @@ class _FloorDetailsScreenState extends State<FloorDetailsScreen> {
                                   space: studentRooms[i],
                                   compact: true,
                                   onTap: () => Get.to(() => SpaceDetailsScreen(spaceId: studentRooms[i].id))
-                                      ?.then((_) => _load(showLoading: false)),
+                                      ?.then((_) => _loader.load(showLoading: false)),
                                 ),
                               )
                             else
@@ -244,7 +236,7 @@ class _FloorDetailsScreenState extends State<FloorDetailsScreen> {
                                   space: sp,
                                   compact: false,
                                   onTap: () => Get.to(() => SpaceDetailsScreen(spaceId: sp.id))
-                                      ?.then((_) => _load(showLoading: false)),
+                                      ?.then((_) => _loader.load(showLoading: false)),
                                 ),
                                 const SizedBox(height: 10),
                               ],

@@ -12,6 +12,7 @@ import '../../shared/widgets/navy_sliver_header.dart';
 import '../../shared/widgets/phonebook_style_widgets.dart';
 import '../../shared/widgets/skeleton_loader.dart';
 import '../utils/space_amenity_access.dart';
+import '../utils/space_data_loader.dart';
 
 class SpaceConfigurationScreen extends StatefulWidget {
   const SpaceConfigurationScreen({super.key});
@@ -22,25 +23,13 @@ class SpaceConfigurationScreen extends StatefulWidget {
 
 class _SpaceConfigurationScreenState extends State<SpaceConfigurationScreen> {
   final _repo = Get.find<SpaceAmenitiesRepository>();
-  SpaceConfigResponse? _config;
-  bool _loading = true;
-  String? _error;
+  late final _loader = SpaceDataLoader<SpaceConfigResponse>(() => _repo.config());
   String _search = '';
 
   @override
   void initState() {
     super.initState();
-    _load();
-  }
-
-  Future<void> _load({bool showLoading = true}) async {
-    if (showLoading) setState(() { _loading = true; _error = null; });
-    try {
-      final res = await _repo.config();
-      if (mounted) setState(() { _config = res; _loading = false; });
-    } catch (e) {
-      if (mounted) setState(() { _error = e.toString(); _loading = false; });
-    }
+    _loader.load();
   }
 
   Future<void> _addSpaceTypeDialog({SpaceTypeModel? existing}) async {
@@ -86,7 +75,7 @@ class _SpaceConfigurationScreenState extends State<SpaceConfigurationScreen> {
         'is_student_room': isRoom,
       });
       AppSnackbar.success('Saved', '$name saved.');
-      _load(showLoading: false);
+      _loader.load(showLoading: false);
     } catch (e) {
       AppSnackbar.error('Failed', e.toString());
     }
@@ -111,14 +100,14 @@ class _SpaceConfigurationScreenState extends State<SpaceConfigurationScreen> {
     try {
       await _repo.saveCategory(existing?.id, {'name': name});
       AppSnackbar.success('Saved', '$name saved.');
-      _load(showLoading: false);
+      _loader.load(showLoading: false);
     } catch (e) {
       AppSnackbar.error('Failed', e.toString());
     }
   }
 
   Future<void> _addAmenityTypeDialog({AmenityTypeModel? existing}) async {
-    final cfg = _config;
+    final cfg = _loader.data.value;
     if (cfg == null || cfg.categories.isEmpty) return;
     int catId = existing?.categoryId ?? cfg.categories.first.id;
     final nameCtrl = TextEditingController(text: existing?.name ?? '');
@@ -169,7 +158,7 @@ class _SpaceConfigurationScreenState extends State<SpaceConfigurationScreen> {
         'default_life_months': ?life,
       });
       AppSnackbar.success('Saved', '$name saved.');
-      _load(showLoading: false);
+      _loader.load(showLoading: false);
     } catch (e) {
       AppSnackbar.error('Failed', e.toString());
     }
@@ -204,7 +193,7 @@ class _SpaceConfigurationScreenState extends State<SpaceConfigurationScreen> {
     try {
       await _repo.saveSchedule(null, {'title': title, 'interval_days': days});
       AppSnackbar.success('Saved', 'Preventive schedule added.');
-      _load(showLoading: false);
+      _loader.load(showLoading: false);
     } catch (e) {
       AppSnackbar.error('Failed', e.toString());
     }
@@ -229,7 +218,7 @@ class _SpaceConfigurationScreenState extends State<SpaceConfigurationScreen> {
     try {
       await _repo.saveSettings({'warranty_reminder_days': days});
       AppSnackbar.success('Updated', 'Warranty reminder set to $days days.');
-      _load(showLoading: false);
+      _loader.load(showLoading: false);
     } catch (e) {
       AppSnackbar.error('Failed', e.toString());
     }
@@ -261,14 +250,14 @@ class _SpaceConfigurationScreenState extends State<SpaceConfigurationScreen> {
     }
     return Scaffold(
       backgroundColor: PhonebookTheme.bg,
-      body: AsyncStateView(
-        isLoading: _loading && _config == null,
-        hasError: _error != null && _config == null,
-        errorMessage: _error ?? '',
-        onRetry: _load,
+      body: Obx(() => AsyncStateView(
+        isLoading: _loader.isLoading.value && _loader.data.value == null,
+        hasError: _loader.hasError.value && _loader.data.value == null,
+        errorMessage: _loader.errorMessage.value,
+        onRetry: _loader.load,
         loadingWidget: const SafeArea(child: SkeletonList()),
         builder: (_) {
-          final cfg = _config!;
+          final cfg = _loader.data.value!;
           final q = _search.trim().toLowerCase();
           final spaceTypes = cfg.spaceTypes.where((t) => q.isEmpty || t.name.toLowerCase().contains(q)).toList();
           final categories = cfg.categories.where((c) => q.isEmpty || c.name.toLowerCase().contains(q)).toList();
@@ -276,7 +265,7 @@ class _SpaceConfigurationScreenState extends State<SpaceConfigurationScreen> {
           final reminderDays = (cfg.settings['warranty_reminder_days'] as num?)?.toInt() ?? 30;
 
           return AppRefreshIndicator(
-            onRefresh: () => _load(showLoading: false),
+            onRefresh: () => _loader.load(showLoading: false),
             child: CustomScrollView(
               physics: const AlwaysScrollableScrollPhysics(parent: BouncingScrollPhysics()),
               slivers: [
@@ -428,7 +417,7 @@ class _SpaceConfigurationScreenState extends State<SpaceConfigurationScreen> {
             ),
           );
         },
-      ),
+      )),
     );
   }
 }

@@ -1,6 +1,7 @@
 package com.example.hsh_app2.screentime
 
 import android.Manifest
+import android.annotation.SuppressLint
 import android.content.Context
 import android.content.pm.PackageManager
 import android.location.Location
@@ -10,6 +11,13 @@ import android.os.CancellationSignal
 import android.util.Log
 import androidx.core.content.ContextCompat
 import androidx.core.location.LocationManagerCompat
+import com.google.android.gms.common.ConnectionResult
+import com.google.android.gms.common.GoogleApiAvailability
+import com.google.android.gms.location.FusedLocationProviderClient
+import com.google.android.gms.location.LocationServices
+import com.google.android.gms.location.Priority
+import com.google.android.gms.tasks.CancellationTokenSource
+import com.google.android.gms.tasks.Tasks
 import java.util.concurrent.CountDownLatch
 import java.util.concurrent.TimeUnit
 import java.util.concurrent.atomic.AtomicReference
@@ -17,9 +25,13 @@ import java.util.concurrent.atomic.AtomicReference
 /**
  * One fresh, trustworthy location fix — or null.
  *
- * Never returns a stale cached fix as if it were current, always times out,
- * and flags mock-provider locations so the evaluator can treat spoofing as a
- * violation instead of silently believing it.
+ * Prefers Play Services' fused provider (GPS+Wi-Fi+cell, noticeably better
+ * indoors) when it's on the device, and falls back to plain
+ * [LocationManager] when it isn't — a de-Googled phone or custom ROM still
+ * gets a fix, just a possibly coarser one. Never returns a stale cached fix
+ * as if it were current, always times out, and flags mock-provider locations
+ * so the evaluator can treat spoofing as a violation instead of silently
+ * believing it.
  */
 object LocationSampler {
     private const val TAG = "LocationSampler"
@@ -90,13 +102,25 @@ object LocationSampler {
                 else -> return null
             }
 
+            var fused = fusedClientIfAvailable(context)
             val budgetDeadline = System.currentTimeMillis() + SAMPLE_BUDGET_MS
             var best: Location? = null
             for (attempt in 1..MAX_SAMPLES) {
                 val remaining = budgetDeadline - System.currentTimeMillis()
                 if (attempt > 1 && remaining <= 0) break
+                val timeout = minOf(TIMEOUT_MS, remaining.coerceAtLeast(1_000L))
 
-                val fix = requestOne(lm, context, provider, minOf(TIMEOUT_MS, remaining.coerceAtLeast(1_000L)))
+                val client = fused
+                val fix = if (client != null) {
+                    requestOneFused(client, timeout) ?: run {
+                        // Play Services misbehaved mid-loop (e.g. died): don't
+                        // keep paying its timeout on later attempts.
+                        fused = null
+                        requestOne(lm, context, provider, timeout)
+                    }
+                } else {
+                    requestOne(lm, context, provider, timeout)
+                }
                 if (fix == null) break // provider/permission failure — a retry won't help
                 if (isMocked(fix)) return toFix(fix) // don't dilute a spoofing signal by averaging it away
 
@@ -110,6 +134,32 @@ object LocationSampler {
         } catch (e: Exception) {
             Log.w(TAG, "sample failed", e)
             return null
+        }
+    }
+
+    /** Play Services' fused client, or null if it's not on this device. */
+    private fun fusedClientIfAvailable(context: Context): FusedLocationProviderClient? = try {
+        if (GoogleApiAvailability.getInstance().isGooglePlayServicesAvailable(context) == ConnectionResult.SUCCESS) {
+            LocationServices.getFusedLocationProviderClient(context)
+        } else {
+            null
+        }
+    } catch (e: Exception) {
+        Log.d(TAG, "Play Services unavailable: ${e.message}")
+        null
+    }
+
+    /** One blocking fused-provider request, capped at [timeoutMs]. */
+    @SuppressLint("MissingPermission") // checked by the caller via hasAnyPermission()
+    private fun requestOneFused(client: FusedLocationProviderClient, timeoutMs: Long): Location? {
+        val cancel = CancellationTokenSource()
+        return try {
+            Tasks.await(client.getCurrentLocation(Priority.PRIORITY_HIGH_ACCURACY, cancel.token), timeoutMs, TimeUnit.MILLISECONDS)
+        } catch (e: Exception) {
+            Log.d(TAG, "fused request failed: ${e.message}")
+            null
+        } finally {
+            cancel.cancel()
         }
     }
 

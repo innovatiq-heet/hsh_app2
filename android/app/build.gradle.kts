@@ -67,6 +67,9 @@ dependencies {
     // Encrypted storage for the session token + policy, notifications for the foreground poller
     implementation("androidx.security:security-crypto:1.1.0-alpha06")
     implementation("androidx.core:core-ktx:1.15.0")
+    // Better fused (GPS+Wi-Fi+cell) accuracy than plain LocationManager, especially
+    // indoors; LocationSampler falls back to LocationManager when unavailable.
+    implementation("com.google.android.gms:play-services-location:21.3.0")
     testImplementation("junit:junit:4.13.2")
 }
 

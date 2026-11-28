@@ -1,6 +1,6 @@
 # Campus Geofence, Curfew Monitoring & Student Locations
 
-> **Last updated:** 2026-11-27 · **Repos:** `hsh_app2` (Flutter + native Android) and `hsh_api` (Node/Express/MySQL)
+> **Last updated:** 2026-11-28 · **Repos:** `hsh_app2` (Flutter + native Android) and `hsh_api` (Node/Express/MySQL)
 >
 > Paths starting with `lib/` or `android/` are in this repo; paths starting with `hsh_api/` are in the backend repo.
 
@@ -151,8 +151,9 @@ Warden endpoints use `requireRole('operator')`, which admits the **operator cons
 `LocationSampler.sample()`:
 
 - reuses a cached GPS/network fix if it is **≤ 60 s old** and **≤ 75 m** accurate (no extra GPS wake-up);
-- otherwise asks the Fused provider (Android 12+), then GPS, then Network, with a **25 s timeout**;
-- returns null (no event) when permission is missing, location is off, or the timeout hits;
+- otherwise picks a live provider — Play Services' fused client (GPS+Wi-Fi+cell) when it's on the device, falling back to the platform Fused provider (Android 12+), then GPS, then Network — and samples it **up to 3 times within a 10 s budget**, keeping the best (lowest-accuracy) fix and stopping early once one is **≤ 20 m**;
+- returns null (no event) when permission is missing, location is off, or every attempt in the budget fails;
+- a mocked fix short-circuits the loop immediately — spoofing is never diluted by retrying;
 - flags `mocked` from `Location.isMock` / `isFromMockProvider`.
 
 ### 5.2 Curfew window
@@ -312,7 +313,8 @@ In `android/app/src/main/AndroidManifest.xml`: `ACCESS_FINE_LOCATION`, `ACCESS_C
 | Max usable accuracy | 75 m | `GeofenceEvaluator.MAX_ACCURACY_M` |
 | Exit confirmation | 2 consecutive fixes | `GeofenceEvaluator.EXIT_STREAK` |
 | Mock event throttle | 10 min | `GeofenceEvaluator.MOCK_EVENT_THROTTLE_MS` |
-| Cached-fix reuse / sample timeout | 60 s / 25 s | `LocationSampler.FRESH_MS`, `TIMEOUT_MS` |
+| Cached-fix reuse / per-call timeout ceiling | 60 s / 25 s | `LocationSampler.FRESH_MS`, `TIMEOUT_MS` |
+| Live-sample budget / good-enough accuracy / max samples | 10 s / 20 m / 3 | `LocationSampler.SAMPLE_BUDGET_MS`, `GOOD_ENOUGH_ACCURACY_M`, `MAX_SAMPLES` |
 | Geofence policy refresh (fallback) | 10 min | `PolicyPollService.GEO_POLICY_TTL_MS` |
 | Offline event queue | 300 events | `PolicyStore.MAX_GEO_EVENTS` |
 | Gate pass length | 1–24 h (UI grants 1 h) | `MAX_GATE_PASS_HOURS` |
